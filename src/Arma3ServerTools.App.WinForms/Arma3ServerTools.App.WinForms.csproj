@@ -8,7 +8,7 @@
     <LangVersion>latest</LangVersion>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>disable</Nullable>
-    <ApplicationIcon>..\..\a3\1_arma3server_x64.ico</ApplicationIcon>
+    <ApplicationIcon>Assets\1_arma3server_x64.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
