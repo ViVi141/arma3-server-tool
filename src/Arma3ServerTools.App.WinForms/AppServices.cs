@@ -27,13 +27,18 @@ namespace Arma3ServerTools.App.WinForms
             ConfigService = new ServerConfigService(repository);
             ConfigWriter = new GameConfigWriterAdapter();
             ProcessRunner = new SystemProcessRunner();
-            ProcessService = new ServerProcessService(ConfigService, ConfigWriter, ProcessRunner);
+            ProcessService = new ServerProcessService(
+                ConfigService,
+                ConfigWriter,
+                ProcessRunner,
+                MonitoringDeploymentService);
             SchedulerService = new SchedulerService(ProcessService);
             SteamCmdService = new SteamCmdService(Paths, SteamCmdConfigProvider, ProcessRunner);
             ModScannerService = new ModScannerService(ModuleScanPathRepository);
             BikeyService = new BikeyService();
             BansService = new BansService();
-            PreflightChecker = new ServerPreflightChecker();
+            MonitoringDeploymentService = new MonitoringDeploymentService(Paths);
+            PreflightChecker = new ServerPreflightChecker(MonitoringDeploymentService);
             RptLogService = new RptLogService();
 
             MonitoringDatabase = new MonitoringDatabase(Paths);
@@ -82,6 +87,8 @@ namespace Arma3ServerTools.App.WinForms
         public BikeyService BikeyService { get; }
 
         public BansService BansService { get; }
+
+        public MonitoringDeploymentService MonitoringDeploymentService { get; }
 
         public ServerPreflightChecker PreflightChecker { get; }
 

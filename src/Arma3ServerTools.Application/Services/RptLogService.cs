@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 
 namespace Arma3ServerTools.Application.Services
@@ -93,13 +94,13 @@ namespace Arma3ServerTools.Application.Services
             {
                 yield return Path.Combine(
                     config.ServerDir,
-                    "destiny_serverconfig",
+                    ToolConstants.ServerConfigFolderName,
                     config.ServerUUID,
                     "Users",
                     config.ServerUUID);
                 yield return Path.Combine(
                     config.ServerDir,
-                    "destiny_serverconfig",
+                    ToolConstants.ServerConfigFolderName,
                     config.ServerUUID);
             }
         }

@@ -1,90 +1,159 @@
-# 武装突袭3 DESTINY开服工具源码
+# Arma3 Server Tools
 
-#### 介绍
-新的使用C#开发ARMA3开服工具，集成基本的开服必备功能，BE RCON，服务器管理，统计等。
+面向 Windows 的 **Arma 3 专用服务器** 图形化管理工具（**Arma3 Server Tools**）。使用 C# / .NET 10 开发，集成 BattlEye RCon、多服配置、SteamCMD、监控统计与定时任务等开服常用能力。
 
-#### 有兴趣的大佬可以基于本项目进行二次开发，但要求你保留原作者信息。
+**当前维护仓库：** [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
 
-#### 项目主页
-1.  本项目有一段时间了(学习C#时做的学习项目)
-2.  https://destiny.cool/s/arma3-tool
+> 自本仓库重构版起，磁盘路径与监控协议标识已统一为 `a3st_*` 前缀，**与旧版 DESTINY 工具（`destiny_*`）不兼容**。从旧版升级请重新「写入配置文件」并更新监控 DLL / `@a3st_monitor` 模组。
 
-#### 开发者
-1.  Blue
-2.  七龙
+---
 
+## 目录
 
-#### 构建（新架构）
+- [仓库 lineage](#仓库-lineage)
+- [命名约定](#命名约定)
+- [主要功能](#主要功能)
+- [项目结构](#项目结构)
+- [环境要求](#环境要求)
+- [快速开始](#快速开始)
+- [发布打包](#发布打包)
+- [使用注意](#使用注意)
+- [文档](#文档)
+- [许可与致谢](#许可与致谢)
 
-需要 **[.NET 10 SDK](https://dotnet.microsoft.com/download)** 与 **Windows Desktop Runtime 10**（框架依赖发布时）。
+---
+
+## 仓库 lineage
+
+| 角色 | 说明 |
+|------|------|
+| **本仓库（当前维护）** | [github.com/ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool) |
+| **维护者** | [ViVi141](https://github.com/ViVi141) |
+| **上游 Fork** | [airmoer/arma3-server-tool](https://github.com/airmoer/arma3-server-tool) — DevExpress 旧版源码；**未必是原作者最初发布的仓库** |
+
+### 原作者与历史（DESTINY 开服工具）
+
+- **Blue**、**七龙** — destiny studio
+- 原作者 GitHub 组织：[SkyCityStudio](https://github.com/SkyCityStudio)；该账号下**目前无公开仓库**。早期开源地址曾为 `SkyCityStudio/arma3-server-tool`
+- 历史项目页：[destiny.cool — ARMA3 开服工具](https://destiny.cool/s/arma3-tool)
+- 原作者 **七龙** 博文（2024-03）：[ARMA3 DESTINY开服工具](https://destiny.cool/archives/1709790542346)
+
+本仓库为 **去 DevExpress、.NET 10 分层重构** 的独立演进分支。二次开发请保留 [NOTICE](NOTICE) 中的原作者信息及上述出处链接。
+
+---
+
+## 命名约定
+
+运行时标识集中在 `src/Arma3ServerTools.Core/ToolConstants.cs`：
+
+| 用途 | 新名称 | 旧版（DESTINY） |
+|------|--------|-----------------|
+| 服务器 cfg 目录 | `a3st_serverconfig/` | `destiny_serverconfig/` |
+| 统计库 | `a3st_statistics.db` | `destiny_statistics.db` |
+| 玩家库 | `a3st_players.db` | `destiny_players.db` |
+| 监控模组 | `@a3st_monitor` | `@destiny_server` |
+| 监控宿主窗口标题 | `A3-Arma3ServerTools-ProcessCommunicationModule` | `A3-DestinyStudio-ProcessCommunicationModule` |
+
+---
+
+## 主要功能
+
+- **服务器管理** — 多配置并存；复制、搜索、快速配置向导；启动前检查；RPT 日志；进程异常退出桌面通知
+- **BattlEye** — 自动写入基础 BE 规则；集成 BattlEye RCon V2（踢人、封禁、任务控制等）
+- **网络与安全** — RCon 密码/端口；基本 / 网络 / 安全 / 性能 / 日志 / 难度等设置页
+- **模组** — 扫描本地与 Workshop 目录；从 Arma 3 启动器 HTML 导入；手动添加本地模组
+- **SteamCMD** — 账号与路径配置；下载 `steamcmd`；安装 / 更新专用服务器（AppID 233780）
+- **监控与统计** — SQLite 入库；趋势图表；CSV / HTML 导出；可选服务端 Monitoring DLL（源码目录 `DestinyServerMonitoring/`，输出文件名未改）
+- **定时任务** — Quartz 调度：硬重启、脚本重启、定点重启等
+- **封禁** — 本地封禁列表与 RCon 封禁管理
+
+---
+
+## 项目结构
+
+解决方案 `Arma3ServerTools.sln` 包含：
+
+| 项目 | 说明 |
+|------|------|
+| `src/Arma3ServerTools.Core` | 领域层（`net10.0-windows`） |
+| `src/Arma3ServerTools.Application` | 应用服务层 |
+| `src/Arma3ServerTools.App.WinForms` | 主程序，输出 `Arma3ServerTools.exe` |
+| `src/Arma3ServerTools.MonitoringHost` | 监控 WM_COPYDATA 宿主进程 |
+| `DestinyServerMonitoring/` | 服务端 RVExtension 源码（历史目录名；需与新版窗口标题一并重新编译） |
+| `tests/` | 单元测试（Core / Application） |
+
+Release 输出示例：
 
 ```text
+src/Arma3ServerTools.App.WinForms/bin/Release/net10.0-windows/
+├── Arma3ServerTools.exe
+├── monitoring/Arma3ServerTools.MonitoringHost.exe
+├── a3st_statistics.db          （运行时生成）
+└── sql/a3st_statistics.sql
+```
+
+---
+
+## 环境要求
+
+- **操作系统：** Windows x64
+- **开发 / 构建：** [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- **运行（框架依赖发布）：** .NET 10 Desktop Runtime
+- **IDE（可选）：** Visual Studio 2022+，或任意编辑器 + `dotnet` CLI
+
+---
+
+## 快速开始
+
+```powershell
+git clone https://github.com/ViVi141/arma3-server-tool.git
+cd arma3-server-tool
+dotnet restore Arma3ServerTools.sln
 dotnet build Arma3ServerTools.sln -c Release
 dotnet test Arma3ServerTools.sln -c Release
 ```
 
-新解决方案 `Arma3ServerTools.sln` 含：
+首次开服步骤见 **[docs/first-server-guide.md](docs/first-server-guide.md)**。
 
-- `src/Arma3ServerTools.Core` — 领域层（net10.0-windows，无需 DevExpress）
-- `src/Arma3ServerTools.Application` — 应用服务层
-- `src/Arma3ServerTools.App.WinForms` — 主程序（输出 `Arma3ServerTools.exe`）
-- `src/Arma3ServerTools.MonitoringHost` — 监控 WM_COPYDATA 宿主
+---
 
-Release 输出目录示例：`src/Arma3ServerTools.App.WinForms/bin/Release/net10.0-windows/`（含 `Arma3ServerTools.exe`、`monitoring/Arma3ServerTools.MonitoringHost.exe`、`sql/destiny_statistics.sql`）。
-
-打包到 `artifacts/`（Release v1.0.0）：
+## 发布打包
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -Version 1.0.0
 ```
 
-产物为 `artifacts/Arma3ServerTools-v1.0.0-Release/` 及同名 `.zip`；详见 **[docs/release-v1.0.0.md](docs/release-v1.0.0.md)**。
+产物目录与 zip 包位于 `artifacts/`，详见 **[docs/release-v1.0.0.md](docs/release-v1.0.0.md)**。
 
-**注意**：
+---
 
-- 安装路径不能包含中文（启动时会检测并退出）
-- 开发时请先关闭主程序再编译，避免 `monitoring/` 下 DLL 被占用
-- 主程序退出时会自动关闭监控宿主
-- 本地 `packages/`、`.vs/`、`bin/`、`obj/` 为构建缓存，不必提交 Git；克隆后执行 `dotnet restore` 即可
+## 使用注意
 
-#### 首次开服
+- 安装路径**不能包含中文**（启动时会检测并退出）
+- 编译前请**关闭正在运行的主程序**，避免 `monitoring/` 下 DLL 被占用
+- 主程序退出时会自动关闭监控宿主进程
+- 从旧版 DESTINY 迁移时，请对照 [命名约定](#命名约定) 更新服务器目录与监控组件
+- 本地 `.vs/`、`bin/`、`obj/` 为构建缓存，无需提交；克隆后执行 `dotnet restore` 即可
 
-逐步说明见 **[docs/first-server-guide.md](docs/first-server-guide.md)**（SteamCMD、写 cfg、RCon、监控、封禁）。
+---
 
-#### 使用说明
+## 文档
 
-使用 Visual Studio 2022 或更高版本，或任意编辑器 + `dotnet` CLI 即可构建。
+| 文档 | 内容 |
+|------|------|
+| [docs/first-server-guide.md](docs/first-server-guide.md) | 首次开服指南 |
+| [docs/refactoring-plan.md](docs/refactoring-plan.md) | 分层改造说明 |
+| [docs/product-roadmap.md](docs/product-roadmap.md) | 实施计划与 backlog |
+| [docs/release-v1.0.0.md](docs/release-v1.0.0.md) | v1.0 发布清单 |
+| [docs/smoke-checklist.md](docs/smoke-checklist.md) | 冒烟验收清单 |
+| [docs/monitoring-cpp-dll-build.md](docs/monitoring-cpp-dll-build.md) | Monitoring DLL 构建 |
 
-#### 许可
+---
 
-本项目采用 **[Apache License 2.0](LICENSE)**，与原作者许可一致。二次开发请保留 `NOTICE` 中的原作者信息（Blue、七龙）及原项目链接。
+## 许可与致谢
 
-#### 改造方案（开源 / 去 DevExpress）
+- 本项目采用 **[Apache License 2.0](LICENSE)**，第三方组件见 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)
+- 维护：**ViVi141**（[GitHub](https://github.com/ViVi141)）
+- 原作者：**Blue**、**七龙**（destiny studio）；出处见 [NOTICE](NOTICE)、[SkyCityStudio](https://github.com/SkyCityStudio)、[destiny.cool](https://destiny.cool/s/arma3-tool)
 
-纯 C# 分层改造说明见：**[docs/refactoring-plan.md](docs/refactoring-plan.md)**  
-完整实施计划与 backlog：**[docs/product-roadmap.md](docs/product-roadmap.md)**  
-首次开服步骤：**[docs/first-server-guide.md](docs/first-server-guide.md)**  
-v1.0 发布清单：**[docs/release-v1.0.0.md](docs/release-v1.0.0.md)**  
-冒烟验收：**[docs/smoke-checklist.md](docs/smoke-checklist.md)**
-
-#### 描述
-1.  **Arma3ServerTools** — 主程序（`src/Arma3ServerTools.App.WinForms`）
-2.  **DestinyServerMonitoring** — Arma 3 服务器 DLL 扩展，用于与开服工具通讯
-
-
-#### 特色和优点:
-1.	可以扫描本地/Workshop 模组目录，从 Arma3 启动器 HTML 导入并启用模组，手动添加本地模组。
-2.	可以下载DLC服务端，更新指定服务端
-3.	自动配置BE反作弊的基本规则，配置基本的关于创建，杀死，传送等基本的BE规则。
-4.	自动配置rcon密码和端口
-5.	提供基于BattlEye RCon V2协议的集成管理，T人B人等全系列功能。
-6.	支持同时管理多个服务端，复制配置、列表搜索、快速配置向导。
-7.	SteamCMD：配置账号、下载 steamcmd、安装/更新专用服务器。
-8.	统计：SQLite 入库、趋势图表、CSV/HTML 导出；可选 Monitoring DLL 采集。
-9.	自动重启（硬重启）+（脚本重启）+定点重启（Quartz）。
-10.	基本/网络/安全/性能/日志/难度/模组/任务/定时/统计/RCon/封禁/概览等设置页。
-11.	启动前检查、RPT 日志、进程意外退出桌面通知。
-12.	工具菜单：关于页（v1.0.0）、SteamCMD 设置、快速配置向导。
-
-
-
+Arma 3 与 BattlEye 分别为 Bohemia Interactive 与 BattlEye Innovations 的商标；本项目与上述公司无隶属关系。

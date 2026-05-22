@@ -393,7 +393,7 @@ namespace Arma3ServerTools.Core.Models
     public class BattlEye
     {
         //beRcon密码
-        public string RConPassword { get; set; } = "destiny" + new Random().Next(9999).ToString();
+        public string RConPassword { get; set; } = ToolConstants.DefaultRconPasswordPrefix + new Random().Next(9999).ToString();
 
         //beRcon端口
         public int RConPort { get; set; } = 2310;

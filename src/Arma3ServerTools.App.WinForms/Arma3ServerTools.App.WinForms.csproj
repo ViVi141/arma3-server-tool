@@ -20,10 +20,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\..\sql\destiny_statistics.sql" Link="sql\destiny_statistics.sql">
+    <Content Include="..\..\sql\a3st_statistics.sql" Link="sql\a3st_statistics.sql">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\..\sql\destiny_players.sql" Link="sql\destiny_players.sql">
+    <Content Include="..\..\sql\a3st_players.sql" Link="sql\a3st_players.sql">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="..\..\LICENSE" Link="LICENSE">
@@ -42,6 +42,13 @@
     <PackageReference Include="ScottPlot.WinForms" Version="5.1.58" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\..\mod\@a3st_monitor\**\*.*">
+      <Link>mod\@a3st_monitor\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <Target Name="CopyMonitoringHost" AfterTargets="Build">
     <PropertyGroup>
       <MonitoringHostOutDir>$(MSBuildProjectDirectory)\..\Arma3ServerTools.MonitoringHost\bin\$(Configuration)\net10.0-windows\</MonitoringHostOutDir>
@@ -53,6 +60,15 @@
     </ItemGroup>
     <MakeDir Directories="$(MonitoringHostDeployDir)" Condition="Exists('$(MonitoringHostOutDir)$(MonitoringHostExeName)')" />
     <Copy SourceFiles="@(MonitoringHostFiles)" DestinationFolder="$(MonitoringHostDeployDir)%(RecursiveDir)" SkipUnchangedFiles="true" Condition="Exists('$(MonitoringHostOutDir)$(MonitoringHostExeName)')" />
+  </Target>
+
+  <Target Name="CopyMonitoringServerDll" AfterTargets="Build">
+    <PropertyGroup>
+      <MonitoringDllSource>$(MSBuildProjectDirectory)\..\..\DestinyServerMonitoring\DestinyServerMonitoring\bin\x64\Release\DestinyServerMonitoring.dll</MonitoringDllSource>
+      <MonitoringDllDeployDir>$(OutputPath)monitoring-server\</MonitoringDllDeployDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(MonitoringDllDeployDir)" Condition="Exists('$(MonitoringDllSource)')" />
+    <Copy SourceFiles="$(MonitoringDllSource)" DestinationFolder="$(MonitoringDllDeployDir)" SkipUnchangedFiles="true" Condition="Exists('$(MonitoringDllSource)')" />
   </Target>
 
 </Project>

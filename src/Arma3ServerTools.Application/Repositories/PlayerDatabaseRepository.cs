@@ -28,7 +28,7 @@ namespace Arma3ServerTools.Application.Repositories
                 return;
             }
 
-            string dbPath = Path.Combine(paths.ApplicationBase, "destiny_players.db");
+            string dbPath = Path.Combine(paths.ApplicationBase, ToolConstants.PlayersDatabaseFileName);
             connection = new SqliteConnection(BuildConnectionString(dbPath));
             connection.Open();
             EnsureSchema();
@@ -38,7 +38,7 @@ namespace Arma3ServerTools.Application.Repositories
         {
             EnsureInitialized();
             using (SqliteCommand command = new SqliteCommand(
-                "SELECT COUNT(*) FROM destiny_players WHERE guid = @guid",
+                "SELECT COUNT(*) FROM " + ToolConstants.PlayersTableName + " WHERE guid = @guid",
                 connection))
             {
                 command.Parameters.AddWithValue("@guid", guid);
@@ -50,7 +50,7 @@ namespace Arma3ServerTools.Application.Repositories
         {
             EnsureInitialized();
             using (SqliteCommand command = new SqliteCommand(
-                "INSERT INTO destiny_players (guid, player_name, ip, create_date) VALUES (@guid, @name, @ip, @date)",
+                "INSERT INTO " + ToolConstants.PlayersTableName + " (guid, player_name, ip, create_date) VALUES (@guid, @name, @ip, @date)",
                 connection))
             {
                 command.Parameters.AddWithValue("@guid", guid);
@@ -65,7 +65,7 @@ namespace Arma3ServerTools.Application.Repositories
         {
             EnsureInitialized();
             using (SqliteCommand command = new SqliteCommand(
-                "UPDATE destiny_players SET player_name = @name, ip = @ip, create_date = @date WHERE guid = @guid",
+                "UPDATE " + ToolConstants.PlayersTableName + " SET player_name = @name, ip = @ip, create_date = @date WHERE guid = @guid",
                 connection))
             {
                 command.Parameters.AddWithValue("@guid", guid);
@@ -80,7 +80,7 @@ namespace Arma3ServerTools.Application.Repositories
         {
             EnsureInitialized();
             var result = new List<PlayerDB>();
-            using (SqliteCommand command = new SqliteCommand("SELECT id, guid, player_name, ip, create_date FROM destiny_players", connection))
+            using (SqliteCommand command = new SqliteCommand("SELECT id, guid, player_name, ip, create_date FROM " + ToolConstants.PlayersTableName, connection))
             using (SqliteDataReader reader = command.ExecuteReader())
             {
                 while (reader.Read())
@@ -118,7 +118,7 @@ namespace Arma3ServerTools.Application.Repositories
 
         private void EnsureSchema()
         {
-            string schemaPath = Path.Combine(paths.ApplicationBase, @"sql\destiny_players.sql");
+            string schemaPath = Path.Combine(paths.ApplicationBase, @"sql\" + ToolConstants.PlayersSchemaFileName);
             if (!File.Exists(schemaPath))
             {
                 throw new ConfigException("找不到玩家库建表脚本: " + schemaPath);

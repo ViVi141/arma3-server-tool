@@ -6,6 +6,7 @@ using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core.Models;
+using Arma3ServerTools.Core;
 using BytexDigital.BattlEye.Rcon.Domain;
 using AntLabel = AntdUI.Label;
 using AntTable = AntdUI.Table;
@@ -591,7 +592,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             IReadOnlyList<Player> players = await AppServices.Instance.RconService.GetPlayersAsync().ConfigureAwait(true);
             AppServices.Instance.PlayerDirectoryService.SyncPlayers(players);
-            AntdUiHelper.ShowInfo(FindForm(), "已将在线玩家同步到 destiny_players.db。", "完成");
+            AntdUiHelper.ShowInfo(FindForm(), "已将在线玩家同步到 " + ToolConstants.PlayersDatabaseFileName + "。", "完成");
         }
 
         private async Task LoadBansAsync()

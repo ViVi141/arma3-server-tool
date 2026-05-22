@@ -24,8 +24,9 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 + "版本: " + versionText + Environment.NewLine + Environment.NewLine
                 + "Arma 3 专用服务器配置与管理工具。" + Environment.NewLine
                 + "基于 Apache License 2.0 开源。" + Environment.NewLine + Environment.NewLine
-                + "原作者: Blue、七龙" + Environment.NewLine
-                + "项目主页: https://destiny.cool/s/arma3-tool",
+                + "维护: ViVi141 — https://github.com/ViVi141/arma3-server-tool" + Environment.NewLine
+                + "原作者: Blue、七龙 (destiny studio)" + Environment.NewLine
+                + "原项目: https://destiny.cool/s/arma3-tool",
                 480);
             body.Dock = DockStyle.Fill;
             body.Padding = AppTheme.ContentPadding;

@@ -34,7 +34,7 @@ namespace Arma3ServerTools.Application.Tests
                 Assert.Equal(2, loaded.Count);
                 Assert.Contains(loaded, ban => ban.GUID == "76561198000000001" && ban.Time == "永久封禁");
                 Assert.True(File.Exists(Path.Combine(serverDir, "bans.txt")));
-                Assert.True(File.Exists(Path.Combine(serverDir, @"destiny_serverconfig\" + uuid + @"\BattlEye\bans.txt")));
+                Assert.True(File.Exists(Path.Combine(serverDir, ToolConstants.ServerConfigFolderName + @"\" + uuid + @"\BattlEye\bans.txt")));
             }
             finally
             {
@@ -288,17 +288,19 @@ namespace Arma3ServerTools.Application.Tests
                 configService.Save(config);
 
                 var runner = new FakeProcessRunner();
+                var monitoringDeployment = new MonitoringDeploymentService(paths);
                 var processService = new ServerProcessService(
                     configService,
                     new GameConfigWriterAdapter(),
-                    runner);
+                    runner,
+                    monitoringDeployment);
 
                 OperationResult writeResult = new GameConfigWriterAdapter().WriteAll(configService.Get(config.ServerUUID));
                 Assert.True(writeResult.Success, writeResult.Message);
 
                 string cfgPath = Path.Combine(
                     serverDir,
-                    @"destiny_serverconfig\" + config.ServerUUID + @"\server.cfg");
+                    ToolConstants.ServerConfigFolderName + @"\" + config.ServerUUID + @"\server.cfg");
                 Assert.True(File.Exists(cfgPath));
                 Assert.Contains("E2E Automated", File.ReadAllText(cfgPath));
 

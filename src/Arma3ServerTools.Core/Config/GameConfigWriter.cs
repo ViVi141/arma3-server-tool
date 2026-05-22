@@ -73,7 +73,7 @@ namespace Arma3ServerTools.Core.Config
             sb.Append(" ")
                 .Append(GameConfigFormat.DoubleQuotes)
                 .Append("-profiles=")
-                .Append(config.ServerDir + @"\destiny_serverconfig\")
+                .Append(config.ServerDir + @"\" + ToolConstants.ServerConfigFolderName + @"\")
                 .Append(config.ServerUUID)
                 .Append(GameConfigFormat.DoubleQuotes);
             sb.Append(" ")
@@ -177,7 +177,7 @@ namespace Arma3ServerTools.Core.Config
                 sb.Append(" -netlog");
             }
 
-            string configRoot = config.ServerDir + @"\destiny_serverconfig\" + config.ServerUUID;
+            string configRoot = config.ServerDir + @"\" + ToolConstants.ServerConfigFolderName + @"\" + config.ServerUUID;
             sb.Append(" ")
                 .Append(GameConfigFormat.DoubleQuotes)
                 .Append("-config=")
@@ -243,7 +243,7 @@ namespace Arma3ServerTools.Core.Config
 
             if (config.ServerTaskManagement.EnableMonitor)
             {
-                serverMod += "@destiny_server" + GameConfigFormat.Semicolon;
+                serverMod += ToolConstants.MonitoringServerModToken + GameConfigFormat.Semicolon;
             }
 
             sb.Append(" ")
@@ -299,7 +299,7 @@ namespace Arma3ServerTools.Core.Config
 
         private static void EnsureConfigDirectories(ArmaServerConfig config)
         {
-            string root = config.ServerDir + @"\destiny_serverconfig";
+            string root = config.ServerDir + @"\" + ToolConstants.ServerConfigFolderName;
             string serverRoot = root + @"\" + config.ServerUUID;
             string usersRoot = serverRoot + @"\Users";
             string profileRoot = usersRoot + @"\" + config.ServerUUID;
@@ -574,7 +574,7 @@ namespace Arma3ServerTools.Core.Config
 
             AppendBase64DecodedLine(sb, config.ServerConfig.ServerConfigArgs);
 
-            string path = config.ServerDir + @"\destiny_serverconfig\" + config.ServerUUID + @"\server.cfg";
+            string path = config.ServerDir + @"\" + ToolConstants.ServerConfigFolderName + @"\" + config.ServerUUID + @"\server.cfg";
             try
             {
                 File.WriteAllText(path, sb.ToString(), Utf8NoBom);
@@ -600,7 +600,7 @@ namespace Arma3ServerTools.Core.Config
 
             AppendBase64DecodedLine(sb, config.BasicConfig.BasicConfigArgs);
 
-            string path = config.ServerDir + @"\destiny_serverconfig\" + config.ServerUUID + @"\basic.cfg";
+            string path = config.ServerDir + @"\" + ToolConstants.ServerConfigFolderName + @"\" + config.ServerUUID + @"\basic.cfg";
             try
             {
                 File.WriteAllText(path, sb.ToString(), Utf8NoBom);
@@ -650,7 +650,7 @@ namespace Arma3ServerTools.Core.Config
             sb.Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append("autoReport=").Append(config.serverProfile.AutoReport.ToString()).AppendLine(GameConfigFormat.Semicolon);
             sb.Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append("multipleSaves=").Append(config.serverProfile.MultipleSaves.ToString()).AppendLine(GameConfigFormat.Semicolon);
             sb.Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append(GameConfigFormat.RightSquareBrackets).AppendLine(GameConfigFormat.Semicolon);
-            sb.Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append("description=").Append(GameConfigFormat.DoubleQuotes).Append("自定义难度设置 by Destiny Studio(娱乐至上专用启动器)").Append(GameConfigFormat.DoubleQuotes).AppendLine(GameConfigFormat.Semicolon);
+            sb.Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append("description=").Append(GameConfigFormat.DoubleQuotes).Append("自定义难度设置 by Arma3 Server Tools").Append(GameConfigFormat.DoubleQuotes).AppendLine(GameConfigFormat.Semicolon);
             sb.Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append("aiLevelPreset=3").AppendLine(GameConfigFormat.Semicolon);
             sb.Append(GameConfigFormat.Tab).Append(GameConfigFormat.RightSquareBrackets).AppendLine(GameConfigFormat.Semicolon);
             sb.Append(GameConfigFormat.Tab).AppendLine("class CustomAILevel");
@@ -664,7 +664,7 @@ namespace Arma3ServerTools.Core.Config
 
             AppendBase64DecodedLine(sb, config.serverProfile.ServerProfileArgs);
 
-            string path = config.ServerDir + @"\destiny_serverconfig\" + config.ServerUUID + @"\Users\" + config.ServerUUID + @"\" + config.ServerUUID + ".Arma3Profile";
+            string path = config.ServerDir + @"\" + ToolConstants.ServerConfigFolderName + @"\" + config.ServerUUID + @"\Users\" + config.ServerUUID + @"\" + config.ServerUUID + ".Arma3Profile";
             try
             {
                 File.WriteAllText(path, sb.ToString(), Utf8NoBom);
@@ -689,7 +689,7 @@ namespace Arma3ServerTools.Core.Config
             AppendBeInterval(sb, "MaxAddMagazineCargoPerInterval", config.BattlEyeConfig.MaxAddMagazineCargoPerInterval);
             AppendBeInterval(sb, "MaxAddWeaponCargoPerInterval", config.BattlEyeConfig.MaxAddWeaponCargoPerInterval);
 
-            string beDir = config.ServerDir + @"\destiny_serverconfig\" + config.ServerUUID + @"\BattlEye";
+            string beDir = config.ServerDir + @"\" + ToolConstants.ServerConfigFolderName + @"\" + config.ServerUUID + @"\BattlEye";
             try
             {
                 File.WriteAllText(beDir + @"\BEServer_x64.cfg", sb.ToString(), Utf8NoBom);
@@ -737,7 +737,7 @@ namespace Arma3ServerTools.Core.Config
 
                 sb.Append(GameConfigFormat.Tab)
                     .Append("class ")
-                    .Append("Destiny_studio_")
+                    .Append(ToolConstants.BattlEyeMissionClassPrefix)
                     .Append((i + 1).ToString())
                     .AppendLine(GameConfigFormat.LeftSquareBrackets);
                 sb.Append(GameConfigFormat.Tab)

@@ -10,15 +10,18 @@ namespace Arma3ServerTools.Application.Services
         private readonly IServerConfigService configService;
         private readonly IGameConfigWriter configWriter;
         private readonly IProcessRunner processRunner;
+        private readonly MonitoringDeploymentService monitoringDeploymentService;
 
         public ServerProcessService(
             IServerConfigService configService,
             IGameConfigWriter configWriter,
-            IProcessRunner processRunner)
+            IProcessRunner processRunner,
+            MonitoringDeploymentService monitoringDeploymentService)
         {
             this.configService = configService;
             this.configWriter = configWriter;
             this.processRunner = processRunner;
+            this.monitoringDeploymentService = monitoringDeploymentService;
         }
 
         public OperationResult Start(string serverUuid)
@@ -28,6 +31,12 @@ namespace Arma3ServerTools.Application.Services
             if (!writeResult.Success)
             {
                 return writeResult;
+            }
+
+            OperationResult deployResult = monitoringDeploymentService.DeployIfEnabled(config);
+            if (!deployResult.Success)
+            {
+                return deployResult;
             }
 
             configWriter.BuildStartCommandLine(config);

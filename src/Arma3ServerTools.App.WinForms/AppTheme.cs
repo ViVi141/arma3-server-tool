@@ -1,3 +1,4 @@
+using System;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -59,8 +60,32 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             UiScaleHelper.Initialize();
-            uiFont = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point);
+            uiFont = CreateUiFont();
             contentPadding = UiScaleHelper.ScalePadding(12);
+        }
+
+        private static Font CreateUiFont()
+        {
+            string[] candidates =
+            {
+                "Microsoft YaHei UI",
+                "Microsoft YaHei",
+                "SimHei",
+                "Segoe UI",
+            };
+
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                try
+                {
+                    return new Font(candidates[i], 9f, FontStyle.Regular, GraphicsUnit.Point);
+                }
+                catch (ArgumentException)
+                {
+                }
+            }
+
+            return new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point);
         }
 
         public static void ApplyTo(Form form)

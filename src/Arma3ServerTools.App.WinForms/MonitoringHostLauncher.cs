@@ -3,12 +3,13 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using Arma3ServerTools.Core;
 
 namespace Arma3ServerTools.App.WinForms
 {
     internal static class MonitoringHostLauncher
     {
-        public const string WindowTitle = "A3-DestinyStudio-ProcessCommunicationModule";
+        public const string WindowTitle = ToolConstants.MonitoringHostWindowTitle;
         private const string HostExeName = "Arma3ServerTools.MonitoringHost.exe";
         private const string MonitoringFolderName = "monitoring";
 

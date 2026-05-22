@@ -64,10 +64,12 @@ namespace Arma3ServerTools.Application.Tests
                 configService.Save(config);
 
                 var runner = new FakeProcessRunner();
+                var monitoringDeployment = new MonitoringDeploymentService(paths);
                 var processService = new ServerProcessService(
                     configService,
                     new GameConfigWriterAdapter(),
-                    runner);
+                    runner,
+                    monitoringDeployment);
 
                 OperationResult result = processService.Start(config.ServerUUID);
                 Assert.True(result.Success, result.Message);
@@ -98,10 +100,12 @@ namespace Arma3ServerTools.Application.Tests
                 configService.Save(config);
 
                 var runner = new FakeProcessRunner();
+                var monitoringDeployment = new MonitoringDeploymentService(paths);
                 var processService = new ServerProcessService(
                     configService,
                     new GameConfigWriterAdapter(),
-                    runner);
+                    runner,
+                    monitoringDeployment);
 
                 OperationResult startResult = processService.Start(config.ServerUUID);
                 Assert.True(startResult.Success, startResult.Message);
@@ -134,10 +138,12 @@ namespace Arma3ServerTools.Application.Tests
                 ArmaServerConfig config = configService.Create("DeadStop", Path.Combine(root, "server"));
 
                 var runner = new FakeProcessRunner();
+                var monitoringDeployment = new MonitoringDeploymentService(paths);
                 var processService = new ServerProcessService(
                     configService,
                     new GameConfigWriterAdapter(),
-                    runner);
+                    runner,
+                    monitoringDeployment);
 
                 OperationResult startResult = processService.Start(config.ServerUUID);
                 Assert.True(startResult.Success, startResult.Message);
@@ -165,10 +171,105 @@ namespace Arma3ServerTools.Application.Tests
                 var processService = new ServerProcessService(
                     configService,
                     new GameConfigWriterAdapter(),
-                    new FakeProcessRunner());
+                    new FakeProcessRunner(),
+                    new MonitoringDeploymentService(paths));
 
                 OperationResult result = processService.Start(config.ServerUUID);
                 Assert.False(result.Success);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        }
+
+        [Fact]
+        public void StartHeadlessClient_StartsClientWithoutPersistingPid()
+        {
+            string root = CreateTempRoot();
+            try
+            {
+                SetupServerLayout(root, "headless");
+                var paths = new AppPaths(root);
+                var configService = new ServerConfigService(new ServerConfigRepository(paths));
+                ArmaServerConfig config = configService.Create("Headless", Path.Combine(root, "server"));
+                config.StartupParameters.Port = 2302;
+                config.ServerConfig.Password = "secret";
+                configService.Save(config);
+
+                var runner = new FakeProcessRunner();
+                var monitoringDeployment = new MonitoringDeploymentService(paths);
+                var processService = new ServerProcessService(
+                    configService,
+                    new GameConfigWriterAdapter(),
+                    runner,
+                    monitoringDeployment);
+
+                OperationResult result = processService.StartHeadlessClient(config.ServerUUID);
+                Assert.True(result.Success, result.Message);
+                Assert.Contains("-client", runner.LastArguments);
+                Assert.Contains("-connect=127.0.0.1:2302", runner.LastArguments);
+                Assert.Equal(0, configService.Get(config.ServerUUID).ServerTaskManagement.ProcessById);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        }
+
+        [Fact]
+        public void DetectRestart_WhenRunning_DoesNotStartAgain()
+        {
+            string root = CreateTempRoot();
+            try
+            {
+                SetupServerLayout(root, "detect-running");
+                var paths = new AppPaths(root);
+                var configService = new ServerConfigService(new ServerConfigRepository(paths));
+                ArmaServerConfig config = configService.Create("DetectRunning", Path.Combine(root, "server"));
+                var runner = new FakeProcessRunner();
+                var monitoringDeployment = new MonitoringDeploymentService(paths);
+                var processService = new ServerProcessService(
+                    configService,
+                    new GameConfigWriterAdapter(),
+                    runner,
+                    monitoringDeployment);
+
+                OperationResult startResult = processService.Start(config.ServerUUID);
+                Assert.True(startResult.Success, startResult.Message);
+                int pidBefore = configService.Get(config.ServerUUID).ServerTaskManagement.ProcessById;
+
+                OperationResult detectResult = processService.DetectRestart(config.ServerUUID);
+                Assert.True(detectResult.Success, detectResult.Message);
+                Assert.Equal(pidBefore, configService.Get(config.ServerUUID).ServerTaskManagement.ProcessById);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        }
+
+        [Fact]
+        public void DetectRestart_WhenStopped_StartsServer()
+        {
+            string root = CreateTempRoot();
+            try
+            {
+                SetupServerLayout(root, "detect-stopped");
+                var paths = new AppPaths(root);
+                var configService = new ServerConfigService(new ServerConfigRepository(paths));
+                ArmaServerConfig config = configService.Create("DetectStopped", Path.Combine(root, "server"));
+                var runner = new FakeProcessRunner();
+                var monitoringDeployment = new MonitoringDeploymentService(paths);
+                var processService = new ServerProcessService(
+                    configService,
+                    new GameConfigWriterAdapter(),
+                    runner,
+                    monitoringDeployment);
+
+                OperationResult detectResult = processService.DetectRestart(config.ServerUUID);
+                Assert.True(detectResult.Success, detectResult.Message);
+                Assert.Equal(ServerRunState.Running, processService.GetState(config.ServerUUID));
             }
             finally
             {
@@ -241,6 +342,52 @@ namespace Arma3ServerTools.Application.Tests
                 OperationResult result = service.InstallDedicatedServer(@"D:\arma");
                 Assert.True(result.Success, result.Message);
                 Assert.Contains("233780", runner.LastArguments);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        }
+
+        [Fact]
+        public void InstallDedicatedServer_MissingAccount_ReturnsFailure()
+        {
+            string root = CreateTempRoot();
+            try
+            {
+                AutomatedTestWorkspace.CreateBundledSteamCmd(root);
+                var service = new SteamCmdService(
+                    new AppPaths(root),
+                    new InlineSteamCmdConfig(new SteamcmdEntity()),
+                    new FakeProcessRunner());
+
+                OperationResult result = service.InstallDedicatedServer(@"D:\arma");
+                Assert.False(result.Success);
+                Assert.Contains("账号", result.Message);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        }
+
+        [Fact]
+        public void EnsureSteamCmdAvailable_WorkshopPath_Succeeds()
+        {
+            string root = CreateTempRoot();
+            try
+            {
+                string workshopRoot = Path.Combine(root, "workshop");
+                Directory.CreateDirectory(workshopRoot);
+                File.WriteAllText(Path.Combine(workshopRoot, "steamcmd.exe"), string.Empty);
+
+                var service = new SteamCmdService(
+                    new AppPaths(root),
+                    new InlineSteamCmdConfig(new SteamcmdEntity { d = workshopRoot }),
+                    new FakeProcessRunner());
+
+                OperationResult result = service.EnsureSteamCmdAvailable(false);
+                Assert.True(result.Success, result.Message);
             }
             finally
             {

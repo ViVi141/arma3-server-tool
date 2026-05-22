@@ -6,6 +6,7 @@ using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.App.WinForms.Dialogs;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core.Models;
+using Arma3ServerTools.Core;
 using AntTable = AntdUI.Table;
 
 namespace Arma3ServerTools.App.WinForms.Controls
@@ -60,10 +61,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 AutoSize = true,
             };
             enableMonitorCheckBox = SettingsLayoutHelper.CreateCheckbox(
-                "启用监控模组 (@destiny_server)",
+                "启用监控模组 (" + ToolConstants.MonitoringServerModToken + ")",
                 false);
             enableMonitoringServiceCheckBox = SettingsLayoutHelper.CreateCheckbox(
-                "启用统计入库 (destiny_statistics.db)",
+                "启用统计入库 (" + ToolConstants.StatisticsDatabaseFileName + ")",
                 false);
             enableMonitorCheckBox.Margin = new Padding(0, UiScaleHelper.Scale(4), UiScaleHelper.Scale(16), 0);
             enableMonitoringServiceCheckBox.Margin = new Padding(0, UiScaleHelper.Scale(4), 0, 0);
