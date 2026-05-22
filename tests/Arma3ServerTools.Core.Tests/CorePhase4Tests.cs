@@ -26,53 +26,6 @@ namespace Arma3ServerTools.Core.Tests
         }
     }
 
-    public class BansUrlRepositoryTests
-    {
-        [Fact]
-        public void SaveLoad_RoundTrip()
-        {
-            string root = AutomatedTestWorkspace.CreateRoot("a3bansurl");
-            try
-            {
-                var repository = new BansUrlRepository(new AppPaths(root));
-                var urls = new List<BansUrlEntity>
-                {
-                    new BansUrlEntity(BansUrlRepositoryDefaultUrl, true),
-                    new BansUrlEntity("http://example.com/bans.txt", false),
-                };
-
-                repository.Save(urls);
-                List<BansUrlEntity> loaded = repository.Load();
-
-                Assert.Equal(2, loaded.Count);
-                Assert.Equal(BansUrlRepositoryDefaultUrl, loaded[0].url);
-                Assert.False(loaded[1].enable);
-            }
-            finally
-            {
-                AutomatedTestWorkspace.DeleteRoot(root);
-            }
-        }
-
-        [Fact]
-        public void Load_MissingFile_ReturnsDefaultUrl()
-        {
-            string root = AutomatedTestWorkspace.CreateRoot("a3bansurl-default");
-            try
-            {
-                List<BansUrlEntity> loaded = new BansUrlRepository(new AppPaths(root)).Load();
-                Assert.Single(loaded);
-                Assert.True(loaded[0].enable);
-            }
-            finally
-            {
-                AutomatedTestWorkspace.DeleteRoot(root);
-            }
-        }
-
-        private const string BansUrlRepositoryDefaultUrl = "http://tools.destiny.cool/arma3_server_tools/bans.txt";
-    }
-
     public class ModuleScanPathRepositoryTests
     {
         [Fact]

@@ -21,7 +21,6 @@ namespace Arma3ServerTools.App.WinForms
             var repository = new ServerConfigRepository(Paths);
             SteamCmdConfigRepository = new SteamCmdConfigRepository(Paths);
             ModuleScanPathRepository = new ModuleScanPathRepository(Paths);
-            BansUrlRepository = new BansUrlRepository(Paths);
             PlayerDatabaseRepository = new PlayerDatabaseRepository(Paths);
 
             SteamCmdConfigProvider = new SteamCmdConfigProvider(SteamCmdConfigRepository);
@@ -59,8 +58,6 @@ namespace Arma3ServerTools.App.WinForms
         public SteamCmdConfigRepository SteamCmdConfigRepository { get; }
 
         public ModuleScanPathRepository ModuleScanPathRepository { get; }
-
-        public BansUrlRepository BansUrlRepository { get; }
 
         public PlayerDatabaseRepository PlayerDatabaseRepository { get; }
 
