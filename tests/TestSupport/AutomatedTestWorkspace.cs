@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Threading;
+using Arma3ServerTools.Core.Config;
 
 namespace Arma3ServerTools.TestSupport
 {
@@ -15,10 +17,25 @@ namespace Arma3ServerTools.TestSupport
 
         public static void DeleteRoot(string path)
         {
-            if (Directory.Exists(path))
+            if (!Directory.Exists(path))
             {
-                Directory.Delete(path, true);
+                return;
             }
+
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                try
+                {
+                    Directory.Delete(path, true);
+                    return;
+                }
+                catch (IOException)
+                {
+                    Thread.Sleep(50);
+                }
+            }
+
+            Directory.Delete(path, true);
         }
 
         public static string FindSqlSchemaPath()
@@ -108,6 +125,35 @@ namespace Arma3ServerTools.TestSupport
                 + "publishedid = " + publishedId + ";" + Environment.NewLine
                 + "timestamp = " + DateTime.Now.ToBinary() + ";";
             File.WriteAllText(Path.Combine(modPath, "meta.cpp"), meta);
+        }
+
+        public static int FindAvailableUdpPort()
+        {
+            for (int port = 30000; port <= 45000; port++)
+            {
+                if (!GameConfigWriter.IsPortInUse(port))
+                {
+                    return port;
+                }
+            }
+
+            throw new InvalidOperationException("No available UDP port found for automated test.");
+        }
+
+        public static void WaitUntil(Func<bool> predicate, int timeoutMs, int intervalMs)
+        {
+            DateTime deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+            while (DateTime.UtcNow < deadline)
+            {
+                if (predicate())
+                {
+                    return;
+                }
+
+                Thread.Sleep(intervalMs);
+            }
+
+            throw new TimeoutException("Condition was not met within " + timeoutMs + " ms.");
         }
     }
 }

@@ -47,7 +47,7 @@ namespace Arma3ServerTools.Application.Tests
                     ServerDir = serverDir,
                     ServerUUID = "uuid-test",
                     x64 = true,
-                    StartupParameters = new StartupParameters { Port = 2302 },
+                    StartupParameters = new StartupParameters { Port = AutomatedTestWorkspace.FindAvailableUdpPort() },
                     ServerConfig = new ServerConfig { HostName = "Test Server" },
                 };
 
