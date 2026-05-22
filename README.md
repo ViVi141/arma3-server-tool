@@ -32,11 +32,11 @@ dotnet test Arma3ServerTools.sln -c Release
 
 Release 输出目录示例：`src/Arma3ServerTools.App.WinForms/bin/Release/net10.0-windows/`（含 `Arma3ServerTools.exe`、`monitoring/Arma3ServerTools.MonitoringHost.exe`、`sql/destiny_statistics.sql`）。
 
-**注意**：安装路径不能包含中文（启动时会检测并退出）。开发时请先关闭主程序再编译，避免 `monitoring/` 下 DLL 被占用；主程序退出时会自动关闭监控宿主。旧 DevExpress 主程序仍用 `a3.sln`。
+**注意**：安装路径不能包含中文（启动时会检测并退出）。开发时请先关闭主程序再编译，避免 `monitoring/` 下 DLL 被占用；主程序退出时会自动关闭监控宿主。
 
 #### 使用说明
-1.  vs版本2022或以上
-2.  DevExpress版本v21.2或以上
+
+使用 Visual Studio 2022 或更高版本，或任意编辑器 + `dotnet` CLI 即可构建。
 
 #### 许可
 
@@ -47,10 +47,9 @@ Release 输出目录示例：`src/Arma3ServerTools.App.WinForms/bin/Release/net1
 纯 C# 分层改造说明见：**[docs/refactoring-plan.md](docs/refactoring-plan.md)**
 
 #### 描述
-1.  a3 开服工具项目
-2.  AppUpdate 升级开服工具项目
-3.  DestinyServerMonitoring 武装突袭3服务器的dll扩展，用于与开服工具通讯
-4.	Steamcmdtools Steamcmd封装(已废弃)
+1.  **Arma3ServerTools** — 主程序（`src/Arma3ServerTools.App.WinForms`）
+2.  **DestinyServerMonitoring** — Arma 3 服务器 DLL 扩展，用于与开服工具通讯
+3.  **Steamcmdtools** — SteamCMD 辅助下载器（构建时复制到输出目录）
 
 
 #### 特色和优点:

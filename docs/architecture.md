@@ -12,8 +12,9 @@
 | **Arma3ServerTools.MonitoringHost** | `src/Arma3ServerTools.MonitoringHost/` | WM_COPYDATA 监控宿主（独立进程） |
 | **Arma3ServerTools.Core.Tests** | `tests/Arma3ServerTools.Core.Tests/` | Core 单元测试 |
 | **Arma3ServerTools.Application.Tests** | `tests/Arma3ServerTools.Application.Tests/` | Application 单元测试 |
+| **steamcmdTools** | `Steamcmdtools/steamcmd/` | SteamCMD 辅助下载器 |
 
-旧工程 `a3/` 仍由 `a3.sln` 构建，逐步迁移至本解决方案。
+旧 DevExpress 工程（`a3/`、`AppUpdate/`）已移除；功能由 `src/` 下新项目承担。
 
 ## Core 模块
 
