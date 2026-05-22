@@ -8,6 +8,7 @@ namespace Arma3ServerTools.Core.Missions
             {
                 case "新兵":
                     return 0;
+                case "常规":
                 case "正常":
                     return 1;
                 case "老兵":

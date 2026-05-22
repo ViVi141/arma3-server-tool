@@ -650,7 +650,7 @@ namespace Arma3ServerTools.Core.Config
             sb.Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append("autoReport=").Append(config.serverProfile.AutoReport.ToString()).AppendLine(GameConfigFormat.Semicolon);
             sb.Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append("multipleSaves=").Append(config.serverProfile.MultipleSaves.ToString()).AppendLine(GameConfigFormat.Semicolon);
             sb.Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append(GameConfigFormat.RightSquareBrackets).AppendLine(GameConfigFormat.Semicolon);
-            sb.Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append("description=").Append(GameConfigFormat.DoubleQuotes).Append("自定义难度设置 by Arma3 Server Tools").Append(GameConfigFormat.DoubleQuotes).AppendLine(GameConfigFormat.Semicolon);
+            sb.Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append("description=").Append(GameConfigFormat.DoubleQuotes).Append("Arma3 Server Tools 自定义难度（CustomDifficulty）").Append(GameConfigFormat.DoubleQuotes).AppendLine(GameConfigFormat.Semicolon);
             sb.Append(GameConfigFormat.Tab).Append(GameConfigFormat.Tab).Append("aiLevelPreset=3").AppendLine(GameConfigFormat.Semicolon);
             sb.Append(GameConfigFormat.Tab).Append(GameConfigFormat.RightSquareBrackets).AppendLine(GameConfigFormat.Semicolon);
             sb.Append(GameConfigFormat.Tab).AppendLine("class CustomAILevel");

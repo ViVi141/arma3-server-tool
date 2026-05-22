@@ -2,7 +2,7 @@
 
 面向 Windows 的 **Arma 3 专用服务器** 图形化管理工具（**Arma3 Server Tools**）。使用 C# / .NET 10 开发，集成 BattlEye RCon、多服配置、SteamCMD、监控统计与定时任务等开服常用能力。
 
-**当前版本：v1.2.0** · **当前维护仓库：** [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
+**当前版本：v1.2.1** · **当前维护仓库：** [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
 
 ---
 
@@ -143,7 +143,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 | `-SkipInstaller` | 仅生成 `artifacts/_publish/` 目录，不编译安装包 |
 | `-Zip` | 额外生成便携 zip（与旧版行为相同） |
 
-详见 **[docs/release-v1.2.0.md](docs/release-v1.2.0.md)**（历史：[v1.1.1](docs/release-v1.1.1.md)、[v1.1.0](docs/release-v1.1.0.md)、[v1.0.0](docs/release-v1.0.0.md)）。
+详见 **[docs/release-v1.2.1.md](docs/release-v1.2.1.md)**（历史：[v1.2.0](docs/release-v1.2.0.md)、[v1.1.1](docs/release-v1.1.1.md)、[v1.1.0](docs/release-v1.1.0.md)、[v1.0.0](docs/release-v1.0.0.md)）。
 
 ---
 
@@ -166,7 +166,8 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 | [docs/refactoring-plan.md](docs/refactoring-plan.md) | 分层改造说明 |
 | [docs/product-roadmap.md](docs/product-roadmap.md) | 实施计划与 backlog |
 | [docs/ux-optimization-backlog.md](docs/ux-optimization-backlog.md) | 用户体验优化任务（v1.1） |
-| [docs/release-v1.2.0.md](docs/release-v1.2.0.md) | **v1.2.0 发布清单** |
+| [docs/release-v1.2.1.md](docs/release-v1.2.1.md) | **v1.2.1 发布清单** |
+| [docs/release-v1.2.0.md](docs/release-v1.2.0.md) | v1.2.0 发布清单 |
 | [docs/release-v1.1.1.md](docs/release-v1.1.1.md) | v1.1.1 发布清单 |
 | [docs/release-v1.1.0.md](docs/release-v1.1.0.md) | v1.1.0 发布清单 |
 | [docs/release-v1.0.0.md](docs/release-v1.0.0.md) | v1.0 发布清单 |

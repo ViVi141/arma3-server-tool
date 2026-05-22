@@ -23,7 +23,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
     internal sealed class MissionSettingsPanel : UserControl, IServerSettingsPanel
     {
-        private static readonly string[] DifficultyNames = { "新兵", "正常", "老兵", "自定义" };
+        private static readonly string[] DifficultyNames = { "新兵", "常规", "老兵", "自定义" };
 
         private readonly AntTable missionTable;
         private readonly AntdUI.Select forcedDifficultySelect;
@@ -46,7 +46,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             toolbar.Controls.Add(refreshButton);
 
             missionTable = AntdTableHelper.CreateStandardTable();
-            var difficultyColumn = new AntdUI.ColumnSelect("Difficulty", "任务难度");
+            var difficultyColumn = new AntdUI.ColumnSelect("Difficulty", "任务难度预设");
             difficultyColumn.Items = new List<AntdUI.SelectItem>();
             for (int i = 0; i < DifficultyNames.Length; i++)
             {
@@ -69,7 +69,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             forcedDifficultySelect = SettingsLayoutHelper.AddRow(
                 optionsLayout,
                 "强制难度",
-                SettingsLayoutHelper.CreateSelect(200, "关闭", "新兵", "正常", "老兵", "自定义"));
+                SettingsLayoutHelper.CreateSelect(200, "关闭", "新兵", "常规", "老兵", "自定义"));
             autoSelectCheckBox = SettingsLayoutHelper.AddRow(
                 optionsLayout,
                 "自动选任务",
