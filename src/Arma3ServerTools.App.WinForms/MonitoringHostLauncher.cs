@@ -4,8 +4,8 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Arma3ServerTools.Application.Logging;
-using Microsoft.Extensions.Logging;
 using Arma3ServerTools.Core;
+using Microsoft.Extensions.Logging;
 
 namespace Arma3ServerTools.App.WinForms
 {

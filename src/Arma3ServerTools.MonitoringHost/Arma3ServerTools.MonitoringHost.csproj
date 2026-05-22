@@ -6,6 +6,7 @@
     <RootNamespace>Arma3ServerTools.MonitoringHost</RootNamespace>
     <AssemblyName>Arma3ServerTools.MonitoringHost</AssemblyName>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>..\Arma3ServerTools.App.WinForms\Assets\1_arma3server_x64.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

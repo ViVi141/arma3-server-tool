@@ -9,8 +9,8 @@ using Arma3ServerTools.App.WinForms.Dialogs;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
-using AntTable = AntdUI.Table;
 using AntSelect = AntdUI.Select;
+using AntTable = AntdUI.Table;
 
 namespace Arma3ServerTools.App.WinForms.Controls
 {

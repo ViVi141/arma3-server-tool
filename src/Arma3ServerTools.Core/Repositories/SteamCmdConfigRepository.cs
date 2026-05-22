@@ -73,7 +73,7 @@ namespace Arma3ServerTools.Core.Repositories
 
         private string GetFilePath()
         {
-            return Path.Combine(paths.ApplicationBase, "data.json");
+            return Path.Combine(paths.UserDataDirectory, "data.json");
         }
     }
 }

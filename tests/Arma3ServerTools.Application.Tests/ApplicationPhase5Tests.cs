@@ -1,8 +1,8 @@
 using System.IO;
 using Arma3ServerTools.Application.Monitoring;
+using Arma3ServerTools.Application.Repositories;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
-using Arma3ServerTools.Application.Repositories;
 using Arma3ServerTools.TestSupport;
 using Xunit;
 

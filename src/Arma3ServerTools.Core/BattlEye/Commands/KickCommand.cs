@@ -1,4 +1,4 @@
-﻿namespace BytexDigital.BattlEye.Rcon.Commands
+namespace BytexDigital.BattlEye.Rcon.Commands
 {
     /// <summary>
     /// Requests the server to remove a player from the server.

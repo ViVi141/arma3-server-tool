@@ -19,7 +19,7 @@ namespace Arma3ServerTools.Application.Services
 
         public static string GetBundledDirectory(IAppPaths paths)
         {
-            return Path.Combine(paths.ApplicationBase, "extension");
+            return Path.Combine(paths.UserDataDirectory, "extension");
         }
 
         public static string GetBundledExecutablePath(IAppPaths paths)

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,7 +8,8 @@ namespace Arma3ServerTools.Core.Models
 {
     public class SkinEntity
     {
-        public SkinEntity(string ActiveSkinName,string ActiveSvgPaletteName) {
+        public SkinEntity(string ActiveSkinName, string ActiveSvgPaletteName)
+        {
             this.ActiveSkinName = ActiveSkinName;
             this.ActiveSvgPaletteName = ActiveSvgPaletteName;
         }

@@ -28,7 +28,7 @@ namespace Arma3ServerTools.Application.Repositories
                 return;
             }
 
-            string dbPath = Path.Combine(paths.ApplicationBase, ToolConstants.PlayersDatabaseFileName);
+            string dbPath = Path.Combine(paths.UserDataDirectory, ToolConstants.PlayersDatabaseFileName);
             connection = new SqliteConnection(BuildConnectionString(dbPath));
             connection.Open();
             EnsureSchema();

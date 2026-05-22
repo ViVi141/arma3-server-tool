@@ -2,10 +2,10 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Windows.Forms;
+using Arma3ServerTools.Application.Services;
 using AntButton = AntdUI.Button;
 using AntLabel = AntdUI.Label;
 using AntPanel = AntdUI.Panel;
-using Arma3ServerTools.Application.Services;
 
 namespace Arma3ServerTools.App.WinForms.Dialogs
 {

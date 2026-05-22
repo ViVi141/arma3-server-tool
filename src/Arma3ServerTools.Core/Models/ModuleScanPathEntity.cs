@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,7 +8,7 @@ namespace Arma3ServerTools.Core.Models
 {
     public class ModuleScanPathEntity
     {
-        public ModuleScanPathEntity(string modulePath, string prefix,string remark)
+        public ModuleScanPathEntity(string modulePath, string prefix, string remark)
         {
             ModulePath = modulePath;
             Prefix = prefix;

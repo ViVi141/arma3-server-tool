@@ -1,10 +1,10 @@
-﻿using BytexDigital.BattlEye.Rcon.Domain;
 using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using BytexDigital.BattlEye.Rcon.Domain;
 
 namespace BytexDigital.BattlEye.Rcon.Commands
 {

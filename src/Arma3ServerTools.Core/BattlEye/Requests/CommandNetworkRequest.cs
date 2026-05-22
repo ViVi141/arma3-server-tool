@@ -1,8 +1,8 @@
-﻿using BytexDigital.BattlEye.Rcon.Commands;
-using BytexDigital.BattlEye.Rcon.Responses;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using BytexDigital.BattlEye.Rcon.Commands;
+using BytexDigital.BattlEye.Rcon.Responses;
 
 namespace BytexDigital.BattlEye.Rcon.Requests
 {

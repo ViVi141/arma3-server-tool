@@ -2,7 +2,7 @@
 
 面向 Windows 的 **Arma 3 专用服务器** 图形化管理工具（**Arma3 Server Tools**）。使用 C# / .NET 10 开发，集成 BattlEye RCon、多服配置、SteamCMD、监控统计与定时任务等开服常用能力。
 
-**当前维护仓库：** [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
+**当前版本：v1.1.0** · **当前维护仓库：** [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
 
 ---
 
@@ -117,17 +117,40 @@ dotnet test Arma3ServerTools.sln -c Release
 
 ## 发布打包
 
+默认产出 **`artifacts/Arma3ServerTools-Setup.exe`**（Inno Setup 安装包，自包含 .NET 运行时，无需用户预装 Desktop Runtime）。
+
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -Version 1.0.0
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release
 ```
 
-产物目录与 zip 包位于 `artifacts/`，详见 **[docs/release-v1.0.0.md](docs/release-v1.0.0.md)**。
+未指定 `-Version` 时，版本号自动读取 `Directory.Build.props`。也可显式指定：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -Version 1.1.0
+```
+
+首次构建若本机未安装 Inno Setup 6，可加 `-InstallInnoSetup` 自动下载到 `tools/innosetup-6/`：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -InstallInnoSetup
+```
+
+可选参数：
+
+| 参数 | 说明 |
+|------|------|
+| `-SelfContained:$false` | 框架依赖发布（需用户安装 .NET 10 Desktop Runtime） |
+| `-SkipInstaller` | 仅生成 `artifacts/_publish/` 目录，不编译安装包 |
+| `-Zip` | 额外生成便携 zip（与旧版行为相同） |
+
+详见 **[docs/release-v1.1.0.md](docs/release-v1.1.0.md)**（历史：[v1.0.0](docs/release-v1.0.0.md)）。
 
 ---
 
 ## 使用注意
 
 - 安装路径**不能包含中文**（启动时会检测并退出）
+- 安装到 `Program Files` 等只读目录时，配置/日志/数据库/SteamCMD 会写入 **`%LocalAppData%\Arma3ServerTools\`**（便携版仍写在程序目录旁）
 - 编译前请**关闭正在运行的主程序**，避免 `monitoring/` 下 DLL 被占用
 - 主程序退出时会自动关闭监控宿主进程
 - 本地 `.vs/`、`bin/`、`obj/` 为构建缓存，无需提交；克隆后执行 `dotnet restore` 即可
@@ -142,6 +165,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 | [docs/refactoring-plan.md](docs/refactoring-plan.md) | 分层改造说明 |
 | [docs/product-roadmap.md](docs/product-roadmap.md) | 实施计划与 backlog |
 | [docs/ux-optimization-backlog.md](docs/ux-optimization-backlog.md) | 用户体验优化任务（v1.1） |
+| [docs/release-v1.1.0.md](docs/release-v1.1.0.md) | **v1.1 发布清单** |
 | [docs/release-v1.0.0.md](docs/release-v1.0.0.md) | v1.0 发布清单 |
 | [docs/smoke-checklist.md](docs/smoke-checklist.md) | 冒烟验收清单 |
 | [docs/monitoring-cpp-dll-build.md](docs/monitoring-cpp-dll-build.md) | Monitoring DLL 构建 |

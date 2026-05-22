@@ -10,6 +10,7 @@ namespace Arma3ServerTools.App.WinForms
         protected AntdDialogForm()
         {
             AppTheme.ApplyTo(this);
+            AppIcon.ApplyTo(this);
             StartPosition = FormStartPosition.CenterParent;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -38,12 +39,12 @@ namespace Arma3ServerTools.App.WinForms
         protected AntdUI.PageHeader CreateDialogHeader(string title)
         {
             Text = title;
-            return new AntdUI.PageHeader
+            var header = new AntdUI.PageHeader
             {
                 Text = title,
                 Dock = DockStyle.Top,
                 ShowButton = true,
-                ShowIcon = false,
+                ShowIcon = true,
                 CancelButton = true,
                 MaximizeBox = false,
                 MinimizeBox = false,
@@ -55,6 +56,8 @@ namespace Arma3ServerTools.App.WinForms
                 CloseSize = UiScaleHelper.Scale(40),
                 Height = UiScaleHelper.Scale(40),
             };
+            AppIcon.ApplyTo(header);
+            return header;
         }
 
         protected void MountDialogLayout(Control body, Control buttonBar, AntdUI.PageHeader header)

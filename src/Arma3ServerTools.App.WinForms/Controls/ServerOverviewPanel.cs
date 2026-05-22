@@ -3,14 +3,14 @@ using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using AntButton = AntdUI.Button;
-using AntLabel = AntdUI.Label;
 using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.App.WinForms.Dialogs;
 using Arma3ServerTools.Application.Logging;
-using Microsoft.Extensions.Logging;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core.Models;
+using Microsoft.Extensions.Logging;
+using AntButton = AntdUI.Button;
+using AntLabel = AntdUI.Label;
 
 namespace Arma3ServerTools.App.WinForms.Controls
 {

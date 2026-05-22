@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,7 +12,7 @@ namespace Arma3ServerTools.Core.Models
         {
         }
 
-        public LocalBansEntity(string gUID, string time, string reason, string addTime,string syncName)
+        public LocalBansEntity(string gUID, string time, string reason, string addTime, string syncName)
         {
             GUID = gUID;
             Time = time;

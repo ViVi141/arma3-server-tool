@@ -1,8 +1,8 @@
-﻿
-using Arma3ServerTools.Core.Threading;
+
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Arma3ServerTools.Core.Threading;
 
 namespace BytexDigital.BattlEye.Rcon.Requests
 {

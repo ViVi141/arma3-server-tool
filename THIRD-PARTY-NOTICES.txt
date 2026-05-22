@@ -2,7 +2,7 @@ Arma3 Server Tools — Third-Party Notices
 =========================================
 
 This file lists third-party software included in or used by Arma3 Server Tools
-(v1.0.0). See LICENSE for the Apache 2.0 license governing this project itself.
+(v1.1.0). See LICENSE for the Apache 2.0 license governing this project itself.
 
 NuGet dependencies (main application)
 -------------------------------------

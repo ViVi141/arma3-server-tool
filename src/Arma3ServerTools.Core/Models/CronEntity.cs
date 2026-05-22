@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -19,7 +19,7 @@ namespace Arma3ServerTools.Core.Models
         public int Action { get; set; }
         public string ActionText { get; set; }
 
-        public CronEntity(string taskId, string serverUUID, string serverName, string cron, string remark, int status, int action,string actionText)
+        public CronEntity(string taskId, string serverUUID, string serverName, string cron, string remark, int status, int action, string actionText)
         {
             TaskId = taskId;
             ServerUUID = serverUUID;
@@ -37,7 +37,7 @@ namespace Arma3ServerTools.Core.Models
 
         public string String()
         {
-            return "任务ID:"+ TaskId+"\r\n"+"服务器UUID:" + ServerUUID + "\r\n" + "服务器昵�?:"+ServerName + "\r\n" + "CRON表达�?:" + Cron+"\r\n" + "备注:" +Remark+ "\r\n" + "需要执行的操作:"+ActionText + "\r\n" ;
+            return "任务ID:" + TaskId + "\r\n" + "服务器UUID:" + ServerUUID + "\r\n" + "服务器昵�?:" + ServerName + "\r\n" + "CRON表达�?:" + Cron + "\r\n" + "备注:" + Remark + "\r\n" + "需要执行的操作:" + ActionText + "\r\n";
         }
     }
 }
