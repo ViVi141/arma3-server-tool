@@ -140,7 +140,7 @@ namespace Arma3ServerTools.Application.Services
 
             if (target == ModApplyTarget.Server)
             {
-                entity.LocalMod = false;
+                entity.LocalMod = entity.ModId > 0;
                 entity.ServerMod = true;
                 entity.HeadlessClientMod = false;
                 return;

@@ -7,6 +7,7 @@ using Arma3ServerTools.App.WinForms.Dialogs;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
+using Arma3ServerTools.Core.Scheduling;
 using AntTable = AntdUI.Table;
 
 namespace Arma3ServerTools.App.WinForms.Controls
@@ -18,6 +19,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
         public string Cron { get; set; } = string.Empty;
 
         public string ActionText { get; set; } = string.Empty;
+
+        public int Action { get; set; } = CronTaskTool.ActionRestart;
 
         public string Remark { get; set; } = string.Empty;
 
@@ -97,12 +100,20 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     enabled = true;
                 }
 
+                int action = CronTaskTool.ResolveAction(cron.Action, cron.ActionText);
+                string actionText = cron.ActionText;
+                if (string.IsNullOrWhiteSpace(actionText))
+                {
+                    actionText = CronTaskTool.ActionToText(action);
+                }
+
                 cronRows.Add(
                     new CronGridRow
                     {
                         TaskId = cron.TaskId,
                         Cron = cron.Cron,
-                        ActionText = cron.ActionText,
+                        Action = action,
+                        ActionText = actionText,
                         Remark = cron.Remark,
                         Enabled = enabled,
                     });
@@ -133,16 +144,17 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     status = 1;
                 }
 
+                int action = CronTaskTool.ResolveAction(row.Action, row.ActionText);
                 var cron = new CronEntity
                 {
                     TaskId = taskId,
                     ServerUUID = boundConfig.ServerUUID,
                     ServerName = boundConfig.ConfigName,
                     Cron = row.Cron,
-                    ActionText = row.ActionText,
+                    ActionText = CronTaskTool.ActionToText(action),
                     Remark = row.Remark,
                     Status = status,
-                    Action = 0,
+                    Action = action,
                 };
                 boundConfig.ServerTaskManagement.CronEntity[taskId] = cron;
             }
@@ -162,6 +174,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     {
                         TaskId = System.Guid.NewGuid().ToString("N"),
                         Cron = dialog.CronExpression,
+                        Action = dialog.SelectedAction,
                         ActionText = dialog.ActionText,
                         Remark = dialog.Remark,
                         Enabled = dialog.IsTaskEnabled,

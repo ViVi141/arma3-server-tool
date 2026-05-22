@@ -77,6 +77,7 @@ namespace Arma3ServerTools.Application.Tests
                 OperationResult result = processService.Start(config.ServerUUID);
                 Assert.True(result.Success, result.Message);
                 Assert.Contains("2502", runner.LastArguments);
+                Assert.Equal(config.ServerDir, runner.LastWorkingDirectory);
                 Assert.Equal(ServerRunState.Running, processService.GetState(config.ServerUUID));
 
                 OperationResult stopResult = processService.Stop(config.ServerUUID);

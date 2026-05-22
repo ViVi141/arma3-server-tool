@@ -60,6 +60,55 @@ namespace Arma3ServerTools.Core.Missions
             }
         }
 
+        /// <summary>
+        /// Maps forced-difficulty UI index (关闭=0 … 自定义=4) to server.cfg English value.
+        /// </summary>
+        public static string ForcedDifficultyUiToEnglish(int uiIndex)
+        {
+            switch (uiIndex)
+            {
+                case 0:
+                    return "none";
+                case 1:
+                    return "Recruit";
+                case 2:
+                    return "Regular";
+                case 3:
+                    return "Veteran";
+                case 4:
+                    return "Custom";
+                default:
+                    return "none";
+            }
+        }
+
+        /// <summary>
+        /// Maps server.cfg forcedDifficulty value to UI index (关闭=0 … 自定义=4).
+        /// </summary>
+        public static int ForcedDifficultyEnglishToUiIndex(string difficulty)
+        {
+            if (string.IsNullOrEmpty(difficulty))
+            {
+                return 0;
+            }
+
+            switch (difficulty)
+            {
+                case "none":
+                    return 0;
+                case "Recruit":
+                    return 1;
+                case "Regular":
+                    return 2;
+                case "Veteran":
+                    return 3;
+                case "Custom":
+                    return 4;
+                default:
+                    return 0;
+            }
+        }
+
         public static bool GetBoolean(string value)
         {
             return value == "True";
