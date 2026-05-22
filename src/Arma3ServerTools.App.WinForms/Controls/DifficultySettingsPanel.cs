@@ -1,7 +1,9 @@
 using System.Windows.Forms;
+using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Core.Models;
 using AntCheckbox = AntdUI.Checkbox;
 using AntInputNumber = AntdUI.InputNumber;
+using AntLabel = AntdUI.Label;
 using AntSelect = AntdUI.Select;
 
 namespace Arma3ServerTools.App.WinForms.Controls
@@ -40,34 +42,89 @@ namespace Arma3ServerTools.App.WinForms.Controls
         public DifficultySettingsPanel()
         {
             Dock = DockStyle.Fill;
-            var layout = SettingsLayoutHelper.CreateFormLayout(160);
-            groupIndicatorsCombo = AddTriStateCombo(layout, "小队指示");
-            friendlyTagsCombo = AddTriStateCombo(layout, "友军标签");
-            enemyTagsCombo = AddTriStateCombo(layout, "敌军标签");
-            detectedMinesCombo = AddTriStateCombo(layout, "地雷范围");
-            commandsCombo = AddTriStateCombo(layout, "命令图标");
-            waypointsCombo = AddTriStateCombo(layout, "航点");
-            tacticalPingCheckBox = SettingsLayoutHelper.AddRow(layout, "战术 Ping", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            weaponInfoCombo = AddTriStateCombo(layout, "武器信息");
-            stanceIndicatorCombo = AddTriStateCombo(layout, "姿态指示");
-            staminaBarCheckBox = SettingsLayoutHelper.AddRow(layout, "耐力条", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            weaponCrosshairCheckBox = SettingsLayoutHelper.AddRow(layout, "武器准星", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            visionAidCheckBox = SettingsLayoutHelper.AddRow(layout, "视觉辅助", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            thirdPersonCombo = AddTriStateCombo(layout, "第三人称");
-            cameraShakeCheckBox = SettingsLayoutHelper.AddRow(layout, "相机摇晃", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            scoreTableCheckBox = SettingsLayoutHelper.AddRow(layout, "得分表", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            deathMessagesCheckBox = SettingsLayoutHelper.AddRow(layout, "死亡消息", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            vonIdCheckBox = SettingsLayoutHelper.AddRow(layout, "语音 ID 显示", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            mapContentCheckBox = SettingsLayoutHelper.AddRow(layout, "扩展地图", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            mapContentFriendlyCheckBox = SettingsLayoutHelper.AddRow(layout, "友军单位", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            mapContentEnemyCheckBox = SettingsLayoutHelper.AddRow(layout, "敌军单位", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            mapContentMinesCheckBox = SettingsLayoutHelper.AddRow(layout, "地图地雷", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            reducedDamageCheckBox = SettingsLayoutHelper.AddRow(layout, "减伤", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            autoReportCheckBox = SettingsLayoutHelper.AddRow(layout, "自动报告", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            multipleSavesCheckBox = SettingsLayoutHelper.AddRow(layout, "多重存档", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
+            var root = SettingsLayoutHelper.CreateSectionsStack();
+            AntLabel hint = AntdUiHelper.CreateHintLabel(
+                "对应服务器 Profile 中的 CustomDifficulty 选项（见 Bohemia Wiki「Difficulty Settings」）。"
+                + " 三态含义因项而异：名称标签/指示器/地雷为「从不 / 有限距离 / 始终」；"
+                + "命令/航点/武器信息等为「从不 / 渐隐 / 始终」；第三人为「禁用 / 启用 / 仅载具」。"
+                + " 保存并「应用到服务器目录」后写入 *.Arma3Profile。",
+                720);
+            SettingsLayoutHelper.AddStackSection(root, hint);
+
+            var layout = SettingsLayoutHelper.CreateFormLayout(168);
+            groupIndicatorsCombo = AddDistanceTriStateCombo(layout, "小队指示器");
+            friendlyTagsCombo = AddDistanceTriStateCombo(layout, "友军名称标签");
+            enemyTagsCombo = AddDistanceTriStateCombo(layout, "敌军名称标签");
+            detectedMinesCombo = AddDistanceTriStateCombo(layout, "已发现地雷");
+            commandsCombo = AddFadeTriStateCombo(layout, "命令");
+            waypointsCombo = AddFadeTriStateCombo(layout, "航点");
+            tacticalPingCheckBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "战术 Ping",
+                SettingsLayoutHelper.CreateCheckbox("启用（3D 场景；地图/双显需手动改 Profile）", false));
+            weaponInfoCombo = AddFadeTriStateCombo(layout, "武器信息");
+            stanceIndicatorCombo = AddFadeTriStateCombo(layout, "姿态指示器");
+            staminaBarCheckBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "耐力条",
+                SettingsLayoutHelper.CreateCheckbox("显示耐力条", false));
+            weaponCrosshairCheckBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "武器准星",
+                SettingsLayoutHelper.CreateCheckbox("显示准星（第一/第三人称）", false));
+            visionAidCheckBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "视觉辅助",
+                SettingsLayoutHelper.CreateCheckbox("辅助识别视野内单位（友军标识）", false));
+            thirdPersonCombo = AddThirdPersonCombo(layout, "第三人称视角");
+            cameraShakeCheckBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "镜头晃动",
+                SettingsLayoutHelper.CreateCheckbox("爆炸/载具附近镜头晃动", false));
+            scoreTableCheckBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "计分板",
+                SettingsLayoutHelper.CreateCheckbox("多人计分板", false));
+            deathMessagesCheckBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "阵亡提示",
+                SettingsLayoutHelper.CreateCheckbox("聊天栏显示击杀者（Killed By）", false));
+            vonIdCheckBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "VON 通话 ID",
+                SettingsLayoutHelper.CreateCheckbox("语音通话时显示发言者", false));
+            mapContentCheckBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "扩展地图内容",
+                SettingsLayoutHelper.CreateCheckbox("旧版 mapContent 总开关（1.68 前）", false));
+            mapContentFriendlyCheckBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "地图友军",
+                SettingsLayoutHelper.CreateCheckbox("小地图显示友军单位", false));
+            mapContentEnemyCheckBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "地图敌军",
+                SettingsLayoutHelper.CreateCheckbox("小地图显示敌军单位", false));
+            mapContentMinesCheckBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "地图地雷",
+                SettingsLayoutHelper.CreateCheckbox("小地图显示已探测地雷", false));
+            reducedDamageCheckBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "降低受伤",
+                SettingsLayoutHelper.CreateCheckbox("降低玩家及同组队员所受伤害", false));
+            autoReportCheckBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "自动报告接敌",
+                SettingsLayoutHelper.CreateCheckbox("玩家发现敌人时自动报告（仅玩家）", false));
+            multipleSavesCheckBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "多次保存",
+                SettingsLayoutHelper.CreateCheckbox("任务中允许多次存档", false));
             skillAiNumeric = SettingsLayoutHelper.AddRow(layout, "AI 技能", CreateAiNumeric());
-            precisionAiNumeric = SettingsLayoutHelper.AddRow(layout, "AI 精度", CreateAiNumeric());
-            Controls.Add(SettingsLayoutHelper.CreateScrollHost(layout));
+            precisionAiNumeric = SettingsLayoutHelper.AddRow(layout, "AI 射击精度", CreateAiNumeric());
+            SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateScrollHost(layout));
+            Controls.Add(root);
         }
 
         public void Bind(ArmaServerConfig config)
@@ -153,9 +210,23 @@ namespace Arma3ServerTools.App.WinForms.Controls
             profile.PrecisionAI = (double)precisionAiNumeric.Value;
         }
 
-        private static AntSelect AddTriStateCombo(TableLayoutPanel layout, string label)
+        private static AntSelect AddDistanceTriStateCombo(TableLayoutPanel layout, string label)
         {
-            AntSelect combo = SettingsLayoutHelper.CreateSelect(200, "禁用", "仅友军", "全部");
+            AntSelect combo = SettingsLayoutHelper.CreateSelect(200, "从不", "有限距离", "始终");
+            SettingsLayoutHelper.AddRow(layout, label, combo);
+            return combo;
+        }
+
+        private static AntSelect AddFadeTriStateCombo(TableLayoutPanel layout, string label)
+        {
+            AntSelect combo = SettingsLayoutHelper.CreateSelect(200, "从不", "渐隐", "始终");
+            SettingsLayoutHelper.AddRow(layout, label, combo);
+            return combo;
+        }
+
+        private static AntSelect AddThirdPersonCombo(TableLayoutPanel layout, string label)
+        {
+            AntSelect combo = SettingsLayoutHelper.CreateSelect(200, "禁用", "启用", "仅载具");
             SettingsLayoutHelper.AddRow(layout, label, combo);
             return combo;
         }

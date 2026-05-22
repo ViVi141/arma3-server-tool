@@ -8,6 +8,7 @@ namespace Arma3ServerTools.Core.Tests
     {
         [Theory]
         [InlineData("新兵", 0)]
+        [InlineData("常规", 1)]
         [InlineData("正常", 1)]
         [InlineData("老兵", 2)]
         [InlineData("自定义", 3)]
