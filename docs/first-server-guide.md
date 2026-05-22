@@ -27,13 +27,18 @@ dotnet test Arma3ServerTools.sln -c Release
 powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release
 ```
 
-产物目录：`artifacts/Arma3ServerTools-Release/`
+产物：`artifacts/Arma3ServerTools-Setup.exe`（Inno Setup 安装包，自包含 .NET 运行时）。
 
 ## 3. 安装专用服务器（SteamCMD）
 
 1. 打开主程序 → **工具 → SteamCMD 设置**，填写账号与 Workshop 根目录
 2. **服务器 → 安装/更新专用服务器...**，选择安装目录（即后续「服务器目录」）
-3. 若本机无 `steamcmd.exe`，程序可尝试下载到 `extension/steamcmd.exe`；也可 [手动下载 SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD) 并放到程序目录下的 `extension/` 文件夹
+3. 若本机无 `steamcmd.exe`，程序可尝试下载；SteamCMD 目录为：
+   - 安装到 `Program Files` 时：`%LocalAppData%\Arma3ServerTools\extension\`
+   - 便携 / 可写目录时：程序目录旁 `extension\`
+   也可 [手动下载 SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD) 并解压到上述目录
+
+> **网络提示：** 若日志出现 `502.3` / `IIS` / `<!DOCTYPE`，说明代理或防火墙拦截了 Steam CDN（`steamcdn-a.akamaihd.net`），请关闭代理或手动解压完整 SteamCMD。
 
 ## 4. 新建服务器配置
 

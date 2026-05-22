@@ -1404,7 +1404,7 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
-            if (!await SteamCmdUiHelper.EnsureSteamCmdAvailableAsync(this, services.SteamCmdService)
+            if (!await SteamCmdUiHelper.EnsureSteamCmdAvailableAsync(this, services.SteamCmdService, services.Paths)
                 .ConfigureAwait(true))
             {
                 return;

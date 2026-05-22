@@ -11,7 +11,8 @@ namespace Arma3ServerTools.App.WinForms
     {
         public static async Task<bool> EnsureSteamCmdAvailableAsync(
             IWin32Window owner,
-            ISteamCmdService steamCmdService)
+            ISteamCmdService steamCmdService,
+            IAppPaths paths = null)
         {
             OperationResult check = await steamCmdService
                 .EnsureSteamCmdAvailableAsync(false, CancellationToken.None)
@@ -21,11 +22,13 @@ namespace Arma3ServerTools.App.WinForms
                 return true;
             }
 
+            string extensionDirectory = ResolveExtensionDirectory(paths);
             if (!AntdUiHelper.Confirm(
                 owner,
                 "缺少 SteamCMD",
                 check.Message + Environment.NewLine + Environment.NewLine
-                    + "是否从 Steam 官方源自动下载并安装到 extension 目录？"))
+                    + "是否从 Steam 官方源自动下载并安装到以下目录？" + Environment.NewLine
+                    + extensionDirectory))
             {
                 return false;
             }
@@ -50,7 +53,10 @@ namespace Arma3ServerTools.App.WinForms
             return false;
         }
 
-        public static async Task<OperationResult> DownloadSteamCmdAsync(IWin32Window owner, ISteamCmdService steamCmdService)
+        public static async Task<OperationResult> DownloadSteamCmdAsync(
+            IWin32Window owner,
+            ISteamCmdService steamCmdService,
+            IAppPaths paths = null)
         {
             OperationResult check = await steamCmdService
                 .EnsureSteamCmdAvailableAsync(false, CancellationToken.None)
@@ -60,11 +66,25 @@ namespace Arma3ServerTools.App.WinForms
                 return check;
             }
 
-            AntdUiHelper.ShowInfo(owner, "正在下载 SteamCMD，请稍候...", "请稍候");
+            AntdUiHelper.ShowInfo(
+                owner,
+                "正在下载 SteamCMD 到：" + Environment.NewLine + ResolveExtensionDirectory(paths),
+                "请稍候");
 
             return await steamCmdService
                 .EnsureSteamCmdAvailableAsync(true, CancellationToken.None)
                 .ConfigureAwait(true);
+        }
+
+        private static string ResolveExtensionDirectory(IAppPaths paths)
+        {
+            if (paths == null)
+            {
+                return SteamCmdBootstrapper.GetBundledDirectory(
+                    new AppPaths(AppContext.BaseDirectory));
+            }
+
+            return SteamCmdBootstrapper.GetBundledDirectory(paths);
         }
     }
 }

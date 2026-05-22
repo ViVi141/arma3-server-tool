@@ -19,14 +19,17 @@ namespace Arma3ServerTools.Application.Tests
 
         public string LastArguments { get; private set; }
 
+        public string LastWorkingDirectory { get; private set; }
+
         public bool ShouldFailStart { get; set; }
 
         public HashSet<int> RunningProcesses { get; } = new HashSet<int>();
 
-        public ProcessStartResult Start(string fileName, string arguments)
+        public ProcessStartResult Start(string fileName, string arguments, string workingDirectory = null)
         {
             LastFileName = fileName;
             LastArguments = arguments;
+            LastWorkingDirectory = workingDirectory;
             if (ShouldFailStart)
             {
                 return ProcessStartResult.Fail("mock start failed");
@@ -332,7 +335,7 @@ namespace Arma3ServerTools.Application.Tests
             try
             {
                 Directory.CreateDirectory(Path.Combine(root, "extension"));
-                File.WriteAllText(Path.Combine(root, "extension", "steamcmd.exe"), string.Empty);
+                AutomatedTestWorkspace.CreateCompleteSteamCmdInstall(Path.Combine(root, "extension"));
                 var runner = new FakeProcessRunner();
                 var service = new SteamCmdService(
                     new AppPaths(root),
@@ -378,8 +381,7 @@ namespace Arma3ServerTools.Application.Tests
             try
             {
                 string workshopRoot = Path.Combine(root, "workshop");
-                Directory.CreateDirectory(workshopRoot);
-                File.WriteAllText(Path.Combine(workshopRoot, "steamcmd.exe"), string.Empty);
+                AutomatedTestWorkspace.CreateCompleteSteamCmdInstall(workshopRoot);
 
                 var service = new SteamCmdService(
                     new AppPaths(root),

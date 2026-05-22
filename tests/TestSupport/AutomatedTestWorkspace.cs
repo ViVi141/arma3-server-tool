@@ -76,9 +76,16 @@ namespace Arma3ServerTools.TestSupport
 
         public static void CreateBundledSteamCmd(string root)
         {
-            string extensionDir = Path.Combine(root, "extension");
+            CreateCompleteSteamCmdInstall(Path.Combine(root, "extension"));
+        }
+
+        public static void CreateCompleteSteamCmdInstall(string extensionDir)
+        {
             Directory.CreateDirectory(extensionDir);
             File.WriteAllText(Path.Combine(extensionDir, "steamcmd.exe"), string.Empty);
+            string publicDir = Path.Combine(extensionDir, "public");
+            Directory.CreateDirectory(publicDir);
+            File.WriteAllText(Path.Combine(publicDir, "steambootstrapper_english.txt"), "mock");
         }
 
         public static void CreateBundledMonitoringAssets(string root)

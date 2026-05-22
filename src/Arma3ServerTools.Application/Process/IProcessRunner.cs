@@ -4,7 +4,7 @@ namespace Arma3ServerTools.Application.ProcessManagement
 {
     public interface IProcessRunner
     {
-        ProcessStartResult Start(string fileName, string arguments);
+        ProcessStartResult Start(string fileName, string arguments, string workingDirectory = null);
 
         bool TryKill(int processId);
 
@@ -40,15 +40,21 @@ namespace Arma3ServerTools.Application.ProcessManagement
 
     public sealed class SystemProcessRunner : IProcessRunner
     {
-        public ProcessStartResult Start(string fileName, string arguments)
+        public ProcessStartResult Start(string fileName, string arguments, string workingDirectory = null)
         {
             try
             {
-                Process process = Process.Start(new ProcessStartInfo
+                var startInfo = new ProcessStartInfo
                 {
                     FileName = fileName,
                     Arguments = arguments,
-                });
+                };
+                if (!string.IsNullOrWhiteSpace(workingDirectory))
+                {
+                    startInfo.WorkingDirectory = workingDirectory;
+                }
+
+                Process process = Process.Start(startInfo);
 
                 if (process == null)
                 {

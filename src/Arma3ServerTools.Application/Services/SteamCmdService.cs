@@ -108,8 +108,9 @@ namespace Arma3ServerTools.Application.Services
                 return cachedExecutablePath;
             }
 
-            string bundledPath = SteamCmdBootstrapper.GetBundledExecutablePath(paths);
-            if (SafeFileExists(bundledPath))
+            string bundledDirectory = SteamCmdBootstrapper.GetBundledDirectory(paths);
+            string bundledPath = Path.Combine(bundledDirectory, "steamcmd.exe");
+            if (IsUsableExecutablePath(bundledPath, bundledDirectory))
             {
                 CacheExecutablePath(bundledPath);
                 return bundledPath;
@@ -119,7 +120,7 @@ namespace Arma3ServerTools.Application.Services
             if (settings != null && !string.IsNullOrEmpty(settings.d))
             {
                 string workshopPath = Path.Combine(settings.d, "steamcmd.exe");
-                if (SafeFileExists(workshopPath))
+                if (IsUsableExecutablePath(workshopPath, settings.d))
                 {
                     CacheExecutablePath(workshopPath);
                     return workshopPath;
@@ -128,6 +129,21 @@ namespace Arma3ServerTools.Application.Services
 
             CacheExecutablePath(null);
             return null;
+        }
+
+        private bool IsUsableExecutablePath(string executablePath, string installDirectory)
+        {
+            if (!SafeFileExists(executablePath))
+            {
+                return false;
+            }
+
+            if (SteamCmdPathHelper.IsBlockedInstallDirectory(paths, installDirectory))
+            {
+                return false;
+            }
+
+            return SteamCmdBootstrapper.IsInstallationComplete(installDirectory);
         }
 
         private void CacheExecutablePath(string executablePath)
@@ -161,7 +177,11 @@ namespace Arma3ServerTools.Application.Services
                 return OperationResult.Fail("找不到 steamcmd.exe。");
             }
 
-            ProcessManagement.ProcessStartResult result = processRunner.Start(executablePath, arguments);
+            string workingDirectory = Path.GetDirectoryName(executablePath);
+            ProcessManagement.ProcessStartResult result = processRunner.Start(
+                executablePath,
+                arguments,
+                workingDirectory);
             if (!result.Success)
             {
                 return OperationResult.Fail(result.Message);
