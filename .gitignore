@@ -1,11 +1,28 @@
-.vs/a3/v17/.suo
-a3/bin/Debug/a3.exe
-a3/bin/Debug/a3.pdb
-a3/bin/Debug/destiny_players.db
-a3/obj/Debug/a3.csproj.CoreCompileInputs.cache
-a3/obj/Debug/a3.csproj.FileListAbsolute.txt
-a3/obj/Debug/a3.csproj.GenerateResource.cache
-a3/obj/Debug/a3.exe
-a3/obj/Debug/a3.pdb
-a3/obj/Debug/DesignTimeResolveAssemblyReferences.cache
-AppUpdate/bin/Debug/
+# Build output
+**/bin/
+**/obj/
+**/Debug/
+**/Release/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# NuGet (legacy packages folder)
+packages/
+
+# IDE
+.idea/
+*.DotSettings.user
+
+# Local / secrets
+*.db
+data.json
+skin.json
+
+# OS
+Thumbs.db
+Desktop.ini

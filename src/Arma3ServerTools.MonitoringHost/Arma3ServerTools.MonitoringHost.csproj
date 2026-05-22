@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>Arma3ServerTools.MonitoringHost</RootNamespace>
+    <AssemblyName>Arma3ServerTools.MonitoringHost</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Arma3ServerTools.Application\Arma3ServerTools.Application.csproj" />
+    <ProjectReference Include="..\Arma3ServerTools.Core\Arma3ServerTools.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\sql\destiny_statistics.sql" Link="sql\destiny_statistics.sql">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\sql\destiny_players.sql" Link="sql\destiny_players.sql">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

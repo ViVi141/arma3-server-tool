@@ -14,9 +14,35 @@
 2.  七龙
 
 
+#### 构建（新架构）
+
+```text
+dotnet build Arma3ServerTools.sln -c Release
+dotnet test Arma3ServerTools.sln -c Release
+```
+
+新解决方案 `Arma3ServerTools.sln` 含：
+
+- `src/Arma3ServerTools.Core` — 领域层（无需 DevExpress）
+- `src/Arma3ServerTools.Application` — 应用服务层
+- `src/Arma3ServerTools.App.WinForms` — 主程序（输出 `Arma3ServerTools.exe`）
+- `src/Arma3ServerTools.MonitoringHost` — 监控 WM_COPYDATA 宿主
+
+Release 输出目录示例：`src/Arma3ServerTools.App.WinForms/bin/Release/net48/`（含 `Arma3ServerTools.exe`、`monitoring/Arma3ServerTools.MonitoringHost.exe`、`sql/destiny_statistics.sql`）。
+
+**注意**：安装路径不能包含中文（启动时会检测并退出）。开发时请先关闭主程序再编译，避免 `monitoring/` 下 DLL 被占用；主程序退出时会自动关闭监控宿主。旧 DevExpress 主程序仍用 `a3.sln`。
+
 #### 使用说明
 1.  vs版本2022或以上
 2.  DevExpress版本v21.2或以上
+
+#### 许可
+
+本项目采用 **[Apache License 2.0](LICENSE)**，与原作者许可一致。二次开发请保留 `NOTICE` 中的原作者信息（Blue、七龙）及原项目链接。
+
+#### 改造方案（开源 / 去 DevExpress）
+
+纯 C# 分层改造说明见：**[docs/refactoring-plan.md](docs/refactoring-plan.md)**
 
 #### 描述
 1.  a3 开服工具项目

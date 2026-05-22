@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>Arma3ServerTools.Application</RootNamespace>
+    <AssemblyName>Arma3ServerTools.Application</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Quartz" Version="3.13.1" />
+    <PackageReference Include="Stub.System.Data.SQLite.Core.NetFramework" Version="1.0.119.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Arma3ServerTools.Core\Arma3ServerTools.Core.csproj" />
+  </ItemGroup>
+
+</Project>
