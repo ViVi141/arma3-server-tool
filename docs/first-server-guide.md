@@ -48,9 +48,9 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
    - **安全**：BattlEye、RCon 密码与端口、**RCon 地址**（默认 127.0.0.1）
    - **任务**：选择 `.pbo` 任务
    - **模组**：勾选「更新」列后点 **下载选中模组**；或 **从剪贴板导入 ID** / **从 HTML 下载**（会弹出 Steam API 确认框）；下载完成后 **扫描刷新** 再勾选启用
-3. **保存到工具** → 可选 **应用到服务器目录**（写入 `server.cfg` 等；也可在点击 **启动** 时自动写入）
+3. **保存到工具** → 可选 **应用到服务器目录**（写入 `server.cfg`、`basic.cfg`、`*.Arma3Profile` 等；也可在点击 **启动** 时自动写入）
 
-> **说明：** 「保存到工具」只更新工具内的 JSON 配置；Arma 3 实际读取的是服务器目录下的 cfg 文件。通过本工具 **启动** 时会自动写入 cfg，因此日常改完设置后直接点启动即可；若需在不启动的情况下检查磁盘上的 cfg，请使用 **应用到服务器目录**。
+> **说明：** 「保存到工具」只更新工具内的 JSON 配置；Arma 3 实际读取的是服务器目录下的 cfg 与 Profile 文件（含 **CustomDifficulty**）。通过本工具 **启动** 时会自动写入这些文件，因此日常改完设置后直接点启动即可；若需在不启动的情况下检查磁盘上的配置，请使用 **应用到服务器目录**。
 
 ## 5. 监控与统计（可选）
 
@@ -64,7 +64,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 ## 6. 启动服务器
 
 1. 确认状态栏显示 **已同步**，或接受「启动时将自动写入」提示
-2. 点击 **启动**（会先写入 `server.cfg` 再启动进程）
+2. 点击 **启动**（会先写入 `server.cfg`、`basic.cfg`、`*.Arma3Profile` 再启动进程）
 3. 在 **远程控制** 页连接 RCon，管理在线玩家（踢人、封禁、切换任务等）
 
 ## 7. 封禁管理

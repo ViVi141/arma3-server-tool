@@ -23,9 +23,9 @@ namespace Arma3ServerTools.App.WinForms
         public const string SaveToToolSuccess = "配置已保存到工具（尚未写入游戏目录）。";
 
         public const string ApplyToServerSuccess =
-            "已写入 server.cfg、basic.cfg 与 BattlEye 配置，并部署监控组件（如已启用）。";
+            "已写入 server.cfg、basic.cfg、*.Arma3Profile 与 BattlEye 配置，并部署监控组件（如已启用）。";
 
-        public const string StartServerSuccess = "已写入 server.cfg 并启动服务器进程。";
+        public const string StartServerSuccess = "已写入 server.cfg、basic.cfg、*.Arma3Profile 并启动服务器进程。";
 
         public const string StatusUnsavedChanges = "有未保存修改";
 

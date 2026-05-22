@@ -22,7 +22,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
             string message = "配置 \"" + configName + "\" 有未保存的修改。"
                 + System.Environment.NewLine
-                + "「保存到工具」仅更新工具内 JSON；「应用到服务器目录」会写入 server.cfg 等游戏文件。";
+                + "「保存到工具」仅更新工具内 JSON；「应用到服务器目录」会写入 server.cfg、basic.cfg、*.Arma3Profile 与 BattlEye 等游戏文件。";
 
             var body = new AntdUI.Label
             {
