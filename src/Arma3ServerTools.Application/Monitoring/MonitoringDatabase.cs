@@ -25,7 +25,7 @@ namespace Arma3ServerTools.Application.Monitoring
                 return;
             }
 
-            string dbPath = Path.Combine(paths.ApplicationBase, "destiny_statistics.db");
+            string dbPath = Path.Combine(paths.ApplicationBase, ToolConstants.StatisticsDatabaseFileName);
             connection = new SqliteConnection(BuildConnectionString(dbPath));
             connection.Open();
             EnsureSchema();
@@ -288,7 +288,7 @@ namespace Arma3ServerTools.Application.Monitoring
 
         private void EnsureSchema()
         {
-            string schemaPath = Path.Combine(paths.ApplicationBase, @"sql\destiny_statistics.sql");
+            string schemaPath = Path.Combine(paths.ApplicationBase, @"sql\" + ToolConstants.StatisticsSchemaFileName);
             if (!File.Exists(schemaPath))
             {
                 throw new ConfigException("找不到统计库建表脚本: " + schemaPath);

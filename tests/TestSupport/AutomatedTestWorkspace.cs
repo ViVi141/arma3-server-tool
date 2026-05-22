@@ -25,9 +25,9 @@ namespace Arma3ServerTools.TestSupport
         {
             string[] candidates = new[]
             {
-                Path.Combine(AppContext.BaseDirectory, "sql", "destiny_statistics.sql"),
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "sql", "destiny_statistics.sql")),
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "sql", "destiny_statistics.sql")),
+                Path.Combine(AppContext.BaseDirectory, "sql", Core.ToolConstants.StatisticsSchemaFileName),
+                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "sql", Core.ToolConstants.StatisticsSchemaFileName)),
+                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "sql", Core.ToolConstants.StatisticsSchemaFileName)),
             };
 
             for (int i = 0; i < candidates.Length; i++)
@@ -39,7 +39,7 @@ namespace Arma3ServerTools.TestSupport
             }
 
             throw new FileNotFoundException(
-                "测试需要 sql/destiny_statistics.sql（输出目录或仓库 sql/ 下）。",
+                "测试需要 sql/" + Core.ToolConstants.StatisticsSchemaFileName + "（输出目录或仓库 sql/ 下）。",
                 candidates[0]);
         }
 
@@ -48,7 +48,7 @@ namespace Arma3ServerTools.TestSupport
             string sqlSource = FindSqlSchemaPath();
             string sqlDestDir = Path.Combine(root, "sql");
             Directory.CreateDirectory(sqlDestDir);
-            File.Copy(sqlSource, Path.Combine(sqlDestDir, "destiny_statistics.sql"), true);
+            File.Copy(sqlSource, Path.Combine(sqlDestDir, Core.ToolConstants.StatisticsSchemaFileName), true);
         }
 
         public static void CreateFakeDedicatedServer(string serverDir)
@@ -64,19 +64,41 @@ namespace Arma3ServerTools.TestSupport
             File.WriteAllText(Path.Combine(extensionDir, "steamcmd.exe"), string.Empty);
         }
 
+        public static void CreateBundledMonitoringAssets(string root)
+        {
+            string dllDir = Path.Combine(root, Core.ToolConstants.MonitoringBundledFolderName);
+            Directory.CreateDirectory(dllDir);
+            File.WriteAllText(
+                Path.Combine(dllDir, Core.ToolConstants.MonitoringExtensionDllFileName),
+                "mock-monitoring-dll");
+
+            string modRoot = Path.Combine(
+                root,
+                Core.ToolConstants.MonitoringModBundledFolderName,
+                Core.ToolConstants.MonitoringServerModToken);
+            string addonRoot = Path.Combine(modRoot, "addons", "a3st_monitor");
+            Directory.CreateDirectory(addonRoot);
+            File.WriteAllText(Path.Combine(addonRoot, "config.cpp"), "class CfgPatches {};");
+            File.WriteAllText(Path.Combine(addonRoot, "fn_initFunctions.sqf"), "// template");
+            Directory.CreateDirectory(Path.Combine(addonRoot, "script"));
+            File.WriteAllText(
+                Path.Combine(addonRoot, "script", "destiny_fnc_monitoring_service.sqf"),
+                "// monitoring");
+        }
+
         public static void CopyPlayersSchema(string root)
         {
-            string source = Path.Combine(Path.GetDirectoryName(FindSqlSchemaPath()), "destiny_players.sql");
+            string source = Path.Combine(Path.GetDirectoryName(FindSqlSchemaPath()), Core.ToolConstants.PlayersSchemaFileName);
             if (!File.Exists(source))
             {
                 throw new FileNotFoundException(
-                    "测试需要 sql/destiny_players.sql（与 destiny_statistics.sql 同目录）。",
+                    "测试需要 sql/" + Core.ToolConstants.PlayersSchemaFileName + "（与统计 schema 同目录）。",
                     source);
             }
 
             string destDir = Path.Combine(root, "sql");
             Directory.CreateDirectory(destDir);
-            File.Copy(source, Path.Combine(destDir, "destiny_players.sql"), true);
+            File.Copy(source, Path.Combine(destDir, Core.ToolConstants.PlayersSchemaFileName), true);
         }
 
         public static void CreateSampleMod(string modPath, string name, long publishedId)

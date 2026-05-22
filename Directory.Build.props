@@ -6,8 +6,8 @@
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
     <InformationalVersion>1.0.0</InformationalVersion>
-    <Company>destiny studio</Company>
+    <Company>ViVi141</Company>
     <Product>Arma3 Server Tools</Product>
-    <Copyright>Copyright 2022 destiny studio (Blue, 七龙)</Copyright>
+    <Copyright>Copyright 2026 ViVi141. Based on original work copyright 2022 destiny studio (Blue, 七龙).</Copyright>
   </PropertyGroup>
 </Project>

@@ -52,7 +52,7 @@ Arma3ServerTools.App.WinForms/     → Arma3ServerTools.exe
 └── AppServices                    # 组装 Application 服务
 
 Arma3ServerTools.MonitoringHost/   → Arma3ServerTools.MonitoringHost.exe
-└── 窗口标题 A3-DestinyStudio-ProcessCommunicationModule（供 DestinyServerMonitoring.dll 查找）
+└── 窗口标题 `A3-Arma3ServerTools-ProcessCommunicationModule`（供 Monitoring DLL 查找）
 ```
 
 主程序启动时会拉起 `MonitoringHost.exe`；构建后两者位于同一输出目录。
@@ -64,7 +64,7 @@ Arma3ServerTools.MonitoringHost/   → Arma3ServerTools.MonitoringHost.exe
 - **Core**：不得引用 WinForms / DevExpress / ASP.NET。
 - **Application**：引用 Core；不得引用 WinForms / DevExpress。
 - **App.WinForms / MonitoringHost**：引用 Application + Core；不得引用 DevExpress。
-- 配置路径由 `IAppPaths` 注入；统计库脚本位于 `{ApplicationBase}/sql/destiny_statistics.sql`。
+- 配置路径由 `IAppPaths` 注入；统计库脚本位于 `{ApplicationBase}/sql/a3st_statistics.sql`。
 
 ## 测试
 

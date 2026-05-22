@@ -37,7 +37,7 @@ DestinyServerMonitoring/
 flowchart LR
     A[Arma3 专用服务器] -->|加载| B[DestinyServerMonitoring.dll]
     B -->|命名管道 / 文件| C[MonitoringHost.exe]
-    C -->|SQLite| D[destiny_statistics.db]
+    C -->|SQLite| D[a3st_statistics.db]
     D --> E[WinForms 统计 Tab / 图表 / 导出]
 ```
 

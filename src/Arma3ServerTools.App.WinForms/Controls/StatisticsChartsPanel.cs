@@ -67,6 +67,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void RenderTimelineCharts(IReadOnlyList<MonitoringObjectStatRecord> timelineRows)
         {
+            ScottPlotFontHelper.ApplyToPlot(fpsPlot.Plot);
+            ScottPlotFontHelper.ApplyToPlot(onlinePlot.Plot);
             fpsPlot.Plot.Clear();
             onlinePlot.Plot.Clear();
 
@@ -104,6 +106,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void RenderKillChart(IReadOnlyList<MonitoringPlayerStatRecord> playerRows)
         {
+            ScottPlotFontHelper.ApplyToPlot(killsPlot.Plot);
             killsPlot.Plot.Clear();
             if (playerRows == null || playerRows.Count == 0)
             {
@@ -186,6 +189,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 Dock = DockStyle.Fill,
                 MinimumSize = new Size(UiScaleHelper.Scale(240), UiScaleHelper.Scale(160)),
             };
+            ScottPlotFontHelper.ApplyToPlot(plot.Plot);
             plot.Plot.Title(title);
             return plot;
         }

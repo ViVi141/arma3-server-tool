@@ -6,11 +6,8 @@ using System.Threading.Tasks;
 
 /**
 * by 七龙
-* 这个东西非常坑爹，对中国人用非常不友好，我的坑
-* 首先必须把系统换成英文的,然后就是需要用Viewdll.exe查看是否有托管导出的函数
-* 最后需要BuildTools_Full.exe编译错误依赖 https://www.microsoft.com/zh-CN/download/confirmation.aspx?id=48159
-*
-
+* DllExport 在部分中文 Windows 环境下编译较折腾；建议用 VS 2022（含 C++ 桌面开发）在 Release|x64 下构建。
+* 构建说明见仓库 docs/monitoring-cpp-dll-build.md
 */
 namespace DestinyServerMonitoring
 {
@@ -129,7 +126,7 @@ namespace DestinyServerMonitoring
                 output.Append(args[i]);
             }
               Task.Run( () => {
-                  int WINDOW_HANDLER = FindWindow(null, "A3-DestinyStudio-ProcessCommunicationModule");
+                  int WINDOW_HANDLER = FindWindow(null, "A3-Arma3ServerTools-ProcessCommunicationModule");
                   if (WINDOW_HANDLER != 0)
                   {
                       byte[] sarr = Encoding.Default.GetBytes(args[0]);

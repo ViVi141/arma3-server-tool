@@ -268,7 +268,7 @@ namespace Arma3ServerTools.App.WinForms
                 new AntdUI.SelectItem("refresh", "刷新列表"),
                 new AntdUI.SelectItem("sep1", "-"),
                 new AntdUI.SelectItem("openConfig", "打开配置目录"),
-                new AntdUI.SelectItem("openDestiny", "打开 destiny 配置"),
+                new AntdUI.SelectItem("openServerConfig", "打开服务器配置目录"),
                 new AntdUI.SelectItem("installServer", "安装/更新专用服务器..."),
             });
             dropdown.ItemClick += delegate(object sender, AntdUI.ObjectNEventArgs e)
@@ -298,9 +298,9 @@ namespace Arma3ServerTools.App.WinForms
                 {
                     OnOpenConfigDirectory(sender, EventArgs.Empty);
                 }
-                else if (id == "openDestiny")
+                else if (id == "openServerConfig")
                 {
-                    OnOpenDestinyConfigDirectory(sender, EventArgs.Empty);
+                    OnOpenServerConfigDirectory(sender, EventArgs.Empty);
                 }
                 else if (id == "installServer")
                 {
@@ -1113,7 +1113,13 @@ namespace Arma3ServerTools.App.WinForms
             OperationResult writeResult = await Task.Run(() =>
             {
                 services.ConfigService.Save(config);
-                return services.ConfigWriter.WriteAll(config);
+                OperationResult cfgResult = services.ConfigWriter.WriteAll(config);
+                if (!cfgResult.Success)
+                {
+                    return cfgResult;
+                }
+
+                return services.MonitoringDeploymentService.DeployIfEnabled(config);
             }).ConfigureAwait(true);
 
             SyncSchedulerJobs(config);
@@ -1327,7 +1333,7 @@ namespace Arma3ServerTools.App.WinForms
             });
         }
 
-        private void OnOpenDestinyConfigDirectory(object sender, EventArgs e)
+        private void OnOpenServerConfigDirectory(object sender, EventArgs e)
         {
             ArmaServerConfig config = services.GetCurrentConfig();
             if (config == null || string.IsNullOrEmpty(config.ServerDir) || string.IsNullOrEmpty(config.ServerUUID))
@@ -1336,7 +1342,7 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
-            string path = Path.Combine(config.ServerDir, "destiny_serverconfig", config.ServerUUID);
+            string path = Path.Combine(config.ServerDir, ToolConstants.ServerConfigFolderName, config.ServerUUID);
             Directory.CreateDirectory(path);
             Process.Start(new ProcessStartInfo
             {

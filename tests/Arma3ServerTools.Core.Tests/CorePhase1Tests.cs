@@ -155,7 +155,7 @@ namespace Arma3ServerTools.Core.Tests
 
                 string basePath = Path.Combine(
                     serverDir,
-                    @"destiny_serverconfig\cfg-test-uuid");
+                    ToolConstants.ServerConfigFolderName + @"\cfg-test-uuid");
                 Assert.True(File.Exists(Path.Combine(basePath, "server.cfg")));
                 Assert.True(File.Exists(Path.Combine(basePath, "basic.cfg")));
                 Assert.True(File.Exists(Path.Combine(basePath, @"BattlEye\BEServer_x64.cfg")));
@@ -277,7 +277,7 @@ namespace Arma3ServerTools.Core.Tests
         }
 
         [Fact]
-        public void BuildStartCommandLine_AddsDestinyServerModWhenMonitorEnabled()
+        public void BuildStartCommandLine_AddsMonitoringModWhenMonitorEnabled()
         {
             var config = new ArmaServerConfig
             {
@@ -289,7 +289,7 @@ namespace Arma3ServerTools.Core.Tests
 
             string commandLine = new GameConfigWriter().BuildStartCommandLine(config);
 
-            Assert.Contains("@destiny_server", commandLine);
+            Assert.Contains(ToolConstants.MonitoringServerModToken, commandLine);
         }
 
         [Fact]

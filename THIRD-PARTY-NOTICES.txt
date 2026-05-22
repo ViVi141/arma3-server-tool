@@ -25,7 +25,7 @@ Embedded source (vendored in repository)
 Optional / separate build (not in main Release zip)
 ---------------------------------------------------
 
-- DestinyServerMonitoring — C++ server extension DLL (DestinyServerMonitoring/)
+- Arma3 Server Monitoring — C++ server extension DLL (`DestinyServerMonitoring/` 源码目录，输出 `DestinyServerMonitoring.dll`)
   Build separately; see docs/monitoring-cpp-dll-build.md
 
 Runtime requirements

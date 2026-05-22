@@ -20,7 +20,7 @@ namespace Arma3ServerTools.MonitoringHost
 
     internal sealed class MonitoringHostForm : Form
     {
-        public const string WindowTitle = "A3-DestinyStudio-ProcessCommunicationModule";
+        public const string WindowTitle = ToolConstants.MonitoringHostWindowTitle;
         private const int WmCopyData = 0x004A;
 
         private readonly QueuedMonitoringIngestService ingestService;

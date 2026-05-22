@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Config;
 using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.Core.Validation;
@@ -17,6 +18,13 @@ namespace Arma3ServerTools.Application.Services
 
     public sealed class ServerPreflightChecker
     {
+        private readonly MonitoringDeploymentService monitoringDeploymentService;
+
+        public ServerPreflightChecker(MonitoringDeploymentService monitoringDeploymentService)
+        {
+            this.monitoringDeploymentService = monitoringDeploymentService;
+        }
+
         public IReadOnlyList<PreflightCheckItem> Check(ArmaServerConfig config, ServerRunState runState)
         {
             var items = new List<PreflightCheckItem>();
@@ -37,6 +45,7 @@ namespace Arma3ServerTools.Application.Services
             CheckPort(config, runState, items);
             CheckBasicSettings(config, items);
             CheckBattlEye(config, items);
+            CheckMonitoringAssets(config, items);
             return items;
         }
 
@@ -142,7 +151,7 @@ namespace Arma3ServerTools.Application.Services
 
             string serverCfg = Path.Combine(
                 config.ServerDir,
-                "destiny_serverconfig",
+                ToolConstants.ServerConfigFolderName,
                 config.ServerUUID,
                 "server.cfg");
             if (File.Exists(serverCfg))
@@ -263,6 +272,40 @@ namespace Arma3ServerTools.Application.Services
                     IsError = false,
                 });
             }
+        }
+
+        private void CheckMonitoringAssets(ArmaServerConfig config, List<PreflightCheckItem> items)
+        {
+            if (config == null || !config.ServerTaskManagement.EnableMonitor)
+            {
+                return;
+            }
+
+            if (monitoringDeploymentService.HasBundledAssets())
+            {
+                items.Add(new PreflightCheckItem
+                {
+                    Title = "监控组件",
+                    Detail = "启动/写入配置时将自动部署 "
+                        + ToolConstants.MonitoringExtensionDllFileName
+                        + " 与 "
+                        + ToolConstants.MonitoringServerModToken
+                        + "。",
+                    IsError = false,
+                });
+                return;
+            }
+
+            items.Add(new PreflightCheckItem
+            {
+                Title = "监控组件",
+                Detail = "已启用监控模组，但主程序目录缺少 monitoring-server\\"
+                    + ToolConstants.MonitoringExtensionDllFileName
+                    + " 或 mod\\"
+                    + ToolConstants.MonitoringServerModToken
+                    + "。",
+                IsError = true,
+            });
         }
     }
 }

@@ -1,3 +1,5 @@
+using Arma3ServerTools.Core;
+
 namespace Arma3ServerTools.App.WinForms
 {
     /// <summary>
@@ -5,7 +7,7 @@ namespace Arma3ServerTools.App.WinForms
     /// </summary>
     internal static class UiLabels
     {
-        public const string AppTitle = "Arma3 服务器工具";
+        public const string AppTitle = ToolConstants.ProductName;
 
         public const string ServerId = "服务器标识";
 

@@ -49,10 +49,10 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 
 在 **定时** 页勾选：
 
-- **启用监控模组 (@destiny_server)** — 启动参数会加入 `@destiny_server` 服务器模组
-- **启用统计入库** — 运行时将性能/击杀等数据写入 `destiny_statistics.db`
+- **启用监控模组 (@a3st_monitor)** — 启动参数会加入 `@a3st_monitor` 服务器模组
+- **启用统计入库** — 运行时将性能/击杀等数据写入 `a3st_statistics.db`
 
-需自行编译并部署 `DestinyServerMonitoring` C++ RVExtension 及 `@destiny_server` 模组到服务器目录。主程序启动时会拉起 `monitoring/Arma3ServerTools.MonitoringHost.exe` 接收游戏进程数据。
+需自行编译并部署 Monitoring RVExtension（`DestinyServerMonitoring/` 目录，见 [monitoring-cpp-dll-build.md](monitoring-cpp-dll-build.md)）及 **`@a3st_monitor`** 模组到服务器目录（旧版为 `@destiny_server`，不兼容）。主程序启动时会拉起 `monitoring/Arma3ServerTools.MonitoringHost.exe` 接收游戏进程数据。
 
 ## 6. 启动服务器
 

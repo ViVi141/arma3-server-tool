@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Arma3ServerTools.Application.Services;
+using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.TestSupport;
 using Xunit;
@@ -12,16 +13,24 @@ namespace Arma3ServerTools.Application.Tests
         [Fact]
         public void Check_MissingServerDir_ReturnsBlockingError()
         {
-            var checker = new ServerPreflightChecker();
-            var config = new ArmaServerConfig
+            string root = AutomatedTestWorkspace.CreateRoot("a3preflight-missing");
+            try
             {
-                ServerDir = string.Empty,
-                ServerUUID = "uuid-test",
-            };
+                var checker = new ServerPreflightChecker(new MonitoringDeploymentService(new Core.AppPaths(root)));
+                var config = new ArmaServerConfig
+                {
+                    ServerDir = string.Empty,
+                    ServerUUID = "uuid-test",
+                };
 
-            var items = checker.Check(config, ServerRunState.Stopped);
+                var items = checker.Check(config, ServerRunState.Stopped);
 
-            Assert.True(checker.HasBlockingErrors(items));
+                Assert.True(checker.HasBlockingErrors(items));
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
         }
 
         [Fact]
@@ -42,7 +51,7 @@ namespace Arma3ServerTools.Application.Tests
                     ServerConfig = new ServerConfig { HostName = "Test Server" },
                 };
 
-                var checker = new ServerPreflightChecker();
+                var checker = new ServerPreflightChecker(new MonitoringDeploymentService(new Core.AppPaths(root)));
                 var items = checker.Check(config, ServerRunState.Stopped);
 
                 Assert.False(checker.HasBlockingErrors(items));
@@ -56,16 +65,24 @@ namespace Arma3ServerTools.Application.Tests
         [Fact]
         public void Check_ChinesePath_ReturnsBlockingError()
         {
-            var checker = new ServerPreflightChecker();
-            var config = new ArmaServerConfig
+            string root = AutomatedTestWorkspace.CreateRoot("a3preflight-cn");
+            try
             {
-                ServerDir = @"C:\测试\arma3",
-                ServerUUID = "uuid-test",
-            };
+                var checker = new ServerPreflightChecker(new MonitoringDeploymentService(new Core.AppPaths(root)));
+                var config = new ArmaServerConfig
+                {
+                    ServerDir = @"C:\测试\arma3",
+                    ServerUUID = "uuid-test",
+                };
 
-            var items = checker.Check(config, ServerRunState.Stopped);
+                var items = checker.Check(config, ServerRunState.Stopped);
 
-            Assert.True(checker.HasBlockingErrors(items));
+                Assert.True(checker.HasBlockingErrors(items));
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
         }
     }
 

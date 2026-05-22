@@ -19,7 +19,7 @@
 ## 写 cfg 与启停
 
 - [ ] **保存配置** 成功
-- [ ] **写入 cfg** 成功，`destiny_serverconfig/<UUID>/server.cfg` 存在
+- [ ] **写入 cfg** 成功，`a3st_serverconfig/<UUID>/server.cfg` 存在
 - [ ] **启动**：有阻塞错误时弹出检查报告并阻止启动；修复后可启动
 - [ ] **停止** 后状态变为已停止，概览 PID 清空
 

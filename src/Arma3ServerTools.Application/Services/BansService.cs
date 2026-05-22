@@ -73,8 +73,8 @@ namespace Arma3ServerTools.Application.Services
         private static IEnumerable<string> GetBanFilePaths(string serverDir, string serverUuid)
         {
             yield return serverDir + @"\bans.txt";
-            yield return serverDir + @"\destiny_serverconfig\" + serverUuid + @"\BattlEye\bans.txt";
-            yield return serverDir + @"\destiny_serverconfig\" + serverUuid + @"\Users\" + serverUuid + @"\bans.txt";
+            yield return serverDir + @"\" + ToolConstants.ServerConfigFolderName + @"\" + serverUuid + @"\BattlEye\bans.txt";
+            yield return serverDir + @"\" + ToolConstants.ServerConfigFolderName + @"\" + serverUuid + @"\Users\" + serverUuid + @"\bans.txt";
         }
 
         private static void AppendParsedBans(
