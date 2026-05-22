@@ -108,7 +108,6 @@ arma3-server-tool/
 │   ├── Arma3ServerTools.MonitoringHost/ # WM_COPYDATA 宿主 net10
 │   └── Arma3ServerTools.AppUpdate/      # 升级器（阶段 8，待新建）
 ├── DestinyServerMonitoring/             # RVExtension DLL（C++）
-├── Steamcmdtools/                       # steamcmdTools 辅助 EXE
 ├── sql/                                 # destiny_*.sql
 ├── extension/                           # steamcmd.exe（文档说明，可不提交）
 └── Arma3ServerTools.sln                 # 主解决方案
@@ -201,7 +200,6 @@ public interface ISchedulerService {
 // SteamCMD
 public interface ISteamCmdService {
     OperationResult InstallDedicatedServer(string installDir);
-    OperationResult UpdateWorkshopMods(IEnumerable<ulong> modIds);
 }
 
 // 监控
@@ -292,7 +290,7 @@ public sealed class OperationResult {
 ### 阶段 4：功能对齐（2～4 周）
 
 - [x] 各设置页（基本/网络/安全/性能/日志/难度/模组/任务）
-- [x] SteamCMD 配置、安装专用服务器、模组扫描/下载/勾选（含 steamcmdTools + WM_COPYDATA 备用下载、Steam API 确认）
+- [x] SteamCMD 配置、安装专用服务器、模组扫描/勾选（含 HTML 导入启用）
 - [x] RCon 管理（连接、玩家列表、踢人、封禁、公告、任务、锁定/解锁、同步玩家库）
 - [x] 统计 Tab（玩家/物体统计查询、清理、InitPlayerOnlineInfo）
 - [x] 监控异步入库（`QueuedMonitoringIngestService`）
@@ -327,7 +325,7 @@ dotnet test Arma3ServerTools.sln -c Release
 - [ ] 7.1 Core + Core.Tests → `net10.0-windows`（含 Nito 移除）
 - [ ] 7.2 Application + `Microsoft.Data.Sqlite` 替换 + HttpClient
 - [ ] 7.3 WinForms + MonitoringHost
-- [ ] 7.4 steamcmdTools + 发布策略（框架依赖 / 自包含）
+- [ ] ~~7.4 steamcmdTools + 发布策略~~（已移除内置模组下载，不再维护 steamcmdTools）
 - [ ] 7.5 CI 与文档更新
 
 **验收**：`dotnet test` 全绿；英文路径冒烟通过；无 net48 / Stub SQLite / Nito.AsyncEx 依赖。

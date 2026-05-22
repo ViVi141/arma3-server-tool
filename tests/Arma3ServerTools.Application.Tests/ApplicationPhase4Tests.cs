@@ -234,44 +234,6 @@ namespace Arma3ServerTools.Application.Tests
                 AutomatedTestWorkspace.DeleteRoot(root);
             }
         }
-
-        [Fact]
-        public void UpdateWorkshopMods_UsesWorkshopRootSteamCmdWhenPresent()
-        {
-            string root = AutomatedTestWorkspace.CreateRoot("a3steam-workshop");
-            try
-            {
-                string workshopRoot = Path.Combine(root, "steam");
-                AutomatedTestWorkspace.CreateBundledSteamCmd(root);
-                Directory.CreateDirectory(workshopRoot);
-                File.Copy(
-                    Path.Combine(root, "extension", "steamcmd.exe"),
-                    Path.Combine(workshopRoot, "steamcmd.exe"),
-                    true);
-
-                var runner = new FakeProcessRunner();
-                var service = new SteamCmdService(
-                    new AppPaths(root),
-                    new InlineSteamCmdConfig(new SteamcmdEntity
-                    {
-                        u = "user",
-                        p = "pass",
-                        d = workshopRoot,
-                    }),
-                    runner);
-
-                OperationResult result = service.UpdateWorkshopMods(new ulong[] { 1234567890UL });
-
-                Assert.True(result.Success, result.Message);
-                Assert.Contains("workshop_download_item", runner.LastArguments);
-                Assert.Contains("1234567890", runner.LastArguments);
-                Assert.Equal(Path.Combine(workshopRoot, "steamcmd.exe"), runner.LastFileName);
-            }
-            finally
-            {
-                AutomatedTestWorkspace.DeleteRoot(root);
-            }
-        }
     }
 
     public class EndToEndSmokeTests

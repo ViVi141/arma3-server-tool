@@ -16,7 +16,6 @@ namespace Arma3ServerTools.App.WinForms
             IList<LauncherHtmlModEntry> htmlEntries,
             ArmaServerConfig config,
             SteamcmdEntity settings,
-            ISteamCmdService steamCmdService,
             BikeyService bikeyService,
             Action refreshGrid)
         {
@@ -41,7 +40,6 @@ namespace Arma3ServerTools.App.WinForms
             var enabler = new ModEnablerService();
             IList<LauncherHtmlModEntry> selectedEntries;
             ModApplyTarget target;
-            bool downloadMissing;
             using (var dialog = new HtmlModEnableForm(htmlEntries, settings.d, enabler))
             {
                 Form ownerForm = owner as Form;
@@ -52,7 +50,6 @@ namespace Arma3ServerTools.App.WinForms
 
                 selectedEntries = dialog.GetSelectedEntries();
                 target = dialog.GetApplyTarget();
-                downloadMissing = dialog.ShouldDownloadMissing();
             }
 
             if (selectedEntries.Count == 0)
@@ -61,32 +58,12 @@ namespace Arma3ServerTools.App.WinForms
                 return false;
             }
 
-            if (downloadMissing)
-            {
-                var missingIds = new List<ulong>();
-                foreach (LauncherHtmlModEntry entry in selectedEntries)
-                {
-                    if (!enabler.IsModInstalled(settings.d, entry.ModId))
-                    {
-                        missingIds.Add(entry.ModId);
-                    }
-                }
-
-                if (missingIds.Count > 0)
-                {
-                    if (!ModDownloadUiHelper.TryDownloadMods(owner, missingIds, null, settings, steamCmdService))
-                    {
-                        return false;
-                    }
-                }
-            }
-
             ModEnableApplyResult applyResult = enabler.ApplyHtmlMods(config, settings.d, selectedEntries, target);
             if (applyResult.AppliedCount == 0)
             {
                 AntdUiHelper.ShowWarning(
                     owner,
-                    "没有模组被启用。请确认模组已下载到 Workshop 目录，或勾选「启用前下载未安装的模组」。",
+                    "没有模组被启用。请确认模组已下载到 Workshop 目录。",
                     "启用失败");
                 return false;
             }

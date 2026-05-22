@@ -94,7 +94,6 @@ namespace Arma3ServerTools.Application.Services
                 var row = new ScannedModRow();
                 row.ModPath = directory;
                 row.ModDirName = ModFileTools.GetDirectoryName(directory);
-                row.UpdateSelected = false;
                 row.ScanOrder = scanOrder;
                 scanOrder++;
                 if (saved != null)
@@ -192,8 +191,6 @@ namespace Arma3ServerTools.Application.Services
         public int RowIndex { get; set; }
 
         public int ScanOrder { get; set; }
-
-        public bool UpdateSelected { get; set; }
 
         public string ModDirName { get; set; }
 

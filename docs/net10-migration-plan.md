@@ -13,7 +13,7 @@
 
 | 项 | 说明 |
 |----|------|
-| **TFM** | 主线 `src/` + `tests/` + `steamcmdTools` 统一到 **`net10.0-windows`** |
+| **TFM** | 主线 `src/` + `tests/` 统一到 **`net10.0-windows`** |
 | **LTS** | 获得 .NET 10 LTS 支持至 **2028-11**（[官方支持策略](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core)） |
 | **依赖现代化** | 移除 NetFramework 专用 SQLite stub；测试/SDK 包升到当前稳定版 |
 | **发布** | 7.5 完成后进入 **阶段 5 Release**；明确「框架依赖 vs 自包含」策略，更新 README / CI |
