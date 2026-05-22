@@ -123,6 +123,7 @@ namespace Arma3ServerTools.App.WinForms
         public void SaveSteamCmdSettings(SteamcmdEntity settings)
         {
             SteamCmdConfigProvider.SaveSettings(settings);
+            SteamCmdService.InvalidateExecutableCache();
         }
     }
 }

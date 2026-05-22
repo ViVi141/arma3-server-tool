@@ -96,6 +96,8 @@ namespace Arma3ServerTools.Application.Services
         OperationResult EnsureSteamCmdAvailable(bool downloadIfMissing);
 
         OperationResult InstallDedicatedServer(string installDir);
+
+        void InvalidateExecutableCache();
     }
 
     public interface IMonitoringIngestService

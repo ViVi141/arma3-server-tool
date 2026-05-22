@@ -6,6 +6,8 @@ namespace Arma3ServerTools.Application.Services
     public sealed class SteamCmdConfigProvider : ISteamCmdConfigProvider
     {
         private readonly SteamCmdConfigRepository repository;
+        private SteamcmdEntity cachedSettings;
+        private bool settingsLoaded;
 
         public SteamCmdConfigProvider(SteamCmdConfigRepository repository)
         {
@@ -14,12 +16,27 @@ namespace Arma3ServerTools.Application.Services
 
         public SteamcmdEntity GetSettings()
         {
-            return repository.Load();
+            if (settingsLoaded)
+            {
+                return cachedSettings;
+            }
+
+            cachedSettings = repository.Load();
+            settingsLoaded = true;
+            return cachedSettings;
         }
 
         public void SaveSettings(SteamcmdEntity settings)
         {
             repository.Save(settings);
+            cachedSettings = settings;
+            settingsLoaded = true;
+        }
+
+        public void InvalidateCache()
+        {
+            settingsLoaded = false;
+            cachedSettings = null;
         }
     }
 }

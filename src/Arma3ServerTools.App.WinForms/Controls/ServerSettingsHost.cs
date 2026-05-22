@@ -27,19 +27,21 @@ namespace Arma3ServerTools.App.WinForms.Controls
             tabs.SelectedIndexChanged += OnSettingsTabChanged;
 
             OverviewPanel = AddTab("概览", new ServerOverviewPanel());
-            NetworkSettingsPanel networkPanel = AddTab("网络", new NetworkSettingsPanel());
             AddTab("基本", new BasicSettingsPanel());
+            AddTab("SteamCMD", new SteamCmdSettingsPanel());
+            NetworkSettingsPanel networkPanel = AddTab("网络", new NetworkSettingsPanel());
             AddTab("安全", new SecuritySettingsPanel());
             AddTab("性能", new PerformanceSettingsPanel());
-            AddTab("日志", new LogSettingsPanel());
-            AddTab("难度", new DifficultySettingsPanel());
             AddTab("模组", new ModSettingsPanel());
             AddTab("任务", new MissionSettingsPanel());
+            AddTab("难度", new DifficultySettingsPanel());
+            AddTab("日志", new LogSettingsPanel());
             AddTab("定时", new CronTasksPanel());
             AddTab("统计", new StatisticsManagementPanel());
             AddTab(UiLabels.RemoteControlTab, new RconManagementPanel());
             AddTab("封禁", new BansPanel());
 
+            // 网络简易模式保存时会读取性能页已写入的 LimitFPS，须最后 Apply。
             panels.Remove(networkPanel);
             panels.Add(networkPanel);
 

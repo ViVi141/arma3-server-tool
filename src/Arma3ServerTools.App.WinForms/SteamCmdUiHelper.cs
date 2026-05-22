@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
@@ -7,9 +8,12 @@ namespace Arma3ServerTools.App.WinForms
 {
     internal static class SteamCmdUiHelper
     {
-        public static bool EnsureSteamCmdAvailable(IWin32Window owner, ISteamCmdService steamCmdService)
+        public static async Task<bool> EnsureSteamCmdAvailableAsync(
+            IWin32Window owner,
+            ISteamCmdService steamCmdService)
         {
-            OperationResult check = steamCmdService.EnsureSteamCmdAvailable(false);
+            OperationResult check = await Task.Run(
+                () => steamCmdService.EnsureSteamCmdAvailable(false)).ConfigureAwait(true);
             if (check.Success)
             {
                 return true;
@@ -24,25 +28,38 @@ namespace Arma3ServerTools.App.WinForms
                 return false;
             }
 
-            Cursor previousCursor = Cursor.Current;
-            try
-            {
-                Cursor.Current = Cursors.WaitCursor;
-                check = steamCmdService.EnsureSteamCmdAvailable(true);
-            }
-            finally
-            {
-                Cursor.Current = previousCursor;
-            }
+            AntdUiHelper.ShowInfo(owner, "正在下载 SteamCMD，请稍候...", "请稍候");
+
+            check = await Task.Run(
+                () => steamCmdService.EnsureSteamCmdAvailable(true)).ConfigureAwait(true);
 
             if (check.Success)
             {
-                AntdUiHelper.ShowInfo(owner, check.Message, "SteamCMD 已就绪");
+                if (!string.IsNullOrEmpty(check.Message))
+                {
+                    AntdUiHelper.ShowInfo(owner, check.Message, "SteamCMD 已就绪");
+                }
+
                 return true;
             }
 
             AntdUiHelper.ShowError(owner, check.Message, "失败");
             return false;
+        }
+
+        public static async Task<OperationResult> DownloadSteamCmdAsync(IWin32Window owner, ISteamCmdService steamCmdService)
+        {
+            OperationResult check = await Task.Run(
+                () => steamCmdService.EnsureSteamCmdAvailable(false)).ConfigureAwait(true);
+            if (check.Success)
+            {
+                return check;
+            }
+
+            AntdUiHelper.ShowInfo(owner, "正在下载 SteamCMD，请稍候...", "请稍候");
+
+            return await Task.Run(
+                () => steamCmdService.EnsureSteamCmdAvailable(true)).ConfigureAwait(true);
         }
     }
 }

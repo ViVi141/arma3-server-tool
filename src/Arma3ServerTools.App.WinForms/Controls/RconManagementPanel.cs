@@ -91,11 +91,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             banPermButton = CreateActionButton("永久封禁");
             syncPlayersButton = CreateActionButton("同步到玩家库");
             connectButton.Click += OnConnect;
-            refreshPlayersButton.Click += delegate { RunSafe(LoadPlayersAsync); };
+            refreshPlayersButton.Click += delegate { RunSafeAsync(LoadPlayersAsync); };
             kickButton.Click += OnKickPlayer;
             banTempButton.Click += OnBanTemporary;
             banPermButton.Click += OnBanPermanent;
-            syncPlayersButton.Click += delegate { RunSafe(SyncPlayersAsync); };
+            syncPlayersButton.Click += delegate { RunSafeAsync(SyncPlayersAsync); };
             toolbar.Controls.Add(connectButton);
             toolbar.Controls.Add(refreshPlayersButton);
             toolbar.Controls.Add(kickButton);
@@ -155,8 +155,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             var tabs = AntdUiHelper.CreateTabsPanel();
             AntdUiHelper.AddTabPage(tabs, "在线玩家", playersTable);
-            AntdUiHelper.AddTabPage(tabs, "BattlEye 封禁", CreateBanPanel());
             AntdUiHelper.AddTabPage(tabs, "任务 / 控制", CreateMissionPanel());
+            AntdUiHelper.AddTabPage(tabs, "BattlEye 封禁", CreateBanPanel());
 
             Controls.Add(tabs);
             Controls.Add(kickReasonInput);
@@ -167,6 +167,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         public void Bind(ArmaServerConfig config)
         {
+            DisconnectRcon();
             boundConfig = config;
             connected = false;
             ClearGrids();
@@ -183,6 +184,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             statusLabel.Text = "远程控制 " + host + ":" + config.BattlEyeConfig.RConPort + "，点击连接";
         }
 
+        private static void DisconnectRcon()
+        {
+            AppServices.Instance.RconService.Dispose();
+        }
+
         public void ApplyToModel()
         {
         }
@@ -193,12 +199,12 @@ namespace Arma3ServerTools.App.WinForms.Controls
             var banToolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
             refreshBansButton = CreateActionButton("刷新封禁");
             removeBanButton = CreateActionButton("移除选中");
-            loadBansButton = CreateActionButton("LoadBans");
-            saveBansButton = CreateActionButton("SaveBans");
-            refreshBansButton.Click += delegate { RunSafe(LoadBansAsync); };
+            loadBansButton = CreateActionButton("加载封禁");
+            saveBansButton = CreateActionButton("保存封禁");
+            refreshBansButton.Click += delegate { RunSafeAsync(LoadBansAsync); };
             removeBanButton.Click += OnRemoveBan;
-            loadBansButton.Click += delegate { RunSafe(LoadBansCommandAsync); };
-            saveBansButton.Click += delegate { RunSafe(SaveBansCommandAsync); };
+            loadBansButton.Click += delegate { RunSafeAsync(LoadBansCommandAsync); };
+            saveBansButton.Click += delegate { RunSafeAsync(SaveBansCommandAsync); };
             banToolbar.Controls.Add(refreshBansButton);
             banToolbar.Controls.Add(removeBanButton);
             banToolbar.Controls.Add(loadBansButton);
@@ -221,11 +227,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             unlockButton = CreateActionButton("解锁服务器");
             sendAllButton = CreateActionButton("全服公告");
             sendPlayerButton = CreateActionButton("私信玩家");
-            refreshMissionsButton.Click += delegate { RunSafe(LoadMissionsAsync); };
+            refreshMissionsButton.Click += delegate { RunSafeAsync(LoadMissionsAsync); };
             loadMissionButton.Click += OnLoadMission;
-            restartMissionButton.Click += delegate { RunSafe(RestartMissionAsync); };
-            lockButton.Click += delegate { RunSafe(LockServerAsync); };
-            unlockButton.Click += delegate { RunSafe(UnlockServerAsync); };
+            restartMissionButton.Click += delegate { RunSafeAsync(RestartMissionAsync); };
+            lockButton.Click += delegate { RunSafeAsync(LockServerAsync); };
+            unlockButton.Click += delegate { RunSafeAsync(UnlockServerAsync); };
             sendAllButton.Click += OnSendBroadcast;
             sendPlayerButton.Click += OnSendPlayerMessage;
 
@@ -683,7 +689,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             await AppServices.Instance.RconService.UnlockServerAsync().ConfigureAwait(true);
         }
 
-        private void RunSafe(Func<Task> action)
+        private async void RunSafeAsync(Func<Task> action)
         {
             if (!connected)
             {
@@ -691,14 +697,40 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
+            SetRconBusy(true);
             try
             {
-                action().GetAwaiter().GetResult();
+                await action().ConfigureAwait(true);
             }
             catch (Exception ex)
             {
                 AntdUiHelper.ShowError(FindForm(), ex.Message, "操作失败");
             }
+            finally
+            {
+                SetRconBusy(false);
+            }
+        }
+
+        private void SetRconBusy(bool busy)
+        {
+            connectButton.Enabled = !busy;
+            refreshPlayersButton.Enabled = connected && !busy;
+            kickButton.Enabled = connected && !busy;
+            banTempButton.Enabled = connected && !busy;
+            banPermButton.Enabled = connected && !busy;
+            syncPlayersButton.Enabled = connected && !busy;
+            refreshBansButton.Enabled = connected && !busy;
+            removeBanButton.Enabled = connected && !busy;
+            loadBansButton.Enabled = connected && !busy;
+            saveBansButton.Enabled = connected && !busy;
+            refreshMissionsButton.Enabled = connected && !busy;
+            loadMissionButton.Enabled = connected && !busy;
+            restartMissionButton.Enabled = connected && !busy;
+            lockButton.Enabled = connected && !busy;
+            unlockButton.Enabled = connected && !busy;
+            sendAllButton.Enabled = connected && !busy;
+            sendPlayerButton.Enabled = connected && !busy;
         }
 
         private void SetConnectedUi(bool isConnected)

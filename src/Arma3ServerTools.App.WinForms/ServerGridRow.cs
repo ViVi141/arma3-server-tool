@@ -16,7 +16,13 @@ namespace Arma3ServerTools.App.WinForms
         {
             get
             {
-                return ServerRunStateFormatter.ToDisplay(RunState);
+                string text = ServerRunStateFormatter.ToDisplay(RunState);
+                if (RunState == ServerRunState.Running)
+                {
+                    return "● " + text;
+                }
+
+                return text;
             }
         }
     }
