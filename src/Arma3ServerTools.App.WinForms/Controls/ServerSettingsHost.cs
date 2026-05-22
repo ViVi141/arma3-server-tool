@@ -22,6 +22,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             public bool ApplyLast { get; set; }
         }
 
+        private readonly IAppServices appServices;
         private readonly AntTabs tabs;
         private readonly AntdUI.Checkbox advancedModeCheckBox;
         private readonly List<TabDefinition> tabDefinitions = new List<TabDefinition>();
@@ -32,8 +33,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         public ServerOverviewPanel OverviewPanel { get; private set; }
 
-        public ServerSettingsHost()
+        public ServerSettingsHost(IAppServices appServices)
         {
+            this.appServices = appServices;
             Dock = DockStyle.Fill;
             BackColor = System.Drawing.Color.White;
 
@@ -55,20 +57,20 @@ namespace Arma3ServerTools.App.WinForms.Controls
             };
             tabs.SelectedIndexChanged += OnSettingsTabChanged;
 
-            OverviewPanel = RegisterTab("概览", new ServerOverviewPanel(), false);
+            OverviewPanel = RegisterTab("概览", new ServerOverviewPanel(appServices), false);
             RegisterTab("基本", new BasicSettingsPanel(), false);
-            RegisterTab("SteamCMD", new SteamCmdSettingsPanel(), true);
+            RegisterTab("SteamCMD", new SteamCmdSettingsPanel(appServices), true);
             RegisterTab("网络", new NetworkSettingsPanel(), true, true);
             RegisterTab("安全", new SecuritySettingsPanel(), true);
             RegisterTab("性能", new PerformanceSettingsPanel(), true);
-            RegisterTab("模组", new ModSettingsPanel(), false);
+            RegisterTab("模组", new ModSettingsPanel(appServices), false);
             RegisterTab("任务", new MissionSettingsPanel(), true);
             RegisterTab("难度", new DifficultySettingsPanel(), true);
             RegisterTab("日志", new LogSettingsPanel(), true);
-            RegisterTab("定时", new CronTasksPanel(), true);
-            RegisterTab("统计", new StatisticsManagementPanel(), true);
-            RegisterTab(UiLabels.RemoteControlTab, new RconManagementPanel(), false);
-            RegisterTab("封禁", new BansPanel(), false);
+            RegisterTab("定时", new CronTasksPanel(appServices), true);
+            RegisterTab("统计", new StatisticsManagementPanel(appServices), true);
+            RegisterTab(UiLabels.RemoteControlTab, new RconManagementPanel(appServices), false);
+            RegisterTab("封禁", new BansPanel(appServices), false);
 
             Controls.Add(tabs);
             Controls.Add(topBar);
@@ -211,7 +213,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private void OnAdvancedModeChanged(object sender, AntdUI.BoolEventArgs e)
         {
             AppUiSettings.Instance.ShowAdvancedSettings = advancedModeCheckBox.Checked;
-            AppUiSettings.Instance.Save(AppServices.Instance.Paths.ConfigDirectory);
+            AppUiSettings.Instance.Save(appServices.Paths.ConfigDirectory);
             RebuildVisibleTabs();
         }
 

@@ -50,13 +50,15 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly AntdUI.Checkbox dlcWsCheckBox;
         private readonly AntdUI.Checkbox dlcVnCheckBox;
 
+        private readonly IAppServices appServices;
         private ArmaServerConfig boundConfig;
         private List<ScannedModRow> allRows = new List<ScannedModRow>();
         private ModTableSortMode sortMode = ModTableSortMode.ScanOrder;
         private ModTableVisibilityFilter visibilityFilter = ModTableVisibilityFilter.All;
 
-        public ModSettingsPanel()
+        public ModSettingsPanel(IAppServices appServices)
         {
+            this.appServices = appServices;
             AppTheme.ApplyTo(this);
 
             var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
@@ -341,7 +343,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            AppServices.Instance.BikeyService.CopyBikeysForMod(boundConfig, ToModsEntity(row));
+            appServices.BikeyService.CopyBikeysForMod(boundConfig, ToModsEntity(row));
         }
 
         private static ModsEntity ToModsEntity(ScannedModRow row)
@@ -371,8 +373,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            allRows = AppServices.Instance.ModScannerService
-                .Scan(boundConfig, AppServices.Instance.GetSteamCmdSettings())
+            allRows = appServices.ModScannerService
+                .Scan(boundConfig, appServices.GetSteamCmdSettings())
                 .ToList();
             RefreshTableView();
         }
@@ -428,14 +430,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void OnEditScanPaths(object sender, EventArgs e)
         {
-            using (var dialog = new ModuleScanPathForm(AppServices.Instance.ModScannerService.GetScanPaths()))
+            using (var dialog = new ModuleScanPathForm(appServices.ModScannerService.GetScanPaths()))
             {
                 if (dialog.ShowDialog(FindForm()) != DialogResult.OK)
                 {
                     return;
                 }
 
-                AppServices.Instance.ModScannerService.SaveScanPaths(dialog.GetPaths());
+                appServices.ModScannerService.SaveScanPaths(dialog.GetPaths());
                 ScanMods();
             }
         }
@@ -517,13 +519,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             ApplyToModel();
-            SteamcmdEntity settings = AppServices.Instance.GetSteamCmdSettings();
+            SteamcmdEntity settings = appServices.GetSteamCmdSettings();
             ModEnableUiHelper.TryEnableModsFromHtml(
                 FindForm(),
                 entries,
                 boundConfig,
                 settings,
-                AppServices.Instance.BikeyService,
+                appServices.BikeyService,
                 ScanMods);
         }
 
@@ -534,7 +536,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            List<string> keys = AppServices.Instance.BikeyService.ListServerBikeys(boundConfig.ServerDir);
+            List<string> keys = appServices.BikeyService.ListServerBikeys(boundConfig.ServerDir);
             using (var dialog = new BikeyListForm(boundConfig.ServerDir, keys))
             {
                 dialog.ShowDialog(FindForm());

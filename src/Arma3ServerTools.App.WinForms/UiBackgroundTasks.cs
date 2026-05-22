@@ -1,15 +1,18 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Arma3ServerTools.Application.Logging;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Arma3ServerTools.App.WinForms
 {
     internal static class UiBackgroundTasks
     {
         private static readonly TimeSpan SchedulerShutdownTimeout = TimeSpan.FromSeconds(5);
+        private static readonly ILogger Logger = AppLogging.CreateLogger("UiBackgroundTasks");
+
         public static void WarmScheduler(ISchedulerService schedulerService)
         {
             Task.Run(async () =>
@@ -18,8 +21,9 @@ namespace Arma3ServerTools.App.WinForms
                 {
                     await schedulerService.StartAsync().ConfigureAwait(false);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Logger.LogWarning(ex, "Background scheduler warm-up failed.");
                 }
             });
         }
@@ -34,8 +38,9 @@ namespace Arma3ServerTools.App.WinForms
                         .EnsureSteamCmdAvailableAsync(false, CancellationToken.None)
                         .ConfigureAwait(false);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Logger.LogWarning(ex, "Background SteamCMD resolution failed.");
                 }
             });
         }
@@ -50,8 +55,9 @@ namespace Arma3ServerTools.App.WinForms
                 });
                 shutdownTask.Wait(SchedulerShutdownTimeout);
             }
-            catch
+            catch (Exception ex)
             {
+                Logger.LogWarning(ex, "Scheduler shutdown did not complete cleanly.");
             }
         }
 
@@ -66,7 +72,8 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             string serverUuid = config.ServerUUID;
-            IDictionary<string, CronEntity> crons = config.ServerTaskManagement.CronEntity;
+            System.Collections.Generic.IDictionary<string, CronEntity> crons =
+                config.ServerTaskManagement.CronEntity;
             Task.Run(async () =>
             {
                 try
@@ -75,6 +82,7 @@ namespace Arma3ServerTools.App.WinForms
                 }
                 catch (Exception ex)
                 {
+                    Logger.LogWarning(ex, "Scheduler sync failed for server {ServerUuid}.", serverUuid);
                     if (reportWarning != null)
                     {
                         reportWarning(ex.Message);

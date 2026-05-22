@@ -7,62 +7,67 @@ using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.Core.Repositories;
+using Microsoft.Extensions.Logging;
 
 namespace Arma3ServerTools.App.WinForms
 {
-    internal sealed class AppServices
+    internal sealed class AppServices : IAppServices
     {
-        private static AppServices instance;
-
-        private AppServices()
+        public AppServices(
+            IAppPaths paths,
+            ILogger logger,
+            SteamCmdConfigRepository steamCmdConfigRepository,
+            ModuleScanPathRepository moduleScanPathRepository,
+            PlayerDatabaseRepository playerDatabaseRepository,
+            ISteamCmdConfigProvider steamCmdConfigProvider,
+            IServerConfigService configService,
+            IGameConfigWriter configWriter,
+            IProcessRunner processRunner,
+            IServerProcessService processService,
+            ISchedulerService schedulerService,
+            ISteamCmdService steamCmdService,
+            ModScannerService modScannerService,
+            BikeyService bikeyService,
+            BansService bansService,
+            MonitoringDeploymentService monitoringDeploymentService,
+            MonitoringHealthChecker monitoringHealthChecker,
+            ServerPreflightChecker preflightChecker,
+            RptLogService rptLogService,
+            MonitoringDatabase monitoringDatabase,
+            MonitoringQueryService monitoringQueryService,
+            PlayerDirectoryService playerDirectoryService,
+            IRconService rconService,
+            RconQuickProbe rconQuickProbe)
         {
-            Paths = new AppPaths(AppContext.BaseDirectory);
-
-            var repository = new ServerConfigRepository(Paths);
-            SteamCmdConfigRepository = new SteamCmdConfigRepository(Paths);
-            ModuleScanPathRepository = new ModuleScanPathRepository(Paths);
-            PlayerDatabaseRepository = new PlayerDatabaseRepository(Paths);
-
-            SteamCmdConfigProvider = new SteamCmdConfigProvider(SteamCmdConfigRepository);
-            ConfigService = new ServerConfigService(repository);
-            ConfigWriter = new GameConfigWriterAdapter();
-            ProcessRunner = new SystemProcessRunner();
-            ProcessService = new ServerProcessService(
-                ConfigService,
-                ConfigWriter,
-                ProcessRunner,
-                MonitoringDeploymentService);
-            SchedulerService = new SchedulerService(ProcessService);
-            SteamCmdService = new SteamCmdService(Paths, SteamCmdConfigProvider, ProcessRunner);
-            ModScannerService = new ModScannerService(ModuleScanPathRepository);
-            BikeyService = new BikeyService();
-            BansService = new BansService();
-            MonitoringDeploymentService = new MonitoringDeploymentService(Paths);
-            MonitoringHealthChecker = new MonitoringHealthChecker(MonitoringDeploymentService, Paths);
-            PreflightChecker = new ServerPreflightChecker(MonitoringDeploymentService);
-            RptLogService = new RptLogService();
-
-            MonitoringDatabase = new MonitoringDatabase(Paths);
-            MonitoringQueryService = new MonitoringQueryService(MonitoringDatabase);
-            PlayerDirectoryService = new PlayerDirectoryService(PlayerDatabaseRepository);
-            RconService = new RconService();
-            RconQuickProbe = new RconQuickProbe();
-        }
-
-        public static AppServices Instance
-        {
-            get
-            {
-                if (instance == null)
-                {
-                    instance = new AppServices();
-                }
-
-                return instance;
-            }
+            Paths = paths;
+            Logger = logger;
+            SteamCmdConfigRepository = steamCmdConfigRepository;
+            ModuleScanPathRepository = moduleScanPathRepository;
+            PlayerDatabaseRepository = playerDatabaseRepository;
+            SteamCmdConfigProvider = steamCmdConfigProvider;
+            ConfigService = configService;
+            ConfigWriter = configWriter;
+            ProcessRunner = processRunner;
+            ProcessService = processService;
+            SchedulerService = schedulerService;
+            SteamCmdService = steamCmdService;
+            ModScannerService = modScannerService;
+            BikeyService = bikeyService;
+            BansService = bansService;
+            MonitoringDeploymentService = monitoringDeploymentService;
+            MonitoringHealthChecker = monitoringHealthChecker;
+            PreflightChecker = preflightChecker;
+            RptLogService = rptLogService;
+            MonitoringDatabase = monitoringDatabase;
+            MonitoringQueryService = monitoringQueryService;
+            PlayerDirectoryService = playerDirectoryService;
+            RconService = rconService;
+            RconQuickProbe = rconQuickProbe;
         }
 
         public IAppPaths Paths { get; }
+
+        public ILogger Logger { get; }
 
         public SteamCmdConfigRepository SteamCmdConfigRepository { get; }
 
@@ -70,7 +75,7 @@ namespace Arma3ServerTools.App.WinForms
 
         public PlayerDatabaseRepository PlayerDatabaseRepository { get; }
 
-        public SteamCmdConfigProvider SteamCmdConfigProvider { get; }
+        public ISteamCmdConfigProvider SteamCmdConfigProvider { get; }
 
         public IServerConfigService ConfigService { get; }
 
@@ -110,7 +115,8 @@ namespace Arma3ServerTools.App.WinForms
 
         public string CurrentServerUuid { get; set; }
 
-        public Dictionary<string, ArmaServerConfig> LoadedConfigs { get; } = new Dictionary<string, ArmaServerConfig>();
+        public Dictionary<string, ArmaServerConfig> LoadedConfigs { get; } =
+            new Dictionary<string, ArmaServerConfig>();
 
         public ArmaServerConfig GetCurrentConfig()
         {

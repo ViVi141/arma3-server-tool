@@ -113,7 +113,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         internal static void TryOpenFirstServerGuideDocument()
         {
-            string baseDir = AppServices.Instance.Paths.ApplicationBase;
+            string baseDir = AppContext.BaseDirectory;
             string[] candidates = new string[]
             {
                 Path.Combine(baseDir, "docs", "first-server-guide.md"),

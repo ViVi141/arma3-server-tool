@@ -11,6 +11,32 @@ using Xunit;
 
 namespace Arma3ServerTools.Core.Tests
 {
+    public class SecretProtectorTests
+    {
+        [Fact]
+        public void ProtectUnprotect_RoundTrip_PreservesPlainText()
+        {
+            string plain = "{\"u\":\"testuser\",\"p\":\"secret\"}";
+            string protectedText = SecretProtector.Protect(plain);
+            string decrypted = SecretProtector.Unprotect(protectedText);
+
+            Assert.Equal(plain, decrypted);
+            Assert.StartsWith("DPAPI1:", protectedText, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Unprotect_LegacyAesFormat_StillWorks()
+        {
+            string key = MachineCodeTools.GetEncryptionKey();
+            string plain = "{\"u\":\"legacy-user\"}";
+            string legacy = AesEncryption.Encrypt(plain, key);
+            string decrypted = SecretProtector.Unprotect(legacy);
+
+            Assert.Equal(plain, decrypted);
+            Assert.True(SecretProtector.UsesLegacyFormat(legacy));
+        }
+    }
+
     public class AesEncryptionTests
     {
         [Fact]

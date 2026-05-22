@@ -35,11 +35,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private List<LocalBansEntity> localBans = new List<LocalBansEntity>();
 
-        public BansPanel()
+        public BansPanel(IAppServices appServices)
         {
             AppTheme.ApplyTo(this);
 
-            bansService = AppServices.Instance.BansService;
+            bansService = appServices.BansService;
 
             AntLabel banSystemsHint = AntdUiHelper.CreateHintLabel(
                 "本页管理 Arma 本地 bans.txt（写入后需重启服务器或 BattlEye 执行 LoadBans 才会生效）。"

@@ -7,6 +7,7 @@ using AntInput = AntdUI.Input;
 using AntInputNumber = AntdUI.InputNumber;
 using AntLabel = AntdUI.Label;
 using AntPanel = AntdUI.Panel;
+using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.App.WinForms.Controls;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
@@ -16,6 +17,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 {
     internal sealed class QuickSetupWizardForm : AntdDialogForm
     {
+        private readonly IAppServices appServices;
         private readonly AntInput nameInput;
         private readonly AntInput dirInput;
         private readonly AntInput hostNameInput;
@@ -26,9 +28,10 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         private readonly AntInputNumber rconPortInput;
         private readonly AntCheckbox writeCfgCheckBox;
 
-        public QuickSetupWizardForm()
+        public QuickSetupWizardForm(IAppServices appServices)
             : base()
         {
+            this.appServices = appServices;
             Text = "快速配置向导";
             ApplyPreferredDialogSizing(560, 520, null);
 
@@ -130,7 +133,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
             try
             {
-                ArmaServerConfig config = AppServices.Instance.ConfigService.Create(name, dir);
+                ArmaServerConfig config = appServices.ConfigService.Create(name, dir);
                 config.ServerConfig.HostName = hostNameInput.Text.Trim();
                 config.StartupParameters.Port = (int)portInput.Value;
                 config.ServerConfig.MaxPlayers = (int)maxPlayersInput.Value;
@@ -139,12 +142,12 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 config.BattlEyeConfig.RConPort = (int)rconPortInput.Value;
                 config.BattlEyeConfig.RConHost = "127.0.0.1";
 
-                AppServices.Instance.ConfigService.Save(config);
+                appServices.ConfigService.Save(config);
                 AppliedConfigToServer = false;
 
                 if (writeCfgCheckBox.Checked)
                 {
-                    OperationResult writeResult = AppServices.Instance.ConfigWriter.WriteAll(config);
+                    OperationResult writeResult = appServices.ConfigWriter.WriteAll(config);
                     if (!writeResult.Success)
                     {
                         AntdUiHelper.ShowError(this, writeResult.Message, "应用到服务器目录失败");

@@ -9,6 +9,7 @@ using AntInput = AntdUI.Input;
 using AntInputNumber = AntdUI.InputNumber;
 using AntLabel = AntdUI.Label;
 using AntPanel = AntdUI.Panel;
+using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.App.WinForms.Controls;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
@@ -47,12 +48,14 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         private readonly AntButton skipButton;
         private readonly AntButton cancelButton;
 
+        private readonly IAppServices appServices;
         private int currentStep = StepPrepare;
         private bool isBusy;
 
-        public FirstServerWizardForm()
+        public FirstServerWizardForm(IAppServices appServices)
             : base()
         {
+            this.appServices = appServices;
             Text = "首服向导";
             ApplyPreferredDialogSizing(600, 620, null);
 
@@ -305,7 +308,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             {
                 OperationResult result = await SteamCmdUiHelper.DownloadSteamCmdAsync(
                     this,
-                    AppServices.Instance.SteamCmdService).ConfigureAwait(true);
+                    appServices.SteamCmdService).ConfigureAwait(true);
                 if (result.Success)
                 {
                     AntdUiHelper.ShowInfo(this, result.Message, "SteamCMD");
@@ -421,7 +424,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             {
                 await ApplyPrepareStepAsync().ConfigureAwait(true);
 
-                ArmaServerConfig config = AppServices.Instance.ConfigService.Create(name, dir);
+                ArmaServerConfig config = appServices.ConfigService.Create(name, dir);
                 config.ServerConfig.HostName = hostNameInput.Text.Trim();
                 config.StartupParameters.Port = (int)portInput.Value;
                 config.ServerConfig.MaxPlayers = (int)maxPlayersInput.Value;
@@ -430,12 +433,12 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 config.BattlEyeConfig.RConPort = (int)rconPortInput.Value;
                 config.BattlEyeConfig.RConHost = "127.0.0.1";
 
-                AppServices.Instance.ConfigService.Save(config);
+                appServices.ConfigService.Save(config);
                 AppliedConfigToServer = false;
 
                 if (writeCfgCheckBox.Checked)
                 {
-                    OperationResult writeResult = AppServices.Instance.ConfigWriter.WriteAll(config);
+                    OperationResult writeResult = appServices.ConfigWriter.WriteAll(config);
                     if (!writeResult.Success)
                     {
                         AntdUiHelper.ShowError(this, writeResult.Message, "应用到服务器目录失败");
@@ -465,7 +468,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 || !string.IsNullOrEmpty(steamPassword)
                 || !string.IsNullOrEmpty(installDir))
             {
-                SteamcmdEntity settings = AppServices.Instance.GetSteamCmdSettings() ?? new SteamcmdEntity();
+                SteamcmdEntity settings = appServices.GetSteamCmdSettings() ?? new SteamcmdEntity();
                 if (!string.IsNullOrEmpty(steamUser))
                 {
                     settings.u = steamUser;
@@ -481,8 +484,8 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                     settings.i = installDir;
                 }
 
-                AppServices.Instance.SaveSteamCmdSettings(settings);
-                AppServices.Instance.ModScannerService.EnsureDefaultWorkshopPath(settings);
+                appServices.SaveSteamCmdSettings(settings);
+                appServices.ModScannerService.EnsureDefaultWorkshopPath(settings);
             }
 
             if (!installDedicatedCheckBox.Checked || string.IsNullOrEmpty(installDir))
@@ -492,13 +495,13 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
             if (!await SteamCmdUiHelper.EnsureSteamCmdAvailableAsync(
                 this,
-                AppServices.Instance.SteamCmdService).ConfigureAwait(true))
+                appServices.SteamCmdService).ConfigureAwait(true))
             {
                 throw new InvalidOperationException("SteamCMD 未就绪，无法安装专用服务器。");
             }
 
             OperationResult installResult = await Task.Run(
-                () => AppServices.Instance.SteamCmdService.InstallDedicatedServer(installDir),
+                () => appServices.SteamCmdService.InstallDedicatedServer(installDir),
                 CancellationToken.None).ConfigureAwait(true);
             if (!installResult.Success)
             {

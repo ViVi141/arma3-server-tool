@@ -18,7 +18,7 @@ namespace Arma3ServerTools.Core.Repositories
 
         public SteamcmdEntity Load()
         {
-            string filePath = Path.Combine(paths.ApplicationBase, "data.json");
+            string filePath = GetFilePath();
             if (!File.Exists(filePath))
             {
                 return new SteamcmdEntity();
@@ -26,17 +26,22 @@ namespace Arma3ServerTools.Core.Repositories
 
             try
             {
-                string encrypted = File.ReadAllText(filePath, GameConfigFormat.Utf8NoBom);
-                string json = AesEncryption.Decrypt(encrypted, MachineCodeTools.GetEncryptionKey());
+                string stored = File.ReadAllText(filePath, GameConfigFormat.Utf8NoBom);
+                string json = SecretProtector.Unprotect(stored);
                 SteamcmdEntity entity = JsonSerializer.FromJson<SteamcmdEntity>(json);
                 if (entity == null)
                 {
                     return new SteamcmdEntity();
                 }
 
+                if (SecretProtector.UsesLegacyFormat(stored))
+                {
+                    Save(entity);
+                }
+
                 return entity;
             }
-            catch
+            catch (Exception)
             {
                 return new SteamcmdEntity();
             }
@@ -50,9 +55,8 @@ namespace Arma3ServerTools.Core.Repositories
             }
 
             string json = JsonSerializer.ToJson(settings);
-            string encrypted = AesEncryption.Encrypt(json, MachineCodeTools.GetEncryptionKey());
-            string filePath = Path.Combine(paths.ApplicationBase, "data.json");
-            File.WriteAllText(filePath, encrypted, GameConfigFormat.Utf8NoBom);
+            string protectedText = SecretProtector.Protect(json);
+            File.WriteAllText(GetFilePath(), protectedText, GameConfigFormat.Utf8NoBom);
 
             if (!string.IsNullOrEmpty(settings.d))
             {
@@ -60,11 +64,16 @@ namespace Arma3ServerTools.Core.Repositories
                 {
                     Directory.CreateDirectory(Path.Combine(settings.d, @"steamapps\workshop\content\107410"));
                 }
-                catch
+                catch (Exception)
                 {
                     // Best effort.
                 }
             }
+        }
+
+        private string GetFilePath()
+        {
+            return Path.Combine(paths.ApplicationBase, "data.json");
         }
     }
 }

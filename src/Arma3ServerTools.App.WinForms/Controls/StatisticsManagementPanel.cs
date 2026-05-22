@@ -74,13 +74,15 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly AntdUI.Checkbox enableMonitoringServiceCheckBox;
         private readonly StatisticsChartsPanel chartsPanel;
 
+        private readonly IAppServices appServices;
         private ArmaServerConfig boundConfig;
         private readonly System.Collections.Generic.List<StatisticsPlayerStatRow> playerStatRows = new System.Collections.Generic.List<StatisticsPlayerStatRow>();
         private readonly System.Collections.Generic.List<StatisticsObjectStatRow> objectStatRows = new System.Collections.Generic.List<StatisticsObjectStatRow>();
         private readonly System.Collections.Generic.List<StatisticsPlayerDirectoryRow> directoryRows = new System.Collections.Generic.List<StatisticsPlayerDirectoryRow>();
 
-        public StatisticsManagementPanel()
+        public StatisticsManagementPanel(IAppServices appServices)
         {
+            this.appServices = appServices;
             AppTheme.ApplyTo(this);
 
             var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
@@ -238,7 +240,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void OnRunHealthCheck(object sender, EventArgs e)
         {
-            MonitoringHealthChecker checker = AppServices.Instance.MonitoringHealthChecker;
+            MonitoringHealthChecker checker = appServices.MonitoringHealthChecker;
             IReadOnlyList<MonitoringHealthItem> items = checker.Check(boundConfig);
 
             bool hostRunning = MonitoringHostLauncher.IsHostRunning();
@@ -288,7 +290,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             try
             {
-                MonitoringQueryService query = AppServices.Instance.MonitoringQueryService;
+                MonitoringQueryService query = appServices.MonitoringQueryService;
                 List<MonitoringPlayerStatRecord> playerRecords =
                     query.GetPlayerStats(boundConfig.ServerUUID, 500);
                 playerStatRows.Clear();
@@ -336,7 +338,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 chartsPanel.RenderCharts(timelineRecords, playerRecords);
 
                 directoryRows.Clear();
-                foreach (PlayerDB player in AppServices.Instance.PlayerDirectoryService.LoadAll())
+                foreach (PlayerDB player in appServices.PlayerDirectoryService.LoadAll())
                 {
                     directoryRows.Add(
                         new StatisticsPlayerDirectoryRow
@@ -368,7 +370,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             try
             {
-                int rowsAffected = AppServices.Instance.MonitoringQueryService.InitPlayerOnlineInfo(boundConfig.ServerUUID);
+                int rowsAffected = appServices.MonitoringQueryService.InitPlayerOnlineInfo(boundConfig.ServerUUID);
                 AntdUiHelper.ShowInfo(FindForm(), "已重置在线状态，影响行数: " + rowsAffected, "完成");
                 RefreshAll();
             }
@@ -388,7 +390,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             try
             {
-                int rowsAffected = AppServices.Instance.MonitoringQueryService.DeleteObjectStatsOlderThanOneMonth();
+                int rowsAffected = appServices.MonitoringQueryService.DeleteObjectStatsOlderThanOneMonth();
                 AntdUiHelper.ShowInfo(FindForm(), "已清理 " + rowsAffected + " 条快照记录。", "完成");
                 RefreshAll();
             }
@@ -416,13 +418,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
                 try
                 {
-                    MonitoringQueryService query = AppServices.Instance.MonitoringQueryService;
+                    MonitoringQueryService query = appServices.MonitoringQueryService;
                     List<MonitoringPlayerStatRecord> playerRecords =
                         query.GetPlayerStats(boundConfig.ServerUUID, 5000);
                     List<MonitoringObjectStatRecord> objectRecords =
                         query.GetRecentObjectStats(boundConfig.ServerUUID, 5000);
                     IReadOnlyList<PlayerDB> directoryRecords =
-                        AppServices.Instance.PlayerDirectoryService.LoadAll();
+                        appServices.PlayerDirectoryService.LoadAll();
 
                     var builder = new System.Text.StringBuilder();
                     builder.AppendLine("# 战斗统计");
@@ -464,7 +466,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
                 try
                 {
-                    MonitoringQueryService query = AppServices.Instance.MonitoringQueryService;
+                    MonitoringQueryService query = appServices.MonitoringQueryService;
                     List<MonitoringObjectStatRecord> snapshots =
                         query.GetObjectStatsTimeline(boundConfig.ServerUUID, 5000);
                     List<MonitoringPlayerStatRecord> playerRecords =

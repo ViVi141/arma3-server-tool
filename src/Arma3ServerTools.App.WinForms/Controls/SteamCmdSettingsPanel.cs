@@ -3,6 +3,7 @@ using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
@@ -25,11 +26,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly AntButton downloadButton;
         private readonly AntButton installServerButton;
 
+        private readonly IAppServices appServices;
         private ArmaServerConfig boundConfig;
         private SteamcmdEntity draftSettings = new SteamcmdEntity();
 
-        public SteamCmdSettingsPanel()
+        public SteamCmdSettingsPanel(IAppServices appServices)
         {
+            this.appServices = appServices;
             AppTheme.ApplyTo(this);
             Dock = DockStyle.Fill;
 
@@ -77,7 +80,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         public void Bind(ArmaServerConfig config)
         {
             boundConfig = config;
-            draftSettings = AppServices.Instance.GetSteamCmdSettings() ?? new SteamcmdEntity();
+            draftSettings = appServices.GetSteamCmdSettings() ?? new SteamcmdEntity();
             if (draftSettings == null)
             {
                 draftSettings = new SteamcmdEntity();
@@ -101,8 +104,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             draftSettings = next;
-            AppServices.Instance.SaveSteamCmdSettings(draftSettings);
-            AppServices.Instance.ModScannerService.EnsureDefaultWorkshopPath(draftSettings);
+            appServices.SaveSteamCmdSettings(draftSettings);
+            appServices.ModScannerService.EnsureDefaultWorkshopPath(draftSettings);
             RefreshDerivedLabels();
         }
 
@@ -222,7 +225,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 workshopContentLabel.Text = workshopContent + Environment.NewLine + "（目录尚未创建，保存后会尝试创建）";
             }
 
-            IAppPaths paths = AppServices.Instance.Paths;
+            IAppPaths paths = appServices.Paths;
             string bundledPath = SteamCmdBootstrapper.GetBundledExecutablePath(paths);
             bool bundledExists = File.Exists(bundledPath);
             string customPath = string.Empty;
@@ -307,7 +310,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 OperationResult result = await SteamCmdUiHelper.DownloadSteamCmdAsync(
                     FindForm(),
-                    AppServices.Instance.SteamCmdService).ConfigureAwait(true);
+                    appServices.SteamCmdService).ConfigureAwait(true);
                 if (result.Success)
                 {
                     AntdUiHelper.ShowInfo(FindForm(), result.Message, "SteamCMD 已就绪");
@@ -350,7 +353,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 if (!await SteamCmdUiHelper.EnsureSteamCmdAvailableAsync(
                     FindForm(),
-                    AppServices.Instance.SteamCmdService).ConfigureAwait(true))
+                    appServices.SteamCmdService).ConfigureAwait(true))
                 {
                     return;
                 }
@@ -358,11 +361,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 draftSettings = ReadDraftFromUi();
                 await Task.Run(() =>
                 {
-                    AppServices.Instance.SaveSteamCmdSettings(draftSettings);
+                    appServices.SaveSteamCmdSettings(draftSettings);
                 }).ConfigureAwait(true);
 
                 OperationResult result = await Task.Run(() =>
-                    AppServices.Instance.SteamCmdService.InstallDedicatedServer(installDir)).ConfigureAwait(true);
+                    appServices.SteamCmdService.InstallDedicatedServer(installDir)).ConfigureAwait(true);
                 if (result.Success)
                 {
                     AntdUiHelper.ShowInfo(FindForm(), result.Message, "成功");
