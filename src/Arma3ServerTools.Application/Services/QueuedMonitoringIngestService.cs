@@ -13,6 +13,7 @@ namespace Arma3ServerTools.Application.Services
         private readonly BlockingCollection<string> queue;
         private readonly CancellationTokenSource cancellation;
         private readonly Task worker;
+        private bool disposed;
 
         public QueuedMonitoringIngestService(MonitoringDatabase database)
         {
@@ -34,14 +35,17 @@ namespace Arma3ServerTools.Application.Services
 
         public void Dispose()
         {
-            queue.CompleteAdding();
-            cancellation.Cancel();
-            try
+            if (disposed)
             {
-                worker.Wait(3000);
+                return;
             }
-            catch
+
+            disposed = true;
+            queue.CompleteAdding();
+            if (!worker.Wait(TimeSpan.FromSeconds(5)))
             {
+                cancellation.Cancel();
+                worker.Wait(TimeSpan.FromSeconds(1));
             }
 
             cancellation.Dispose();
@@ -52,7 +56,7 @@ namespace Arma3ServerTools.Application.Services
         {
             try
             {
-                foreach (string message in queue.GetConsumingEnumerable(cancellation.Token))
+                foreach (string message in queue.GetConsumingEnumerable())
                 {
                     try
                     {
@@ -63,7 +67,7 @@ namespace Arma3ServerTools.Application.Services
                     }
                 }
             }
-            catch (OperationCanceledException)
+            catch (InvalidOperationException)
             {
             }
         }

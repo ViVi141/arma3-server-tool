@@ -29,6 +29,47 @@ namespace Arma3ServerTools.App.WinForms
             MinimumSize = UiScaleHelper.ScaleSize(logicalWidth, logicalHeight);
         }
 
+        protected void ApplyPreferredDialogSizing(int logicalWidth, int logicalHeight, int logicalMinHeight, Form ownerForm)
+        {
+            ClientSize = UiScaleHelper.GetPreferredDialogSize(logicalWidth, logicalHeight, ownerForm);
+            MinimumSize = UiScaleHelper.ScaleSize(logicalWidth, logicalMinHeight);
+        }
+
+        protected AntdUI.PageHeader CreateDialogHeader(string title)
+        {
+            Text = title;
+            return new AntdUI.PageHeader
+            {
+                Text = title,
+                Dock = DockStyle.Top,
+                ShowButton = true,
+                ShowIcon = false,
+                CancelButton = true,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                FullBox = false,
+                DragMove = true,
+                DividerShow = true,
+                UseTitleFont = true,
+                UseTextBold = true,
+                CloseSize = UiScaleHelper.Scale(40),
+                Height = UiScaleHelper.Scale(40),
+            };
+        }
+
+        protected void MountDialogLayout(Control body, Control buttonBar, AntdUI.PageHeader header)
+        {
+            body.Dock = DockStyle.Fill;
+            Controls.Add(body);
+            if (buttonBar != null)
+            {
+                buttonBar.Dock = DockStyle.Bottom;
+                Controls.Add(buttonBar);
+            }
+
+            Controls.Add(header);
+        }
+
         protected FlowLayoutPanel CreateButtonBar(AntButton okButton, AntButton cancelButton)
         {
             return CreateButtonBar(okButton, cancelButton, "确定", "取消");

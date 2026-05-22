@@ -4,6 +4,7 @@ using System.Windows.Forms;
 using AntButton = AntdUI.Button;
 using AntLabel = AntdUI.Label;
 using AntPanel = AntdUI.Panel;
+using Arma3ServerTools.App.WinForms.Dialogs;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core.Models;
 
@@ -40,10 +41,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
             };
             preflightButton = SettingsLayoutHelper.CreateButton("启动前检查");
             rptButton = SettingsLayoutHelper.CreateButton("查看 RPT 日志");
+            AntButton aboutButton = SettingsLayoutHelper.CreateButton("关于");
             preflightButton.Click += OnRunPreflight;
             rptButton.Click += OnViewRpt;
+            aboutButton.Click += OnOpenAbout;
             toolbar.Controls.Add(preflightButton);
             toolbar.Controls.Add(rptButton);
+            toolbar.Controls.Add(aboutButton);
 
             AntLabel hint = AntdUiHelper.CreateHintLabel(
                 "概览页显示当前选中服务器的状态。启动前建议运行检查；运行中可在 RPT 中查看错误信息。",
@@ -156,6 +160,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             using (var dialog = new Dialogs.RptLogViewerForm(path, AppServices.Instance.RptLogService))
+            {
+                dialog.ShowDialog(FindForm());
+            }
+        }
+
+        private void OnOpenAbout(object sender, EventArgs e)
+        {
+            using (var dialog = new AboutForm())
             {
                 dialog.ShowDialog(FindForm());
             }

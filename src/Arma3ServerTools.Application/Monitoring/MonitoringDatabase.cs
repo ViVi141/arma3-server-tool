@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Globalization;
 using System.IO;
 using Arma3ServerTools.Application.IO;
 using Arma3ServerTools.Core;
@@ -11,6 +12,7 @@ namespace Arma3ServerTools.Application.Monitoring
     public sealed class MonitoringDatabase : IDisposable
     {
         private readonly IAppPaths paths;
+        private readonly object syncRoot = new object();
         private SqliteConnection connection;
 
         public MonitoringDatabase(IAppPaths paths)
@@ -19,6 +21,14 @@ namespace Arma3ServerTools.Application.Monitoring
         }
 
         public void EnsureInitialized()
+        {
+            lock (syncRoot)
+            {
+                EnsureInitializedCore();
+            }
+        }
+
+        private void EnsureInitializedCore()
         {
             if (connection != null && connection.State == ConnectionState.Open)
             {
@@ -33,7 +43,9 @@ namespace Arma3ServerTools.Application.Monitoring
 
         public int GetOrCreateServerId(string serverName)
         {
-            EnsureInitialized();
+            lock (syncRoot)
+            {
+                EnsureInitializedCore();
             using (SqliteCommand select = new SqliteCommand(
                 "SELECT id FROM a3_servers WHERE server_name = @name",
                 connection))
@@ -53,11 +65,14 @@ namespace Arma3ServerTools.Application.Monitoring
                 insert.Parameters.AddWithValue("@name", serverName);
                 return Convert.ToInt32(insert.ExecuteScalar());
             }
+            }
         }
 
         public int InsertOrUpdatePlayerInfo(int serverId, string[] args)
         {
-            EnsureInitialized();
+            lock (syncRoot)
+            {
+                EnsureInitializedCore();
             using (SqliteCommand exists = new SqliteCommand(
                 "SELECT id FROM a3_player_info WHERE player_id = @playerId",
                 connection))
@@ -94,11 +109,14 @@ namespace Arma3ServerTools.Application.Monitoring
                 update.Parameters.AddWithValue("@playerId", args[2]);
                 return update.ExecuteNonQuery();
             }
+            }
         }
 
         public int InsertObjectNum(int serverId, string[] args)
         {
-            EnsureInitialized();
+            lock (syncRoot)
+            {
+                EnsureInitializedCore();
             using (SqliteCommand insert = new SqliteCommand(
                 "INSERT INTO a3_object_manipulation_num(server_id, data_key, all_player, all_units, all_car, all_helicopter, "
                 + "all_motorcycle, all_plane, all_ship, all_static_weapon, all_apc, all_tank, all_units_uav, all_mission_objects, "
@@ -113,17 +131,20 @@ namespace Arma3ServerTools.Application.Monitoring
                     insert.Parameters.AddWithValue("@p" + i, args[i]);
                 }
 
-                insert.Parameters.AddWithValue("@fps", (int)Convert.ToDouble(args[17]));
-                insert.Parameters.AddWithValue("@fpsMin", (int)Convert.ToDouble(args[18]));
+                insert.Parameters.AddWithValue("@fps", (int)double.Parse(args[17], CultureInfo.InvariantCulture));
+                insert.Parameters.AddWithValue("@fpsMin", (int)double.Parse(args[18], CultureInfo.InvariantCulture));
                 insert.Parameters.AddWithValue("@createTime", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                 insert.Parameters.AddWithValue("@timestamp", GetUnixTimestamp());
                 return insert.ExecuteNonQuery();
+            }
             }
         }
 
         public int UpdatePlayerOnlineInfo(int serverId, string[] args)
         {
-            EnsureInitialized();
+            lock (syncRoot)
+            {
+                EnsureInitializedCore();
             using (SqliteCommand update = new SqliteCommand(
                 "UPDATE a3_player_info SET online = @online WHERE player_id = @playerId AND server_id = @serverId",
                 connection))
@@ -133,11 +154,14 @@ namespace Arma3ServerTools.Application.Monitoring
                 update.Parameters.AddWithValue("@serverId", serverId);
                 return update.ExecuteNonQuery();
             }
+            }
         }
 
         public int InitPlayerOnlineInfo(string serverUuid)
         {
-            EnsureInitialized();
+            lock (syncRoot)
+            {
+                EnsureInitializedCore();
             using (SqliteCommand update = new SqliteCommand(
                 "UPDATE a3_player_info SET online = '0' "
                 + "WHERE server_id = (SELECT id FROM a3_servers WHERE server_name = @serverName)",
@@ -146,11 +170,14 @@ namespace Arma3ServerTools.Application.Monitoring
                 update.Parameters.AddWithValue("@serverName", serverUuid);
                 return update.ExecuteNonQuery();
             }
+            }
         }
 
         public int DeleteObjectStatsBeforeTimestamp(string unixTimestamp)
         {
-            EnsureInitialized();
+            lock (syncRoot)
+            {
+                EnsureInitializedCore();
             using (SqliteCommand delete = new SqliteCommand(
                 "DELETE FROM a3_object_manipulation_num WHERE create_time_timestamp < @timestamp",
                 connection))
@@ -158,11 +185,14 @@ namespace Arma3ServerTools.Application.Monitoring
                 delete.Parameters.AddWithValue("@timestamp", unixTimestamp);
                 return delete.ExecuteNonQuery();
             }
+            }
         }
 
         public List<MonitoringPlayerStatRecord> QueryPlayerStats(string serverUuid, int limit)
         {
-            EnsureInitialized();
+            lock (syncRoot)
+            {
+                EnsureInitializedCore();
             var result = new List<MonitoringPlayerStatRecord>();
             using (SqliteCommand command = new SqliteCommand(
                 "SELECT p.id, p.player_id, p.player_name, p.infantry_kills, p.soft_vehicle_kills, "
@@ -196,11 +226,14 @@ namespace Arma3ServerTools.Application.Monitoring
             }
 
             return result;
+            }
         }
 
         public List<MonitoringObjectStatRecord> QueryRecentObjectStats(string serverUuid, int limit)
         {
-            EnsureInitialized();
+            lock (syncRoot)
+            {
+                EnsureInitializedCore();
             var result = new List<MonitoringObjectStatRecord>();
             using (SqliteCommand command = new SqliteCommand(
                 "SELECT o.id, o.all_player, o.all_units, o.fps, o.fps_min, o.create_time "
@@ -220,11 +253,14 @@ namespace Arma3ServerTools.Application.Monitoring
             }
 
             return result;
+            }
         }
 
         public List<MonitoringObjectStatRecord> QueryObjectStatsTimeline(string serverUuid, int limit)
         {
-            EnsureInitialized();
+            lock (syncRoot)
+            {
+                EnsureInitializedCore();
             var result = new List<MonitoringObjectStatRecord>();
             using (SqliteCommand command = new SqliteCommand(
                 "SELECT o.id, o.all_player, o.all_units, o.fps, o.fps_min, o.create_time, o.create_time_timestamp "
@@ -244,6 +280,7 @@ namespace Arma3ServerTools.Application.Monitoring
             }
 
             return result;
+            }
         }
 
         private static MonitoringObjectStatRecord ReadObjectStatRecord(
@@ -269,10 +306,13 @@ namespace Arma3ServerTools.Application.Monitoring
 
         public void Dispose()
         {
-            if (connection != null)
+            lock (syncRoot)
             {
-                connection.Dispose();
-                connection = null;
+                if (connection != null)
+                {
+                    connection.Dispose();
+                    connection = null;
+                }
             }
         }
 

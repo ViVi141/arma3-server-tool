@@ -180,7 +180,7 @@ namespace Arma3ServerTools.App.WinForms
 
         private static int ActionBarHeight
         {
-            get { return UiScaleHelper.Scale(56); }
+            get { return UiScaleHelper.Scale(72); }
         }
 
         private Control BuildTopChrome(Control actionBar)
@@ -210,7 +210,7 @@ namespace Arma3ServerTools.App.WinForms
 
         private Control BuildActionBar()
         {
-            int verticalPadding = UiScaleHelper.Scale(8);
+            int verticalPadding = UiScaleHelper.Scale(10);
             var panel = new AntdUI.Panel
             {
                 Dock = DockStyle.Fill,
@@ -227,15 +227,12 @@ namespace Arma3ServerTools.App.WinForms
                 Padding = new Padding(0),
                 Margin = new Padding(0),
             };
-            rightLayout.Controls.Add(CreateToolsMenuButton());
-            rightLayout.Controls.Add(CreateServerMenuButton());
 
             var leftLayout = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 AutoSize = true,
-                WrapContents = false,
-                AutoScroll = true,
+                WrapContents = true,
                 Padding = new Padding(0),
                 Margin = new Padding(0),
             };
@@ -245,8 +242,14 @@ namespace Arma3ServerTools.App.WinForms
             leftLayout.Controls.Add(saveButton);
             leftLayout.Controls.Add(writeCfgButton);
 
-            panel.Controls.Add(rightLayout);
+            AntButton aboutButton = CreateActionButton("关于", AntdUI.TTypeMini.Default);
+            aboutButton.Click += OnAbout;
+            rightLayout.Controls.Add(aboutButton);
+            rightLayout.Controls.Add(CreateToolsMenuButton());
+            rightLayout.Controls.Add(CreateServerMenuButton());
+
             panel.Controls.Add(leftLayout);
+            panel.Controls.Add(rightLayout);
             return panel;
         }
 
@@ -343,13 +346,12 @@ namespace Arma3ServerTools.App.WinForms
 
         private static AntButton CreateActionButton(string text, AntdUI.TTypeMini type)
         {
-            int verticalMargin = UiScaleHelper.Scale(2);
             return new AntButton
             {
                 Text = text,
                 Type = type,
                 AutoSizeMode = AntdUI.TAutoSize.Auto,
-                Margin = new Padding(0, verticalMargin, UiScaleHelper.Scale(8), verticalMargin),
+                Margin = new Padding(0, 0, UiScaleHelper.Scale(8), 0),
             };
         }
 

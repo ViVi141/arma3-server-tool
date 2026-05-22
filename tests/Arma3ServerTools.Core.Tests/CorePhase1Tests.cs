@@ -391,9 +391,20 @@ namespace Arma3ServerTools.Core.Tests
         public void SetTime_UpdatesSaveTimeWithoutUiDependency()
         {
             var config = new ArmaServerConfig();
-            string before = config.SaveTime;
-            System.Threading.Thread.Sleep(1100);
             config.SetTime();
+            string before = config.SaveTime;
+
+            DateTime deadline = DateTime.UtcNow.AddSeconds(3);
+            while (DateTime.UtcNow < deadline)
+            {
+                System.Threading.Thread.Sleep(50);
+                config.SetTime();
+                if (!string.Equals(before, config.SaveTime, StringComparison.Ordinal))
+                {
+                    break;
+                }
+            }
+
             Assert.NotEqual(before, config.SaveTime);
             Assert.StartsWith("上次保存于:", config.SaveTime);
         }
