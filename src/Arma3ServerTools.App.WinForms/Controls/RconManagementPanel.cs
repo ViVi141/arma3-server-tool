@@ -46,6 +46,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
     internal sealed class RconManagementPanel : UserControl, IServerSettingsPanel
     {
+        private readonly IAppServices appServices;
         private readonly AntdUI.Button connectButton;
         private readonly AntdUI.Button refreshPlayersButton;
         private readonly AntdUI.Button kickButton;
@@ -82,8 +83,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private ArmaServerConfig boundConfig;
         private bool connected;
 
-        public RconManagementPanel()
+        public RconManagementPanel(IAppServices appServices)
         {
+            this.appServices = appServices;
             AppTheme.ApplyTo(this);
 
             var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
@@ -195,9 +197,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
             statusLabel.Text = "远程控制 " + host + ":" + config.BattlEyeConfig.RConPort + "，点击连接";
         }
 
-        private static void DisconnectRcon()
+        private void DisconnectRcon()
         {
-            AppServices.Instance.RconService.Dispose();
+            appServices.RconService.Dispose();
         }
 
         public void ApplyToModel()
@@ -276,7 +278,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 connected = false;
                 SetConnectedUi(false);
-                IRconService rcon = AppServices.Instance.RconService;
+                IRconService rcon = appServices.RconService;
                 string host = ResolveRconHost();
                 await rcon.ConnectAsync(
                     host,
@@ -324,9 +326,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
             SetRconBusy(true);
             try
             {
-                await AppServices.Instance.RconService.ChangeRconPasswordAsync(newPassword).ConfigureAwait(true);
+                await appServices.RconService.ChangeRconPasswordAsync(newPassword).ConfigureAwait(true);
                 boundConfig.BattlEyeConfig.RConPassword = newPassword;
-                await Task.Run(() => AppServices.Instance.ConfigService.Save(boundConfig)).ConfigureAwait(true);
+                await Task.Run(() => appServices.ConfigService.Save(boundConfig)).ConfigureAwait(true);
                 newRconPasswordInput.Text = string.Empty;
                 AntdUiHelper.ShowInfo(
                     FindForm(),
@@ -359,7 +361,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             try
             {
                 int playerId = playerRows[idx].Id;
-                await AppServices.Instance.RconService.KickAsync(playerId, kickReasonInput.Text.Trim()).ConfigureAwait(true);
+                await appServices.RconService.KickAsync(playerId, kickReasonInput.Text.Trim()).ConfigureAwait(true);
                 await LoadPlayersAsync().ConfigureAwait(true);
             }
             catch (Exception ex)
@@ -401,7 +403,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     reason = "管理员封禁";
                 }
 
-                await AppServices.Instance.RconService
+                await appServices.RconService
                     .BanOnlinePlayerAsync(player.Guid, reason, TimeSpan.FromMinutes(minutes))
                     .ConfigureAwait(true);
                 await LoadPlayersAsync().ConfigureAwait(true);
@@ -445,7 +447,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     reason = "管理员封禁";
                 }
 
-                await AppServices.Instance.RconService
+                await appServices.RconService
                     .BanOnlinePlayerPermanentAsync(player.Guid, reason)
                     .ConfigureAwait(true);
                 await LoadPlayersAsync().ConfigureAwait(true);
@@ -475,7 +477,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             try
             {
                 string missionName = BuildMissionParameter(missionRows[idx]);
-                await AppServices.Instance.RconService.LoadMissionAsync(missionName).ConfigureAwait(true);
+                await appServices.RconService.LoadMissionAsync(missionName).ConfigureAwait(true);
                 AntdUiHelper.ShowInfo(FindForm(), "已发送加载任务命令: " + missionName, "完成");
             }
             catch (Exception ex)
@@ -553,7 +555,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             try
             {
                 int banId = banRows[idx].Id;
-                await AppServices.Instance.RconService.RemoveBanAsync(banId).ConfigureAwait(true);
+                await appServices.RconService.RemoveBanAsync(banId).ConfigureAwait(true);
                 await LoadBansAsync().ConfigureAwait(true);
             }
             catch (Exception ex)
@@ -571,7 +573,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             try
             {
-                await AppServices.Instance.RconService.SendMessageAsync(broadcastInput.Text.Trim()).ConfigureAwait(true);
+                await appServices.RconService.SendMessageAsync(broadcastInput.Text.Trim()).ConfigureAwait(true);
             }
             catch (Exception ex)
             {
@@ -595,7 +597,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             try
             {
                 int playerId = playerRows[idx].Id;
-                await AppServices.Instance.RconService.SendMessageToPlayerAsync(playerId, playerMessageInput.Text.Trim()).ConfigureAwait(true);
+                await appServices.RconService.SendMessageToPlayerAsync(playerId, playerMessageInput.Text.Trim()).ConfigureAwait(true);
             }
             catch (Exception ex)
             {
@@ -612,7 +614,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            IReadOnlyList<Player> players = await AppServices.Instance.RconService.GetPlayersAsync().ConfigureAwait(true);
+            IReadOnlyList<Player> players = await appServices.RconService.GetPlayersAsync().ConfigureAwait(true);
             playerRows.Clear();
             foreach (Player player in players)
             {
@@ -642,8 +644,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            IReadOnlyList<Player> players = await AppServices.Instance.RconService.GetPlayersAsync().ConfigureAwait(true);
-            AppServices.Instance.PlayerDirectoryService.SyncPlayers(players);
+            IReadOnlyList<Player> players = await appServices.RconService.GetPlayersAsync().ConfigureAwait(true);
+            appServices.PlayerDirectoryService.SyncPlayers(players);
             AntdUiHelper.ShowInfo(FindForm(), "已将在线玩家同步到 " + ToolConstants.PlayersDatabaseFileName + "。", "完成");
         }
 
@@ -656,7 +658,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            IReadOnlyList<PlayerBan> bans = await AppServices.Instance.RconService.GetBansAsync().ConfigureAwait(true);
+            IReadOnlyList<PlayerBan> bans = await appServices.RconService.GetBansAsync().ConfigureAwait(true);
             banRows.Clear();
             foreach (PlayerBan ban in bans)
             {
@@ -693,13 +695,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private async Task LoadBansCommandAsync()
         {
-            await AppServices.Instance.RconService.LoadBansAsync().ConfigureAwait(true);
+            await appServices.RconService.LoadBansAsync().ConfigureAwait(true);
             await LoadBansAsync().ConfigureAwait(true);
         }
 
         private async Task SaveBansCommandAsync()
         {
-            await AppServices.Instance.RconService.SaveBansAsync().ConfigureAwait(true);
+            await appServices.RconService.SaveBansAsync().ConfigureAwait(true);
             AntdUiHelper.ShowInfo(FindForm(), "已执行 SaveBans。", "完成");
         }
 
@@ -712,7 +714,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            IReadOnlyList<Mission> missions = await AppServices.Instance.RconService.GetMissionsAsync().ConfigureAwait(true);
+            IReadOnlyList<Mission> missions = await appServices.RconService.GetMissionsAsync().ConfigureAwait(true);
             missionRows.Clear();
             foreach (Mission mission in missions)
             {
@@ -729,17 +731,17 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private async Task RestartMissionAsync()
         {
-            await AppServices.Instance.RconService.RestartMissionAsync().ConfigureAwait(true);
+            await appServices.RconService.RestartMissionAsync().ConfigureAwait(true);
         }
 
         private async Task LockServerAsync()
         {
-            await AppServices.Instance.RconService.LockServerAsync().ConfigureAwait(true);
+            await appServices.RconService.LockServerAsync().ConfigureAwait(true);
         }
 
         private async Task UnlockServerAsync()
         {
-            await AppServices.Instance.RconService.UnlockServerAsync().ConfigureAwait(true);
+            await appServices.RconService.UnlockServerAsync().ConfigureAwait(true);
         }
 
         private async void RunSafeAsync(Func<Task> action)

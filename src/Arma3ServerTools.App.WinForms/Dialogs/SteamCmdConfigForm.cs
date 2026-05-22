@@ -15,14 +15,16 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 {
     internal sealed class SteamCmdConfigForm : AntdDialogForm
     {
+        private readonly IAppServices appServices;
         private readonly AntInput userInput;
         private readonly AntInput passwordInput;
         private readonly AntInput workshopRootInput;
         private readonly AntInput serverInstallInput;
         private readonly AntdUI.Label steamCmdStatusLabel;
-        public SteamCmdConfigForm(SteamcmdEntity current)
+        public SteamCmdConfigForm(IAppServices appServices, SteamcmdEntity current)
             : base()
         {
+            this.appServices = appServices;
             Text = "SteamCMD 配置";
             ApplyPreferredDialogSizing(520, 380, null);
 
@@ -143,7 +145,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         {
             OperationResult result = await SteamCmdUiHelper.DownloadSteamCmdAsync(
                 this,
-                AppServices.Instance.SteamCmdService).ConfigureAwait(true);
+                appServices.SteamCmdService).ConfigureAwait(true);
             if (result.Success)
             {
                 AntdUiHelper.ShowInfo(this, result.Message, "SteamCMD 已就绪");
@@ -158,7 +160,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
         private void RefreshSteamCmdStatus()
         {
-            IAppPaths paths = AppServices.Instance.Paths;
+            IAppPaths paths = appServices.Paths;
             string bundledPath = SteamCmdBootstrapper.GetBundledExecutablePath(paths);
             bool bundledExists = File.Exists(bundledPath);
             string workshopRoot = workshopRootInput.Text.Trim();

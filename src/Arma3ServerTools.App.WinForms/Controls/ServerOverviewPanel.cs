@@ -5,7 +5,10 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using AntButton = AntdUI.Button;
 using AntLabel = AntdUI.Label;
+using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.App.WinForms.Dialogs;
+using Arma3ServerTools.Application.Logging;
+using Microsoft.Extensions.Logging;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core.Models;
 
@@ -24,11 +27,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly AntButton preflightButton;
         private readonly AntButton rptButton;
 
+        private readonly IAppServices appServices;
         private ArmaServerConfig boundConfig;
         private int refreshGeneration;
 
-        public ServerOverviewPanel()
+        public ServerOverviewPanel(IAppServices appServices)
         {
+            this.appServices = appServices;
             AppTheme.ApplyTo(this);
 
             var layout = SettingsLayoutHelper.CreateFormLayout(120);
@@ -97,7 +102,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             refreshGeneration++;
             int generation = refreshGeneration;
 
-            ServerRunState state = AppServices.Instance.ProcessService.SyncState(boundConfig.ServerUUID);
+            ServerRunState state = appServices.ProcessService.SyncState(boundConfig.ServerUUID);
             statusValueLabel.Text = ServerRunStateFormatter.ToDisplay(state);
 
             int pid = boundConfig.ServerTaskManagement.ProcessById;
@@ -134,7 +139,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             monitoringSummaryLabel.Text = ServerOperationsSummaryBuilder.BuildMonitoringLine(boundConfig);
             BeginRefreshScheduleSummary(generation);
 
-            string rptPath = AppServices.Instance.RptLogService.FindLatestRptPath(boundConfig);
+            string rptPath = appServices.RptLogService.FindLatestRptPath(boundConfig);
             if (string.IsNullOrEmpty(rptPath))
             {
                 rptValueLabel.Text = "未找到";
@@ -159,7 +164,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 host = "127.0.0.1";
             }
 
-            int? count = await AppServices.Instance.RconQuickProbe.TryGetOnlinePlayerCountAsync(
+            int? count = await appServices.RconQuickProbe.TryGetOnlinePlayerCountAsync(
                 host,
                 config.BattlEyeConfig.RConPort,
                 config.BattlEyeConfig.RConPassword,
@@ -191,12 +196,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
             string nextFire = string.Empty;
             try
             {
-                nextFire = await AppServices.Instance.SchedulerService
+                nextFire = await appServices.SchedulerService
                     .GetNextFireSummaryAsync(config.ServerUUID)
                     .ConfigureAwait(true);
             }
-            catch
+            catch (Exception ex)
             {
+                AppLogging.CreateLogger("ServerOverviewPanel")
+                    .LogDebug(ex, "Failed to load scheduler summary.");
             }
 
             if (generation != refreshGeneration || boundConfig != config)
@@ -226,8 +233,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            ServerRunState state = AppServices.Instance.ProcessService.GetState(boundConfig.ServerUUID);
-            var items = AppServices.Instance.PreflightChecker.Check(boundConfig, state);
+            ServerRunState state = appServices.ProcessService.GetState(boundConfig.ServerUUID);
+            var items = appServices.PreflightChecker.Check(boundConfig, state);
             using (var dialog = new PreflightReportForm(items, false))
             {
                 dialog.ShowDialog(FindForm());
@@ -241,14 +248,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            string path = AppServices.Instance.RptLogService.FindLatestRptPath(boundConfig);
+            string path = appServices.RptLogService.FindLatestRptPath(boundConfig);
             if (string.IsNullOrEmpty(path))
             {
                 AntdUiHelper.ShowInfo(FindForm(), "未找到 RPT 日志文件。请先启动服务器或确认配置目录。", "提示");
                 return;
             }
 
-            using (var dialog = new RptLogViewerForm(path, AppServices.Instance.RptLogService))
+            using (var dialog = new RptLogViewerForm(path, appServices.RptLogService))
             {
                 dialog.ShowDialog(FindForm());
             }

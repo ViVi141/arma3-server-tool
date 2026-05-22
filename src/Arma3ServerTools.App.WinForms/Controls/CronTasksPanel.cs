@@ -31,11 +31,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly AntdUI.Button removeButton;
         private readonly AntdUI.Button syncButton;
 
+        private readonly IAppServices appServices;
         private ArmaServerConfig boundConfig;
         private List<CronGridRow> cronRows = new List<CronGridRow>();
 
-        public CronTasksPanel()
+        public CronTasksPanel(IAppServices appServices)
         {
+            this.appServices = appServices;
             AppTheme.ApplyTo(this);
 
             var toolbar = new FlowLayoutPanel
@@ -225,7 +227,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             try
             {
-                await AppServices.Instance.SchedulerService
+                await appServices.SchedulerService
                     .SyncJobsAsync(boundConfig.ServerUUID, boundConfig.ServerTaskManagement.CronEntity)
                     .ConfigureAwait(true);
                 AntdUiHelper.ShowInfo(FindForm(), "定时任务已同步。", "成功");

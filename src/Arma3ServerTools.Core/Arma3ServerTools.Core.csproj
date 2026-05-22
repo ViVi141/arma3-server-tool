@@ -5,11 +5,13 @@
     <RootNamespace>Arma3ServerTools.Core</RootNamespace>
     <AssemblyName>Arma3ServerTools.Core</AssemblyName>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="System.Management" Version="9.0.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
   </ItemGroup>
 
 </Project>

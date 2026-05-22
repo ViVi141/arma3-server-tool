@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using Arma3ServerTools.Application.Logging;
+using Microsoft.Extensions.Logging;
 using Arma3ServerTools.Core;
 
 namespace Arma3ServerTools.App.WinForms
@@ -67,9 +69,10 @@ namespace Arma3ServerTools.App.WinForms
                         startedProcess.Kill();
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Best effort on shutdown.
+                    AppLogging.CreateLogger("MonitoringHostLauncher")
+                        .LogWarning(ex, "Failed to stop monitoring host process gracefully.");
                 }
                 finally
                 {

@@ -51,6 +51,9 @@
 
   <ItemGroup>
     <PackageReference Include="AntdUI" Version="2.3.14" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
     <PackageReference Include="ScottPlot.WinForms" Version="5.1.58" />
   </ItemGroup>
 

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms.Controls;
 using Arma3ServerTools.App.WinForms.Dialogs;
+using Arma3ServerTools.App.WinForms.Main;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
@@ -28,7 +29,9 @@ namespace Arma3ServerTools.App.WinForms
 
     internal sealed class MainForm : AntdUI.Window
     {
-        private readonly AppServices services = AppServices.Instance;
+        private readonly IAppServices services;
+        private readonly ServerLifecycleCoordinator lifecycleCoordinator;
+        private readonly TrayNotificationController trayController;
         private readonly AntdUI.PageHeader pageHeader;
         private readonly AntTable serverTable;
         private readonly AntInput serverSearchInput;
@@ -52,13 +55,14 @@ namespace Arma3ServerTools.App.WinForms
         private string serverSearchFilter = string.Empty;
         private ServerListSortMode serverListSortMode = ServerListSortMode.Name;
         private readonly System.Windows.Forms.Timer statePollTimer;
-        private readonly NotifyIcon trayNotifyIcon;
-        private bool trayExitRequested;
         private bool suppressStopNotification;
         private bool suppressTableSelectionEvent;
 
-        public MainForm()
+        public MainForm(IAppServices services, ServerLifecycleCoordinator lifecycleCoordinator)
         {
+            this.services = services;
+            this.lifecycleCoordinator = lifecycleCoordinator;
+            trayController = new TrayNotificationController();
             Text = UiLabels.AppTitle;
             ClientSize = UiScaleHelper.ScaleSize(1100, 720);
             MinimumSize = UiScaleHelper.ScaleSize(900, 600);
@@ -113,7 +117,7 @@ namespace Arma3ServerTools.App.WinForms
             Control topChrome = BuildTopChrome(actionBar);
             serverTable = CreateServerTable();
             serverSearchInput = CreateServerSearchInput();
-            settingsHost = new ServerSettingsHost();
+            settingsHost = new ServerSettingsHost(services);
             emptyServerGuidePanel = new EmptyServerGuidePanel();
             emptyServerGuidePanel.FirstServerWizardRequested += OnQuickSetupWizard;
             emptyServerGuidePanel.NewServerRequested += OnNewServer;
@@ -179,83 +183,7 @@ namespace Arma3ServerTools.App.WinForms
             statePollTimer.Interval = 3000;
             statePollTimer.Tick += OnStatePollTimerTick;
 
-            trayNotifyIcon = new NotifyIcon
-            {
-                Visible = false,
-                Text = UiLabels.AppTitle,
-            };
-            if (Icon != null)
-            {
-                trayNotifyIcon.Icon = Icon;
-            }
-
-            InitializeTrayIcon();
-        }
-
-        private void InitializeTrayIcon()
-        {
-            var contextMenu = new ContextMenuStrip();
-            ToolStripMenuItem showItem = new ToolStripMenuItem("显示主窗口");
-            showItem.Click += OnTrayShowMainWindow;
-            ToolStripMenuItem exitItem = new ToolStripMenuItem("退出");
-            exitItem.Click += OnTrayExitApplication;
-            contextMenu.Items.Add(showItem);
-            contextMenu.Items.Add(new ToolStripSeparator());
-            contextMenu.Items.Add(exitItem);
-            trayNotifyIcon.ContextMenuStrip = contextMenu;
-            trayNotifyIcon.DoubleClick += OnTrayShowMainWindow;
-        }
-
-        private void OnTrayShowMainWindow(object sender, EventArgs e)
-        {
-            ShowMainWindowFromTray();
-        }
-
-        private void OnTrayExitApplication(object sender, EventArgs e)
-        {
-            trayExitRequested = true;
-            Close();
-        }
-
-        private void ShowMainWindowFromTray()
-        {
-            Show();
-            WindowState = FormWindowState.Normal;
-            Activate();
-            BringToFront();
-        }
-
-        private void MinimizeToTray()
-        {
-            Hide();
-            trayNotifyIcon.Visible = true;
-            UpdateTrayStatusText();
-        }
-
-        private void UpdateTrayStatusText()
-        {
-            if (trayNotifyIcon == null)
-            {
-                return;
-            }
-
-            int runningCount = 0;
-            for (int i = 0; i < serverRows.Count; i++)
-            {
-                if (serverRows[i].RunState == ServerRunState.Running)
-                {
-                    runningCount++;
-                }
-            }
-
-            if (runningCount > 0)
-            {
-                trayNotifyIcon.Text = UiLabels.AppTitle + "（" + runningCount + " 台运行中）";
-            }
-            else
-            {
-                trayNotifyIcon.Text = UiLabels.AppTitle;
-            }
+            trayController.AttachToForm(this);
         }
 
         private static int ActionBarHeight
@@ -596,10 +524,10 @@ namespace Arma3ServerTools.App.WinForms
 
         private void OnMainFormClosing(object sender, FormClosingEventArgs e)
         {
-            if (!trayExitRequested && e.CloseReason == CloseReason.UserClosing)
+            if (!trayController.ExitRequestedFlag && e.CloseReason == CloseReason.UserClosing)
             {
                 e.Cancel = true;
-                MinimizeToTray();
+                trayController.MinimizeFormToTray(this);
                 return;
             }
 
@@ -725,8 +653,12 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             ApplyCurrentSettings();
-            config.SetTime();
-            services.ConfigService.Save(config);
+            OperationResult saveResult = lifecycleCoordinator.SaveConfig(config);
+            if (!saveResult.Success)
+            {
+                return false;
+            }
+
             SyncSchedulerJobs(config);
             CapturePersistedSnapshot(config.ServerUUID);
             UpdateStatusBar(config);
@@ -748,19 +680,10 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             ApplyCurrentSettings();
-            config.SetTime();
-            services.ConfigService.Save(config);
-            OperationResult cfgResult = services.ConfigWriter.WriteAll(config);
-            if (!cfgResult.Success)
+            OperationResult writeResult = lifecycleCoordinator.WriteConfigFiles(config);
+            if (!writeResult.Success)
             {
-                AntdUiHelper.ShowError(this, cfgResult.Message, "失败");
-                return false;
-            }
-
-            OperationResult deployResult = services.MonitoringDeploymentService.DeployIfEnabled(config);
-            if (!deployResult.Success)
-            {
-                AntdUiHelper.ShowError(this, deployResult.Message, "失败");
+                AntdUiHelper.ShowError(this, writeResult.Message, "失败");
                 return false;
             }
 
@@ -848,9 +771,9 @@ namespace Arma3ServerTools.App.WinForms
 
         private void OnMainFormResize(object sender, EventArgs e)
         {
-            if (WindowState == FormWindowState.Minimized && !trayExitRequested)
+            if (WindowState == FormWindowState.Minimized && !trayController.ExitRequestedFlag)
             {
-                MinimizeToTray();
+                trayController.MinimizeFormToTray(this);
             }
 
             if (split.Width > 0 && split.Tag == null)
@@ -863,11 +786,7 @@ namespace Arma3ServerTools.App.WinForms
         {
             statePollTimer.Stop();
             statePollTimer.Dispose();
-            if (trayNotifyIcon != null)
-            {
-                trayNotifyIcon.Visible = false;
-                trayNotifyIcon.Dispose();
-            }
+            trayController.Dispose();
 
             MonitoringHostLauncher.StopStartedHost();
         }
@@ -906,10 +825,7 @@ namespace Arma3ServerTools.App.WinForms
 
             pageHeader.ShowIcon = true;
             pageHeader.Icon = Icon.ToBitmap();
-            if (trayNotifyIcon != null && Icon != null)
-            {
-                trayNotifyIcon.Icon = Icon;
-            }
+            trayController.SyncIcon(Icon);
         }
 
         private void EnsureConfigDirectory()
@@ -948,10 +864,10 @@ namespace Arma3ServerTools.App.WinForms
                     configSnapshots.Capture(config.ServerUUID, config);
                     int pidBeforeSync = config.ServerTaskManagement.ProcessById;
                     ServerRunState runState = services.ProcessService.SyncState(config.ServerUUID);
-                    RefreshCachedConfig(config.ServerUUID);
+                    lifecycleCoordinator.RefreshCachedConfig(config.ServerUUID);
                     if (pidBeforeSync > 0 && runState == ServerRunState.Stopped)
                     {
-                        ResetMonitoringOnlineIfEnabled(services.LoadedConfigs[config.ServerUUID]);
+                        lifecycleCoordinator.TryResetMonitoringOnline(services.LoadedConfigs[config.ServerUUID]);
                     }
 
                     serverRows.Add(new ServerGridRow
@@ -1279,8 +1195,12 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             ApplyCurrentSettings();
-            config.SetTime();
-            await Task.Run(() => services.ConfigService.Save(config)).ConfigureAwait(true);
+            OperationResult saveResult = await Task.Run(() => lifecycleCoordinator.SaveConfig(config)).ConfigureAwait(true);
+            if (!saveResult.Success)
+            {
+                return;
+            }
+
             SyncSchedulerJobs(config);
             CapturePersistedSnapshot(config.ServerUUID);
             UpdateStatusBar(config);
@@ -1297,19 +1217,8 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             ApplyCurrentSettings();
-            config.SetTime();
-
-            OperationResult writeResult = await Task.Run(() =>
-            {
-                services.ConfigService.Save(config);
-                OperationResult cfgResult = services.ConfigWriter.WriteAll(config);
-                if (!cfgResult.Success)
-                {
-                    return cfgResult;
-                }
-
-                return services.MonitoringDeploymentService.DeployIfEnabled(config);
-            }).ConfigureAwait(true);
+            OperationResult writeResult = await Task.Run(() => lifecycleCoordinator.WriteConfigFiles(config))
+                .ConfigureAwait(true);
 
             SyncSchedulerJobs(config);
             CapturePersistedSnapshot(config.ServerUUID);
@@ -1335,15 +1244,16 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             ApplyCurrentSettings();
-            config.SetTime();
+            OperationResult saveResult = await Task.Run(() => lifecycleCoordinator.SaveConfig(config)).ConfigureAwait(true);
+            if (!saveResult.Success)
+            {
+                return;
+            }
 
-            await Task.Run(() => services.ConfigService.Save(config)).ConfigureAwait(true);
             SyncSchedulerJobs(config);
             CapturePersistedSnapshot(config.ServerUUID);
 
-            ServerRunState runState = services.ProcessService.GetState(config.ServerUUID);
-            IReadOnlyList<PreflightCheckItem> preflightItems =
-                services.PreflightChecker.Check(config, runState);
+            IReadOnlyList<PreflightCheckItem> preflightItems = lifecycleCoordinator.BuildPreflightItems(config);
             if (services.PreflightChecker.HasBlockingErrors(preflightItems))
             {
                 using (var dialog = new PreflightReportForm(preflightItems, false))
@@ -1365,21 +1275,9 @@ namespace Arma3ServerTools.App.WinForms
                 }
             }
 
-            OperationResult result = await Task.Run(
-                () => services.ProcessService.Start(config.ServerUUID)).ConfigureAwait(true);
+            OperationResult result = await Task.Run(() => lifecycleCoordinator.StartServer(config)).ConfigureAwait(true);
             if (result.Success)
             {
-                if (config.ServerTaskManagement.EnableMonitoringService)
-                {
-                    try
-                    {
-                        services.MonitoringQueryService.InitPlayerOnlineInfo(config.ServerUUID);
-                    }
-                    catch
-                    {
-                    }
-                }
-
                 CaptureServerAppliedSnapshot(config.ServerUUID);
                 UpdateStatusBar(config);
                 AntdUiHelper.ShowInfo(this, UiLabels.StartServerSuccess, "成功");
@@ -1399,7 +1297,7 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
-            using (var dialog = new FirstServerWizardForm())
+            using (var dialog = new FirstServerWizardForm(services))
             {
                 if (dialog.ShowDialog(this) != DialogResult.OK || dialog.CreatedConfig == null)
                 {
@@ -1433,16 +1331,14 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             suppressStopNotification = true;
-            OperationResult result = await Task.Run(
-                () => services.ProcessService.Stop(config.ServerUUID)).ConfigureAwait(true);
+            OperationResult result = await Task.Run(() => lifecycleCoordinator.StopServer(config)).ConfigureAwait(true);
             if (!result.Success)
             {
                 AntdUiHelper.ShowWarning(this, result.Message, "停止失败");
             }
             else
             {
-                ResetMonitoringOnlineIfEnabled(config);
-                RefreshCachedConfig(config.ServerUUID);
+                lifecycleCoordinator.RefreshCachedConfig(config.ServerUUID);
             }
 
             RefreshSelectedRowState();
@@ -1475,7 +1371,7 @@ namespace Arma3ServerTools.App.WinForms
 
         private void OnSteamCmdSettings(object sender, EventArgs e)
         {
-            using (var dialog = new SteamCmdConfigForm(services.GetSteamCmdSettings()))
+            using (var dialog = new SteamCmdConfigForm(services, services.GetSteamCmdSettings()))
             {
                 if (dialog.ShowDialog(this) != DialogResult.OK)
                 {
@@ -1588,7 +1484,7 @@ namespace Arma3ServerTools.App.WinForms
                 }
 
                 ServerRunState runState = services.ProcessService.SyncState(services.CurrentServerUuid);
-                RefreshCachedConfig(services.CurrentServerUuid);
+                lifecycleCoordinator.RefreshCachedConfig(services.CurrentServerUuid);
                 serverRows[i].RunState = runState;
                 ArmaServerConfig config = services.GetCurrentConfig();
                 if (config != null)
@@ -1627,7 +1523,7 @@ namespace Arma3ServerTools.App.WinForms
                     if (previousState == ServerRunState.Running && currentState == ServerRunState.Stopped)
                     {
                         ArmaServerConfig config = services.ConfigService.Get(row.ServerUuid);
-                        ResetMonitoringOnlineIfEnabled(config);
+                        lifecycleCoordinator.TryResetMonitoringOnline(config);
                         if (!suppressStopNotification)
                         {
                             ShowServerStoppedNotification(row, config);
@@ -1639,7 +1535,7 @@ namespace Arma3ServerTools.App.WinForms
                     }
 
                     row.RunState = currentState;
-                    RefreshCachedConfig(row.ServerUuid);
+                    lifecycleCoordinator.RefreshCachedConfig(row.ServerUuid);
                     stateChanged = true;
                 }
             }
@@ -1653,33 +1549,20 @@ namespace Arma3ServerTools.App.WinForms
                 }
             }
 
-            UpdateTrayStatusText();
+            int runningCount = 0;
+            for (int i = 0; i < serverRows.Count; i++)
+            {
+                if (serverRows[i].RunState == ServerRunState.Running)
+                {
+                    runningCount++;
+                }
+            }
+
+            trayController.UpdateRunningCount(runningCount);
 
             if (!string.IsNullOrEmpty(services.CurrentServerUuid))
             {
                 settingsHost.RefreshOverview();
-            }
-        }
-
-        private void RefreshCachedConfig(string serverUuid)
-        {
-            ArmaServerConfig config = services.ConfigService.Get(serverUuid);
-            services.LoadedConfigs[serverUuid] = config;
-        }
-
-        private void ResetMonitoringOnlineIfEnabled(ArmaServerConfig config)
-        {
-            if (config == null || !config.ServerTaskManagement.EnableMonitoringService)
-            {
-                return;
-            }
-
-            try
-            {
-                services.MonitoringQueryService.InitPlayerOnlineInfo(config.ServerUUID);
-            }
-            catch
-            {
             }
         }
 
@@ -1726,21 +1609,13 @@ namespace Arma3ServerTools.App.WinForms
 
         private void ShowServerStoppedNotification(ServerGridRow row, ArmaServerConfig config)
         {
-            if (trayNotifyIcon == null)
-            {
-                return;
-            }
-
             string serverName = row.ConfigName;
             if (config != null && !string.IsNullOrWhiteSpace(config.ConfigName))
             {
                 serverName = config.ConfigName;
             }
 
-            trayNotifyIcon.BalloonTipTitle = "服务器已停止";
-            trayNotifyIcon.BalloonTipText = serverName + " 进程已退出，请检查 RPT 日志或重新启动。";
-            trayNotifyIcon.Visible = true;
-            trayNotifyIcon.ShowBalloonTip(5000);
+            trayController.ShowServerStoppedBalloon(serverName);
         }
     }
 }
