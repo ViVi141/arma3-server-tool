@@ -95,28 +95,28 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             var tabs = AntdUiHelper.CreateTabsPanel();
             playerStatsTable = CreateStatsTable(
-                new AntdTableHelper.ColumnSpec("PlayerId", "PlayerId", "8%", AntdUI.ColumnAlign.Left),
-                new AntdTableHelper.ColumnSpec("Name", "Name", "14%", AntdUI.ColumnAlign.Left),
-                new AntdTableHelper.ColumnSpec("Infantry", "Infantry", "7%", AntdUI.ColumnAlign.Center),
-                new AntdTableHelper.ColumnSpec("Soft", "Soft", "7%", AntdUI.ColumnAlign.Center),
-                new AntdTableHelper.ColumnSpec("Armor", "Armor", "7%", AntdUI.ColumnAlign.Center),
-                new AntdTableHelper.ColumnSpec("Air", "Air", "7%", AntdUI.ColumnAlign.Center),
-                new AntdTableHelper.ColumnSpec("Deaths", "Deaths", "7%", AntdUI.ColumnAlign.Center),
-                new AntdTableHelper.ColumnSpec("Score", "Score", "9%", AntdUI.ColumnAlign.Center),
-                new AntdTableHelper.ColumnSpec("Online", "Online", "8%", AntdUI.ColumnAlign.Center),
-                new AntdTableHelper.ColumnSpec("Time", "Time", "26%", AntdUI.ColumnAlign.Left));
+                new AntdTableHelper.ColumnSpec("PlayerId", "玩家 ID", "8%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Name", "昵称", "14%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Infantry", "步兵击杀", "7%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Soft", "软目标", "7%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Armor", "装甲", "7%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Air", "空中", "7%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Deaths", "死亡", "7%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Score", "得分", "9%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Online", "在线", "8%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Time", "时间", "26%", AntdUI.ColumnAlign.Left));
             objectStatsTable = CreateStatsTable(
-                new AntdTableHelper.ColumnSpec("Id", "Id", "12%", AntdUI.ColumnAlign.Left),
-                new AntdTableHelper.ColumnSpec("Players", "Players", "15%", AntdUI.ColumnAlign.Center),
-                new AntdTableHelper.ColumnSpec("Units", "Units", "15%", AntdUI.ColumnAlign.Center),
-                new AntdTableHelper.ColumnSpec("Fps", "FPS", "12%", AntdUI.ColumnAlign.Center),
-                new AntdTableHelper.ColumnSpec("FpsMin", "FPS Min", "14%", AntdUI.ColumnAlign.Center),
-                new AntdTableHelper.ColumnSpec("Time", "Time", "32%", AntdUI.ColumnAlign.Left));
+                new AntdTableHelper.ColumnSpec("Id", "快照 ID", "12%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Players", "玩家数", "15%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Units", "单位数", "15%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Fps", "帧率", "12%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("FpsMin", "最低帧率", "14%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Time", "时间", "32%", AntdUI.ColumnAlign.Left));
             playerDirectoryTable = CreateStatsTable(
-                new AntdTableHelper.ColumnSpec("Guid", "Guid", "28%", AntdUI.ColumnAlign.Left),
-                new AntdTableHelper.ColumnSpec("Name", "Name", "24%", AntdUI.ColumnAlign.Left),
-                new AntdTableHelper.ColumnSpec("Ip", "IP", "18%", AntdUI.ColumnAlign.Left),
-                new AntdTableHelper.ColumnSpec("LastSeen", "LastSeen", "30%", AntdUI.ColumnAlign.Left));
+                new AntdTableHelper.ColumnSpec("Guid", "Steam GUID", "28%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Name", "昵称", "24%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Ip", "IP 地址", "18%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("LastSeen", "最后上线", "30%", AntdUI.ColumnAlign.Left));
 
             AntdUiHelper.AddTabPage(tabs, "战斗统计", playerStatsTable);
             AntdUiHelper.AddTabPage(tabs, "服务器快照", objectStatsTable);

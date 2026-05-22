@@ -24,16 +24,16 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             Dock = DockStyle.Fill;
             var layout = SettingsLayoutHelper.CreateFormLayout(160);
-            enableHtCheckBox = SettingsLayoutHelper.AddRow(layout, "EnableHT", SettingsLayoutHelper.CreateCheckbox("-enableHT", true));
-            hugepagesCheckBox = SettingsLayoutHelper.AddRow(layout, "Hugepages", SettingsLayoutHelper.CreateCheckbox("-hugepages", false));
-            loadMissionCheckBox = SettingsLayoutHelper.AddRow(layout, "LoadMission", SettingsLayoutHelper.CreateCheckbox("-loadMissionToMemory", true));
-            disableServerThreadCheckBox = SettingsLayoutHelper.AddRow(layout, "DisableServerThread", SettingsLayoutHelper.CreateCheckbox("-disableServerThread", false));
-            cpuCountNumeric = SettingsLayoutHelper.AddRow(layout, "CpuCount", SettingsLayoutHelper.CreateNumeric(0, 128, 0, 120));
-            exThreadsNumeric = SettingsLayoutHelper.AddRow(layout, "ExThreads", SettingsLayoutHelper.CreateNumeric(0, 32, 0, 120));
-            maxMemNumeric = SettingsLayoutHelper.AddRow(layout, "MaxMem (MB)", SettingsLayoutHelper.CreateNumeric(0, 65536, 0, 120));
-            limitFpsNumeric = SettingsLayoutHelper.AddRow(layout, "LimitFPS", SettingsLayoutHelper.CreateNumeric(1, 1000, 1000, 120));
-            terrainGridNumeric = SettingsLayoutHelper.AddRow(layout, "TerrainGrid", SettingsLayoutHelper.CreateNumeric(1, 50, 30, 120));
-            viewDistanceNumeric = SettingsLayoutHelper.AddRow(layout, "ViewDistance", SettingsLayoutHelper.CreateNumeric(200, 10000, 1600, 120));
+            enableHtCheckBox = SettingsLayoutHelper.AddRow(layout, "超线程", SettingsLayoutHelper.CreateCheckbox("启用 CPU 超线程 (-enableHT)", true));
+            hugepagesCheckBox = SettingsLayoutHelper.AddRow(layout, "大页内存", SettingsLayoutHelper.CreateCheckbox("使用大页内存 (-hugepages)", false));
+            loadMissionCheckBox = SettingsLayoutHelper.AddRow(layout, "任务预加载", SettingsLayoutHelper.CreateCheckbox("启动时将任务载入内存 (-loadMissionToMemory)", true));
+            disableServerThreadCheckBox = SettingsLayoutHelper.AddRow(layout, "禁用服务端线程", SettingsLayoutHelper.CreateCheckbox("关闭专用服务端线程 (-disableServerThread)", false));
+            cpuCountNumeric = SettingsLayoutHelper.AddRow(layout, "CPU 核心数", SettingsLayoutHelper.CreateNumeric(0, 128, 0, 120));
+            exThreadsNumeric = SettingsLayoutHelper.AddRow(layout, "额外线程数", SettingsLayoutHelper.CreateNumeric(0, 32, 0, 120));
+            maxMemNumeric = SettingsLayoutHelper.AddRow(layout, "最大内存 (MB)", SettingsLayoutHelper.CreateNumeric(0, 65536, 0, 120));
+            limitFpsNumeric = SettingsLayoutHelper.AddRow(layout, "帧率上限", SettingsLayoutHelper.CreateNumeric(1, 1000, 60, 120));
+            terrainGridNumeric = SettingsLayoutHelper.AddRow(layout, "地形网格", SettingsLayoutHelper.CreateNumeric(1, 50, 30, 120));
+            viewDistanceNumeric = SettingsLayoutHelper.AddRow(layout, "视距", SettingsLayoutHelper.CreateNumeric(200, 10000, 1600, 120));
             Controls.Add(SettingsLayoutHelper.CreateScrollHost(layout));
         }
 

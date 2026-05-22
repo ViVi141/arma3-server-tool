@@ -35,7 +35,7 @@ namespace Arma3ServerTools.App.WinForms
 
         public MainForm()
         {
-            Text = "Arma3 Server Tools";
+            Text = UiLabels.AppTitle;
             ClientSize = UiScaleHelper.ScaleSize(1100, 720);
             MinimumSize = UiScaleHelper.ScaleSize(900, 600);
             StartPosition = FormStartPosition.CenterScreen;
@@ -45,7 +45,7 @@ namespace Arma3ServerTools.App.WinForms
 
             pageHeader = new AntdUI.PageHeader
             {
-                Text = "Arma3 Server Tools",
+                Text = UiLabels.AppTitle,
                 SubText = string.Empty,
                 ShowButton = true,
                 ShowIcon = false,
@@ -66,7 +66,7 @@ namespace Arma3ServerTools.App.WinForms
             startButton = CreateActionButton("启动", AntdUI.TTypeMini.Primary);
             stopButton = CreateActionButton("停止", AntdUI.TTypeMini.Default);
             saveButton = CreateActionButton("保存配置", AntdUI.TTypeMini.Default);
-            writeCfgButton = CreateActionButton("写入 cfg", AntdUI.TTypeMini.Default);
+            writeCfgButton = CreateActionButton(UiLabels.WriteConfigFiles, AntdUI.TTypeMini.Default);
             startButton.Click += OnStartServer;
             stopButton.Click += OnStopServer;
             saveButton.Click += OnSaveConfig;
@@ -282,7 +282,7 @@ namespace Arma3ServerTools.App.WinForms
             table.Columns = new AntdUI.ColumnCollection
             {
                 new AntdUI.Column("ConfigName", "配置名") { Width = "34%" },
-                new AntdUI.Column("ServerUuid", "UUID") { Width = "34%" },
+                new AntdUI.Column("ServerUuid", UiLabels.ServerId) { Width = "34%" },
                 new AntdUI.Column("SaveTime", "最后保存") { Width = "18%" },
                 new AntdUI.Column("State", "状态") { Width = "14%", Align = AntdUI.ColumnAlign.Center },
             };
@@ -548,7 +548,7 @@ namespace Arma3ServerTools.App.WinForms
             OperationResult result = services.ConfigWriter.WriteAll(config);
             if (result.Success)
             {
-                AntdUiHelper.ShowInfo(this, "server.cfg / basic.cfg / BE 配置已写入。", "成功");
+                AntdUiHelper.ShowInfo(this, UiLabels.ConfigSavedHint, "成功");
             }
             else
             {

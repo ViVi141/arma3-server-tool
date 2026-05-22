@@ -73,11 +73,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             autoSelectCheckBox = SettingsLayoutHelper.AddRow(
                 optionsLayout,
                 "自动选任务",
-                SettingsLayoutHelper.CreateCheckbox("autoSelectMission", false));
+                SettingsLayoutHelper.CreateCheckbox("无人在线时自动切换下一任务", false));
             randomOrderCheckBox = SettingsLayoutHelper.AddRow(
                 optionsLayout,
                 "随机顺序",
-                SettingsLayoutHelper.CreateCheckbox("randomMissionOrder", false));
+                SettingsLayoutHelper.CreateCheckbox("按随机顺序轮换任务列表", false));
             missionParamsInput = SettingsLayoutHelper.AddRow(
                 optionsLayout,
                 "任务参数",

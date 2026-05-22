@@ -91,7 +91,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 "扫描顺序",
                 "文件夹名",
                 "模组名",
-                "Workshop ID",
+                "创意工坊 ID",
                 "更新时间");
             sortSelect.SelectedIndex = 0;
             sortSelect.SelectedIndexChanged += OnSortOrFilterChanged;
@@ -125,7 +125,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             });
             AntdUI.Button disableClientButton = SettingsLayoutHelper.CreateButton("客户端");
             AntdUI.Button disableServerButton = SettingsLayoutHelper.CreateButton("服务器");
-            AntdUI.Button disableHcButton = SettingsLayoutHelper.CreateButton("HC");
+            AntdUI.Button disableHcButton = SettingsLayoutHelper.CreateButton("无头客户端");
             AntdUI.Button disableAllButton = SettingsLayoutHelper.CreateButton("全部");
             disableClientButton.Click += delegate { DisableMods(ModDisableScope.Client); };
             disableServerButton.Click += delegate { DisableMods(ModDisableScope.Server); };
@@ -143,7 +143,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             localCol.Call = OnModSwitchCall;
             var serverCol = new AntdUI.ColumnSwitch("ServerMod", "服务器模组");
             serverCol.Call = OnModSwitchCall;
-            var hcCol = new AntdUI.ColumnSwitch("HeadlessClientMod", "HC 模组");
+            var hcCol = new AntdUI.ColumnSwitch("HeadlessClientMod", "无头客户端模组");
             hcCol.Call = OnModSwitchCall;
 
             modsTable.Columns = new AntdUI.ColumnCollection
@@ -188,28 +188,28 @@ namespace Arma3ServerTools.App.WinForms.Controls
             var optionsLayout = SettingsLayoutHelper.CreateFormLayout(120);
             autoCopyBikeyCheckBox = SettingsLayoutHelper.AddRow(
                 optionsLayout,
-                "AutoCopyBikey",
-                SettingsLayoutHelper.CreateCheckbox("自动复制 bikey 到服务器 Keys", true));
+                "自动复制密钥",
+                SettingsLayoutHelper.CreateCheckbox("将 bikey 复制到服务器 Keys 目录", true));
             dlcContactCheckBox = SettingsLayoutHelper.AddRow(
                 optionsLayout,
-                "DLC Contact",
-                SettingsLayoutHelper.CreateCheckbox("Contact DLC", false));
+                "Contact 资料片",
+                SettingsLayoutHelper.CreateCheckbox("启用 Contact 资料片", false));
             dlcGmCheckBox = SettingsLayoutHelper.AddRow(
                 optionsLayout,
-                "DLC GM",
-                SettingsLayoutHelper.CreateCheckbox("GM DLC", false));
+                "GM 资料片",
+                SettingsLayoutHelper.CreateCheckbox("启用 Global Mobilization 资料片", false));
             dlcCslaCheckBox = SettingsLayoutHelper.AddRow(
                 optionsLayout,
-                "DLC CSLA",
-                SettingsLayoutHelper.CreateCheckbox("CSLA DLC", false));
+                "CSLA 资料片",
+                SettingsLayoutHelper.CreateCheckbox("启用 CSLA Iron Curtain 资料片", false));
             dlcWsCheckBox = SettingsLayoutHelper.AddRow(
                 optionsLayout,
-                "DLC WS",
-                SettingsLayoutHelper.CreateCheckbox("Western Sahara DLC", false));
+                "Western Sahara 资料片",
+                SettingsLayoutHelper.CreateCheckbox("启用 Western Sahara 资料片", false));
             dlcVnCheckBox = SettingsLayoutHelper.AddRow(
                 optionsLayout,
-                "DLC VN",
-                SettingsLayoutHelper.CreateCheckbox("S.O.G. DLC", false));
+                "S.O.G. 资料片",
+                SettingsLayoutHelper.CreateCheckbox("启用 S.O.G. Prairie Fire 资料片", false));
 
             var split = new SplitContainer
             {

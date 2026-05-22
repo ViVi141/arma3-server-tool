@@ -10,6 +10,7 @@ namespace Arma3ServerTools.App.WinForms
             AntdUI.Config.Mode = AntdUI.TMode.Light;
             AntdUI.Config.TextRenderingHighQuality = true;
             AntdUI.Config.ShadowEnabled = true;
+            AntdUiScrollHelper.RegisterScrollDismissFilter();
         }
     }
 }

@@ -57,7 +57,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             cameraShakeCheckBox = SettingsLayoutHelper.AddRow(layout, "相机摇晃", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
             scoreTableCheckBox = SettingsLayoutHelper.AddRow(layout, "得分表", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
             deathMessagesCheckBox = SettingsLayoutHelper.AddRow(layout, "死亡消息", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            vonIdCheckBox = SettingsLayoutHelper.AddRow(layout, "VoN ID", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
+            vonIdCheckBox = SettingsLayoutHelper.AddRow(layout, "语音 ID 显示", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
             mapContentCheckBox = SettingsLayoutHelper.AddRow(layout, "扩展地图", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
             mapContentFriendlyCheckBox = SettingsLayoutHelper.AddRow(layout, "友军单位", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
             mapContentEnemyCheckBox = SettingsLayoutHelper.AddRow(layout, "敌军单位", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
@@ -65,8 +65,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             reducedDamageCheckBox = SettingsLayoutHelper.AddRow(layout, "减伤", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
             autoReportCheckBox = SettingsLayoutHelper.AddRow(layout, "自动报告", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
             multipleSavesCheckBox = SettingsLayoutHelper.AddRow(layout, "多重存档", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
-            skillAiNumeric = SettingsLayoutHelper.AddRow(layout, "SkillAI", CreateAiNumeric());
-            precisionAiNumeric = SettingsLayoutHelper.AddRow(layout, "PrecisionAI", CreateAiNumeric());
+            skillAiNumeric = SettingsLayoutHelper.AddRow(layout, "AI 技能", CreateAiNumeric());
+            precisionAiNumeric = SettingsLayoutHelper.AddRow(layout, "AI 精度", CreateAiNumeric());
             Controls.Add(SettingsLayoutHelper.CreateScrollHost(layout));
         }
 

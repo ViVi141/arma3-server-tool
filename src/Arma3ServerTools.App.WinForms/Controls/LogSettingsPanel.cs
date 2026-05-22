@@ -21,17 +21,17 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             Dock = DockStyle.Fill;
             var layout = SettingsLayoutHelper.CreateFormLayout(160);
-            noLogsCheckBox = SettingsLayoutHelper.AddRow(layout, "NoLogs", SettingsLayoutHelper.CreateCheckbox("-noLogs", false));
-            netlogCheckBox = SettingsLayoutHelper.AddRow(layout, "Netlog", SettingsLayoutHelper.CreateCheckbox("-netlog", false));
-            logFileTextBox = SettingsLayoutHelper.AddRow(layout, "LogFile", SettingsLayoutHelper.CreateInput(true));
+            noLogsCheckBox = SettingsLayoutHelper.AddRow(layout, "禁用日志", SettingsLayoutHelper.CreateCheckbox("不写入 RPT 日志 (-noLogs)", false));
+            netlogCheckBox = SettingsLayoutHelper.AddRow(layout, "网络日志", SettingsLayoutHelper.CreateCheckbox("记录网络流量 (-netlog)", false));
+            logFileTextBox = SettingsLayoutHelper.AddRow(layout, "控制台日志文件", SettingsLayoutHelper.CreateInput(true));
             logFileTextBox.Text = "server_console.log";
             timeStampFormatCombo = SettingsLayoutHelper.AddRow(
                 layout,
-                "TimeStampFormat",
-                SettingsLayoutHelper.CreateSelect(200, "none", "short", "full"));
+                "时间戳格式",
+                SettingsLayoutHelper.CreateSelect(200, "无", "简短", "完整"));
             callExtReportLimitNumeric = SettingsLayoutHelper.AddRow(
                 layout,
-                "CallExtReportLimit",
+                "扩展调用报告上限",
                 SettingsLayoutHelper.CreateNumeric(1, 60000, 1000, 120));
             Controls.Add(SettingsLayoutHelper.CreateScrollHost(layout));
         }

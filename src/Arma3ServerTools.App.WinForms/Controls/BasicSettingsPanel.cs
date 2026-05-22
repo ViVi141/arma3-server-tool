@@ -56,13 +56,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
             Dock = DockStyle.Fill;
             var root = SettingsLayoutHelper.CreateSectionsStack();
             SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("基础", BuildBasicRows()));
-            SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("MOTD / 文件", BuildMotdRows()));
-            SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("语音 VoN", BuildVoiceRows()));
+            SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("欢迎语 / 文件", BuildMotdRows()));
+            SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("语音 (VoN)", BuildVoiceRows()));
             SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("无头客户端", BuildHeadlessRows()));
             SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("投票 / 超时", BuildVoteRows()));
             SettingsLayoutHelper.AddStackSection(
                 root,
-                SettingsLayoutHelper.CreateGroup("附加参数 (明文，保存时转 Base64)", BuildExtraArgsRows()));
+                SettingsLayoutHelper.CreateGroup(UiLabels.ExtraArgsGroup, BuildExtraArgsRows()));
             Controls.Add(SettingsLayoutHelper.CreateScrollHost(root));
         }
 
@@ -204,34 +204,34 @@ namespace Arma3ServerTools.App.WinForms.Controls
             x64CheckBox =
                 SettingsLayoutHelper.AddRow(
                     layout,
-                    "x64",
+                    "64 位程序",
                     SettingsLayoutHelper.CreateCheckbox("使用 arma3server_x64.exe", true));
             persistentCheckBox =
                 SettingsLayoutHelper.AddRow(
                     layout,
-                    "Persistent",
-                    SettingsLayoutHelper.CreateCheckbox("任务持久化", false));
+                    "任务持久化",
+                    SettingsLayoutHelper.CreateCheckbox("重启后保留任务进度", false));
             autoInitCheckBox =
                 SettingsLayoutHelper.AddRow(
                     layout,
-                    "AutoInit",
-                    SettingsLayoutHelper.CreateCheckbox("-autoInit", false));
+                    "自动初始化",
+                    SettingsLayoutHelper.CreateCheckbox("启动时自动加载任务 (-autoInit)", false));
             skipLobbyCheckBox =
-                SettingsLayoutHelper.AddRow(layout, "SkipLobby", SettingsLayoutHelper.CreateCheckbox("跳过大厅", false));
+                SettingsLayoutHelper.AddRow(layout, "跳过大厅", SettingsLayoutHelper.CreateCheckbox("跳过任务选择大厅", false));
             drawingInMapCheckBox =
                 SettingsLayoutHelper.AddRow(
                     layout,
-                    "DrawingInMap",
-                    SettingsLayoutHelper.CreateCheckbox("允许地图绘制", true));
+                    "地图绘制",
+                    SettingsLayoutHelper.CreateCheckbox("允许玩家在地图上绘制", true));
             statisticsCheckBox =
                 SettingsLayoutHelper.AddRow(
                     layout,
-                    "Statistics",
-                    SettingsLayoutHelper.CreateCheckbox("启用官方统计", false));
+                    "官方统计",
+                    SettingsLayoutHelper.CreateCheckbox("向 Bohemia 上报统计数据", false));
             rotorLibCombo = SettingsLayoutHelper.AddRow(
                 layout,
-                "RotorLib",
-                SettingsLayoutHelper.CreateSelect(200, "玩家决定", "强制 AFM", "强制 SFM"));
+                "旋翼库模拟",
+                SettingsLayoutHelper.CreateSelect(200, "由玩家决定", "强制高级飞行模型", "强制简化飞行模型"));
             return layout;
         }
 
@@ -239,11 +239,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(120);
             motdTextBox =
-                SettingsLayoutHelper.AddRow(layout, "MOTD", SettingsLayoutHelper.CreateMultilineInput(70));
+                SettingsLayoutHelper.AddRow(layout, "欢迎语 (MOTD)", SettingsLayoutHelper.CreateMultilineInput(70));
             motdIntervalNumeric =
-                SettingsLayoutHelper.AddRow(layout, "MOTD 间隔", SettingsLayoutHelper.CreateNumeric(1, 60, 1, 120));
-            pidFileTextBox = SettingsLayoutHelper.AddRow(layout, "PID 文件", SettingsLayoutHelper.CreateInput(true));
-            rankingTextBox = SettingsLayoutHelper.AddRow(layout, "Ranking", SettingsLayoutHelper.CreateInput(true));
+                SettingsLayoutHelper.AddRow(layout, "欢迎语间隔 (分钟)", SettingsLayoutHelper.CreateNumeric(1, 60, 1, 120));
+            pidFileTextBox = SettingsLayoutHelper.AddRow(layout, "进程 PID 文件", SettingsLayoutHelper.CreateInput(true));
+            rankingTextBox = SettingsLayoutHelper.AddRow(layout, "排名数据文件", SettingsLayoutHelper.CreateInput(true));
             return layout;
         }
 
@@ -253,11 +253,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             disableVonCheckBox =
                 SettingsLayoutHelper.AddRow(
                     layout,
-                    "VoN",
-                    SettingsLayoutHelper.CreateCheckbox("启用语音", true));
+                    "语音聊天",
+                    SettingsLayoutHelper.CreateCheckbox("启用 VoN 语音", true));
             vonQualityNumeric =
                 SettingsLayoutHelper.AddRow(layout, "语音质量", SettingsLayoutHelper.CreateNumeric(0, 30, 30, 120));
-            vonCodecCombo = SettingsLayoutHelper.AddRow(layout, "编码器", SettingsLayoutHelper.CreateSelect(200, "SPEEX", "OPUS"));
+            vonCodecCombo = SettingsLayoutHelper.AddRow(layout, "语音编码", SettingsLayoutHelper.CreateSelect(200, "SPEEX", "OPUS"));
             return layout;
         }
 
@@ -266,8 +266,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             var layout = SettingsLayoutHelper.CreateFormLayout(120);
             headlessEditor = CreateIpv4ListEditor(70, "127.0.0.1");
             localClientEditor = CreateIpv4ListEditor(70, "127.0.0.1");
-            SettingsLayoutHelper.AddRow(layout, "HeadlessClients", headlessEditor, 80);
-            SettingsLayoutHelper.AddRow(layout, "LocalClient", localClientEditor, 80);
+            SettingsLayoutHelper.AddRow(layout, "无头客户端 IP", headlessEditor, 80);
+            SettingsLayoutHelper.AddRow(layout, "本地客户端 IP", localClientEditor, 80);
             return layout;
         }
 
@@ -294,36 +294,36 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(140);
             voteThresholdNumeric =
-                SettingsLayoutHelper.AddRow(layout, "VoteThreshold", SettingsLayoutHelper.CreateNumeric(0, 100, 0, 120));
+                SettingsLayoutHelper.AddRow(layout, "投票通过阈值 (%)", SettingsLayoutHelper.CreateNumeric(0, 100, 0, 120));
             votingTimeoutNumeric =
                 SettingsLayoutHelper.AddRow(
                     layout,
-                    "VotingTimeOut",
+                    "投票超时 (秒)",
                     SettingsLayoutHelper.CreateNumeric(0, 99999, 0, 120));
             roleTimeoutNumeric =
                 SettingsLayoutHelper.AddRow(
                     layout,
-                    "RoleTimeOut",
+                    "选角超时 (秒)",
                     SettingsLayoutHelper.CreateNumeric(0, 99999, 99999, 120));
             briefingTimeoutNumeric =
                 SettingsLayoutHelper.AddRow(
                     layout,
-                    "BriefingTimeOut",
+                    "简报超时 (秒)",
                     SettingsLayoutHelper.CreateNumeric(0, 99999, 60, 120));
             debriefingTimeoutNumeric =
                 SettingsLayoutHelper.AddRow(
                     layout,
-                    "DebriefingTimeOut",
+                    "结算超时 (秒)",
                     SettingsLayoutHelper.CreateNumeric(0, 99999, 45, 120));
             lobbyIdleTimeoutNumeric =
                 SettingsLayoutHelper.AddRow(
                     layout,
-                    "LobbyIdleTimeout",
+                    "大厅空闲超时 (秒)",
                     SettingsLayoutHelper.CreateNumeric(0, 99999, 99999, 120));
             voteMissionPlayersNumeric =
                 SettingsLayoutHelper.AddRow(
                     layout,
-                    "VoteMissionPlayers",
+                    "换图最少人数",
                     SettingsLayoutHelper.CreateNumeric(0, 99999, 0, 120));
             return layout;
         }
@@ -332,13 +332,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(140);
             serverCfgArgsTextBox =
-                SettingsLayoutHelper.AddRow(layout, "server.cfg", SettingsLayoutHelper.CreateMultilineInput(72));
+                SettingsLayoutHelper.AddRow(layout, "server.cfg 附加行", SettingsLayoutHelper.CreateMultilineInput(72));
             basicCfgArgsTextBox =
-                SettingsLayoutHelper.AddRow(layout, "basic.cfg", SettingsLayoutHelper.CreateMultilineInput(72));
+                SettingsLayoutHelper.AddRow(layout, "basic.cfg 附加行", SettingsLayoutHelper.CreateMultilineInput(72));
             startArgsTextBox =
-                SettingsLayoutHelper.AddRow(layout, "启动参数", SettingsLayoutHelper.CreateMultilineInput(72));
+                SettingsLayoutHelper.AddRow(layout, "启动命令行附加", SettingsLayoutHelper.CreateMultilineInput(72));
             profileArgsTextBox =
-                SettingsLayoutHelper.AddRow(layout, "Profile", SettingsLayoutHelper.CreateMultilineInput(72));
+                SettingsLayoutHelper.AddRow(layout, "难度档案附加行", SettingsLayoutHelper.CreateMultilineInput(72));
             return layout;
         }
 
