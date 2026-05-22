@@ -227,7 +227,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             IAppPaths paths = appServices.Paths;
             string bundledPath = SteamCmdBootstrapper.GetBundledExecutablePath(paths);
-            bool bundledExists = File.Exists(bundledPath);
+            bool bundledExists = SteamCmdBootstrapper.IsInstallationComplete(
+                SteamCmdBootstrapper.GetBundledDirectory(paths));
             string customPath = string.Empty;
             bool customExists = false;
             if (!string.IsNullOrEmpty(workshopRoot))
@@ -310,7 +311,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 OperationResult result = await SteamCmdUiHelper.DownloadSteamCmdAsync(
                     FindForm(),
-                    appServices.SteamCmdService).ConfigureAwait(true);
+                    appServices.SteamCmdService,
+                    appServices.Paths).ConfigureAwait(true);
                 if (result.Success)
                 {
                     AntdUiHelper.ShowInfo(FindForm(), result.Message, "SteamCMD 已就绪");
@@ -353,7 +355,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 if (!await SteamCmdUiHelper.EnsureSteamCmdAvailableAsync(
                     FindForm(),
-                    appServices.SteamCmdService).ConfigureAwait(true))
+                    appServices.SteamCmdService,
+                    appServices.Paths).ConfigureAwait(true))
                 {
                     return;
                 }

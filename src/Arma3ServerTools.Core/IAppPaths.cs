@@ -126,8 +126,34 @@ namespace Arma3ServerTools.Core
             TryMigrateFile(applicationBase, userDataDirectory, ToolConstants.StatisticsDatabaseFileName);
             TryMigrateFile(applicationBase, userDataDirectory, ToolConstants.PlayersDatabaseFileName);
             TryMigrateDirectory(applicationBase, userDataDirectory, "config");
-            TryMigrateDirectory(applicationBase, userDataDirectory, "extension");
+            TryMigrateDirectoryIfComplete(applicationBase, userDataDirectory, "extension");
             TryMigrateDirectory(applicationBase, userDataDirectory, "logs");
+        }
+
+        private static void TryMigrateDirectoryIfComplete(
+            string sourceRoot,
+            string targetRoot,
+            string directoryName)
+        {
+            string sourcePath = Path.Combine(sourceRoot, directoryName);
+            if (!Directory.Exists(sourcePath))
+            {
+                return;
+            }
+
+            if (string.Equals(directoryName, "extension", StringComparison.OrdinalIgnoreCase)
+                && !IsCompleteExtensionDirectory(sourcePath))
+            {
+                return;
+            }
+
+            TryMigrateDirectory(sourceRoot, targetRoot, directoryName);
+        }
+
+        private static bool IsCompleteExtensionDirectory(string extensionDirectory)
+        {
+            return File.Exists(Path.Combine(extensionDirectory, "steamcmd.exe"))
+                && File.Exists(Path.Combine(extensionDirectory, "public", "steambootstrapper_english.txt"));
         }
 
         private static bool PathsEqual(string left, string right)

@@ -2,7 +2,7 @@
 
 面向 Windows 的 **Arma 3 专用服务器** 图形化管理工具（**Arma3 Server Tools**）。使用 C# / .NET 10 开发，集成 BattlEye RCon、多服配置、SteamCMD、监控统计与定时任务等开服常用能力。
 
-**当前版本：v1.1.0** · **当前维护仓库：** [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
+**当前版本：v1.1.1** · **当前维护仓库：** [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
 
 ---
 
@@ -126,7 +126,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 未指定 `-Version` 时，版本号自动读取 `Directory.Build.props`。也可显式指定：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -Version 1.1.0
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -Version 1.1.1
 ```
 
 首次构建若本机未安装 Inno Setup 6，可加 `-InstallInnoSetup` 自动下载到 `tools/innosetup-6/`：
@@ -143,7 +143,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 | `-SkipInstaller` | 仅生成 `artifacts/_publish/` 目录，不编译安装包 |
 | `-Zip` | 额外生成便携 zip（与旧版行为相同） |
 
-详见 **[docs/release-v1.1.0.md](docs/release-v1.1.0.md)**（历史：[v1.0.0](docs/release-v1.0.0.md)）。
+详见 **[docs/release-v1.1.1.md](docs/release-v1.1.1.md)**（历史：[v1.1.0](docs/release-v1.1.0.md)、[v1.0.0](docs/release-v1.0.0.md)）。
 
 ---
 
@@ -151,6 +151,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 
 - 安装路径**不能包含中文**（启动时会检测并退出）
 - 安装到 `Program Files` 等只读目录时，配置/日志/数据库/SteamCMD 会写入 **`%LocalAppData%\Arma3ServerTools\`**（便携版仍写在程序目录旁）
+- **SteamCMD** 首次下载后需联机初始化；若日志出现 `502.3` / `IIS` / `<!DOCTYPE`，说明网络或代理拦截了 Steam CDN，请关闭代理或手动解压完整 SteamCMD 到 `%LocalAppData%\Arma3ServerTools\extension\`
 - 编译前请**关闭正在运行的主程序**，避免 `monitoring/` 下 DLL 被占用
 - 主程序退出时会自动关闭监控宿主进程
 - 本地 `.vs/`、`bin/`、`obj/` 为构建缓存，无需提交；克隆后执行 `dotnet restore` 即可
@@ -165,7 +166,8 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 | [docs/refactoring-plan.md](docs/refactoring-plan.md) | 分层改造说明 |
 | [docs/product-roadmap.md](docs/product-roadmap.md) | 实施计划与 backlog |
 | [docs/ux-optimization-backlog.md](docs/ux-optimization-backlog.md) | 用户体验优化任务（v1.1） |
-| [docs/release-v1.1.0.md](docs/release-v1.1.0.md) | **v1.1 发布清单** |
+| [docs/release-v1.1.1.md](docs/release-v1.1.1.md) | **v1.1.1 发布清单** |
+| [docs/release-v1.1.0.md](docs/release-v1.1.0.md) | v1.1.0 发布清单 |
 | [docs/release-v1.0.0.md](docs/release-v1.0.0.md) | v1.0 发布清单 |
 | [docs/smoke-checklist.md](docs/smoke-checklist.md) | 冒烟验收清单 |
 | [docs/monitoring-cpp-dll-build.md](docs/monitoring-cpp-dll-build.md) | Monitoring DLL 构建 |

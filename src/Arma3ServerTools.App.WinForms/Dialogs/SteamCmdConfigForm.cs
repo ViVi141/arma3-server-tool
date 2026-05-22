@@ -145,7 +145,8 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         {
             OperationResult result = await SteamCmdUiHelper.DownloadSteamCmdAsync(
                 this,
-                appServices.SteamCmdService).ConfigureAwait(true);
+                appServices.SteamCmdService,
+                appServices.Paths).ConfigureAwait(true);
             if (result.Success)
             {
                 AntdUiHelper.ShowInfo(this, result.Message, "SteamCMD 已就绪");

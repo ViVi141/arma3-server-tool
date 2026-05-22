@@ -119,7 +119,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 return;
             }
 
-            if (PathValidation.ContainsChinese(dir) || PathValidation.ContainsChinese(AppContext.BaseDirectory))
+            if (PathValidation.ContainsChinese(dir) || WizardPathValidation.HasInvalidToolPaths(appServices.Paths))
             {
                 AntdUiHelper.ShowWarning(this, UiLabels.PathRulesShort, "提示");
                 return;

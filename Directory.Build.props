@@ -2,10 +2,10 @@
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <Version>1.1.0</Version>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
-    <FileVersion>1.1.0.0</FileVersion>
-    <InformationalVersion>1.1.0</InformationalVersion>
+    <Version>1.1.1</Version>
+    <AssemblyVersion>1.1.1.0</AssemblyVersion>
+    <FileVersion>1.1.1.0</FileVersion>
+    <InformationalVersion>1.1.1</InformationalVersion>
     <Company>ViVi141</Company>
     <Authors>ViVi141</Authors>
     <Product>Arma3 Server Tools</Product>
