@@ -25,6 +25,7 @@ namespace Arma3ServerTools.TestSupport
         {
             string[] candidates = new[]
             {
+                Path.Combine(AppContext.BaseDirectory, "sql", "destiny_statistics.sql"),
                 Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "sql", "destiny_statistics.sql")),
                 Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "sql", "destiny_statistics.sql")),
             };
@@ -37,17 +38,14 @@ namespace Arma3ServerTools.TestSupport
                 }
             }
 
-            return candidates[0];
+            throw new FileNotFoundException(
+                "测试需要 sql/destiny_statistics.sql（输出目录或仓库 sql/ 下）。",
+                candidates[0]);
         }
 
         public static void CopySqlSchema(string root)
         {
             string sqlSource = FindSqlSchemaPath();
-            if (!File.Exists(sqlSource))
-            {
-                return;
-            }
-
             string sqlDestDir = Path.Combine(root, "sql");
             Directory.CreateDirectory(sqlDestDir);
             File.Copy(sqlSource, Path.Combine(sqlDestDir, "destiny_statistics.sql"), true);
@@ -69,6 +67,13 @@ namespace Arma3ServerTools.TestSupport
         public static void CopyPlayersSchema(string root)
         {
             string source = Path.Combine(Path.GetDirectoryName(FindSqlSchemaPath()), "destiny_players.sql");
+            if (!File.Exists(source))
+            {
+                throw new FileNotFoundException(
+                    "测试需要 sql/destiny_players.sql（与 destiny_statistics.sql 同目录）。",
+                    source);
+            }
+
             string destDir = Path.Combine(root, "sql");
             Directory.CreateDirectory(destDir);
             File.Copy(source, Path.Combine(destDir, "destiny_players.sql"), true);

@@ -6,6 +6,7 @@ using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.Core.Repositories;
+using Arma3ServerTools.TestSupport;
 using Xunit;
 
 namespace Arma3ServerTools.Application.Tests
@@ -187,19 +188,7 @@ namespace Arma3ServerTools.Application.Tests
             string path = Path.Combine(Path.GetTempPath(), "a3app-test-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(path);
             Directory.CreateDirectory(Path.Combine(path, "config"));
-            string sqlSource = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "sql", "destiny_statistics.sql");
-            if (!File.Exists(sqlSource))
-            {
-                sqlSource = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "sql", "destiny_statistics.sql"));
-            }
-
-            if (File.Exists(sqlSource))
-            {
-                string sqlDestDir = Path.Combine(path, "sql");
-                Directory.CreateDirectory(sqlDestDir);
-                File.Copy(sqlSource, Path.Combine(sqlDestDir, "destiny_statistics.sql"), true);
-            }
-
+            AutomatedTestWorkspace.CopySqlSchema(path);
             return path;
         }
 

@@ -3,6 +3,7 @@ using System.IO;
 using Arma3ServerTools.Application.Monitoring;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
+using Arma3ServerTools.TestSupport;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
@@ -53,29 +54,7 @@ namespace Arma3ServerTools.Application.Tests
 
         private static void CopySchema(string root)
         {
-            string sqlSource = FindSchemaPath();
-            Assert.True(File.Exists(sqlSource), "测试需要 sql/destiny_statistics.sql");
-            Directory.CreateDirectory(Path.Combine(root, "sql"));
-            File.Copy(sqlSource, Path.Combine(root, "sql", "destiny_statistics.sql"), true);
-        }
-
-        private static string FindSchemaPath()
-        {
-            string[] candidates = new[]
-            {
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "sql", "destiny_statistics.sql")),
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "sql", "destiny_statistics.sql")),
-            };
-
-            for (int i = 0; i < candidates.Length; i++)
-            {
-                if (File.Exists(candidates[i]))
-                {
-                    return candidates[i];
-                }
-            }
-
-            return candidates[0];
+            AutomatedTestWorkspace.CopySqlSchema(root);
         }
 
         private static string CreateTempRoot()

@@ -20,6 +20,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\..\sql\destiny_statistics.sql" Link="sql\destiny_statistics.sql">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\sql\destiny_players.sql" Link="sql\destiny_players.sql">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Arma3ServerTools.Core\Arma3ServerTools.Core.csproj" />
   </ItemGroup>
 

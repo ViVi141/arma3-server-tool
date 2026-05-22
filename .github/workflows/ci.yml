@@ -28,5 +28,8 @@ jobs:
       - name: Build
         run: dotnet build Arma3ServerTools.sln -c Release --no-restore
 
-      - name: Test
-        run: dotnet test Arma3ServerTools.sln -c Release --no-build --verbosity normal
+      - name: Test Core
+        run: dotnet test tests/Arma3ServerTools.Core.Tests/Arma3ServerTools.Core.Tests.csproj -c Release --no-build --verbosity normal
+
+      - name: Test Application
+        run: dotnet test tests/Arma3ServerTools.Application.Tests/Arma3ServerTools.Application.Tests.csproj -c Release --no-build --verbosity normal
