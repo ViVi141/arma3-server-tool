@@ -23,6 +23,10 @@ packages/
 data.json
 skin.json
 
+# Bundled runtime tools (steamcmd.exe installed by bootstrapper)
+extension/*
+!extension/.gitkeep
+
 # OS
 Thumbs.db
 Desktop.ini
