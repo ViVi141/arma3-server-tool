@@ -26,10 +26,20 @@
     <Content Include="..\..\sql\destiny_players.sql" Link="sql\destiny_players.sql">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="..\..\LICENSE" Link="LICENSE">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\NOTICE" Link="NOTICE">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="AntdUI" Version="2.3.14" />
+    <PackageReference Include="ScottPlot.WinForms" Version="5.1.58" />
   </ItemGroup>
 
   <Target Name="CopyMonitoringHost" AfterTargets="Build">

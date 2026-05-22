@@ -1,0 +1,42 @@
+Arma3 Server Tools — Third-Party Notices
+=========================================
+
+This file lists third-party software included in or used by Arma3 Server Tools
+(v1.0.0). See LICENSE for the Apache 2.0 license governing this project itself.
+
+NuGet dependencies (main application)
+-------------------------------------
+
+- AntdUI 2.3.14 — UI components (see package license on NuGet)
+- ScottPlot 5.1.58 — MIT License (https://github.com/ScottPlot/ScottPlot)
+- ScottPlot.WinForms 5.1.58 — MIT License
+- SkiaSharp / HarfBuzzSharp — MIT (transitive via ScottPlot)
+- Microsoft.Data.Sqlite 9.0.0 — MIT (https://github.com/dotnet/efcore)
+- Quartz 3.15.0 — Apache License 2.0 (https://www.quartz-scheduler.net/)
+- Newtonsoft.Json 13.0.4 — MIT (https://github.com/JamesNK/Newtonsoft.Json)
+- System.Management 9.0.0 — MIT (.NET runtime libraries)
+
+Embedded source (vendored in repository)
+----------------------------------------
+
+- BytexDigital.BattlEye.Rcon — BattlEye RCon client (src/Arma3ServerTools.Core/BattlEye/)
+  Original author namespace retained; used under project Apache 2.0 distribution.
+
+Optional / separate build (not in main Release zip)
+---------------------------------------------------
+
+- DestinyServerMonitoring — C++ server extension DLL (DestinyServerMonitoring/)
+  Build separately; see docs/monitoring-cpp-dll-build.md
+
+Runtime requirements
+--------------------
+
+- .NET 10 Desktop Runtime (framework-dependent publish), or use self-contained build
+- Windows x64
+- Arma 3 Dedicated Server (Steam AppID 233780) — separate from this tool
+
+Trademarks
+----------
+
+Arma 3 and BattlEye are trademarks of their respective owners. This project is
+not affiliated with Bohemia Interactive or BattlEye Innovations.

@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Application.Monitoring;
@@ -64,6 +67,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly AntTable objectStatsTable;
         private readonly AntTable playerDirectoryTable;
         private readonly AntLabel summaryLabel;
+        private readonly StatisticsChartsPanel chartsPanel;
 
         private ArmaServerConfig boundConfig;
         private readonly System.Collections.Generic.List<StatisticsPlayerStatRow> playerStatRows = new System.Collections.Generic.List<StatisticsPlayerStatRow>();
@@ -78,12 +82,18 @@ namespace Arma3ServerTools.App.WinForms.Controls
             AntdUI.Button refreshButton = SettingsLayoutHelper.CreateButton("刷新统计");
             AntdUI.Button initOnlineButton = SettingsLayoutHelper.CreateButton("重置在线状态");
             AntdUI.Button cleanupButton = SettingsLayoutHelper.CreateButton("清理一月前快照");
+            AntdUI.Button exportCsvButton = SettingsLayoutHelper.CreateButton("导出 CSV...");
+            AntdUI.Button exportHtmlButton = SettingsLayoutHelper.CreateButton("导出 HTML 日报...");
             refreshButton.Click += delegate { RefreshAll(); };
             initOnlineButton.Click += OnInitOnline;
             cleanupButton.Click += OnCleanupOldData;
+            exportCsvButton.Click += OnExportCsv;
+            exportHtmlButton.Click += OnExportHtmlReport;
             toolbar.Controls.Add(refreshButton);
             toolbar.Controls.Add(initOnlineButton);
             toolbar.Controls.Add(cleanupButton);
+            toolbar.Controls.Add(exportCsvButton);
+            toolbar.Controls.Add(exportHtmlButton);
 
             summaryLabel = new AntLabel
             {
@@ -121,6 +131,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             AntdUiHelper.AddTabPage(tabs, "战斗统计", playerStatsTable);
             AntdUiHelper.AddTabPage(tabs, "服务器快照", objectStatsTable);
             AntdUiHelper.AddTabPage(tabs, "玩家库", playerDirectoryTable);
+            chartsPanel = new StatisticsChartsPanel();
+            AntdUiHelper.AddTabPage(tabs, "趋势图表", chartsPanel);
 
             Controls.Add(tabs);
             Controls.Add(summaryLabel);
@@ -162,8 +174,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
             try
             {
                 MonitoringQueryService query = AppServices.Instance.MonitoringQueryService;
+                List<MonitoringPlayerStatRecord> playerRecords =
+                    query.GetPlayerStats(boundConfig.ServerUUID, 500);
                 playerStatRows.Clear();
-                foreach (MonitoringPlayerStatRecord row in query.GetPlayerStats(boundConfig.ServerUUID, 500))
+                foreach (MonitoringPlayerStatRecord row in playerRecords)
                 {
                     playerStatRows.Add(
                         new StatisticsPlayerStatRow
@@ -183,8 +197,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
                 AntdTableHelper.BindList(playerStatsTable, playerStatRows);
 
+                List<MonitoringObjectStatRecord> objectRecords =
+                    query.GetRecentObjectStats(boundConfig.ServerUUID, 200);
                 objectStatRows.Clear();
-                foreach (MonitoringObjectStatRecord row in query.GetRecentObjectStats(boundConfig.ServerUUID, 200))
+                foreach (MonitoringObjectStatRecord row in objectRecords)
                 {
                     objectStatRows.Add(
                         new StatisticsObjectStatRow
@@ -199,6 +215,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 }
 
                 AntdTableHelper.BindList(objectStatsTable, objectStatRows);
+
+                List<MonitoringObjectStatRecord> timelineRecords =
+                    query.GetObjectStatsTimeline(boundConfig.ServerUUID, 500);
+                chartsPanel.RenderCharts(timelineRecords, playerRecords);
 
                 directoryRows.Clear();
                 foreach (PlayerDB player in AppServices.Instance.PlayerDirectoryService.LoadAll())
@@ -257,6 +277,93 @@ namespace Arma3ServerTools.App.WinForms.Controls
             catch (Exception ex)
             {
                 AntdUiHelper.ShowError(FindForm(), ex.Message, "失败");
+            }
+        }
+
+        private void OnExportCsv(object sender, EventArgs e)
+        {
+            if (boundConfig == null)
+            {
+                return;
+            }
+
+            using (var dialog = new SaveFileDialog())
+            {
+                dialog.Filter = "CSV 文件 (*.csv)|*.csv";
+                dialog.FileName = boundConfig.ConfigName + "-stats.csv";
+                if (dialog.ShowDialog(FindForm()) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                try
+                {
+                    MonitoringQueryService query = AppServices.Instance.MonitoringQueryService;
+                    List<MonitoringPlayerStatRecord> playerRecords =
+                        query.GetPlayerStats(boundConfig.ServerUUID, 5000);
+                    List<MonitoringObjectStatRecord> objectRecords =
+                        query.GetRecentObjectStats(boundConfig.ServerUUID, 5000);
+                    IReadOnlyList<PlayerDB> directoryRecords =
+                        AppServices.Instance.PlayerDirectoryService.LoadAll();
+
+                    var builder = new System.Text.StringBuilder();
+                    builder.AppendLine("# 战斗统计");
+                    builder.Append(MonitoringCsvExporter.BuildPlayerStatsCsv(playerRecords));
+                    builder.AppendLine();
+                    builder.AppendLine("# 服务器快照");
+                    builder.Append(MonitoringCsvExporter.BuildObjectStatsCsv(objectRecords));
+                    builder.AppendLine();
+                    builder.AppendLine("# 玩家库");
+                    builder.Append(MonitoringCsvExporter.BuildPlayerDirectoryCsv(directoryRecords));
+
+                    File.WriteAllBytes(
+                        dialog.FileName,
+                        MonitoringCsvExporter.ToUtf8BytesWithBom(builder.ToString()));
+                    AntdUiHelper.ShowInfo(FindForm(), "CSV 已导出。", "完成");
+                }
+                catch (Exception ex)
+                {
+                    AntdUiHelper.ShowError(FindForm(), ex.Message, "导出失败");
+                }
+            }
+        }
+
+        private void OnExportHtmlReport(object sender, EventArgs e)
+        {
+            if (boundConfig == null)
+            {
+                return;
+            }
+
+            using (var dialog = new SaveFileDialog())
+            {
+                dialog.Filter = "HTML 文件 (*.html)|*.html";
+                dialog.FileName = boundConfig.ConfigName + "-report-" + DateTime.Now.ToString("yyyy-MM-dd") + ".html";
+                if (dialog.ShowDialog(FindForm()) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                try
+                {
+                    MonitoringQueryService query = AppServices.Instance.MonitoringQueryService;
+                    List<MonitoringObjectStatRecord> snapshots =
+                        query.GetObjectStatsTimeline(boundConfig.ServerUUID, 5000);
+                    List<MonitoringPlayerStatRecord> playerRecords =
+                        query.GetPlayerStats(boundConfig.ServerUUID, 500);
+                    string html = MonitoringHtmlReportBuilder.BuildDailyReport(
+                        boundConfig.ConfigName,
+                        boundConfig.ServerUUID,
+                        DateTime.Now,
+                        snapshots,
+                        playerRecords);
+                    File.WriteAllText(dialog.FileName, html, System.Text.Encoding.UTF8);
+                    AntdUiHelper.ShowInfo(FindForm(), "HTML 日报已导出。", "完成");
+                }
+                catch (Exception ex)
+                {
+                    AntdUiHelper.ShowError(FindForm(), ex.Message, "导出失败");
+                }
             }
         }
 

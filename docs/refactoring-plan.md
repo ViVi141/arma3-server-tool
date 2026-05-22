@@ -7,6 +7,8 @@
 面向目标：**去掉 DevExpress、以 Apache 2.0 开源发布、保留并扩展现有能力、逻辑与 UI 分离**。  
 UI 首版采用 **标准 WinForms（C#）**；可选二期用 **Blazor Server（仍全 C#）** 做 Web 管理，共用同一 Core。
 
+> **完整任务 backlog（优先级、验收、Sprint 建议）见 [product-roadmap.md](product-roadmap.md)。**
+
 ---
 
 ## 一、改造目标与非目标
@@ -321,12 +323,12 @@ dotnet test Arma3ServerTools.sln -c Release
 
 **包评估摘要（§3）：** P0 换 `Microsoft.Data.Sqlite`；P1 移除 `Nito.AsyncEx`、`HttpWebRequest`→`HttpClient`、升级 Quartz/System.Management；P2 可选 Newtonsoft→STJ。
 
-- [ ] 7.0 准备（SDK 10、net48 快照 tag、基准测试）
-- [ ] 7.1 Core + Core.Tests → `net10.0-windows`（含 Nito 移除）
-- [ ] 7.2 Application + `Microsoft.Data.Sqlite` 替换 + HttpClient
-- [ ] 7.3 WinForms + MonitoringHost
-- [ ] ~~7.4 steamcmdTools + 发布策略~~（已移除内置模组下载，不再维护 steamcmdTools）
-- [ ] 7.5 CI 与文档更新
+- [x] 7.0 准备（SDK 10、基准测试）
+- [x] 7.1 Core + Core.Tests → `net10.0-windows`（含 Nito 移除）
+- [x] 7.2 Application + `Microsoft.Data.Sqlite` 替换 + HttpClient
+- [x] 7.3 WinForms + MonitoringHost
+- [x] ~~7.4 steamcmdTools + 发布策略~~（已移除内置模组下载，不再维护 steamcmdTools）
+- [x] 7.5 CI 与文档更新
 
 **验收**：`dotnet test` 全绿；英文路径冒烟通过；无 net48 / Stub SQLite / Nito.AsyncEx 依赖。
 
@@ -334,11 +336,11 @@ dotnet test Arma3ServerTools.sln -c Release
 
 **前置：** 阶段 7.5 迁移 DoD 达成。
 
-- [ ] Release 基于 **net10**；不含 DevExpress DLL
-- [ ] README：构建说明、**.NET 10 Desktop Runtime** 或 self-contained 包说明、`extension/steamcmd` 说明
-- [ ] （可选）文档说明手动更新；不要求 AppUpdate（旧 `AppUpdate/` 已删除，阶段 8 新建）
-- [ ] 可选：GitHub Actions（SDK 10.x + `dotnet test`）
-- [ ] 打 tag `v1.0`（或项目约定版本号）
+- [x] Release 基于 **net10**；不含 DevExpress DLL
+- [x] README：构建说明、**.NET 10 Desktop Runtime** 或 self-contained 包说明、`extension/steamcmd` 说明
+- [x] （可选）文档说明手动更新；不要求 AppUpdate（旧 `AppUpdate/` 已删除，阶段 8 新建）
+- [x] GitHub Actions（SDK 10.x + `dotnet test`）
+- [ ] 打 tag `v1.0.0` + GitHub Release 附件（见 [release-v1.0.0.md](release-v1.0.0.md)）
 
 **验收**：Release 包在目标环境可启动；CI 绿；文档与 net10 TFM 一致。
 

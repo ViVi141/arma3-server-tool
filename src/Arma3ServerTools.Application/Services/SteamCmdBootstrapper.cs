@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using System.IO.Compression;
-using System.Net;
+using System.Net.Http;
 using Arma3ServerTools.Core;
 
 namespace Arma3ServerTools.Application.Services
@@ -9,6 +9,11 @@ namespace Arma3ServerTools.Application.Services
     public static class SteamCmdBootstrapper
     {
         public const string DownloadUrl = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip";
+
+        private static readonly HttpClient HttpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromMinutes(5),
+        };
 
         public static string GetBundledDirectory(IAppPaths paths)
         {
@@ -29,10 +34,8 @@ namespace Arma3ServerTools.Application.Services
             try
             {
                 Directory.CreateDirectory(extensionDir);
-                using (var client = new WebClient())
-                {
-                    client.DownloadFile(DownloadUrl, zipPath);
-                }
+                byte[] zipBytes = HttpClient.GetByteArrayAsync(DownloadUrl).GetAwaiter().GetResult();
+                File.WriteAllBytes(zipPath, zipBytes);
 
                 ExtractZip(zipPath, extensionDir);
                 if (File.Exists(zipPath))

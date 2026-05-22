@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
+using Arma3ServerTools.App.WinForms.Dialogs;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
@@ -22,6 +23,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
     internal sealed class BansPanel : UserControl, IServerSettingsPanel
     {
         private readonly AntTable localTable;
+        private readonly AntdUI.Button addLocalButton;
         private readonly AntdUI.Button loadLocalButton;
         private readonly AntdUI.Button saveButton;
         private readonly AntdUI.Button deleteLocalButton;
@@ -44,12 +46,15 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 AutoSize = true,
             };
             loadLocalButton = SettingsLayoutHelper.CreateButton("读取本地");
+            addLocalButton = SettingsLayoutHelper.CreateButton("添加封禁");
             saveButton = SettingsLayoutHelper.CreateButton("保存本地封禁");
             deleteLocalButton = SettingsLayoutHelper.CreateButton("删除选中");
             loadLocalButton.Click += OnLoadLocal;
+            addLocalButton.Click += OnAddLocal;
             saveButton.Click += OnSaveLocal;
             deleteLocalButton.Click += OnDeleteLocalSelected;
             toolbar.Controls.Add(loadLocalButton);
+            toolbar.Controls.Add(addLocalButton);
             toolbar.Controls.Add(deleteLocalButton);
             toolbar.Controls.Add(saveButton);
 
@@ -126,6 +131,44 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             AntdTableHelper.BindList(localTable, localRows);
+        }
+
+        private void OnAddLocal(object sender, EventArgs e)
+        {
+            if (boundConfig == null)
+            {
+                return;
+            }
+
+            using (var dialog = new AddLocalBanForm())
+            {
+                if (dialog.ShowDialog(FindForm()) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                string message;
+                if (!dialog.ValidateInput(FindForm(), out message))
+                {
+                    return;
+                }
+
+                localBans.Add(
+                    new LocalBansEntity(
+                        dialog.BanGuid,
+                        dialog.BanExpiry,
+                        dialog.BanReason,
+                        string.Empty,
+                        string.Empty));
+                localRows.Add(
+                    new LocalBanRow
+                    {
+                        Guid = dialog.BanGuid,
+                        Time = dialog.BanExpiry,
+                        Reason = dialog.BanReason,
+                    });
+                AntdTableHelper.BindList(localTable, localRows);
+            }
         }
 
         private void OnDeleteLocalSelected(object sender, EventArgs e)

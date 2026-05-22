@@ -1,7 +1,7 @@
 using System;
+using System.Security.Cryptography;
 using System.Globalization;
 using System.IO;
-using System.Security.Cryptography;
 using System.Text;
 
 namespace Arma3ServerTools.Core.Security
@@ -13,7 +13,7 @@ namespace Arma3ServerTools.Core.Security
         public static string Encrypt(string input, string key)
         {
             byte[] keyBytes = Encoding.UTF8.GetBytes(key.Substring(0, 32));
-            using (var aes = new AesCryptoServiceProvider())
+            using (Aes aes = Aes.Create())
             {
                 aes.Key = keyBytes;
                 aes.IV = Iv;
@@ -46,7 +46,7 @@ namespace Arma3ServerTools.Core.Security
             }
 
             byte[] keyBytes = Encoding.UTF8.GetBytes(key.Substring(0, 32));
-            using (var aes = new AesCryptoServiceProvider())
+            using (Aes aes = Aes.Create())
             {
                 aes.Key = keyBytes;
                 aes.IV = Iv;

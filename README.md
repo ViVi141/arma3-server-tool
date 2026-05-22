@@ -32,7 +32,24 @@ dotnet test Arma3ServerTools.sln -c Release
 
 Release 输出目录示例：`src/Arma3ServerTools.App.WinForms/bin/Release/net10.0-windows/`（含 `Arma3ServerTools.exe`、`monitoring/Arma3ServerTools.MonitoringHost.exe`、`sql/destiny_statistics.sql`）。
 
-**注意**：安装路径不能包含中文（启动时会检测并退出）。开发时请先关闭主程序再编译，避免 `monitoring/` 下 DLL 被占用；主程序退出时会自动关闭监控宿主。
+打包到 `artifacts/`（Release v1.0.0）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -Version 1.0.0
+```
+
+产物为 `artifacts/Arma3ServerTools-v1.0.0-Release/` 及同名 `.zip`；详见 **[docs/release-v1.0.0.md](docs/release-v1.0.0.md)**。
+
+**注意**：
+
+- 安装路径不能包含中文（启动时会检测并退出）
+- 开发时请先关闭主程序再编译，避免 `monitoring/` 下 DLL 被占用
+- 主程序退出时会自动关闭监控宿主
+- 本地 `packages/`、`.vs/`、`bin/`、`obj/` 为构建缓存，不必提交 Git；克隆后执行 `dotnet restore` 即可
+
+#### 首次开服
+
+逐步说明见 **[docs/first-server-guide.md](docs/first-server-guide.md)**（SteamCMD、写 cfg、RCon、监控、封禁）。
 
 #### 使用说明
 
@@ -44,7 +61,11 @@ Release 输出目录示例：`src/Arma3ServerTools.App.WinForms/bin/Release/net1
 
 #### 改造方案（开源 / 去 DevExpress）
 
-纯 C# 分层改造说明见：**[docs/refactoring-plan.md](docs/refactoring-plan.md)**
+纯 C# 分层改造说明见：**[docs/refactoring-plan.md](docs/refactoring-plan.md)**  
+完整实施计划与 backlog：**[docs/product-roadmap.md](docs/product-roadmap.md)**  
+首次开服步骤：**[docs/first-server-guide.md](docs/first-server-guide.md)**  
+v1.0 发布清单：**[docs/release-v1.0.0.md](docs/release-v1.0.0.md)**  
+冒烟验收：**[docs/smoke-checklist.md](docs/smoke-checklist.md)**
 
 #### 描述
 1.  **Arma3ServerTools** — 主程序（`src/Arma3ServerTools.App.WinForms`）
@@ -57,15 +78,13 @@ Release 输出目录示例：`src/Arma3ServerTools.App.WinForms/bin/Release/net1
 3.	自动配置BE反作弊的基本规则，配置基本的关于创建，杀死，传送等基本的BE规则。
 4.	自动配置rcon密码和端口
 5.	提供基于BattlEye RCon V2协议的集成管理，T人B人等全系列功能。
-6.	支持同时管理多个服务端，单独复制到其他服务端目录开服，上手直接开服。
-7.	支持服务器，自动查询所有服务器并更新列表查询
-8.	拥有的订阅者，可以为您订阅其他插件，例如服务端丰富的插件（开发中的实用插件）。
-9.	统计，提供记录服务器的各项数据，服务器性能，内存，CPU监控，以及数据监控报告统计等（开发中）。
-10.	自动重启（硬重启）+（脚本重启）+定点重启。
-11.	收录了RAM3服务器的基本设置，安全设置，网络，任务设置，模组设置，设置，性能设置，日志设置。
-12.	UI布局自动适应，适合手机连接服务器时画面小进行管理。
-13.	显示参数详细信息功能。
-14.	可以运行配置向导进行配置。
+6.	支持同时管理多个服务端，复制配置、列表搜索、快速配置向导。
+7.	SteamCMD：配置账号、下载 steamcmd、安装/更新专用服务器。
+8.	统计：SQLite 入库、趋势图表、CSV/HTML 导出；可选 Monitoring DLL 采集。
+9.	自动重启（硬重启）+（脚本重启）+定点重启（Quartz）。
+10.	基本/网络/安全/性能/日志/难度/模组/任务/定时/统计/RCon/封禁/概览等设置页。
+11.	启动前检查、RPT 日志、进程意外退出桌面通知。
+12.	工具菜单：关于页（v1.0.0）、SteamCMD 设置、快速配置向导。
 
 
 

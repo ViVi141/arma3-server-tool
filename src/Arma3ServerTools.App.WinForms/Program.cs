@@ -1,8 +1,7 @@
 using System;
 using System.Diagnostics;
-using System.IO;
-using System.Text.RegularExpressions;
 using System.Windows.Forms;
+using Arma3ServerTools.Core.Validation;
 
 namespace Arma3ServerTools.App.WinForms
 {
@@ -11,7 +10,7 @@ namespace Arma3ServerTools.App.WinForms
         [STAThread]
         private static void Main()
         {
-            if (ContainsChineseInPath(AppContext.BaseDirectory))
+            if (PathValidation.ContainsChinese(AppContext.BaseDirectory))
             {
                 AntdUI.Modal.open(
                     "失败",
@@ -27,16 +26,6 @@ namespace Arma3ServerTools.App.WinForms
             AppTheme.Initialize();
             AntdUiBootstrap.Initialize();
             System.Windows.Forms.Application.Run(new MainForm());
-        }
-
-        private static bool ContainsChineseInPath(string path)
-        {
-            if (string.IsNullOrEmpty(path))
-            {
-                return false;
-            }
-
-            return Regex.IsMatch(path, @"[\u4e00-\u9fa5]");
         }
     }
 }

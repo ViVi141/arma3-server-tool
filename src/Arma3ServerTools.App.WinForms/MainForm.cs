@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms.Controls;
 using Arma3ServerTools.App.WinForms.Dialogs;
@@ -11,6 +12,7 @@ using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using AntButton = AntdUI.Button;
 using AntDropdown = AntdUI.Dropdown;
+using AntInput = AntdUI.Input;
 using AntLabel = AntdUI.Label;
 using AntTable = AntdUI.Table;
 
@@ -21,6 +23,7 @@ namespace Arma3ServerTools.App.WinForms
         private readonly AppServices services = AppServices.Instance;
         private readonly AntdUI.PageHeader pageHeader;
         private readonly AntTable serverTable;
+        private readonly AntInput serverSearchInput;
         private readonly ServerSettingsHost settingsHost;
         private readonly AntLabel statusServerLabel;
         private readonly AntLabel statusSaveLabel;
@@ -30,7 +33,10 @@ namespace Arma3ServerTools.App.WinForms
         private readonly AntButton writeCfgButton;
         private readonly SplitContainer split;
         private readonly List<ServerGridRow> serverRows = new List<ServerGridRow>();
+        private string serverSearchFilter = string.Empty;
         private readonly System.Windows.Forms.Timer statePollTimer;
+        private readonly NotifyIcon trayNotifyIcon;
+        private bool suppressStopNotification;
         private bool suppressTableSelectionEvent;
 
         public MainForm()
@@ -88,7 +94,17 @@ namespace Arma3ServerTools.App.WinForms
             Control actionBar = BuildActionBar();
             Control topChrome = BuildTopChrome(actionBar);
             serverTable = CreateServerTable();
+            serverSearchInput = CreateServerSearchInput();
             settingsHost = new ServerSettingsHost();
+
+            var serverListHost = new Panel
+            {
+                Dock = DockStyle.Fill,
+            };
+            serverTable.Dock = DockStyle.Fill;
+            serverSearchInput.Dock = DockStyle.Top;
+            serverListHost.Controls.Add(serverTable);
+            serverListHost.Controls.Add(serverSearchInput);
 
             split = new SplitContainer
             {
@@ -97,7 +113,7 @@ namespace Arma3ServerTools.App.WinForms
             };
             split.Panel1.Padding = UiScaleHelper.ScalePadding(8);
             split.Panel2.Padding = UiScaleHelper.ScalePadding(8);
-            split.Panel1.Controls.Add(serverTable);
+            split.Panel1.Controls.Add(serverListHost);
             split.Panel2.Controls.Add(settingsHost);
             SplitContainerHelper.BindProportionalSplit(split, 0.34, false, 240, 420);
 
@@ -114,6 +130,16 @@ namespace Arma3ServerTools.App.WinForms
             statePollTimer = new System.Windows.Forms.Timer();
             statePollTimer.Interval = 3000;
             statePollTimer.Tick += OnStatePollTimerTick;
+
+            trayNotifyIcon = new NotifyIcon
+            {
+                Visible = false,
+                Text = UiLabels.AppTitle,
+            };
+            if (Icon != null)
+            {
+                trayNotifyIcon.Icon = Icon;
+            }
         }
 
         private Control BuildTopChrome(Control actionBar)
@@ -189,6 +215,7 @@ namespace Arma3ServerTools.App.WinForms
             dropdown.Items.AddRange(new object[]
             {
                 new AntdUI.SelectItem("new", "新建..."),
+                new AntdUI.SelectItem("copy", "复制为新建..."),
                 new AntdUI.SelectItem("delete", "删除"),
                 new AntdUI.SelectItem("refresh", "刷新列表"),
                 new AntdUI.SelectItem("sep1", "-"),
@@ -202,6 +229,10 @@ namespace Arma3ServerTools.App.WinForms
                 if (id == "new")
                 {
                     OnNewServer(sender, EventArgs.Empty);
+                }
+                else if (id == "copy")
+                {
+                    OnCopyServer(sender, EventArgs.Empty);
                 }
                 else if (id == "delete")
                 {
@@ -234,12 +265,23 @@ namespace Arma3ServerTools.App.WinForms
                 Text = "工具",
                 Type = AntdUI.TTypeMini.Default,
             };
+            dropdown.Items.Add(new AntdUI.SelectItem("quickSetup", "快速配置向导..."));
             dropdown.Items.Add(new AntdUI.SelectItem("steamcmd", "SteamCMD 设置..."));
+            dropdown.Items.Add(new AntdUI.SelectItem("about", "关于..."));
             dropdown.ItemClick += delegate(object sender, AntdUI.ObjectNEventArgs e)
             {
-                if (Convert.ToString(e.Value) == "steamcmd")
+                string id = Convert.ToString(e.Value);
+                if (id == "quickSetup")
+                {
+                    OnQuickSetupWizard(sender, EventArgs.Empty);
+                }
+                else if (id == "steamcmd")
                 {
                     OnSteamCmdSettings(sender, EventArgs.Empty);
+                }
+                else if (id == "about")
+                {
+                    OnAbout(sender, EventArgs.Empty);
                 }
             };
             return dropdown;
@@ -290,6 +332,63 @@ namespace Arma3ServerTools.App.WinForms
             return table;
         }
 
+        private AntInput CreateServerSearchInput()
+        {
+            var input = new AntInput
+            {
+                PlaceholderText = "搜索配置名或 UUID...",
+                Margin = new Padding(0, 0, 0, UiScaleHelper.Scale(6)),
+            };
+            input.TextChanged += OnServerSearchTextChanged;
+            return input;
+        }
+
+        private void OnServerSearchTextChanged(object sender, EventArgs e)
+        {
+            serverSearchFilter = serverSearchInput.Text.Trim();
+            string previousUuid = services.CurrentServerUuid;
+            BindServerTable();
+            RestoreServerSelection(previousUuid);
+        }
+
+        private IReadOnlyList<ServerGridRow> GetFilteredServerRows()
+        {
+            if (string.IsNullOrWhiteSpace(serverSearchFilter))
+            {
+                return serverRows;
+            }
+
+            string filter = serverSearchFilter;
+            var filtered = new List<ServerGridRow>();
+            for (int i = 0; i < serverRows.Count; i++)
+            {
+                ServerGridRow row = serverRows[i];
+                if (RowMatchesSearch(row, filter))
+                {
+                    filtered.Add(row);
+                }
+            }
+
+            return filtered;
+        }
+
+        private static bool RowMatchesSearch(ServerGridRow row, string filter)
+        {
+            if (row.ConfigName != null
+                && row.ConfigName.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            if (row.ServerUuid != null
+                && row.ServerUuid.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
         private Control BuildStatusPanel()
         {
             var panel = new AntdUI.Panel
@@ -317,6 +416,11 @@ namespace Arma3ServerTools.App.WinForms
         {
             statePollTimer.Stop();
             statePollTimer.Dispose();
+            if (trayNotifyIcon != null)
+            {
+                trayNotifyIcon.Visible = false;
+                trayNotifyIcon.Dispose();
+            }
 
             try
             {
@@ -347,6 +451,10 @@ namespace Arma3ServerTools.App.WinForms
 
             pageHeader.ShowIcon = true;
             pageHeader.Icon = Icon.ToBitmap();
+            if (trayNotifyIcon != null && Icon != null)
+            {
+                trayNotifyIcon.Icon = Icon;
+            }
         }
 
         private void EnsureConfigDirectory()
@@ -412,7 +520,8 @@ namespace Arma3ServerTools.App.WinForms
             suppressTableSelectionEvent = true;
             try
             {
-                serverTable.DataSource = serverRows.ToArray();
+                IReadOnlyList<ServerGridRow> visibleRows = GetFilteredServerRows();
+                serverTable.DataSource = visibleRows.ToArray();
                 serverTable.Refresh();
             }
             finally
@@ -423,23 +532,24 @@ namespace Arma3ServerTools.App.WinForms
 
         private void RestoreServerSelection(string uuid)
         {
+            IReadOnlyList<ServerGridRow> visibleRows = GetFilteredServerRows();
             if (!string.IsNullOrEmpty(uuid))
             {
-                for (int i = 0; i < serverRows.Count; i++)
+                for (int i = 0; i < visibleRows.Count; i++)
                 {
-                    if (serverRows[i].ServerUuid == uuid)
+                    if (visibleRows[i].ServerUuid == uuid)
                     {
                         serverTable.SelectedIndex = i + 1;
-                        ApplySelectedServer(serverRows[i]);
+                        ApplySelectedServer(visibleRows[i]);
                         return;
                     }
                 }
             }
 
-            if (serverRows.Count > 0)
+            if (visibleRows.Count > 0)
             {
                 serverTable.SelectedIndex = 1;
-                ApplySelectedServer(serverRows[0]);
+                ApplySelectedServer(visibleRows[0]);
             }
             else
             {
@@ -458,12 +568,13 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             int rowIndex = serverTable.SelectedIndex - 1;
-            if (rowIndex < 0 || rowIndex >= serverRows.Count)
+            IReadOnlyList<ServerGridRow> visibleRows = GetFilteredServerRows();
+            if (rowIndex < 0 || rowIndex >= visibleRows.Count)
             {
                 return;
             }
 
-            ApplySelectedServer(serverRows[rowIndex]);
+            ApplySelectedServer(visibleRows[rowIndex]);
         }
 
         private void ApplySelectedServer(ServerGridRow row)
@@ -487,6 +598,42 @@ namespace Arma3ServerTools.App.WinForms
                 services.CurrentServerUuid = config.ServerUUID;
                 ReloadServers();
                 SelectServer(config.ServerUUID);
+            }
+        }
+
+        private void OnCopyServer(object sender, EventArgs e)
+        {
+            ArmaServerConfig source = services.GetCurrentConfig();
+            if (source == null)
+            {
+                AntdUiHelper.ShowInfo(this, "请先选择要复制的服务器配置。", "提示");
+                return;
+            }
+
+            using (var dialog = new CloneServerDialog(source))
+            {
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                ArmaServerConfig config = services.ConfigService.Clone(
+                    source.ServerUUID,
+                    dialog.ConfigName,
+                    dialog.ServerDirectory);
+                services.LoadedConfigs[config.ServerUUID] = config;
+                services.CurrentServerUuid = config.ServerUUID;
+                ReloadServers();
+                SelectServer(config.ServerUUID);
+                AntdUiHelper.ShowInfo(this, "已复制配置，请检查服务器目录与端口设置。", "完成");
+            }
+        }
+
+        private void OnAbout(object sender, EventArgs e)
+        {
+            using (var dialog = new AboutForm())
+            {
+                dialog.ShowDialog(this);
             }
         }
 
@@ -568,6 +715,20 @@ namespace Arma3ServerTools.App.WinForms
             config.SetTime();
             services.ConfigService.Save(config);
             SyncSchedulerJobs(config);
+
+            ServerRunState runState = services.ProcessService.GetState(config.ServerUUID);
+            IReadOnlyList<PreflightCheckItem> preflightItems =
+                services.PreflightChecker.Check(config, runState);
+            if (services.PreflightChecker.HasBlockingErrors(preflightItems))
+            {
+                using (var dialog = new PreflightReportForm(preflightItems, false))
+                {
+                    dialog.ShowDialog(this);
+                }
+
+                return;
+            }
+
             OperationResult result = services.ProcessService.Start(config.ServerUUID);
             if (result.Success)
             {
@@ -592,6 +753,23 @@ namespace Arma3ServerTools.App.WinForms
             RefreshSelectedRowState();
         }
 
+        private void OnQuickSetupWizard(object sender, EventArgs e)
+        {
+            using (var dialog = new QuickSetupWizardForm())
+            {
+                if (dialog.ShowDialog(this) != DialogResult.OK || dialog.CreatedConfig == null)
+                {
+                    return;
+                }
+
+                ArmaServerConfig config = dialog.CreatedConfig;
+                services.LoadedConfigs[config.ServerUUID] = config;
+                services.CurrentServerUuid = config.ServerUUID;
+                ReloadServers();
+                SelectServer(config.ServerUUID);
+            }
+        }
+
         private void OnStopServer(object sender, EventArgs e)
         {
             ArmaServerConfig config = services.GetCurrentConfig();
@@ -600,6 +778,7 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
+            suppressStopNotification = true;
             OperationResult result = services.ProcessService.Stop(config.ServerUUID);
             if (!result.Success)
             {
@@ -709,12 +888,13 @@ namespace Arma3ServerTools.App.WinForms
 
         private void SelectServer(string uuid)
         {
-            for (int i = 0; i < serverRows.Count; i++)
+            IReadOnlyList<ServerGridRow> visibleRows = GetFilteredServerRows();
+            for (int i = 0; i < visibleRows.Count; i++)
             {
-                if (serverRows[i].ServerUuid == uuid)
+                if (visibleRows[i].ServerUuid == uuid)
                 {
                     serverTable.SelectedIndex = i + 1;
-                    ApplySelectedServer(serverRows[i]);
+                    ApplySelectedServer(visibleRows[i]);
                     return;
                 }
             }
@@ -744,7 +924,8 @@ namespace Arma3ServerTools.App.WinForms
                 }
 
                 BindServerTable();
-                serverTable.SelectedIndex = i + 1;
+                SelectServer(services.CurrentServerUuid);
+                settingsHost.RefreshOverview();
                 return;
             }
         }
@@ -773,6 +954,14 @@ namespace Arma3ServerTools.App.WinForms
                     {
                         ArmaServerConfig config = services.ConfigService.Get(row.ServerUuid);
                         ResetMonitoringOnlineIfEnabled(config);
+                        if (!suppressStopNotification)
+                        {
+                            ShowServerStoppedNotification(row, config);
+                        }
+                        else
+                        {
+                            suppressStopNotification = false;
+                        }
                     }
 
                     row.RunState = currentState;
@@ -788,6 +977,11 @@ namespace Arma3ServerTools.App.WinForms
                 {
                     serverTable.SelectedIndex = serverTable.SelectedIndex;
                 }
+            }
+
+            if (!string.IsNullOrEmpty(services.CurrentServerUuid))
+            {
+                settingsHost.RefreshOverview();
             }
         }
 
@@ -824,6 +1018,25 @@ namespace Arma3ServerTools.App.WinForms
 
             statusServerLabel.Text = "当前服务器: " + config.ConfigName + " (" + config.ServerUUID + ")";
             statusSaveLabel.Text = config.SaveTime;
+        }
+
+        private void ShowServerStoppedNotification(ServerGridRow row, ArmaServerConfig config)
+        {
+            if (trayNotifyIcon == null)
+            {
+                return;
+            }
+
+            string serverName = row.ConfigName;
+            if (config != null && !string.IsNullOrWhiteSpace(config.ConfigName))
+            {
+                serverName = config.ConfigName;
+            }
+
+            trayNotifyIcon.BalloonTipTitle = "服务器已停止";
+            trayNotifyIcon.BalloonTipText = serverName + " 进程已退出，请检查 RPT 日志或重新启动。";
+            trayNotifyIcon.Visible = true;
+            trayNotifyIcon.ShowBalloonTip(5000);
         }
     }
 
@@ -869,6 +1082,89 @@ namespace Arma3ServerTools.App.WinForms
 
             Controls.Add(body);
             Controls.Add(CreateButtonBar(okButton, cancelButton));
+        }
+
+        private void OnBrowseDirectory(object sender, EventArgs e)
+        {
+            using (var folderDialog = new FolderBrowserDialog())
+            {
+                if (folderDialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    dirInput.Text = folderDialog.SelectedPath;
+                }
+            }
+        }
+
+        public string ConfigName
+        {
+            get { return nameInput.Text.Trim(); }
+        }
+
+        public string ServerDirectory
+        {
+            get { return dirInput.Text.Trim(); }
+        }
+    }
+
+    internal sealed class CloneServerDialog : AntdDialogForm
+    {
+        private readonly AntdUI.Input nameInput;
+        private readonly AntdUI.Input dirInput;
+
+        public CloneServerDialog(ArmaServerConfig source)
+            : base()
+        {
+            Text = "复制服务器配置";
+            ApplyPreferredDialogSizing(480, 180, null);
+
+            var layout = SettingsLayoutHelper.CreateFormLayout(96);
+            string defaultName = "副本";
+            if (source != null && !string.IsNullOrWhiteSpace(source.ConfigName))
+            {
+                defaultName = source.ConfigName.Trim() + " - 副本";
+            }
+
+            nameInput = SettingsLayoutHelper.AddRow(layout, "配置名称", SettingsLayoutHelper.CreateInput(true));
+            nameInput.Text = defaultName;
+
+            AntButton browseButton = SettingsLayoutHelper.CreateButton("浏览...");
+            browseButton.Click += OnBrowseDirectory;
+
+            var dirPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
+            dirInput = SettingsLayoutHelper.CreateInput(false);
+            dirInput.Width = UiScaleHelper.Scale(360);
+            if (source != null && !string.IsNullOrWhiteSpace(source.ServerDir))
+            {
+                dirInput.Text = source.ServerDir;
+            }
+
+            dirPanel.Controls.Add(dirInput);
+            dirPanel.Controls.Add(browseButton);
+            SettingsLayoutHelper.AddRow(layout, "服务器目录", dirPanel);
+
+            AntLabel hint = AntdUiHelper.CreateHintLabel(
+                "将复制当前 json 配置并生成新 UUID。不会复制服务器文件目录内容。",
+                440);
+            hint.Dock = DockStyle.Top;
+
+            AntButton okButton = AntdUiHelper.CreatePrimaryButton("确定");
+            okButton.Click += delegate
+            {
+                DialogResult = DialogResult.OK;
+                Close();
+            };
+            AntButton cancelButton = AntdUiHelper.CreateToolbarButton("取消");
+            cancelButton.Click += delegate
+            {
+                DialogResult = DialogResult.Cancel;
+                Close();
+            };
+
+            Control body = SettingsLayoutHelper.CreateScrollHost(layout);
+
+            Controls.Add(CreateButtonBar(okButton, cancelButton));
+            Controls.Add(body);
+            Controls.Add(hint);
         }
 
         private void OnBrowseDirectory(object sender, EventArgs e)

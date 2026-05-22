@@ -33,6 +33,8 @@ namespace Arma3ServerTools.App.WinForms
             ModScannerService = new ModScannerService(ModuleScanPathRepository);
             BikeyService = new BikeyService();
             BansService = new BansService();
+            PreflightChecker = new ServerPreflightChecker();
+            RptLogService = new RptLogService();
 
             MonitoringDatabase = new MonitoringDatabase(Paths);
             MonitoringQueryService = new MonitoringQueryService(MonitoringDatabase);
@@ -80,6 +82,10 @@ namespace Arma3ServerTools.App.WinForms
         public BikeyService BikeyService { get; }
 
         public BansService BansService { get; }
+
+        public ServerPreflightChecker PreflightChecker { get; }
+
+        public RptLogService RptLogService { get; }
 
         public MonitoringDatabase MonitoringDatabase { get; }
 

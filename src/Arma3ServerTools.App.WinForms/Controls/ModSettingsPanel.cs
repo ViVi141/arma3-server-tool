@@ -535,14 +535,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             List<string> keys = AppServices.Instance.BikeyService.ListServerBikeys(boundConfig.ServerDir);
-            var builder = new StringBuilder();
-            builder.AppendLine("服务器 Keys 目录:");
-            foreach (string key in keys)
+            using (var dialog = new BikeyListForm(boundConfig.ServerDir, keys))
             {
-                builder.AppendLine(key);
+                dialog.ShowDialog(FindForm());
             }
-
-            AntdUiHelper.ShowInfo(FindForm(), builder.ToString(), "Bikey 列表");
         }
     }
 }

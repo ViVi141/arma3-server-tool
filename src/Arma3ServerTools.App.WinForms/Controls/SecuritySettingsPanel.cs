@@ -22,6 +22,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private AntInput serverCommandPasswordTextBox;
         private AntInput passwordAdminTextBox;
         private AntInput rconPasswordTextBox;
+        private AntInput rconHostTextBox;
         private AntInputNumber rconPortNumeric;
         private AntInputNumber beMaxPingNumeric;
         private AntInput adminsTextBox;
@@ -74,6 +75,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
             serverCommandPasswordTextBox.Text = config.ServerConfig.ServerCommandPassword ?? string.Empty;
             passwordAdminTextBox.Text = config.ServerConfig.PasswordAdmin ?? string.Empty;
             rconPasswordTextBox.Text = config.BattlEyeConfig.RConPassword ?? string.Empty;
+            string rconHost = config.BattlEyeConfig.RConHost;
+            if (string.IsNullOrWhiteSpace(rconHost))
+            {
+                rconHost = "127.0.0.1";
+            }
+
+            rconHostTextBox.Text = rconHost;
             rconPortNumeric.Value = SettingsLayoutHelper.Clamp(1024, 65535, config.BattlEyeConfig.RConPort);
             beMaxPingNumeric.Value = SettingsLayoutHelper.Clamp(50, 2000, config.BattlEyeConfig.MaxPing);
             adminsTextBox.Text = JoinLines(config.ServerConfig.Admins);
@@ -114,6 +122,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             boundConfig.ServerConfig.ServerCommandPassword = serverCommandPasswordTextBox.Text.Trim();
             boundConfig.ServerConfig.PasswordAdmin = passwordAdminTextBox.Text.Trim();
             boundConfig.BattlEyeConfig.RConPassword = rconPasswordTextBox.Text;
+            boundConfig.BattlEyeConfig.RConHost = rconHostTextBox.Text.Trim();
             boundConfig.BattlEyeConfig.RConPort = (int)rconPortNumeric.Value;
             boundConfig.BattlEyeConfig.MaxPing = (int)beMaxPingNumeric.Value;
             boundConfig.ServerConfig.Admins = SplitLines(adminsTextBox.Text);
@@ -159,6 +168,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 layout, "管理员密码", SettingsLayoutHelper.CreatePasswordInput());
             rconPasswordTextBox = SettingsLayoutHelper.AddRow(
                 layout, "远程控制密码", SettingsLayoutHelper.CreatePasswordInput());
+            rconHostTextBox = SettingsLayoutHelper.AddRow(
+                layout, "远程控制地址", SettingsLayoutHelper.CreateInput(true));
+            rconHostTextBox.Text = "127.0.0.1";
             rconPortNumeric = SettingsLayoutHelper.AddRow(
                 layout, "远程控制端口", SettingsLayoutHelper.CreateNumeric(1024, 65535, 2310, 120));
             beMaxPingNumeric = SettingsLayoutHelper.AddRow(

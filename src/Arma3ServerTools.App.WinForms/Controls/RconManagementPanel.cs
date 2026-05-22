@@ -48,6 +48,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly AntdUI.Button connectButton;
         private readonly AntdUI.Button refreshPlayersButton;
         private readonly AntdUI.Button kickButton;
+        private AntdUI.Button banTempButton;
+        private AntdUI.Button banPermButton;
         private AntdUI.Button refreshBansButton;
         private AntdUI.Button removeBanButton;
         private AntdUI.Button loadBansButton;
@@ -55,6 +57,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private AntdUI.Button sendAllButton;
         private AntdUI.Button sendPlayerButton;
         private AntdUI.Button refreshMissionsButton;
+        private AntdUI.Button loadMissionButton;
         private AntdUI.Button restartMissionButton;
         private AntdUI.Button lockButton;
         private AntdUI.Button unlockButton;
@@ -64,6 +67,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly AntTable bansTable;
         private readonly AntTable missionsTable;
         private readonly AntdUI.Input kickReasonInput;
+        private readonly AntdUI.InputNumber banDurationNumeric;
         private readonly AntdUI.Input broadcastInput;
         private readonly AntdUI.Input playerMessageInput;
         private readonly AntLabel statusLabel;
@@ -83,14 +87,20 @@ namespace Arma3ServerTools.App.WinForms.Controls
             connectButton = SettingsLayoutHelper.CreateButton("连接远程控制");
             refreshPlayersButton = CreateActionButton("刷新玩家");
             kickButton = CreateActionButton("踢出选中");
+            banTempButton = CreateActionButton("封禁(分钟)");
+            banPermButton = CreateActionButton("永久封禁");
             syncPlayersButton = CreateActionButton("同步到玩家库");
             connectButton.Click += OnConnect;
             refreshPlayersButton.Click += delegate { RunSafe(LoadPlayersAsync); };
             kickButton.Click += OnKickPlayer;
+            banTempButton.Click += OnBanTemporary;
+            banPermButton.Click += OnBanPermanent;
             syncPlayersButton.Click += delegate { RunSafe(SyncPlayersAsync); };
             toolbar.Controls.Add(connectButton);
             toolbar.Controls.Add(refreshPlayersButton);
             toolbar.Controls.Add(kickButton);
+            toolbar.Controls.Add(banTempButton);
+            toolbar.Controls.Add(banPermButton);
             toolbar.Controls.Add(syncPlayersButton);
 
             statusLabel = new AntLabel
@@ -104,6 +114,21 @@ namespace Arma3ServerTools.App.WinForms.Controls
             kickReasonInput = SettingsLayoutHelper.CreateInput(true);
             kickReasonInput.Dock = DockStyle.Top;
             kickReasonInput.Text = "管理员踢出";
+
+            banDurationNumeric = SettingsLayoutHelper.CreateNumeric(1, 10080, 60, 120);
+            var banDurationBar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                Padding = new Padding(0, 0, 0, UiScaleHelper.Scale(4)),
+            };
+            banDurationBar.Controls.Add(new AntLabel
+            {
+                Text = "封禁时长(分钟)",
+                AutoSizeMode = AntdUI.TAutoSize.Auto,
+                Padding = new Padding(0, UiScaleHelper.Scale(8), UiScaleHelper.Scale(8), 0),
+            });
+            banDurationBar.Controls.Add(banDurationNumeric);
 
             broadcastInput = SettingsLayoutHelper.CreateInput(true);
             broadcastInput.Dock = DockStyle.Top;
@@ -135,6 +160,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             Controls.Add(tabs);
             Controls.Add(kickReasonInput);
+            Controls.Add(banDurationBar);
             Controls.Add(statusLabel);
             Controls.Add(toolbar);
         }
@@ -153,7 +179,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             Enabled = true;
-            statusLabel.Text = "远程控制端口 " + config.BattlEyeConfig.RConPort + "，点击连接";
+            string host = ResolveRconHost();
+            statusLabel.Text = "远程控制 " + host + ":" + config.BattlEyeConfig.RConPort + "，点击连接";
         }
 
         public void ApplyToModel()
@@ -188,12 +215,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
             var panel = new Panel { Dock = DockStyle.Fill };
             var missionToolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
             refreshMissionsButton = CreateActionButton("刷新任务");
+            loadMissionButton = CreateActionButton("加载选中");
             restartMissionButton = CreateActionButton("重启任务");
             lockButton = CreateActionButton("锁定服务器");
             unlockButton = CreateActionButton("解锁服务器");
             sendAllButton = CreateActionButton("全服公告");
             sendPlayerButton = CreateActionButton("私信玩家");
             refreshMissionsButton.Click += delegate { RunSafe(LoadMissionsAsync); };
+            loadMissionButton.Click += OnLoadMission;
             restartMissionButton.Click += delegate { RunSafe(RestartMissionAsync); };
             lockButton.Click += delegate { RunSafe(LockServerAsync); };
             unlockButton.Click += delegate { RunSafe(UnlockServerAsync); };
@@ -201,6 +230,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             sendPlayerButton.Click += OnSendPlayerMessage;
 
             missionToolbar.Controls.Add(refreshMissionsButton);
+            missionToolbar.Controls.Add(loadMissionButton);
             missionToolbar.Controls.Add(restartMissionButton);
             missionToolbar.Controls.Add(lockButton);
             missionToolbar.Controls.Add(unlockButton);
@@ -230,13 +260,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 connected = false;
                 SetConnectedUi(false);
                 IRconService rcon = AppServices.Instance.RconService;
+                string host = ResolveRconHost();
                 await rcon.ConnectAsync(
-                    "127.0.0.1",
+                    host,
                     boundConfig.BattlEyeConfig.RConPort,
                     boundConfig.BattlEyeConfig.RConPassword,
                     CancellationToken.None).ConfigureAwait(true);
                 connected = true;
-                statusLabel.Text = "已连接到 127.0.0.1:" + boundConfig.BattlEyeConfig.RConPort;
+                statusLabel.Text = "已连接到 " + host + ":" + boundConfig.BattlEyeConfig.RConPort;
                 SetConnectedUi(true);
                 await LoadPlayersAsync().ConfigureAwait(true);
             }
@@ -276,6 +307,175 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 AntdUiHelper.ShowError(FindForm(), ex.Message, "踢出失败");
             }
+        }
+
+        private async void OnBanTemporary(object sender, EventArgs e)
+        {
+            if (!connected)
+            {
+                return;
+            }
+
+            RconPlayerRow player = GetSelectedPlayerRow();
+            if (player == null)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(player.Guid))
+            {
+                AntdUiHelper.ShowWarning(FindForm(), "选中玩家没有有效的 Steam GUID。", "提示");
+                return;
+            }
+
+            try
+            {
+                int minutes = (int)banDurationNumeric.Value;
+                if (minutes < 1)
+                {
+                    minutes = 1;
+                }
+
+                string reason = kickReasonInput.Text.Trim();
+                if (string.IsNullOrEmpty(reason))
+                {
+                    reason = "管理员封禁";
+                }
+
+                await AppServices.Instance.RconService
+                    .BanOnlinePlayerAsync(player.Guid, reason, TimeSpan.FromMinutes(minutes))
+                    .ConfigureAwait(true);
+                await LoadPlayersAsync().ConfigureAwait(true);
+                AntdUiHelper.ShowInfo(FindForm(), "已封禁玩家 " + minutes + " 分钟。", "完成");
+            }
+            catch (Exception ex)
+            {
+                AntdUiHelper.ShowError(FindForm(), ex.Message, "封禁失败");
+            }
+        }
+
+        private async void OnBanPermanent(object sender, EventArgs e)
+        {
+            if (!connected)
+            {
+                return;
+            }
+
+            RconPlayerRow player = GetSelectedPlayerRow();
+            if (player == null)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(player.Guid))
+            {
+                AntdUiHelper.ShowWarning(FindForm(), "选中玩家没有有效的 Steam GUID。", "提示");
+                return;
+            }
+
+            if (!AntdUiHelper.Confirm(FindForm(), "确认", "确定永久封禁玩家 \"" + player.Name + "\" 吗？"))
+            {
+                return;
+            }
+
+            try
+            {
+                string reason = kickReasonInput.Text.Trim();
+                if (string.IsNullOrEmpty(reason))
+                {
+                    reason = "管理员封禁";
+                }
+
+                await AppServices.Instance.RconService
+                    .BanOnlinePlayerPermanentAsync(player.Guid, reason)
+                    .ConfigureAwait(true);
+                await LoadPlayersAsync().ConfigureAwait(true);
+                AntdUiHelper.ShowInfo(FindForm(), "已永久封禁玩家。", "完成");
+            }
+            catch (Exception ex)
+            {
+                AntdUiHelper.ShowError(FindForm(), ex.Message, "封禁失败");
+            }
+        }
+
+        private async void OnLoadMission(object sender, EventArgs e)
+        {
+            if (!connected)
+            {
+                AntdUiHelper.ShowInfo(FindForm(), "请先连接 RCon。", "提示");
+                return;
+            }
+
+            int idx = AntdTableHelper.GetSelectedRowIndex(missionsTable);
+            if (idx < 0 || idx >= missionRows.Count)
+            {
+                AntdUiHelper.ShowInfo(FindForm(), "请先选择一个任务。", "提示");
+                return;
+            }
+
+            try
+            {
+                string missionName = BuildMissionParameter(missionRows[idx]);
+                await AppServices.Instance.RconService.LoadMissionAsync(missionName).ConfigureAwait(true);
+                AntdUiHelper.ShowInfo(FindForm(), "已发送加载任务命令: " + missionName, "完成");
+            }
+            catch (Exception ex)
+            {
+                AntdUiHelper.ShowError(FindForm(), ex.Message, "加载任务失败");
+            }
+        }
+
+        private RconPlayerRow GetSelectedPlayerRow()
+        {
+            int idx = AntdTableHelper.GetSelectedRowIndex(playersTable);
+            if (idx < 0 || idx >= playerRows.Count)
+            {
+                AntdUiHelper.ShowInfo(FindForm(), "请先选择一个在线玩家。", "提示");
+                return null;
+            }
+
+            return playerRows[idx];
+        }
+
+        private static string BuildMissionParameter(RconMissionRow row)
+        {
+            if (row == null)
+            {
+                return string.Empty;
+            }
+
+            if (!string.IsNullOrWhiteSpace(row.Mission) && row.Mission.IndexOf('.') >= 0)
+            {
+                return row.Mission.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(row.Map) && !string.IsNullOrWhiteSpace(row.Mission))
+            {
+                return row.Map.Trim() + "." + row.Mission.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(row.Mission))
+            {
+                return row.Mission.Trim();
+            }
+
+            return row.Map != null ? row.Map.Trim() : string.Empty;
+        }
+
+        private string ResolveRconHost()
+        {
+            if (boundConfig == null || boundConfig.BattlEyeConfig == null)
+            {
+                return "127.0.0.1";
+            }
+
+            string host = boundConfig.BattlEyeConfig.RConHost;
+            if (string.IsNullOrWhiteSpace(host))
+            {
+                return "127.0.0.1";
+            }
+
+            return host.Trim();
         }
 
         private async void OnRemoveBan(object sender, EventArgs e)
@@ -505,12 +705,15 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             refreshPlayersButton.Enabled = isConnected;
             kickButton.Enabled = isConnected;
+            banTempButton.Enabled = isConnected;
+            banPermButton.Enabled = isConnected;
             syncPlayersButton.Enabled = isConnected;
             refreshBansButton.Enabled = isConnected;
             removeBanButton.Enabled = isConnected;
             loadBansButton.Enabled = isConnected;
             saveBansButton.Enabled = isConnected;
             refreshMissionsButton.Enabled = isConnected;
+            loadMissionButton.Enabled = isConnected;
             restartMissionButton.Enabled = isConnected;
             lockButton.Enabled = isConnected;
             unlockButton.Enabled = isConnected;
