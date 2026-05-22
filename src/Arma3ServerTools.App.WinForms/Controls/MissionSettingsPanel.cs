@@ -68,7 +68,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             var optionsLayout = SettingsLayoutHelper.CreateFormLayout(120);
             forcedDifficultySelect = SettingsLayoutHelper.AddRow(
                 optionsLayout,
-                "强制难度",
+                "强制任务难度",
                 SettingsLayoutHelper.CreateSelect(200, "关闭", "新兵", "常规", "老兵", "自定义"));
             autoSelectCheckBox = SettingsLayoutHelper.AddRow(
                 optionsLayout,

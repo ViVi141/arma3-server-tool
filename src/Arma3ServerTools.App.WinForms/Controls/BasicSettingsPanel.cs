@@ -344,7 +344,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             startArgsTextBox =
                 SettingsLayoutHelper.AddRow(layout, "启动命令行附加", SettingsLayoutHelper.CreateMultilineInput(72));
             profileArgsTextBox =
-                SettingsLayoutHelper.AddRow(layout, "难度档案附加行", SettingsLayoutHelper.CreateMultilineInput(72));
+                SettingsLayoutHelper.AddRow(layout, "Arma3Profile 附加行", SettingsLayoutHelper.CreateMultilineInput(72));
             return layout;
         }
 

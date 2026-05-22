@@ -45,7 +45,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             var root = SettingsLayoutHelper.CreateSectionsStack();
             AntLabel hint = AntdUiHelper.CreateHintLabel(
                 "对应服务器 Profile 中的 CustomDifficulty 选项（见 Bohemia Wiki「Difficulty Settings」）。"
-                + " 三态含义因项而异：名称标签/指示器/地雷为「从不 / 有限距离 / 始终」；"
+                + " 三态含义因项而异：小队指示器/名称标签/已发现地雷为「从不 / 有限距离 / 始终」；"
                 + "命令/航点/武器信息等为「从不 / 渐隐 / 始终」；第三人为「禁用 / 启用 / 仅载具」。"
                 + " 保存并「应用到服务器目录」后写入 *.Arma3Profile。",
                 720);
@@ -56,7 +56,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             friendlyTagsCombo = AddDistanceTriStateCombo(layout, "友军名称标签");
             enemyTagsCombo = AddDistanceTriStateCombo(layout, "敌军名称标签");
             detectedMinesCombo = AddDistanceTriStateCombo(layout, "已发现地雷");
-            commandsCombo = AddFadeTriStateCombo(layout, "命令");
+            commandsCombo = AddFadeTriStateCombo(layout, "命令图标");
             waypointsCombo = AddFadeTriStateCombo(layout, "航点");
             tacticalPingCheckBox = SettingsLayoutHelper.AddRow(
                 layout,
@@ -71,11 +71,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             weaponCrosshairCheckBox = SettingsLayoutHelper.AddRow(
                 layout,
                 "武器准星",
-                SettingsLayoutHelper.CreateCheckbox("显示准星（第一/第三人称）", false));
+                SettingsLayoutHelper.CreateCheckbox("第一/第三人称均显示武器准星", false));
             visionAidCheckBox = SettingsLayoutHelper.AddRow(
                 layout,
                 "视觉辅助",
-                SettingsLayoutHelper.CreateCheckbox("辅助识别视野内单位（友军标识）", false));
+                SettingsLayoutHelper.CreateCheckbox("视野内单位辨识（友敌标识）", false));
             thirdPersonCombo = AddThirdPersonCombo(layout, "第三人称视角");
             cameraShakeCheckBox = SettingsLayoutHelper.AddRow(
                 layout,
@@ -84,7 +84,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             scoreTableCheckBox = SettingsLayoutHelper.AddRow(
                 layout,
                 "计分板",
-                SettingsLayoutHelper.CreateCheckbox("多人计分板", false));
+                SettingsLayoutHelper.CreateCheckbox("显示计分表（击杀/死亡/得分）", false));
             deathMessagesCheckBox = SettingsLayoutHelper.AddRow(
                 layout,
                 "阵亡提示",
@@ -100,15 +100,15 @@ namespace Arma3ServerTools.App.WinForms.Controls
             mapContentFriendlyCheckBox = SettingsLayoutHelper.AddRow(
                 layout,
                 "地图友军",
-                SettingsLayoutHelper.CreateCheckbox("小地图显示友军单位", false));
+                SettingsLayoutHelper.CreateCheckbox("地图显示友军单位", false));
             mapContentEnemyCheckBox = SettingsLayoutHelper.AddRow(
                 layout,
                 "地图敌军",
-                SettingsLayoutHelper.CreateCheckbox("小地图显示敌军单位", false));
+                SettingsLayoutHelper.CreateCheckbox("地图显示敌军单位", false));
             mapContentMinesCheckBox = SettingsLayoutHelper.AddRow(
                 layout,
                 "地图地雷",
-                SettingsLayoutHelper.CreateCheckbox("小地图显示已探测地雷", false));
+                SettingsLayoutHelper.CreateCheckbox("地图显示已探测地雷", false));
             reducedDamageCheckBox = SettingsLayoutHelper.AddRow(
                 layout,
                 "降低受伤",
@@ -121,8 +121,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 layout,
                 "多次保存",
                 SettingsLayoutHelper.CreateCheckbox("任务中允许多次存档", false));
-            skillAiNumeric = SettingsLayoutHelper.AddRow(layout, "AI 技能", CreateAiNumeric());
-            precisionAiNumeric = SettingsLayoutHelper.AddRow(layout, "AI 射击精度", CreateAiNumeric());
+            skillAiNumeric = SettingsLayoutHelper.AddRow(layout, "AI 技能 (skillAI)", CreateAiNumeric());
+            precisionAiNumeric = SettingsLayoutHelper.AddRow(layout, "AI 射击精度 (precisionAI)", CreateAiNumeric());
             SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateScrollHost(layout));
             Controls.Add(root);
         }
