@@ -20,7 +20,7 @@
 
 ### 非目标（本阶段不做）
 
-- 删除 `a3/` 遗留源码（阶段 B 归档，见仓库清理计划）
+- ~~删除 `a3/` 遗留源码~~（**已完成**，2026-05-22 直接删除 `a3/`、`AppUpdate/`、`a3.sln`）
 - Blazor / Web Host（原 refactoring-plan 阶段 6 Web，单独立项）
 - Newtonsoft → System.Text.Json 全量替换（可选子阶段 7b，非阻塞）
 - 移除 `Nito.AsyncEx`（可选在 7.1 或 net48 预清理阶段完成）
@@ -47,8 +47,8 @@
 | `Arma3ServerTools.Application.Tests` | net48 | **net10.0-windows** | P0 | |
 | `steamcmdTools` | net6.0-windows10.0.20348.0 | **net10.0-windows** | P1 | 消除 EOL 警告 |
 | `DestinyServerMonitoring` | net452 | **保持** | P3 | RVExtension，独立 sln |
-| `AppUpdate` | net472 + DevExpress | **net10.0-windows**（可选） | **P4（最低）** | 不阻塞主线 Release / net10；暂可沿用旧 `AppUpdate/` 或手动更新 |
-| `a3/` | net48 + DevExpress | **不迁移** | — | 仅参考，待归档 |
+| `AppUpdate` | ~~net472 + DevExpress~~ | **net10.0-windows**（可选） | **P4（最低）** | 旧根目录已删除；阶段 8 新建或手动更新 |
+| `a3/` | ~~net48 + DevExpress~~ | **已删除** | — | 功能已迁入 `src/` |
 
 ---
 

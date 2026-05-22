@@ -102,17 +102,16 @@ arma3-server-tool/
 │   ├── refactoring-plan.md    # 本文档
 │   └── architecture.md        # 实施后可补充 API 说明
 ├── src/
-│   ├── Arma3ServerTools.Core/           # 类库 net48
-│   ├── Arma3ServerTools.Application/    # 可选：应用服务编排 net48
-│   ├── Arma3ServerTools.App.WinForms/   # 新主程序 WinExe net48
-│   ├── Arma3ServerTools.MonitoringHost/ # 隐藏窗体 WM_COPYDATA net48
-│   ├── Arma3ServerTools.AppUpdate/      # 升级器（阶段 8 / P4 最低，去 DevExpress）
-│   └── DestinyServerMonitoring/         # RVExtension DLL
+│   ├── Arma3ServerTools.Core/           # 类库 net10
+│   ├── Arma3ServerTools.Application/    # 应用服务层 net10
+│   ├── Arma3ServerTools.App.WinForms/   # 主程序 WinExe net10
+│   ├── Arma3ServerTools.MonitoringHost/ # WM_COPYDATA 宿主 net10
+│   └── Arma3ServerTools.AppUpdate/      # 升级器（阶段 8，待新建）
+├── DestinyServerMonitoring/             # RVExtension DLL（C++）
+├── Steamcmdtools/                       # steamcmdTools 辅助 EXE
 ├── sql/                                 # destiny_*.sql
 ├── extension/                           # steamcmd.exe（文档说明，可不提交）
-├── legacy/
-│   └── a3/                              # 原工程参考，逐步废弃
-└── Arma3ServerTools.sln                 # 新解决方案（逐步替代 a3.sln）
+└── Arma3ServerTools.sln                 # 主解决方案
 ```
 
 **TFM**：阶段 1～4 在 **.NET Framework 4.8** 上完成；**阶段 7** 迁移至 **.NET 10 LTS**；**阶段 5** 首版开源 Release 以 **net10** 为基线（详见 [docs/net10-migration-plan.md](net10-migration-plan.md)）。
@@ -300,8 +299,8 @@ public sealed class OperationResult {
 - [x] 玩家库 `destiny_players.db`（`PlayerDatabaseRepository` + `PlayerDirectoryService`）
 - [x] IPv4 校验、调度器退出 `StopAsync`、`DetectRestart` 接口化
 - [x] Cron 定时任务 UI + 调度同步
-- [x] 封禁（本地 + 多 URL 联合列表拉取/合并 + `bans.json` 管理）
-- [x] `a3/` 标记 deprecated（见 `a3/DEPRECATED.md`）
+- [x] 封禁（本地 `bans.txt` 读写）
+- [x] 移除旧 DevExpress 工程（`a3/`、`AppUpdate/`、`a3.sln`）
 
 **验收**：主要设置页可编辑保存；SteamCMD/模组/RCon/封禁/Cron/统计/玩家库可用。 ✅（2026-05-22 build + 自动化测试 **52/52** 通过，xUnit 跳过 **0**）
 
@@ -339,7 +338,7 @@ dotnet test Arma3ServerTools.sln -c Release
 
 - [ ] Release 基于 **net10**；不含 DevExpress DLL
 - [ ] README：构建说明、**.NET 10 Desktop Runtime** 或 self-contained 包说明、`extension/steamcmd` 说明
-- [ ] （可选）暂附旧 `AppUpdate/`（net472）或文档说明手动更新；不要求新版 AppUpdate
+- [ ] （可选）文档说明手动更新；不要求 AppUpdate（旧 `AppUpdate/` 已删除，阶段 8 新建）
 - [ ] 可选：GitHub Actions（SDK 10.x + `dotnet test`）
 - [ ] 打 tag `v1.0`（或项目约定版本号）
 
@@ -357,7 +356,7 @@ dotnet test Arma3ServerTools.sln -c Release
 
 - [ ] 去 DevExpress 的标准 WinForms 升级器
 - [ ] net10 重写 `src/Arma3ServerTools.AppUpdate`（原 7.6）
-- [ ] 主程序更新入口接线；废弃根目录 `AppUpdate/`
+- [ ] 主程序更新入口接线；新建 `src/Arma3ServerTools.AppUpdate`（旧根目录 `AppUpdate/` 已删除）
 
 ---
 
