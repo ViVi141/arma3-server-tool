@@ -1,17 +1,17 @@
 using System;
 using System.IO;
 using System.Windows.Forms;
+using Arma3ServerTools.App.WinForms;
+using Arma3ServerTools.App.WinForms.Controls;
+using Arma3ServerTools.Core;
+using Arma3ServerTools.Core.Models;
+using Arma3ServerTools.Core.Validation;
 using AntButton = AntdUI.Button;
 using AntCheckbox = AntdUI.Checkbox;
 using AntInput = AntdUI.Input;
 using AntInputNumber = AntdUI.InputNumber;
 using AntLabel = AntdUI.Label;
 using AntPanel = AntdUI.Panel;
-using Arma3ServerTools.App.WinForms;
-using Arma3ServerTools.App.WinForms.Controls;
-using Arma3ServerTools.Core;
-using Arma3ServerTools.Core.Models;
-using Arma3ServerTools.Core.Validation;
 
 namespace Arma3ServerTools.App.WinForms.Dialogs
 {

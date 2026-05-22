@@ -13,19 +13,19 @@ namespace Arma3ServerTools.App.WinForms.DependencyInjection
 {
     internal static class AppServiceCollectionExtensions
     {
-        public static IServiceCollection AddArma3ServerTools(this IServiceCollection services, string applicationBase)
+        public static IServiceCollection AddArma3ServerTools(this IServiceCollection services, IAppPaths paths)
         {
             if (services == null)
             {
                 throw new ArgumentNullException(nameof(services));
             }
 
-            if (string.IsNullOrEmpty(applicationBase))
+            if (paths == null)
             {
-                throw new ArgumentException("Application base directory is required.", nameof(applicationBase));
+                throw new ArgumentNullException(nameof(paths));
             }
 
-            services.AddSingleton<IAppPaths>(_ => new AppPaths(applicationBase));
+            services.AddSingleton<IAppPaths>(paths);
             services.AddSingleton<ServerConfigRepository>();
             services.AddSingleton<SteamCmdConfigRepository>();
             services.AddSingleton<ModuleScanPathRepository>();

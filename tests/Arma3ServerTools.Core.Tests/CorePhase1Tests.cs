@@ -388,6 +388,28 @@ namespace Arma3ServerTools.Core.Tests
         }
 
         [Fact]
+        public void AppPaths_WritableInstallRoot_UsesInstallRootForUserData()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "a3st-paths-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            try
+            {
+                var paths = new AppPaths(root);
+                Assert.Equal(root, paths.ApplicationBase);
+                Assert.Equal(root, paths.UserDataDirectory);
+                Assert.Equal(Path.Combine(root, "config"), paths.ConfigDirectory);
+                Assert.Equal(Path.Combine(root, "logs"), paths.LogDirectory);
+            }
+            finally
+            {
+                if (Directory.Exists(root))
+                {
+                    Directory.Delete(root, true);
+                }
+            }
+        }
+
+        [Fact]
         public void SetTime_UpdatesSaveTimeWithoutUiDependency()
         {
             var config = new ArmaServerConfig();

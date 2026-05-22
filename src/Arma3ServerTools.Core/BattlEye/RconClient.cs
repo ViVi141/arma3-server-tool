@@ -1,14 +1,12 @@
-﻿using BytexDigital.BattlEye.Rcon.Commands;
-using BytexDigital.BattlEye.Rcon.Events;
-using BytexDigital.BattlEye.Rcon.Requests;
-using BytexDigital.BattlEye.Rcon.Responses;
-
-using Arma3ServerTools.Core.Threading;
-
 using System;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Arma3ServerTools.Core.Threading;
+using BytexDigital.BattlEye.Rcon.Commands;
+using BytexDigital.BattlEye.Rcon.Events;
+using BytexDigital.BattlEye.Rcon.Requests;
+using BytexDigital.BattlEye.Rcon.Responses;
 
 namespace BytexDigital.BattlEye.Rcon
 {

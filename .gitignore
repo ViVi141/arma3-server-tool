@@ -24,10 +24,13 @@ data.json
 skin.json
 logs/
 
+tools/innosetup-6/
+scripts/_build-metadata.iss
+
 # Release build output
 artifacts/
 
-# Local scratch / probe assets (canonical copies live under src/.../Assets/)
+# Local scratch / probe assets
 pic/
 src/_AntdProbe/
 

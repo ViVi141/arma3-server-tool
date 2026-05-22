@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 
 namespace Arma3ServerTools.Core.Models
 {
-    public class ArmaServerConfig {
+    public class ArmaServerConfig
+    {
 
         public ServerManagement ServerTaskManagement { get; set; } = new ServerManagement();
         public ServerConfig ServerConfig { get; set; } = new ServerConfig();
@@ -30,13 +31,15 @@ namespace Arma3ServerTools.Core.Models
 
         public string CreateTime { get; set; } = null;
 
-        public void SetTime() {
+        public void SetTime()
+        {
             SaveTime = "上次保存于:" + DateTime.Now.ToLocalTime().ToString();
         }
     }
 
 
-    public class ServerManagement {
+    public class ServerManagement
+    {
         public int ProcessById { get; set; } = 0;
 
         public bool EnableMonitor { get; set; } = false;
@@ -52,7 +55,7 @@ namespace Arma3ServerTools.Core.Models
 
 
 
-        public Dictionary<string, CronEntity>  CronEntity { get; set; } = new Dictionary<string, CronEntity>();
+        public Dictionary<string, CronEntity> CronEntity { get; set; } = new Dictionary<string, CronEntity>();
     }
 
 
@@ -87,7 +90,7 @@ namespace Arma3ServerTools.Core.Models
 
         //强制任务难度 forcedDifficulty
         public string ForcedDifficulty { get; set; } = "none";
-        
+
 
         //motd 欢迎信息 motd
         public List<string> Motd { get; set; } = new List<string>() { "欢迎进入本服务器！", "欢迎进入本服务器！" };
@@ -288,7 +291,8 @@ namespace Arma3ServerTools.Core.Models
     }
 
     //Server Profile 配置
-    public class ServerProfile {
+    public class ServerProfile
+    {
 
         public string ServerProfileArgs { get; set; } = "c2luZ2xlVm9pY2U9MDsNCm1heFNhbXBsZXNQbGF5ZWQ9OTY7DQpiYXR0bGV5ZUxpY2Vuc2U9MTsNCnNjZW5lQ29tcGxleGl0eT0xMDAwMDAwOw0Kc2hhZG93WkRpc3RhbmNlPTA7DQpwcmVmZXJyZWRPYmplY3RWaWV3RGlzdGFuY2U9OTAwOw0KcGlwVmlld0Rpc3RhbmNlPTUwMDsNCnZvbHVtZUNEPTEwOw0Kdm9sdW1lRlg9MTA7DQp2b2x1bWVTcGVlY2g9MTA7DQp2b2x1bWVWb049MTA7DQp2b25SZWNUaHJlc2hvbGQ9MC4wMjk5OTk5OTk7DQp2b2x1bWVNYXBEdWNraW5nPTE7";
         //小队指示标识: groupIndicators
@@ -307,7 +311,7 @@ namespace Arma3ServerTools.Core.Models
         public int Commands { get; set; } = 1;
 
         //显示航点: waypoints
-        public int WayPoints { get; set; }= 1;
+        public int WayPoints { get; set; } = 1;
 
         //战术 Ping: tacticalPing
         public int TacticalPing { get; set; } = 1;
@@ -479,7 +483,7 @@ namespace Arma3ServerTools.Core.Models
     }
 
     //启动参数
-    public class StartupParameters 
+    public class StartupParameters
     {
         //自动初始化 -autoInit
         public bool AutoInit { get; set; } = false;

@@ -1,11 +1,10 @@
-﻿using BytexDigital.BattlEye.Rcon.Requests;
-using BytexDigital.BattlEye.Rcon.Responses;
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using BytexDigital.BattlEye.Rcon.Requests;
+using BytexDigital.BattlEye.Rcon.Responses;
 
 namespace BytexDigital.BattlEye.Rcon
 {

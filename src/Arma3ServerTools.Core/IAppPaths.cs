@@ -1,3 +1,6 @@
+using System;
+using System.IO;
+
 namespace Arma3ServerTools.Core
 {
     /// <summary>
@@ -5,20 +8,31 @@ namespace Arma3ServerTools.Core
     /// </summary>
     public interface IAppPaths
     {
+        /// <summary>Read-only install directory (exe, sql, mod templates).</summary>
         string ApplicationBase { get; }
 
+        /// <summary>Writable data root (config, logs, databases, SteamCMD bundle).</summary>
+        string UserDataDirectory { get; }
+
         string ConfigDirectory { get; }
+
+        string LogDirectory { get; }
     }
 
     /// <summary>
-    /// Default path layout: config/*.json under install root.
+    /// Default path layout: user data under install root when writable, otherwise LocalAppData.
     /// </summary>
     public sealed class AppPaths : IAppPaths
     {
+        public const string UserDataFolderName = "Arma3ServerTools";
+
         public AppPaths(string applicationBase)
         {
             ApplicationBase = ResolveToolRoot(applicationBase);
-            ConfigDirectory = System.IO.Path.Combine(ApplicationBase, "config");
+            UserDataDirectory = ResolveUserDataDirectory(ApplicationBase);
+            ConfigDirectory = Path.Combine(UserDataDirectory, "config");
+            LogDirectory = Path.Combine(UserDataDirectory, "logs");
+            TryMigrateLegacyUserData(ApplicationBase, UserDataDirectory);
         }
 
         /// <summary>
@@ -32,19 +46,159 @@ namespace Arma3ServerTools.Core
             }
 
             string normalized = processBase.TrimEnd(
-                System.IO.Path.DirectorySeparatorChar,
-                System.IO.Path.AltDirectorySeparatorChar);
-            string folderName = System.IO.Path.GetFileName(normalized);
-            if (string.Equals(folderName, "monitoring", System.StringComparison.OrdinalIgnoreCase))
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar);
+            string folderName = Path.GetFileName(normalized);
+            if (string.Equals(folderName, "monitoring", StringComparison.OrdinalIgnoreCase))
             {
-                return System.IO.Path.GetFullPath(System.IO.Path.Combine(normalized, ".."));
+                return Path.GetFullPath(Path.Combine(normalized, ".."));
             }
 
             return processBase;
         }
 
+        public static string ResolveUserDataDirectory(string applicationBase)
+        {
+            if (string.IsNullOrWhiteSpace(applicationBase))
+            {
+                string fallback = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                return Path.Combine(fallback, UserDataFolderName);
+            }
+
+            if (IsDirectoryWritable(applicationBase))
+            {
+                return applicationBase;
+            }
+
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            return Path.Combine(localAppData, UserDataFolderName);
+        }
+
         public string ApplicationBase { get; }
 
+        public string UserDataDirectory { get; }
+
         public string ConfigDirectory { get; }
+
+        public string LogDirectory { get; }
+
+        internal static bool IsDirectoryWritable(string directoryPath)
+        {
+            if (string.IsNullOrWhiteSpace(directoryPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                if (!Directory.Exists(directoryPath))
+                {
+                    Directory.CreateDirectory(directoryPath);
+                }
+
+                string probePath = Path.Combine(
+                    directoryPath,
+                    ".a3st-write-probe-" + Guid.NewGuid().ToString("N"));
+                File.WriteAllText(probePath, "probe");
+                File.Delete(probePath);
+                return true;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return false;
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+        }
+
+        private static void TryMigrateLegacyUserData(string applicationBase, string userDataDirectory)
+        {
+            if (PathsEqual(applicationBase, userDataDirectory))
+            {
+                return;
+            }
+
+            Directory.CreateDirectory(userDataDirectory);
+            TryMigrateFile(applicationBase, userDataDirectory, "data.json");
+            TryMigrateFile(applicationBase, userDataDirectory, "moduleScanPath.json");
+            TryMigrateFile(applicationBase, userDataDirectory, ToolConstants.StatisticsDatabaseFileName);
+            TryMigrateFile(applicationBase, userDataDirectory, ToolConstants.PlayersDatabaseFileName);
+            TryMigrateDirectory(applicationBase, userDataDirectory, "config");
+            TryMigrateDirectory(applicationBase, userDataDirectory, "extension");
+            TryMigrateDirectory(applicationBase, userDataDirectory, "logs");
+        }
+
+        private static bool PathsEqual(string left, string right)
+        {
+            if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+            {
+                return false;
+            }
+
+            return string.Equals(
+                Path.GetFullPath(left).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                Path.GetFullPath(right).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void TryMigrateFile(string sourceRoot, string targetRoot, string fileName)
+        {
+            string sourcePath = Path.Combine(sourceRoot, fileName);
+            string targetPath = Path.Combine(targetRoot, fileName);
+            if (!File.Exists(sourcePath) || File.Exists(targetPath))
+            {
+                return;
+            }
+
+            try
+            {
+                File.Copy(sourcePath, targetPath);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private static void TryMigrateDirectory(string sourceRoot, string targetRoot, string directoryName)
+        {
+            string sourcePath = Path.Combine(sourceRoot, directoryName);
+            string targetPath = Path.Combine(targetRoot, directoryName);
+            if (!Directory.Exists(sourcePath) || Directory.Exists(targetPath))
+            {
+                return;
+            }
+
+            try
+            {
+                CopyDirectory(sourcePath, targetPath);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private static void CopyDirectory(string sourcePath, string targetPath)
+        {
+            Directory.CreateDirectory(targetPath);
+            foreach (string filePath in Directory.GetFiles(sourcePath, "*", SearchOption.AllDirectories))
+            {
+                string relativePath = filePath.Substring(sourcePath.Length).TrimStart(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar);
+                string destinationPath = Path.Combine(targetPath, relativePath);
+                string destinationDirectory = Path.GetDirectoryName(destinationPath);
+                if (!string.IsNullOrEmpty(destinationDirectory))
+                {
+                    Directory.CreateDirectory(destinationDirectory);
+                }
+
+                if (!File.Exists(destinationPath))
+                {
+                    File.Copy(filePath, destinationPath);
+                }
+            }
+        }
     }
 }

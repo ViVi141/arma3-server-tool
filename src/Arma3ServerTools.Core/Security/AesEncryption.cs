@@ -1,7 +1,7 @@
 using System;
-using System.Security.Cryptography;
 using System.Globalization;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Arma3ServerTools.Core.Security

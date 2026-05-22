@@ -17,7 +17,7 @@ namespace Arma3ServerTools.Core.Repositories
 
         public List<ModuleScanPathEntity> Load()
         {
-            string filePath = Path.Combine(paths.ApplicationBase, "moduleScanPath.json");
+            string filePath = Path.Combine(paths.UserDataDirectory, "moduleScanPath.json");
             if (!File.Exists(filePath))
             {
                 return new List<ModuleScanPathEntity>();
@@ -43,7 +43,7 @@ namespace Arma3ServerTools.Core.Repositories
         public void Save(IList<ModuleScanPathEntity> pathsList)
         {
             string json = JsonSerializer.ToJson(pathsList ?? new List<ModuleScanPathEntity>());
-            string filePath = Path.Combine(paths.ApplicationBase, "moduleScanPath.json");
+            string filePath = Path.Combine(paths.UserDataDirectory, "moduleScanPath.json");
             File.WriteAllText(filePath, json, GameConfigFormat.Utf8NoBom);
         }
     }

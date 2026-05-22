@@ -1,6 +1,6 @@
 using System;
+using System.Drawing;
 using System.Windows.Forms;
-using Arma3ServerTools.Application.Services;
 
 namespace Arma3ServerTools.App.WinForms.Main
 {
@@ -16,6 +16,12 @@ namespace Arma3ServerTools.App.WinForms.Main
                 Visible = false,
                 Text = UiLabels.AppTitle,
             };
+
+            Icon appIcon = AppIcon.GetIcon();
+            if (appIcon != null)
+            {
+                notifyIcon.Icon = appIcon;
+            }
         }
 
         public event EventHandler ExitRequested;
@@ -27,19 +33,20 @@ namespace Arma3ServerTools.App.WinForms.Main
 
         public void AttachToForm(Form form)
         {
-            if (form.Icon != null)
+            Icon appIcon = AppIcon.GetIcon();
+            if (appIcon != null)
             {
-                notifyIcon.Icon = form.Icon;
+                notifyIcon.Icon = appIcon;
             }
 
             var contextMenu = new ContextMenuStrip();
             ToolStripMenuItem showItem = new ToolStripMenuItem("显示主窗口");
-            showItem.Click += delegate(object sender, EventArgs e)
+            showItem.Click += delegate (object sender, EventArgs e)
             {
                 ShowMainWindow(form);
             };
             ToolStripMenuItem exitItem = new ToolStripMenuItem("退出");
-            exitItem.Click += delegate(object sender, EventArgs e)
+            exitItem.Click += delegate (object sender, EventArgs e)
             {
                 exitRequested = true;
                 if (ExitRequested != null)
@@ -53,7 +60,7 @@ namespace Arma3ServerTools.App.WinForms.Main
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add(exitItem);
             notifyIcon.ContextMenuStrip = contextMenu;
-            notifyIcon.DoubleClick += delegate(object sender, EventArgs e)
+            notifyIcon.DoubleClick += delegate (object sender, EventArgs e)
             {
                 ShowMainWindow(form);
             };

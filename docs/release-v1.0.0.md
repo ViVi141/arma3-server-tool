@@ -5,23 +5,30 @@
 ## 构建
 
 ```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release
+```
+
+未指定 `-Version` 时从 `Directory.Build.props` 读取。显式指定版本：
+
+```powershell
 powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -Version 1.0.0
 ```
 
-自包含包（无需预装 Desktop Runtime）：
+未安装 Inno Setup 时：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -Version 1.0.0 -SelfContained
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -Version 1.0.0 -InstallInnoSetup
 ```
 
 产物：
 
 | 路径 | 说明 |
 |------|------|
-| `artifacts/Arma3ServerTools-v1.0.0-Release/` | 框架依赖发布目录 |
-| `artifacts/Arma3ServerTools-v1.0.0-Release.zip` | 同上，zip 附件 |
+| `artifacts/Arma3ServerTools-Setup.exe` | **默认发布物**：Inno Setup 安装程序（自包含 win-x64，含 Windows 文件版本信息） |
+| `artifacts/_publish/` | 安装包 staging 目录（调试/`-SkipInstaller` 时保留） |
+| `artifacts/Arma3ServerTools-v1.0.0-Release-win-x64.zip` | 仅在使用 `-Zip` 时生成 |
 
-目录内应含：`Arma3ServerTools.exe`、`monitoring/`、`sql/`、`LICENSE`、`NOTICE`、`THIRD-PARTY-NOTICES.txt`。
+安装后目录应含：`Arma3ServerTools.exe`、`monitoring/`、`sql/`、`LICENSE`、`NOTICE`、`THIRD-PARTY-NOTICES.txt`。
 
 ## 自动化
 
@@ -42,13 +49,16 @@ git push origin HEAD
 git push origin v1.0.0
 ```
 
-在 GitHub **Releases** 新建 `v1.0.0`，上传 `artifacts/Arma3ServerTools-v1.0.0-Release.zip`，说明需安装 **.NET 10 Desktop Runtime**（框架依赖包）或使用 `-SelfContained` 构建。
+在 GitHub **Releases** 新建 `v1.0.0`，上传 `artifacts/Arma3ServerTools-Setup.exe`。若同时提供便携版，可加 `-Zip` 并上传对应 zip。
 
-## 版本号位置
+## 版本号与元信息
 
-- 统一：`Directory.Build.props` → `Version` / `InformationalVersion` = `1.0.0`
-- 关于对话框：`AppVersion.GetDisplayVersion()`
-- 下次发版：改 `Directory.Build.props` 与 `build-release.ps1 -Version` 参数
+| 位置 | 内容 |
+|------|------|
+| `Directory.Build.props` | `Version`、`Company`、`Product`、`Description`、`Copyright`（主程序 exe 属性） |
+| `scripts/Arma3ServerTools.iss` | 安装包 `VersionInfo*`、`AppCopyright`、卸载显示名 |
+| 关于对话框 | `AppVersion.GetDisplayVersion()` |
+| 下次发版 | 改 `Directory.Build.props` 中的 `Version` 即可；构建脚本自动同步 |
 
 ## 已知非阻塞项（v1.1+）
 

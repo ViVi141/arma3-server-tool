@@ -1,4 +1,4 @@
-﻿namespace BytexDigital.BattlEye.Rcon.Domain
+namespace BytexDigital.BattlEye.Rcon.Domain
 {
     public class Mission
     {

@@ -1,7 +1,7 @@
 # Arma3 开服工具 — 完整计划清单
 
 > 文档版本：1.0  
-> 更新日期：2026-05-22（v1.0.0 收尾）  
+> 更新日期：2026-05-23（v1.1.0 发布）  
 > 状态：实施参考 / 产品 backlog  
 > 关联文档：[refactoring-plan.md](refactoring-plan.md) · [architecture.md](architecture.md) · [net10-migration-plan.md](net10-migration-plan.md)
 

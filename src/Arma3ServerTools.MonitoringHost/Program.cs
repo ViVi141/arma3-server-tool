@@ -1,4 +1,5 @@
 using System;
+using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Arma3ServerTools.Application.Monitoring;
@@ -34,6 +35,12 @@ namespace Arma3ServerTools.MonitoringHost
             Location = new System.Drawing.Point(-32000, -32000);
             Size = new System.Drawing.Size(1, 1);
             Opacity = 0;
+
+            Icon hostIcon = Icon.ExtractAssociatedIcon(System.Windows.Forms.Application.ExecutablePath);
+            if (hostIcon != null)
+            {
+                Icon = hostIcon;
+            }
 
             var paths = new AppPaths(AppContext.BaseDirectory);
             ingestService = new QueuedMonitoringIngestService(new MonitoringDatabase(paths));

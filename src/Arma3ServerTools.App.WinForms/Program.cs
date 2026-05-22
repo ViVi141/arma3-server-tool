@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms.DependencyInjection;
 using Arma3ServerTools.Application.Logging;
@@ -16,7 +17,29 @@ namespace Arma3ServerTools.App.WinForms
         [STAThread]
         private static void Main()
         {
-            if (PathValidation.ContainsChinese(AppContext.BaseDirectory))
+            System.Windows.Forms.Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            System.Windows.Forms.Application.ThreadException += OnThreadException;
+            AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+
+            System.Windows.Forms.Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+            System.Windows.Forms.Application.EnableVisualStyles();
+            System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+
+            try
+            {
+                RunApplication();
+            }
+            catch (Exception ex)
+            {
+                ShowFatalError(ex);
+            }
+        }
+
+        private static void RunApplication()
+        {
+            AppPaths paths = new AppPaths(AppContext.BaseDirectory);
+            if (PathValidation.ContainsChinese(paths.ApplicationBase)
+                || PathValidation.ContainsChinese(paths.UserDataDirectory))
             {
                 AntdUI.Modal.open(
                     "失败",
@@ -32,22 +55,22 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
-            string applicationBase = AppContext.BaseDirectory;
-            AppLogging.Initialize(Path.Combine(applicationBase, "logs"));
+            AppLogging.Initialize(paths.LogDirectory);
 
             ServiceProvider serviceProvider = null;
             try
             {
                 var services = new ServiceCollection();
-                services.AddArma3ServerTools(applicationBase);
+                services.AddArma3ServerTools(paths);
                 serviceProvider = services.BuildServiceProvider();
 
                 ILogger logger = serviceProvider.GetRequiredService<ILogger>();
-                logger.LogInformation("Starting {Product} from {BaseDirectory}.", ToolConstants.ProductName, applicationBase);
+                logger.LogInformation(
+                    "Starting {Product}. Install={InstallDirectory}, UserData={UserDataDirectory}.",
+                    ToolConstants.ProductName,
+                    paths.ApplicationBase,
+                    paths.UserDataDirectory);
 
-                System.Windows.Forms.Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
-                System.Windows.Forms.Application.EnableVisualStyles();
-                System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
                 AppTheme.Initialize();
                 AntdUiBootstrap.Initialize();
 
@@ -64,6 +87,32 @@ namespace Arma3ServerTools.App.WinForms
                 }
 
                 AppLogging.Shutdown();
+            }
+        }
+
+        private static void OnThreadException(object sender, ThreadExceptionEventArgs e)
+        {
+            ShowFatalError(e.Exception);
+        }
+
+        private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            if (e.ExceptionObject is Exception ex)
+            {
+                ShowFatalError(ex);
+            }
+        }
+
+        private static void ShowFatalError(Exception ex)
+        {
+            string message = "程序启动或运行失败。" + Environment.NewLine + Environment.NewLine + ex.Message;
+            try
+            {
+                AntdUI.Modal.open("启动失败", message, AntdUI.TType.Error);
+            }
+            catch
+            {
+                MessageBox.Show(message, "启动失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,7 +8,8 @@ namespace Arma3ServerTools.Core.Models
 {
     public class ModsEntity
     {
-        public ModsEntity(string ModPath,string ModDirName, string ModName,long ModId,bool LocalMod,bool ServerMod,bool HeadlessClientMod ,bool InputLocalMod) { 
+        public ModsEntity(string ModPath, string ModDirName, string ModName, long ModId, bool LocalMod, bool ServerMod, bool HeadlessClientMod, bool InputLocalMod)
+        {
             this.LocalMod = LocalMod;
             this.ServerMod = ServerMod;
             this.ModDirName = ModDirName;

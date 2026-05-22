@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.Application.Repositories;
+using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.Core.Repositories;
 using BytexDigital.BattlEye.Rcon.Domain;
 

@@ -63,6 +63,7 @@ namespace Arma3ServerTools.App.WinForms
             this.services = services;
             this.lifecycleCoordinator = lifecycleCoordinator;
             trayController = new TrayNotificationController();
+            AppIcon.ApplyTo(this);
             Text = UiLabels.AppTitle;
             ClientSize = UiScaleHelper.ScaleSize(1100, 720);
             MinimumSize = UiScaleHelper.ScaleSize(900, 600);
@@ -282,7 +283,7 @@ namespace Arma3ServerTools.App.WinForms
                 new AntdUI.SelectItem("openServerConfig", "打开服务器配置目录"),
                 new AntdUI.SelectItem("installServer", "安装/更新专用服务器..."),
             });
-            dropdown.ItemClick += delegate(object sender, AntdUI.ObjectNEventArgs e)
+            dropdown.ItemClick += delegate (object sender, AntdUI.ObjectNEventArgs e)
             {
                 string id = Convert.ToString(e.Value);
                 if (id == "new")
@@ -333,7 +334,7 @@ namespace Arma3ServerTools.App.WinForms
             dropdown.Items.Add(new AntdUI.SelectItem("quickSetup", "首服向导..."));
             dropdown.Items.Add(new AntdUI.SelectItem("steamcmd", "SteamCMD 设置..."));
             dropdown.Items.Add(new AntdUI.SelectItem("about", "关于..."));
-            dropdown.ItemClick += delegate(object sender, AntdUI.ObjectNEventArgs e)
+            dropdown.ItemClick += delegate (object sender, AntdUI.ObjectNEventArgs e)
             {
                 string id = Convert.ToString(e.Value);
                 if (id == "quickSetup")
@@ -818,14 +819,8 @@ namespace Arma3ServerTools.App.WinForms
 
         private void ConfigurePageHeaderIcon()
         {
-            if (Icon == null)
-            {
-                return;
-            }
-
-            pageHeader.ShowIcon = true;
-            pageHeader.Icon = Icon.ToBitmap();
-            trayController.SyncIcon(Icon);
+            AppIcon.ApplyTo(pageHeader);
+            trayController.SyncIcon(AppIcon.GetIcon());
         }
 
         private void EnsureConfigDirectory()
@@ -1349,7 +1344,7 @@ namespace Arma3ServerTools.App.WinForms
             UiBackgroundTasks.SyncSchedulerJobs(
                 services.SchedulerService,
                 config,
-                delegate(string message)
+                delegate (string message)
                 {
                     if (IsDisposed)
                     {

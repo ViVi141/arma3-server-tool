@@ -101,14 +101,42 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         private Control CreateTitleBlock(int contentWidth)
         {
             string versionText = AppVersion.GetDisplayVersion();
+            int iconSize = UiScaleHelper.Scale(64);
+
+            var panel = new TableLayoutPanel
+            {
+                AutoSize = true,
+                ColumnCount = 2,
+                Dock = DockStyle.Top,
+                Width = contentWidth,
+                Margin = new Padding(0, 0, 0, UiScaleHelper.Scale(8)),
+            };
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, iconSize + UiScaleHelper.Scale(12)));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+
+            Bitmap appBitmap = AppIcon.GetBitmap();
+            if (appBitmap != null)
+            {
+                var iconBox = new PictureBox
+                {
+                    Image = appBitmap,
+                    SizeMode = PictureBoxSizeMode.Zoom,
+                    Size = new Size(iconSize, iconSize),
+                    Margin = new Padding(0, 0, UiScaleHelper.Scale(12), 0),
+                    Dock = DockStyle.Top,
+                };
+                panel.Controls.Add(iconBox, 0, 0);
+            }
+
             Label label = CreateBodyLabel(
                 UiLabels.AppTitle + Environment.NewLine
                 + "版本 " + versionText + Environment.NewLine
                 + "面向 Windows 的 Arma 3 专用服务器配置与管理工具。",
                 contentWidth);
             label.ForeColor = Color.FromArgb(38, 38, 38);
-            label.Margin = new Padding(0, 0, 0, UiScaleHelper.Scale(8));
-            return label;
+            label.Margin = new Padding(0);
+            panel.Controls.Add(label, 1, 0);
+            return panel;
         }
 
         private Control CreateLinksPanel()

@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
-using AntButton = AntdUI.Button;
-using AntPanel = AntdUI.Panel;
-using AntTable = AntdUI.Table;
 using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.App.WinForms.Controls;
 using Arma3ServerTools.Core.Models;
+using AntButton = AntdUI.Button;
+using AntPanel = AntdUI.Panel;
+using AntTable = AntdUI.Table;
 
 namespace Arma3ServerTools.App.WinForms.Dialogs
 {
