@@ -84,6 +84,75 @@ namespace Arma3ServerTools.Application.Tests
         }
 
         [Fact]
+        public void SyncState_StaleProcessId_ClearsPidAndReturnsStopped()
+        {
+            string root = CreateTempRoot();
+            try
+            {
+                SetupServerLayout(root, "stale-pid");
+                var paths = new AppPaths(root);
+                var repository = new ServerConfigRepository(paths);
+                var configService = new ServerConfigService(repository);
+                ArmaServerConfig config = configService.Create("StalePid", Path.Combine(root, "server"));
+                configService.Save(config);
+
+                var runner = new FakeProcessRunner();
+                var processService = new ServerProcessService(
+                    configService,
+                    new GameConfigWriterAdapter(),
+                    runner);
+
+                OperationResult startResult = processService.Start(config.ServerUUID);
+                Assert.True(startResult.Success, startResult.Message);
+                Assert.Equal(ServerRunState.Running, processService.GetState(config.ServerUUID));
+
+                runner.RunningProcesses.Remove(runner.LastProcessId);
+                ServerRunState syncedState = processService.SyncState(config.ServerUUID);
+                Assert.Equal(ServerRunState.Stopped, syncedState);
+                Assert.Equal(ServerRunState.Stopped, processService.GetState(config.ServerUUID));
+
+                ArmaServerConfig reloaded = configService.Get(config.ServerUUID);
+                Assert.Equal(0, reloaded.ServerTaskManagement.ProcessById);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        }
+
+        [Fact]
+        public void Stop_AlreadyExitedProcess_ClearsPidAndSucceeds()
+        {
+            string root = CreateTempRoot();
+            try
+            {
+                SetupServerLayout(root, "dead-stop");
+                var paths = new AppPaths(root);
+                var repository = new ServerConfigRepository(paths);
+                var configService = new ServerConfigService(repository);
+                ArmaServerConfig config = configService.Create("DeadStop", Path.Combine(root, "server"));
+
+                var runner = new FakeProcessRunner();
+                var processService = new ServerProcessService(
+                    configService,
+                    new GameConfigWriterAdapter(),
+                    runner);
+
+                OperationResult startResult = processService.Start(config.ServerUUID);
+                Assert.True(startResult.Success, startResult.Message);
+                runner.RunningProcesses.Remove(runner.LastProcessId);
+
+                OperationResult stopResult = processService.Stop(config.ServerUUID);
+                Assert.True(stopResult.Success, stopResult.Message);
+                Assert.Equal(0, configService.Get(config.ServerUUID).ServerTaskManagement.ProcessById);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        }
+
+        [Fact]
         public void Start_MissingExecutable_ReturnsFailure()
         {
             string root = CreateTempRoot();

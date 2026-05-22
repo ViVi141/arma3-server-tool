@@ -1,36 +1,49 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Arma3ServerTools.App.WinForms;
+using Arma3ServerTools.App.WinForms.Dialogs;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core.Models;
+using AntTable = AntdUI.Table;
 
 namespace Arma3ServerTools.App.WinForms.Controls
 {
+    internal sealed class CronGridRow
+    {
+        public string TaskId { get; set; } = string.Empty;
+
+        public string Cron { get; set; } = string.Empty;
+
+        public string ActionText { get; set; } = string.Empty;
+
+        public string Remark { get; set; } = string.Empty;
+
+        public bool Enabled { get; set; }
+    }
+
     internal sealed class CronTasksPanel : UserControl, IServerSettingsPanel
     {
-        private readonly DataGridView cronGrid;
-        private readonly Button addButton;
-        private readonly Button removeButton;
-        private readonly Button syncButton;
+        private readonly AntTable cronTable;
+        private readonly AntdUI.Button addButton;
+        private readonly AntdUI.Button removeButton;
+        private readonly AntdUI.Button syncButton;
 
         private ArmaServerConfig boundConfig;
+        private List<CronGridRow> cronRows = new List<CronGridRow>();
 
         public CronTasksPanel()
         {
-            Dock = DockStyle.Fill;
-            Padding = new Padding(12);
+            AppTheme.ApplyTo(this);
 
             var toolbar = new FlowLayoutPanel
             {
                 Dock = DockStyle.Top,
                 AutoSize = true,
             };
-            addButton = new Button { Text = "添加任务", AutoSize = true };
-            removeButton = new Button { Text = "删除任务", AutoSize = true };
-            syncButton = new Button { Text = "同步到调度器", AutoSize = true };
+            addButton = SettingsLayoutHelper.CreateButton("添加任务");
+            removeButton = SettingsLayoutHelper.CreateButton("删除任务");
+            syncButton = SettingsLayoutHelper.CreateButton("同步到调度器");
             addButton.Click += OnAddTask;
             removeButton.Click += OnRemoveTask;
             syncButton.Click += OnSyncTasks;
@@ -38,30 +51,30 @@ namespace Arma3ServerTools.App.WinForms.Controls
             toolbar.Controls.Add(removeButton);
             toolbar.Controls.Add(syncButton);
 
-            cronGrid = new DataGridView
+            cronTable = AntdTableHelper.CreateStandardTable();
+            cronTable.MultipleRows = true;
+            var enabledCol = new AntdUI.ColumnSwitch("Enabled", "启用");
+            cronTable.Columns = new AntdUI.ColumnCollection
             {
-                Dock = DockStyle.Fill,
-                AllowUserToAddRows = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                new AntdUI.Column("TaskId", "任务 ID") { ReadOnly = true, Width = "18%" },
+                new AntdUI.Column("Cron", "Cron 表达式") { Width = "22%" },
+                new AntdUI.Column("ActionText", "操作") { Width = "20%" },
+                new AntdUI.Column("Remark", "备注") { Width = "22%" },
+                enabledCol,
             };
-            cronGrid.Columns.Add("TaskId", "任务 ID");
-            cronGrid.Columns.Add("Cron", "Cron 表达式");
-            cronGrid.Columns.Add("ActionText", "操作");
-            cronGrid.Columns.Add("Remark", "备注");
-            cronGrid.Columns.Add("Status", "启用");
 
-            Controls.Add(cronGrid);
+            Controls.Add(cronTable);
             Controls.Add(toolbar);
         }
 
         public void Bind(ArmaServerConfig config)
         {
             boundConfig = config;
-            cronGrid.Rows.Clear();
+            cronRows.Clear();
             if (config == null)
             {
                 Enabled = false;
+                AntdTableHelper.BindList(cronTable, cronRows);
                 return;
             }
 
@@ -74,13 +87,24 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     continue;
                 }
 
-                cronGrid.Rows.Add(
-                    cron.TaskId,
-                    cron.Cron,
-                    cron.ActionText,
-                    cron.Remark,
-                    cron.Status == 1 ? "是" : "否");
+                bool enabled = false;
+                if (cron.Status == 1)
+                {
+                    enabled = true;
+                }
+
+                cronRows.Add(
+                    new CronGridRow
+                    {
+                        TaskId = cron.TaskId,
+                        Cron = cron.Cron,
+                        ActionText = cron.ActionText,
+                        Remark = cron.Remark,
+                        Enabled = enabled,
+                    });
             }
+
+            AntdTableHelper.BindList(cronTable, cronRows);
         }
 
         public void ApplyToModel()
@@ -91,22 +115,16 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             boundConfig.ServerTaskManagement.CronEntity.Clear();
-            foreach (DataGridViewRow row in cronGrid.Rows)
+            foreach (CronGridRow row in cronRows)
             {
-                if (row.IsNewRow)
-                {
-                    continue;
-                }
-
-                string taskId = Convert.ToString(row.Cells["TaskId"].Value);
+                string taskId = row.TaskId;
                 if (string.IsNullOrEmpty(taskId))
                 {
-                    taskId = Guid.NewGuid().ToString("N");
+                    taskId = System.Guid.NewGuid().ToString("N");
                 }
 
-                string statusText = Convert.ToString(row.Cells["Status"].Value);
                 int status = 0;
-                if (statusText == "是")
+                if (row.Enabled)
                 {
                     status = 1;
                 }
@@ -116,9 +134,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     TaskId = taskId,
                     ServerUUID = boundConfig.ServerUUID,
                     ServerName = boundConfig.ConfigName,
-                    Cron = Convert.ToString(row.Cells["Cron"].Value),
-                    ActionText = Convert.ToString(row.Cells["ActionText"].Value),
-                    Remark = Convert.ToString(row.Cells["Remark"].Value),
+                    Cron = row.Cron,
+                    ActionText = row.ActionText,
+                    Remark = row.Remark,
                     Status = status,
                     Action = 0,
                 };
@@ -126,38 +144,76 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
         }
 
-        private void OnAddTask(object sender, EventArgs e)
+        private void OnAddTask(object sender, System.EventArgs e)
         {
-            using (var dialog = new CronTaskDialog())
+            using (var dialog = new CronTaskDialogForm())
             {
                 if (dialog.ShowDialog(FindForm()) != DialogResult.OK)
                 {
                     return;
                 }
 
-                cronGrid.Rows.Add(
-                    Guid.NewGuid().ToString("N"),
-                    dialog.CronExpression,
-                    dialog.ActionText,
-                    dialog.Remark,
-                    dialog.IsTaskEnabled ? "是" : "否");
+                cronRows.Add(
+                    new CronGridRow
+                    {
+                        TaskId = System.Guid.NewGuid().ToString("N"),
+                        Cron = dialog.CronExpression,
+                        ActionText = dialog.ActionText,
+                        Remark = dialog.Remark,
+                        Enabled = dialog.IsTaskEnabled,
+                    });
+                AntdTableHelper.BindList(cronTable, cronRows);
             }
         }
 
-        private void OnRemoveTask(object sender, EventArgs e)
+        private void OnRemoveTask(object sender, System.EventArgs e)
         {
-            if (cronGrid.SelectedRows.Count == 0)
+            List<int> indices = GetSelectedDataRowIndicesSortedDesc();
+            if (indices.Count == 0)
             {
                 return;
             }
 
-            foreach (DataGridViewRow row in cronGrid.SelectedRows.Cast<DataGridViewRow>().ToArray())
+            foreach (int idx in indices)
             {
-                cronGrid.Rows.Remove(row);
+                if (idx >= 0 && idx < cronRows.Count)
+                {
+                    cronRows.RemoveAt(idx);
+                }
             }
+
+            AntdTableHelper.BindList(cronTable, cronRows);
         }
 
-        private async void OnSyncTasks(object sender, EventArgs e)
+        private List<int> GetSelectedDataRowIndicesSortedDesc()
+        {
+            var list = new List<int>();
+            if (cronTable.MultipleRows && cronTable.SelectedIndexs != null && cronTable.SelectedIndexs.Length > 0)
+            {
+                foreach (int si in cronTable.SelectedIndexs)
+                {
+                    int di = si - 1;
+                    if (di >= 0)
+                    {
+                        list.Add(di);
+                    }
+                }
+            }
+            else
+            {
+                int single = AntdTableHelper.GetSelectedRowIndex(cronTable);
+                if (single >= 0)
+                {
+                    list.Add(single);
+                }
+            }
+
+            list.Sort();
+            list.Reverse();
+            return list;
+        }
+
+        private async void OnSyncTasks(object sender, System.EventArgs e)
         {
             ApplyToModel();
             if (boundConfig == null)
@@ -170,80 +226,12 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 await AppServices.Instance.SchedulerService
                     .SyncJobsAsync(boundConfig.ServerUUID, boundConfig.ServerTaskManagement.CronEntity)
                     .ConfigureAwait(true);
-                MessageBox.Show("定时任务已同步。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AntdUiHelper.ShowInfo(FindForm(), "定时任务已同步。", "成功");
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                MessageBox.Show("同步失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUiHelper.ShowError(FindForm(), "同步失败: " + ex.Message, "错误");
             }
-        }
-    }
-
-    internal sealed class CronTaskDialog : Form
-    {
-        private readonly TextBox cronTextBox;
-        private readonly TextBox remarkTextBox;
-        private readonly ComboBox actionCombo;
-        private readonly CheckBox enabledCheckBox;
-
-        public CronTaskDialog()
-        {
-            Text = "添加定时任务";
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
-            StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new System.Drawing.Size(420, 220);
-
-            var layout = SettingsLayoutHelper.CreateFormLayout(100);
-            cronTextBox = SettingsLayoutHelper.AddRow(layout, "Cron", new TextBox { Dock = DockStyle.Fill, Text = "0 0 4 * * ?" });
-            actionCombo = SettingsLayoutHelper.AddRow(layout, "操作", new ComboBox
-            {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Width = 200,
-            });
-            actionCombo.Items.Add("重启服务器");
-            actionCombo.SelectedIndex = 0;
-            remarkTextBox = SettingsLayoutHelper.AddRow(layout, "备注", new TextBox { Dock = DockStyle.Fill });
-            enabledCheckBox = SettingsLayoutHelper.AddRow(layout, "启用", new CheckBox { Text = "立即启用", AutoSize = true, Checked = true });
-            layout.Dock = DockStyle.Fill;
-            layout.Padding = new Padding(12);
-            Controls.Add(layout);
-
-            var okButton = new Button { Text = "确定", DialogResult = DialogResult.OK, Width = 80 };
-            var cancelButton = new Button { Text = "取消", DialogResult = DialogResult.Cancel, Width = 80 };
-            var buttons = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Bottom,
-                FlowDirection = FlowDirection.RightToLeft,
-                Height = 40,
-                Padding = new Padding(12, 4, 12, 8),
-            };
-            buttons.Controls.Add(cancelButton);
-            buttons.Controls.Add(okButton);
-            Controls.Add(buttons);
-            AcceptButton = okButton;
-            CancelButton = cancelButton;
-        }
-
-        public string CronExpression
-        {
-            get { return cronTextBox.Text.Trim(); }
-        }
-
-        public string ActionText
-        {
-            get { return Convert.ToString(actionCombo.SelectedItem); }
-        }
-
-        public string Remark
-        {
-            get { return remarkTextBox.Text.Trim(); }
-        }
-
-        public bool IsTaskEnabled
-        {
-            get { return enabledCheckBox.Checked; }
         }
     }
 }

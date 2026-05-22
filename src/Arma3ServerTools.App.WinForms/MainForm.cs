@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -8,109 +9,315 @@ using Arma3ServerTools.App.WinForms.Dialogs;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
+using AntButton = AntdUI.Button;
+using AntDropdown = AntdUI.Dropdown;
+using AntLabel = AntdUI.Label;
+using AntTable = AntdUI.Table;
 
 namespace Arma3ServerTools.App.WinForms
 {
-    internal sealed class MainForm : Form
+    internal sealed class MainForm : AntdUI.Window
     {
         private readonly AppServices services = AppServices.Instance;
-        private readonly DataGridView serverGrid;
+        private readonly AntdUI.PageHeader pageHeader;
+        private readonly AntTable serverTable;
         private readonly ServerSettingsHost settingsHost;
-        private readonly ToolStripStatusLabel statusServerLabel;
-        private readonly ToolStripStatusLabel statusSaveLabel;
-        private readonly ToolStripButton startButton;
-        private readonly ToolStripButton stopButton;
-        private readonly ToolStripButton saveButton;
-        private readonly ToolStripButton writeCfgButton;
+        private readonly AntLabel statusServerLabel;
+        private readonly AntLabel statusSaveLabel;
+        private readonly AntButton startButton;
+        private readonly AntButton stopButton;
+        private readonly AntButton saveButton;
+        private readonly AntButton writeCfgButton;
+        private readonly SplitContainer split;
+        private readonly List<ServerGridRow> serverRows = new List<ServerGridRow>();
+        private readonly System.Windows.Forms.Timer statePollTimer;
+        private bool suppressTableSelectionEvent;
 
         public MainForm()
         {
             Text = "Arma3 Server Tools";
-            Width = 1100;
-            Height = 720;
+            ClientSize = UiScaleHelper.ScaleSize(1100, 720);
+            MinimumSize = UiScaleHelper.ScaleSize(900, 600);
             StartPosition = FormStartPosition.CenterScreen;
-            MinimumSize = new Size(900, 600);
+            BackColor = Color.White;
+            MaximizeBox = true;
+            MinimizeBox = true;
 
-            var menuStrip = new MenuStrip();
-            var fileMenu = new ToolStripMenuItem("文件");
-            fileMenu.DropDownItems.Add("退出", null, delegate { Close(); });
-            var serverMenu = new ToolStripMenuItem("服务器");
-            serverMenu.DropDownItems.Add("新建...", null, OnNewServer);
-            serverMenu.DropDownItems.Add("删除", null, OnDeleteServer);
-            serverMenu.DropDownItems.Add("刷新列表", null, delegate { ReloadServers(); });
-            serverMenu.DropDownItems.Add(new ToolStripSeparator());
-            serverMenu.DropDownItems.Add("打开配置目录", null, OnOpenConfigDirectory);
-            serverMenu.DropDownItems.Add("打开 destiny 配置", null, OnOpenDestinyConfigDirectory);
-            serverMenu.DropDownItems.Add("安装/更新专用服务器...", null, OnInstallDedicatedServer);
+            pageHeader = new AntdUI.PageHeader
+            {
+                Text = "Arma3 Server Tools",
+                SubText = string.Empty,
+                ShowButton = true,
+                ShowIcon = false,
+                MaximizeBox = true,
+                MinimizeBox = true,
+                FullBox = false,
+                CancelButton = true,
+                MDI = true,
+                DragMove = true,
+                EnableDoubleClickMaximize = true,
+                DividerShow = true,
+                UseTitleFont = true,
+                UseTextBold = true,
+                UseLeftMargin = true,
+                CloseSize = UiScaleHelper.Scale(48),
+            };
 
-            var toolsMenu = new ToolStripMenuItem("工具");
-            toolsMenu.DropDownItems.Add("SteamCMD 设置...", null, OnSteamCmdSettings);
-
-            menuStrip.Items.Add(fileMenu);
-            menuStrip.Items.Add(serverMenu);
-            menuStrip.Items.Add(toolsMenu);
-            MainMenuStrip = menuStrip;
-
-            var toolStrip = new ToolStrip();
-            startButton = new ToolStripButton("启动") { DisplayStyle = ToolStripItemDisplayStyle.Text };
-            stopButton = new ToolStripButton("停止") { DisplayStyle = ToolStripItemDisplayStyle.Text };
-            saveButton = new ToolStripButton("保存配置") { DisplayStyle = ToolStripItemDisplayStyle.Text };
-            writeCfgButton = new ToolStripButton("写入 cfg") { DisplayStyle = ToolStripItemDisplayStyle.Text };
+            startButton = CreateActionButton("启动", AntdUI.TTypeMini.Primary);
+            stopButton = CreateActionButton("停止", AntdUI.TTypeMini.Default);
+            saveButton = CreateActionButton("保存配置", AntdUI.TTypeMini.Default);
+            writeCfgButton = CreateActionButton("写入 cfg", AntdUI.TTypeMini.Default);
             startButton.Click += OnStartServer;
             stopButton.Click += OnStopServer;
             saveButton.Click += OnSaveConfig;
             writeCfgButton.Click += OnWriteCfg;
-            toolStrip.Items.Add(startButton);
-            toolStrip.Items.Add(stopButton);
-            toolStrip.Items.Add(new ToolStripSeparator());
-            toolStrip.Items.Add(saveButton);
-            toolStrip.Items.Add(writeCfgButton);
 
-            serverGrid = new DataGridView
+            statusServerLabel = new AntLabel
             {
-                Dock = DockStyle.Fill,
-                ReadOnly = true,
-                AllowUserToAddRows = false,
-                AllowUserToDeleteRows = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                MultiSelect = false,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                Dock = DockStyle.Left,
+                AutoSizeMode = AntdUI.TAutoSize.Auto,
+                Text = "当前服务器: （未选择）",
             };
-            serverGrid.Columns.Add("ConfigName", "配置名");
-            serverGrid.Columns.Add("ServerUuid", "UUID");
-            serverGrid.Columns.Add("SaveTime", "最后保存");
-            serverGrid.Columns.Add("State", "状态");
-            serverGrid.SelectionChanged += OnServerSelectionChanged;
+            statusSaveLabel = new AntLabel
+            {
+                Dock = DockStyle.Right,
+                AutoSizeMode = AntdUI.TAutoSize.Auto,
+                Text = string.Empty,
+            };
 
+            Control actionBar = BuildActionBar();
+            Control topChrome = BuildTopChrome(actionBar);
+            serverTable = CreateServerTable();
             settingsHost = new ServerSettingsHost();
 
-            var split = new SplitContainer
+            split = new SplitContainer
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Vertical,
-                SplitterDistance = 380,
             };
-            split.Panel1.Controls.Add(serverGrid);
+            split.Panel1.Padding = UiScaleHelper.ScalePadding(8);
+            split.Panel2.Padding = UiScaleHelper.ScalePadding(8);
+            split.Panel1.Controls.Add(serverTable);
             split.Panel2.Controls.Add(settingsHost);
+            SplitContainerHelper.BindProportionalSplit(split, 0.34, false, 240, 420);
 
-            var statusStrip = new StatusStrip();
-            statusServerLabel = new ToolStripStatusLabel("当前服务器: （未选择）");
-            statusSaveLabel = new ToolStripStatusLabel(" ");
-            statusStrip.Items.Add(statusServerLabel);
-            statusStrip.Items.Add(new ToolStripStatusLabel { Spring = true });
-            statusStrip.Items.Add(statusSaveLabel);
+            Control statusPanel = BuildStatusPanel();
 
             Controls.Add(split);
-            Controls.Add(toolStrip);
-            Controls.Add(menuStrip);
-            Controls.Add(statusStrip);
+            Controls.Add(statusPanel);
+            Controls.Add(topChrome);
 
             Load += OnMainFormLoad;
             FormClosed += OnMainFormClosed;
+            Resize += OnMainFormResize;
+
+            statePollTimer = new System.Windows.Forms.Timer();
+            statePollTimer.Interval = 3000;
+            statePollTimer.Tick += OnStatePollTimerTick;
+        }
+
+        private Control BuildTopChrome(Control actionBar)
+        {
+            int headerHeight = UiScaleHelper.Scale(40);
+            int barHeight = UiScaleHelper.Scale(46);
+
+            pageHeader.Dock = DockStyle.Fill;
+
+            actionBar.Dock = DockStyle.Fill;
+
+            var chrome = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                ColumnCount = 1,
+                RowCount = 2,
+                Height = headerHeight + barHeight,
+                Padding = new Padding(0),
+                Margin = new Padding(0),
+            };
+            chrome.RowStyles.Add(new RowStyle(SizeType.Absolute, headerHeight));
+            chrome.RowStyles.Add(new RowStyle(SizeType.Absolute, barHeight));
+            chrome.Controls.Add(pageHeader, 0, 0);
+            chrome.Controls.Add(actionBar, 0, 1);
+            return chrome;
+        }
+
+        private Control BuildActionBar()
+        {
+            var panel = new AntdUI.Panel
+            {
+                Height = UiScaleHelper.Scale(46),
+                Padding = new Padding(UiScaleHelper.Scale(12), UiScaleHelper.Scale(6), UiScaleHelper.Scale(12), UiScaleHelper.Scale(6)),
+                BackColor = Color.FromArgb(245, 247, 250),
+            };
+
+            var rightLayout = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Right,
+                AutoSize = true,
+                WrapContents = false,
+                FlowDirection = FlowDirection.LeftToRight,
+                Padding = new Padding(0),
+            };
+            rightLayout.Controls.Add(CreateToolsMenuButton());
+            rightLayout.Controls.Add(CreateServerMenuButton());
+
+            var leftLayout = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                WrapContents = false,
+                AutoScroll = true,
+                Padding = new Padding(0),
+            };
+            leftLayout.Controls.Add(startButton);
+            leftLayout.Controls.Add(stopButton);
+            leftLayout.Controls.Add(CreateDivider());
+            leftLayout.Controls.Add(saveButton);
+            leftLayout.Controls.Add(writeCfgButton);
+
+            panel.Controls.Add(rightLayout);
+            panel.Controls.Add(leftLayout);
+            return panel;
+        }
+
+        private AntDropdown CreateServerMenuButton()
+        {
+            var dropdown = new AntDropdown
+            {
+                Text = "服务器",
+                Type = AntdUI.TTypeMini.Default,
+            };
+            dropdown.Items.AddRange(new object[]
+            {
+                new AntdUI.SelectItem("new", "新建..."),
+                new AntdUI.SelectItem("delete", "删除"),
+                new AntdUI.SelectItem("refresh", "刷新列表"),
+                new AntdUI.SelectItem("sep1", "-"),
+                new AntdUI.SelectItem("openConfig", "打开配置目录"),
+                new AntdUI.SelectItem("openDestiny", "打开 destiny 配置"),
+                new AntdUI.SelectItem("installServer", "安装/更新专用服务器..."),
+            });
+            dropdown.ItemClick += delegate(object sender, AntdUI.ObjectNEventArgs e)
+            {
+                string id = Convert.ToString(e.Value);
+                if (id == "new")
+                {
+                    OnNewServer(sender, EventArgs.Empty);
+                }
+                else if (id == "delete")
+                {
+                    OnDeleteServer(sender, EventArgs.Empty);
+                }
+                else if (id == "refresh")
+                {
+                    ReloadServers();
+                }
+                else if (id == "openConfig")
+                {
+                    OnOpenConfigDirectory(sender, EventArgs.Empty);
+                }
+                else if (id == "openDestiny")
+                {
+                    OnOpenDestinyConfigDirectory(sender, EventArgs.Empty);
+                }
+                else if (id == "installServer")
+                {
+                    OnInstallDedicatedServer(sender, EventArgs.Empty);
+                }
+            };
+            return dropdown;
+        }
+
+        private AntDropdown CreateToolsMenuButton()
+        {
+            var dropdown = new AntDropdown
+            {
+                Text = "工具",
+                Type = AntdUI.TTypeMini.Default,
+            };
+            dropdown.Items.Add(new AntdUI.SelectItem("steamcmd", "SteamCMD 设置..."));
+            dropdown.ItemClick += delegate(object sender, AntdUI.ObjectNEventArgs e)
+            {
+                if (Convert.ToString(e.Value) == "steamcmd")
+                {
+                    OnSteamCmdSettings(sender, EventArgs.Empty);
+                }
+            };
+            return dropdown;
+        }
+
+        private static AntButton CreateActionButton(string text, AntdUI.TTypeMini type)
+        {
+            return new AntButton
+            {
+                Text = text,
+                Type = type,
+                AutoSizeMode = AntdUI.TAutoSize.Auto,
+                Margin = new Padding(0, 0, UiScaleHelper.Scale(8), 0),
+            };
+        }
+
+        private static Control CreateDivider()
+        {
+            return new AntdUI.Divider
+            {
+                Vertical = true,
+                Margin = new Padding(UiScaleHelper.Scale(4), UiScaleHelper.Scale(4), UiScaleHelper.Scale(12), UiScaleHelper.Scale(4)),
+            };
+        }
+
+        private AntTable CreateServerTable()
+        {
+            var table = new AntTable
+            {
+                Dock = DockStyle.Fill,
+                Bordered = true,
+                Radius = UiScaleHelper.Scale(6),
+                FixedHeader = true,
+                VisibleHeader = true,
+                AutoSizeColumnsMode = AntdUI.ColumnsMode.Fill,
+                RowHeight = UiScaleHelper.Scale(34),
+                RowHeightHeader = UiScaleHelper.Scale(36),
+                Gap = UiScaleHelper.Scale(8),
+            };
+            table.Columns = new AntdUI.ColumnCollection
+            {
+                new AntdUI.Column("ConfigName", "配置名") { Width = "34%" },
+                new AntdUI.Column("ServerUuid", "UUID") { Width = "34%" },
+                new AntdUI.Column("SaveTime", "最后保存") { Width = "18%" },
+                new AntdUI.Column("State", "状态") { Width = "14%", Align = AntdUI.ColumnAlign.Center },
+            };
+            table.SelectIndexChanged += OnServerTableSelectionChanged;
+            return table;
+        }
+
+        private Control BuildStatusPanel()
+        {
+            var panel = new AntdUI.Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = UiScaleHelper.Scale(34),
+                Padding = new Padding(UiScaleHelper.Scale(12), UiScaleHelper.Scale(6), UiScaleHelper.Scale(12), UiScaleHelper.Scale(6)),
+                BackColor = Color.FromArgb(250, 250, 250),
+            };
+
+            panel.Controls.Add(statusSaveLabel);
+            panel.Controls.Add(statusServerLabel);
+            return panel;
+        }
+
+        private void OnMainFormResize(object sender, EventArgs e)
+        {
+            if (split.Width > 0 && split.Tag == null)
+            {
+                SplitContainerHelper.ApplyInitialDistance(split, 0.34, false);
+            }
         }
 
         private void OnMainFormClosed(object sender, FormClosedEventArgs e)
         {
+            statePollTimer.Stop();
+            statePollTimer.Dispose();
+
             try
             {
                 services.SchedulerService.StopAsync().GetAwaiter().GetResult();
@@ -124,9 +331,22 @@ namespace Arma3ServerTools.App.WinForms
 
         private void OnMainFormLoad(object sender, EventArgs e)
         {
+            ConfigurePageHeaderIcon();
             EnsureConfigDirectory();
             StartMonitoringHost();
             ReloadServers();
+            statePollTimer.Start();
+        }
+
+        private void ConfigurePageHeaderIcon()
+        {
+            if (Icon == null)
+            {
+                return;
+            }
+
+            pageHeader.ShowIcon = true;
+            pageHeader.Icon = Icon.ToBitmap();
         }
 
         private void EnsureConfigDirectory()
@@ -144,7 +364,7 @@ namespace Arma3ServerTools.App.WinForms
                     statusSaveLabel.Text = message;
                     if (message.StartsWith("启动监控宿主失败", StringComparison.Ordinal))
                     {
-                        MessageBox.Show(message, "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        AntdUiHelper.ShowWarning(this, message, "警告");
                     }
                 }
             }
@@ -152,7 +372,8 @@ namespace Arma3ServerTools.App.WinForms
 
         private void ReloadServers()
         {
-            serverGrid.Rows.Clear();
+            string previousUuid = services.CurrentServerUuid;
+            serverRows.Clear();
             services.LoadedConfigs.Clear();
             foreach (var pair in services.ConfigService.List())
             {
@@ -160,36 +381,94 @@ namespace Arma3ServerTools.App.WinForms
                 {
                     ArmaServerConfig config = services.ConfigService.Get(pair.ServerUuid);
                     services.LoadedConfigs[config.ServerUUID] = config;
-                    string state = services.ProcessService.GetState(config.ServerUUID).ToString();
-                    serverGrid.Rows.Add(config.ConfigName, config.ServerUUID, config.SaveTime, state);
+                    int pidBeforeSync = config.ServerTaskManagement.ProcessById;
+                    ServerRunState runState = services.ProcessService.SyncState(config.ServerUUID);
+                    RefreshCachedConfig(config.ServerUUID);
+                    if (pidBeforeSync > 0 && runState == ServerRunState.Stopped)
+                    {
+                        ResetMonitoringOnlineIfEnabled(services.LoadedConfigs[config.ServerUUID]);
+                    }
+
+                    serverRows.Add(new ServerGridRow
+                    {
+                        ConfigName = config.ConfigName,
+                        ServerUuid = config.ServerUUID,
+                        SaveTime = config.SaveTime,
+                        RunState = runState,
+                    });
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("读取配置失败 [" + pair.FileName + "]: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    AntdUiHelper.ShowError(this, "读取配置失败 [" + pair.FileName + "]: " + ex.Message, "错误");
                 }
             }
 
-            if (serverGrid.Rows.Count > 0)
+            BindServerTable();
+            RestoreServerSelection(previousUuid);
+        }
+
+        private void BindServerTable()
+        {
+            suppressTableSelectionEvent = true;
+            try
             {
-                serverGrid.Rows[0].Selected = true;
+                serverTable.DataSource = serverRows.ToArray();
+                serverTable.Refresh();
+            }
+            finally
+            {
+                suppressTableSelectionEvent = false;
+            }
+        }
+
+        private void RestoreServerSelection(string uuid)
+        {
+            if (!string.IsNullOrEmpty(uuid))
+            {
+                for (int i = 0; i < serverRows.Count; i++)
+                {
+                    if (serverRows[i].ServerUuid == uuid)
+                    {
+                        serverTable.SelectedIndex = i + 1;
+                        ApplySelectedServer(serverRows[i]);
+                        return;
+                    }
+                }
+            }
+
+            if (serverRows.Count > 0)
+            {
+                serverTable.SelectedIndex = 1;
+                ApplySelectedServer(serverRows[0]);
             }
             else
             {
+                serverTable.SelectedIndex = 0;
                 services.CurrentServerUuid = null;
                 settingsHost.Bind(null);
                 UpdateStatusBar(null);
             }
         }
 
-        private void OnServerSelectionChanged(object sender, EventArgs e)
+        private void OnServerTableSelectionChanged(object sender, EventArgs e)
         {
-            if (serverGrid.SelectedRows.Count == 0)
+            if (suppressTableSelectionEvent || serverTable.SelectedIndex <= 0)
             {
                 return;
             }
 
-            string uuid = Convert.ToString(serverGrid.SelectedRows[0].Cells["ServerUuid"].Value);
-            services.CurrentServerUuid = uuid;
+            int rowIndex = serverTable.SelectedIndex - 1;
+            if (rowIndex < 0 || rowIndex >= serverRows.Count)
+            {
+                return;
+            }
+
+            ApplySelectedServer(serverRows[rowIndex]);
+        }
+
+        private void ApplySelectedServer(ServerGridRow row)
+        {
+            services.CurrentServerUuid = row.ServerUuid;
             settingsHost.Bind(services.GetCurrentConfig());
             UpdateStatusBar(services.GetCurrentConfig());
         }
@@ -219,12 +498,10 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
-            DialogResult confirm = MessageBox.Show(
-                "确定删除配置 \"" + config.ConfigName + "\" 吗？（仅删除 json，不删除服务器文件）",
+            if (!AntdUiHelper.Confirm(
+                this,
                 "确认",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question);
-            if (confirm != DialogResult.Yes)
+                "确定删除配置 \"" + config.ConfigName + "\" 吗？（仅删除 json，不删除服务器文件）"))
             {
                 return;
             }
@@ -253,7 +530,7 @@ namespace Arma3ServerTools.App.WinForms
             SyncSchedulerJobs(config);
             UpdateStatusBar(config);
             RefreshSelectedRowState();
-            MessageBox.Show("配置已保存。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            AntdUiHelper.ShowInfo(this, "配置已保存。", "成功");
         }
 
         private void OnWriteCfg(object sender, EventArgs e)
@@ -271,11 +548,11 @@ namespace Arma3ServerTools.App.WinForms
             OperationResult result = services.ConfigWriter.WriteAll(config);
             if (result.Success)
             {
-                MessageBox.Show("server.cfg / basic.cfg / BE 配置已写入。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AntdUiHelper.ShowInfo(this, "server.cfg / basic.cfg / BE 配置已写入。", "成功");
             }
             else
             {
-                MessageBox.Show(result.Message, "失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUiHelper.ShowError(this, result.Message, "失败");
             }
         }
 
@@ -305,11 +582,11 @@ namespace Arma3ServerTools.App.WinForms
                     }
                 }
 
-                MessageBox.Show("服务器启动命令已执行。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AntdUiHelper.ShowInfo(this, "服务器启动命令已执行。", "成功");
             }
             else
             {
-                MessageBox.Show(result.Message, "启动失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUiHelper.ShowError(this, result.Message, "启动失败");
             }
 
             RefreshSelectedRowState();
@@ -326,7 +603,12 @@ namespace Arma3ServerTools.App.WinForms
             OperationResult result = services.ProcessService.Stop(config.ServerUUID);
             if (!result.Success)
             {
-                MessageBox.Show(result.Message, "停止失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AntdUiHelper.ShowWarning(this, result.Message, "停止失败");
+            }
+            else
+            {
+                ResetMonitoringOnlineIfEnabled(config);
+                RefreshCachedConfig(config.ServerUUID);
             }
 
             RefreshSelectedRowState();
@@ -343,7 +625,7 @@ namespace Arma3ServerTools.App.WinForms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("定时任务同步失败: " + ex.Message, "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AntdUiHelper.ShowWarning(this, "定时任务同步失败: " + ex.Message, "警告");
             }
         }
 
@@ -359,12 +641,12 @@ namespace Arma3ServerTools.App.WinForms
                 OperationResult validation = dialog.ValidateSettings();
                 if (!validation.Success)
                 {
-                    MessageBox.Show(validation.Message, "失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    AntdUiHelper.ShowError(this, validation.Message, "失败");
                     return;
                 }
 
                 services.SaveSteamCmdSettings(dialog.BuildSettings());
-                MessageBox.Show("SteamCMD 配置已保存。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AntdUiHelper.ShowInfo(this, "SteamCMD 配置已保存。", "成功");
             }
         }
 
@@ -377,7 +659,7 @@ namespace Arma3ServerTools.App.WinForms
                 : settings.i;
             if (string.IsNullOrEmpty(installDir))
             {
-                MessageBox.Show("请先配置 SteamCMD 或选择服务器的安装目录。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AntdUiHelper.ShowWarning(this, "请先配置 SteamCMD 或选择服务器的安装目录。", "提示");
                 return;
             }
 
@@ -389,11 +671,11 @@ namespace Arma3ServerTools.App.WinForms
             OperationResult result = services.SteamCmdService.InstallDedicatedServer(installDir);
             if (result.Success)
             {
-                MessageBox.Show(result.Message, "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AntdUiHelper.ShowInfo(this, result.Message, "成功");
             }
             else
             {
-                MessageBox.Show(result.Message, "失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUiHelper.ShowError(this, result.Message, "失败");
             }
         }
 
@@ -412,7 +694,7 @@ namespace Arma3ServerTools.App.WinForms
             ArmaServerConfig config = services.GetCurrentConfig();
             if (config == null || string.IsNullOrEmpty(config.ServerDir) || string.IsNullOrEmpty(config.ServerUUID))
             {
-                MessageBox.Show("请先选择服务器。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AntdUiHelper.ShowInfo(this, "请先选择服务器。", "提示");
                 return;
             }
 
@@ -427,25 +709,108 @@ namespace Arma3ServerTools.App.WinForms
 
         private void SelectServer(string uuid)
         {
-            for (int i = 0; i < serverGrid.Rows.Count; i++)
+            for (int i = 0; i < serverRows.Count; i++)
             {
-                if (Convert.ToString(serverGrid.Rows[i].Cells["ServerUuid"].Value) == uuid)
+                if (serverRows[i].ServerUuid == uuid)
                 {
-                    serverGrid.Rows[i].Selected = true;
-                    break;
+                    serverTable.SelectedIndex = i + 1;
+                    ApplySelectedServer(serverRows[i]);
+                    return;
                 }
             }
         }
 
         private void RefreshSelectedRowState()
         {
-            if (serverGrid.SelectedRows.Count == 0 || string.IsNullOrEmpty(services.CurrentServerUuid))
+            if (string.IsNullOrEmpty(services.CurrentServerUuid))
             {
                 return;
             }
 
-            serverGrid.SelectedRows[0].Cells["State"].Value = services.ProcessService.GetState(services.CurrentServerUuid).ToString();
-            serverGrid.SelectedRows[0].Cells["SaveTime"].Value = services.GetCurrentConfig().SaveTime;
+            for (int i = 0; i < serverRows.Count; i++)
+            {
+                if (serverRows[i].ServerUuid != services.CurrentServerUuid)
+                {
+                    continue;
+                }
+
+                ServerRunState runState = services.ProcessService.SyncState(services.CurrentServerUuid);
+                RefreshCachedConfig(services.CurrentServerUuid);
+                serverRows[i].RunState = runState;
+                ArmaServerConfig config = services.GetCurrentConfig();
+                if (config != null)
+                {
+                    serverRows[i].SaveTime = config.SaveTime;
+                }
+
+                BindServerTable();
+                serverTable.SelectedIndex = i + 1;
+                return;
+            }
+        }
+
+        private void OnStatePollTimerTick(object sender, EventArgs e)
+        {
+            PollAllServerStates();
+        }
+
+        private void PollAllServerStates()
+        {
+            if (serverRows.Count == 0)
+            {
+                return;
+            }
+
+            bool stateChanged = false;
+            for (int i = 0; i < serverRows.Count; i++)
+            {
+                ServerGridRow row = serverRows[i];
+                ServerRunState previousState = row.RunState;
+                ServerRunState currentState = services.ProcessService.SyncState(row.ServerUuid);
+                if (currentState != previousState)
+                {
+                    if (previousState == ServerRunState.Running && currentState == ServerRunState.Stopped)
+                    {
+                        ArmaServerConfig config = services.ConfigService.Get(row.ServerUuid);
+                        ResetMonitoringOnlineIfEnabled(config);
+                    }
+
+                    row.RunState = currentState;
+                    RefreshCachedConfig(row.ServerUuid);
+                    stateChanged = true;
+                }
+            }
+
+            if (stateChanged)
+            {
+                BindServerTable();
+                if (serverTable.SelectedIndex > 0)
+                {
+                    serverTable.SelectedIndex = serverTable.SelectedIndex;
+                }
+            }
+        }
+
+        private void RefreshCachedConfig(string serverUuid)
+        {
+            ArmaServerConfig config = services.ConfigService.Get(serverUuid);
+            services.LoadedConfigs[serverUuid] = config;
+        }
+
+        private void ResetMonitoringOnlineIfEnabled(ArmaServerConfig config)
+        {
+            if (config == null || !config.ServerTaskManagement.EnableMonitoringService)
+            {
+                return;
+            }
+
+            try
+            {
+                services.MonitoringQueryService.InitPlayerOnlineInfo(config.ServerUUID);
+            }
+            catch
+            {
+            }
         }
 
         private void UpdateStatusBar(ArmaServerConfig config)
@@ -462,71 +827,69 @@ namespace Arma3ServerTools.App.WinForms
         }
     }
 
-    internal sealed class NewServerDialog : Form
+    internal sealed class NewServerDialog : AntdDialogForm
     {
-        private readonly TextBox nameTextBox;
-        private readonly TextBox dirTextBox;
+        private readonly AntdUI.Input nameInput;
+        private readonly AntdUI.Input dirInput;
 
         public NewServerDialog()
+            : base()
         {
             Text = "新建服务器配置";
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
-            StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(480, 160);
+            ApplyPreferredDialogSizing(480, 160, null);
 
-            var layout = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 2,
-                RowCount = 3,
-                Padding = new Padding(12),
-            };
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            var layout = SettingsLayoutHelper.CreateFormLayout(96);
+            nameInput = SettingsLayoutHelper.AddRow(layout, "配置名称", SettingsLayoutHelper.CreateInput(true));
+            nameInput.Text = "新服务器";
 
-            nameTextBox = new TextBox { Dock = DockStyle.Fill, Text = "新服务器" };
-            dirTextBox = new TextBox { Dock = DockStyle.Fill };
-            var browseButton = new Button { Text = "浏览...", AutoSize = true };
-            browseButton.Click += delegate
-            {
-                using (var folderDialog = new FolderBrowserDialog())
-                {
-                    if (folderDialog.ShowDialog(this) == DialogResult.OK)
-                    {
-                        dirTextBox.Text = folderDialog.SelectedPath;
-                    }
-                }
-            };
+            AntButton browseButton = SettingsLayoutHelper.CreateButton("浏览...");
+            browseButton.Click += OnBrowseDirectory;
 
-            layout.Controls.Add(new Label { Text = "配置名称", AutoSize = true }, 0, 0);
-            layout.Controls.Add(nameTextBox, 1, 0);
-            layout.Controls.Add(new Label { Text = "服务器目录", AutoSize = true }, 0, 1);
             var dirPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
-            dirPanel.Controls.Add(dirTextBox);
+            dirInput = SettingsLayoutHelper.CreateInput(false);
+            dirInput.Width = UiScaleHelper.Scale(360);
+            dirPanel.Controls.Add(dirInput);
             dirPanel.Controls.Add(browseButton);
-            layout.Controls.Add(dirPanel, 1, 1);
+            SettingsLayoutHelper.AddRow(layout, "服务器目录", dirPanel);
 
-            var okButton = new Button { Text = "确定", DialogResult = DialogResult.OK, Width = 80 };
-            var cancelButton = new Button { Text = "取消", DialogResult = DialogResult.Cancel, Width = 80 };
-            var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, AutoSize = true };
-            buttons.Controls.Add(cancelButton);
-            buttons.Controls.Add(okButton);
-            layout.Controls.Add(buttons, 1, 2);
-            AcceptButton = okButton;
-            CancelButton = cancelButton;
-            Controls.Add(layout);
+            AntButton okButton = AntdUiHelper.CreatePrimaryButton("确定");
+            okButton.Click += delegate
+            {
+                DialogResult = DialogResult.OK;
+                Close();
+            };
+            AntButton cancelButton = AntdUiHelper.CreateToolbarButton("取消");
+            cancelButton.Click += delegate
+            {
+                DialogResult = DialogResult.Cancel;
+                Close();
+            };
+
+            Control body = SettingsLayoutHelper.CreateScrollHost(layout);
+
+            Controls.Add(body);
+            Controls.Add(CreateButtonBar(okButton, cancelButton));
+        }
+
+        private void OnBrowseDirectory(object sender, EventArgs e)
+        {
+            using (var folderDialog = new FolderBrowserDialog())
+            {
+                if (folderDialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    dirInput.Text = folderDialog.SelectedPath;
+                }
+            }
         }
 
         public string ConfigName
         {
-            get { return nameTextBox.Text.Trim(); }
+            get { return nameInput.Text.Trim(); }
         }
 
         public string ServerDirectory
         {
-            get { return dirTextBox.Text.Trim(); }
+            get { return dirInput.Text.Trim(); }
         }
     }
 }

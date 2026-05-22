@@ -57,9 +57,12 @@ namespace Arma3ServerTools.Application.Services
                 return OperationResult.Fail("服务器未在运行或 PID 无效。");
             }
 
-            if (!processRunner.TryKill(pid))
+            if (processRunner.IsRunning(pid))
             {
-                return OperationResult.Fail("停止进程失败，PID=" + pid);
+                if (!processRunner.TryKill(pid))
+                {
+                    return OperationResult.Fail("停止进程失败，PID=" + pid);
+                }
             }
 
             config.ServerTaskManagement.ProcessById = 0;
@@ -70,6 +73,17 @@ namespace Arma3ServerTools.Application.Services
         public ServerRunState GetState(string serverUuid)
         {
             ArmaServerConfig config = configService.Get(serverUuid);
+            return ResolveState(config, clearStaleProcessId: false);
+        }
+
+        public ServerRunState SyncState(string serverUuid)
+        {
+            ArmaServerConfig config = configService.Get(serverUuid);
+            return ResolveState(config, clearStaleProcessId: true);
+        }
+
+        private ServerRunState ResolveState(ArmaServerConfig config, bool clearStaleProcessId)
+        {
             int pid = config.ServerTaskManagement.ProcessById;
             if (pid <= 0)
             {
@@ -81,7 +95,13 @@ namespace Arma3ServerTools.Application.Services
                 return ServerRunState.Running;
             }
 
-            return ServerRunState.Unknown;
+            if (clearStaleProcessId)
+            {
+                config.ServerTaskManagement.ProcessById = 0;
+                configService.Save(config);
+            }
+
+            return ServerRunState.Stopped;
         }
 
         public OperationResult StartHeadlessClient(string serverUuid)
@@ -105,7 +125,7 @@ namespace Arma3ServerTools.Application.Services
 
         public OperationResult DetectRestart(string serverUuid)
         {
-            if (GetState(serverUuid) == ServerRunState.Running)
+            if (SyncState(serverUuid) == ServerRunState.Running)
             {
                 return OperationResult.Ok();
             }

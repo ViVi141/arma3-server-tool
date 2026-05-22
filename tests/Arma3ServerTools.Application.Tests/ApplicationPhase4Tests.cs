@@ -108,6 +108,46 @@ namespace Arma3ServerTools.Application.Tests
                 Assert.Equal(1234567890, rows[0].ModId);
                 Assert.True(rows[0].ServerMod);
                 Assert.Equal("Scanned Mod", rows[0].ModName);
+                Assert.False(rows[0].InputLocalMod);
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+
+        [Fact]
+        public void Scan_ForcesInputLocalModFalse_ForWorkshopPathsEvenWhenSavedTrue()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3mod-workshop-local-flag");
+            try
+            {
+                string workshopRoot = Path.Combine(root, "steam", "steamapps", "workshop", "content", "107410");
+                string modPath = Path.Combine(workshopRoot, "1234567890");
+                AutomatedTestWorkspace.CreateSampleMod(modPath, "Workshop Mod", 1234567890);
+
+                var scanPathRepository = new ModuleScanPathRepository(new AppPaths(root));
+                scanPathRepository.Save(new List<ModuleScanPathEntity>
+                {
+                    new ModuleScanPathEntity(workshopRoot, string.Empty, "test"),
+                });
+
+                var config = new ArmaServerConfig
+                {
+                    StartupParameters = new StartupParameters
+                    {
+                        modsEntities = new List<ModsEntity>
+                        {
+                            new ModsEntity(modPath, "1234567890", "Workshop Mod", 1234567890, true, false, false, true),
+                        },
+                    },
+                };
+
+                var scanner = new ModScannerService(scanPathRepository);
+                List<ScannedModRow> rows = scanner.Scan(config, new SteamcmdEntity { d = Path.Combine(root, "steam") });
+
+                Assert.Single(rows);
+                Assert.False(rows[0].InputLocalMod);
             }
             finally
             {

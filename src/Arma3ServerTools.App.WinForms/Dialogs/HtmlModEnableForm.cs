@@ -2,20 +2,29 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using AntCheckbox = AntdUI.Checkbox;
+using AntLabel = AntdUI.Label;
+using AntPanel = AntdUI.Panel;
+using AntSelect = AntdUI.Select;
+using AntTable = AntdUI.Table;
 using Arma3ServerTools.Application.Services;
+using Arma3ServerTools.App.WinForms;
+using Arma3ServerTools.App.WinForms.Controls;
 
 namespace Arma3ServerTools.App.WinForms.Dialogs
 {
-    internal sealed class HtmlModEnableForm : Form
+    internal sealed class HtmlModEnableForm : AntdDialogForm
     {
         private readonly List<LauncherHtmlModEntry> entries;
         private readonly ModEnablerService enablerService;
         private readonly string workshopRoot;
 
-        private readonly DataGridView grid;
-        private readonly ComboBox targetComboBox;
-        private readonly CheckBox downloadMissingCheckBox;
-        private readonly Label statusLabel;
+        private readonly AntTable grid;
+        private readonly AntSelect targetSelect;
+        private readonly AntCheckbox downloadMissingCheckBox;
+        private readonly AntLabel statusLabel;
+
+        private readonly List<HtmlModGridRow> gridRows;
 
         public HtmlModEnableForm(
             IList<LauncherHtmlModEntry> htmlEntries,
@@ -38,16 +47,20 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 }
             }
 
-            Text = "从 HTML 启用模组";
-            Width = 920;
-            Height = 560;
-            StartPosition = FormStartPosition.CenterParent;
+            gridRows = new List<HtmlModGridRow>();
+            foreach (LauncherHtmlModEntry entry in entries)
+            {
+                gridRows.Add(new HtmlModGridRow(entry));
+            }
 
-            statusLabel = new Label
+            Text = "从 HTML 启用模组";
+            ApplyPreferredDialogSizing(920, 560, null);
+
+            statusLabel = new AntLabel
             {
                 Dock = DockStyle.Top,
-                AutoSize = true,
-                Padding = new Padding(12, 12, 12, 6),
+                AutoSizeMode = AntdUI.TAutoSize.Auto,
+                Padding = UiScaleHelper.ScalePadding(12, 6),
                 Text = "勾选要启用的模组，并选择应用到客户端 / 服务端 / 无头 / 全部。",
             };
 
@@ -55,65 +68,68 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             {
                 Dock = DockStyle.Top,
                 AutoSize = true,
-                Padding = new Padding(12, 0, 12, 8),
+                Padding = new Padding(UiScaleHelper.Scale(12), 0, UiScaleHelper.Scale(12), UiScaleHelper.Scale(8)),
             };
-            targetPanel.Controls.Add(new Label { Text = "应用到:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) });
-            targetComboBox = new ComboBox
+            var applyLabel = new AntLabel
             {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Width = 220,
+                Text = "应用到:",
+                AutoSizeMode = AntdUI.TAutoSize.Auto,
+                Padding = new Padding(0, UiScaleHelper.Scale(6), UiScaleHelper.Scale(8), 0),
             };
-            targetComboBox.Items.Add("客户端模组 (-mod)");
-            targetComboBox.Items.Add("服务器模组 (-serverMod)");
-            targetComboBox.Items.Add("无头客户端 (HC -mod)");
-            targetComboBox.Items.Add("全部 (客户端 + 服务端 + 无头)");
-            targetComboBox.SelectedIndex = 0;
-            targetPanel.Controls.Add(targetComboBox);
-            downloadMissingCheckBox = new CheckBox
-            {
-                Text = "启用前下载未安装的模组",
-                AutoSize = true,
-                Padding = new Padding(16, 4, 0, 0),
-            };
+            targetPanel.Controls.Add(applyLabel);
+
+            targetSelect = SettingsLayoutHelper.CreateSelect(
+                220,
+                "客户端模组 (-mod)",
+                "服务器模组 (-serverMod)",
+                "无头客户端 (HC -mod)",
+                "全部 (客户端 + 服务端 + 无头)");
+            targetSelect.SelectedIndex = 0;
+            targetPanel.Controls.Add(targetSelect);
+
+            downloadMissingCheckBox = SettingsLayoutHelper.CreateCheckbox("启用前下载未安装的模组", false);
+            downloadMissingCheckBox.Margin = new Padding(UiScaleHelper.Scale(16), UiScaleHelper.Scale(4), 0, 0);
             targetPanel.Controls.Add(downloadMissingCheckBox);
 
-            grid = new DataGridView
+            grid = AntdTableHelper.CreateStandardTable();
+            grid.Columns = new AntdUI.ColumnCollection
             {
-                Dock = DockStyle.Fill,
-                AllowUserToAddRows = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                new AntdUI.ColumnCheck("Selected", "启用") { Width = "10%", Editable = true },
+                new AntdUI.Column("Title", "模组名称") { Width = "38%", Ellipsis = true, ReadOnly = true },
+                new AntdUI.Column("ModId", "Workshop ID") { Width = "18%", Align = AntdUI.ColumnAlign.Center },
+                new AntdUI.Column("InstallStatus", "本地状态") { Width = "18%", Align = AntdUI.ColumnAlign.Center },
             };
-            grid.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Selected", HeaderText = "启用" });
-            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Title", HeaderText = "模组名称", ReadOnly = true });
-            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "ModId", HeaderText = "Workshop ID", ReadOnly = true });
-            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "InstallStatus", HeaderText = "本地状态", ReadOnly = true });
+            grid.CheckedChanged += OnGridCheckedChanged;
 
-            var okButton = new Button { Text = "启用选中", DialogResult = DialogResult.OK, Width = 90 };
-            var cancelButton = new Button { Text = "取消", DialogResult = DialogResult.Cancel, Width = 90 };
-            var buttons = new FlowLayoutPanel
+            var cancelButton = AntdUiHelper.CreateToolbarButton("取消");
+            cancelButton.Click += delegate
             {
-                Dock = DockStyle.Bottom,
-                FlowDirection = FlowDirection.RightToLeft,
-                Height = 44,
-                Padding = new Padding(12, 6, 12, 8),
+                DialogResult = DialogResult.Cancel;
+                Close();
             };
-            buttons.Controls.Add(cancelButton);
-            buttons.Controls.Add(okButton);
 
-            Controls.Add(grid);
+            var okButton = AntdUiHelper.CreatePrimaryButton("启用选中");
+            okButton.Click += delegate
+            {
+                DialogResult = DialogResult.OK;
+                Close();
+            };
+
+            Control buttonBar = CreateButtonBar(okButton, cancelButton, "启用选中", "取消");
+
+            var filler = new AntPanel { Dock = DockStyle.Fill };
+            filler.Controls.Add(grid);
+
+            Controls.Add(buttonBar);
+            Controls.Add(filler);
             Controls.Add(targetPanel);
             Controls.Add(statusLabel);
-            Controls.Add(buttons);
-            AcceptButton = okButton;
-            CancelButton = cancelButton;
 
-            ReloadGrid();
+            ReloadTable();
         }
 
         public IList<LauncherHtmlModEntry> GetSelectedEntries()
         {
-            SyncSelectionFromGrid();
             var result = new List<LauncherHtmlModEntry>();
             foreach (LauncherHtmlModEntry entry in entries)
             {
@@ -128,17 +144,17 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
         public ModApplyTarget GetApplyTarget()
         {
-            if (targetComboBox.SelectedIndex == 1)
+            if (targetSelect.SelectedIndex == 1)
             {
                 return ModApplyTarget.Server;
             }
 
-            if (targetComboBox.SelectedIndex == 2)
+            if (targetSelect.SelectedIndex == 2)
             {
                 return ModApplyTarget.Headless;
             }
 
-            if (targetComboBox.SelectedIndex == 3)
+            if (targetSelect.SelectedIndex == 3)
             {
                 return ModApplyTarget.All;
             }
@@ -151,49 +167,71 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             return downloadMissingCheckBox.Checked;
         }
 
-        private void ReloadGrid()
+        private void ReloadTable()
         {
-            grid.Rows.Clear();
-            foreach (LauncherHtmlModEntry entry in entries)
+            foreach (HtmlModGridRow row in gridRows)
             {
-                string status = "未安装";
-                if (enablerService.IsModInstalled(workshopRoot, entry.ModId))
-                {
-                    status = "已安装";
-                }
-
-                string title = entry.DisplayName;
-                if (string.IsNullOrWhiteSpace(title))
-                {
-                    title = "Workshop " + entry.ModId;
-                }
-
-                grid.Rows.Add(entry.Selected, title, entry.ModId, status);
+                row.RefreshInstallStatus(enablerService, workshopRoot);
             }
+
+            grid.DataSource = null;
+            AntdTableHelper.BindList(grid, gridRows);
         }
 
-        private void SyncSelectionFromGrid()
+        private void OnGridCheckedChanged(object sender, AntdUI.TableCheckEventArgs e)
         {
-            for (int i = 0; i < grid.Rows.Count; i++)
+            var bindRow = e.Record as HtmlModGridRow;
+            if (bindRow == null)
             {
-                if (i >= entries.Count)
-                {
-                    break;
-                }
-
-                object cellValue = grid.Rows[i].Cells["Selected"].Value;
-                entries[i].Selected = cellValue != null && Convert.ToBoolean(cellValue);
+                return;
             }
+
+            bindRow.Selected = e.Value;
         }
 
-        protected override void OnFormClosing(FormClosingEventArgs e)
+        private sealed class HtmlModGridRow
         {
-            if (DialogResult == DialogResult.OK)
+            private readonly LauncherHtmlModEntry entry;
+
+            public HtmlModGridRow(LauncherHtmlModEntry entry)
             {
-                SyncSelectionFromGrid();
+                this.entry = entry;
             }
 
-            base.OnFormClosing(e);
+            public bool Selected
+            {
+                get { return entry.Selected; }
+                set { entry.Selected = value; }
+            }
+
+            public ulong ModId { get { return entry.ModId; } }
+
+            public string Title
+            {
+                get
+                {
+                    if (!string.IsNullOrWhiteSpace(entry.DisplayName))
+                    {
+                        return entry.DisplayName.Trim();
+                    }
+
+                    return "Workshop " + entry.ModId;
+                }
+            }
+
+            public string InstallStatus { get; private set; }
+
+            public void RefreshInstallStatus(ModEnablerService svc, string root)
+            {
+                if (svc.IsModInstalled(root, entry.ModId))
+                {
+                    InstallStatus = "已安装";
+                }
+                else
+                {
+                    InstallStatus = "未安装";
+                }
+            }
         }
     }
 }

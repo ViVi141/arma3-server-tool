@@ -1,19 +1,30 @@
 using System.Collections.Generic;
 using System.Windows.Forms;
 using Arma3ServerTools.Core.Models;
+using AntTabs = AntdUI.Tabs;
 
 namespace Arma3ServerTools.App.WinForms.Controls
 {
-    internal sealed class ServerSettingsHost : TabControl
+    internal sealed class ServerSettingsHost : UserControl
     {
+        private readonly AntTabs tabs;
         private readonly List<IServerSettingsPanel> panels = new List<IServerSettingsPanel>();
+        private readonly List<Control> tabContents = new List<Control>();
+        private readonly HashSet<int> layoutReadyTabs = new HashSet<int>();
 
         public ServerSettingsHost()
         {
             Dock = DockStyle.Fill;
+            BackColor = System.Drawing.Color.White;
+            tabs = new AntTabs
+            {
+                Dock = DockStyle.Fill,
+                Type = AntdUI.TabType.Line,
+            };
+            tabs.SelectedIndexChanged += OnSettingsTabChanged;
 
-            AddTab("基本", new BasicSettingsPanel());
             NetworkSettingsPanel networkPanel = AddTab("网络", new NetworkSettingsPanel());
+            AddTab("基本", new BasicSettingsPanel());
             AddTab("安全", new SecuritySettingsPanel());
             AddTab("性能", new PerformanceSettingsPanel());
             AddTab("日志", new LogSettingsPanel());
@@ -25,9 +36,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             AddTab("RCon", new RconManagementPanel());
             AddTab("封禁", new BansPanel());
 
-            // 简易网络模式会写入 LimitFPS，需在性能页之后应用。
             panels.Remove(networkPanel);
             panels.Add(networkPanel);
+
+            Controls.Add(tabs);
+            Load += OnHostLoad;
         }
 
         public void Bind(ArmaServerConfig config)
@@ -36,6 +49,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 panel.Bind(config);
             }
+
+            RefreshActiveTab(tabs.SelectedIndex);
         }
 
         public void ApplyAll()
@@ -46,15 +61,83 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
         }
 
+        private void OnHostLoad(object sender, System.EventArgs e)
+        {
+            if (tabs.Pages.Count > 0)
+            {
+                tabs.SelectTab(0);
+            }
+
+            RefreshActiveTab(tabs.SelectedIndex);
+        }
+
+        private void OnSettingsTabChanged(object sender, AntdUI.IntEventArgs e)
+        {
+            RefreshActiveTab(e.Value);
+        }
+
+        private void RefreshActiveTab(int index)
+        {
+            if (index < 0 || index >= tabContents.Count)
+            {
+                return;
+            }
+
+            Control content = tabContents[index];
+            if (!layoutReadyTabs.Contains(index))
+            {
+                content.PerformLayout();
+                layoutReadyTabs.Add(index);
+
+                AntdUI.Tabs innerTabs = FindInnerTabs(content);
+                if (innerTabs != null && innerTabs.Pages.Count > 0 && innerTabs.SelectedIndex < 0)
+                {
+                    innerTabs.SelectTab(0);
+                }
+            }
+
+            content.Invalidate(true);
+        }
+
+        private static AntdUI.Tabs FindInnerTabs(Control root)
+        {
+            foreach (Control child in root.Controls)
+            {
+                AntdUI.Tabs tabsControl = child as AntdUI.Tabs;
+                if (tabsControl != null)
+                {
+                    return tabsControl;
+                }
+
+                AntdUI.Tabs nested = FindInnerTabs(child);
+                if (nested != null)
+                {
+                    return nested;
+                }
+            }
+
+            return null;
+        }
+
         private T AddTab<T>(string title, T control) where T : Control
         {
-            var page = new TabPage(title)
+            if (control is UserControl userControl)
             {
-                Padding = new Padding(4),
-            };
+                AppTheme.ApplyTo(userControl);
+                userControl.BackColor = System.Drawing.Color.White;
+            }
+
             control.Dock = DockStyle.Fill;
+            control.MinimumSize = new System.Drawing.Size(UiScaleHelper.Scale(320), UiScaleHelper.Scale(240));
+
+            var page = new AntdUI.TabPage
+            {
+                Text = title,
+                Dock = DockStyle.Fill,
+            };
             page.Controls.Add(control);
-            TabPages.Add(page);
+            tabs.Pages.Add(page);
+            tabContents.Add(control);
 
             IServerSettingsPanel settingsPanel = control as IServerSettingsPanel;
             if (settingsPanel != null)

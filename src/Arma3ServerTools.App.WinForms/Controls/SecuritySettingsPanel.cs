@@ -3,46 +3,54 @@ using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using Arma3ServerTools.Core.Models;
+using AntCheckbox = AntdUI.Checkbox;
+using AntInput = AntdUI.Input;
+using AntInputNumber = AntdUI.InputNumber;
+using AntSelect = AntdUI.Select;
 
 namespace Arma3ServerTools.App.WinForms.Controls
 {
     internal sealed class SecuritySettingsPanel : UserControl, IServerSettingsPanel
     {
-        private CheckBox battlEyeCheckBox;
-        private CheckBox verifySignaturesCheckBox;
-        private CheckBox kickDuplicateCheckBox;
-        private CheckBox filePatchingCheckBox;
-        private ComboBox allowedFilePatchingCombo;
-        private TextBox filePatchingExceptionsTextBox;
-        private TextBox serverCommandPasswordTextBox;
-        private TextBox passwordAdminTextBox;
-        private TextBox rconPasswordTextBox;
-        private NumericUpDown rconPortNumeric;
-        private NumericUpDown beMaxPingNumeric;
-        private TextBox adminsTextBox;
-        private TextBox onHackedDataTextBox;
-        private TextBox onDifferentDataTextBox;
-        private TextBox onUnsignedDataTextBox;
-        private TextBox allowedLoadFileTextBox;
-        private TextBox allowedPreprocessTextBox;
-        private TextBox allowedHtmlLoadTextBox;
-        private TextBox allowedHtmlUriTextBox;
-        private NumericUpDown maxCreateVehicleCount;
-        private NumericUpDown maxCreateVehicleSeconds;
-        private NumericUpDown maxSetPosCount;
-        private NumericUpDown maxSetPosSeconds;
+        private AntCheckbox battlEyeCheckBox;
+        private AntCheckbox verifySignaturesCheckBox;
+        private AntCheckbox kickDuplicateCheckBox;
+        private AntCheckbox filePatchingCheckBox;
+        private AntSelect allowedFilePatchingCombo;
+        private AntInput filePatchingExceptionsTextBox;
+        private AntInput serverCommandPasswordTextBox;
+        private AntInput passwordAdminTextBox;
+        private AntInput rconPasswordTextBox;
+        private AntInputNumber rconPortNumeric;
+        private AntInputNumber beMaxPingNumeric;
+        private AntInput adminsTextBox;
+        private AntInput onHackedDataTextBox;
+        private AntInput onDifferentDataTextBox;
+        private AntInput onUnsignedDataTextBox;
+        private AntInput allowedLoadFileTextBox;
+        private AntInput allowedPreprocessTextBox;
+        private AntInput allowedHtmlLoadTextBox;
+        private AntInput allowedHtmlUriTextBox;
+        private AntInputNumber maxCreateVehicleCount;
+        private AntInputNumber maxCreateVehicleSeconds;
+        private AntInputNumber maxSetPosCount;
+        private AntInputNumber maxSetPosSeconds;
 
         private ArmaServerConfig boundConfig;
 
         public SecuritySettingsPanel()
         {
             Dock = DockStyle.Fill;
-            var root = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1 };
-            root.Controls.Add(WrapGroup("基础安全", BuildBasicSecurity()));
-            root.Controls.Add(WrapGroup("BattlEye / RCon", BuildBeSection()));
-            root.Controls.Add(WrapGroup("BattlEye 限流 (部分)", BuildBeLimits()));
-            root.Controls.Add(WrapGroup("脚本事件 (明文，保存时 Base64)", BuildScriptSection()));
-            root.Controls.Add(WrapGroup("扩展白名单 (每行一项)", BuildWhitelistSection()));
+            var root = SettingsLayoutHelper.CreateSectionsStack();
+            SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("基础安全", BuildBasicSecurity()));
+            SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("BattlEye / RCon", BuildBeSection()));
+            SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("BattlEye 限流 (部分)", BuildBeLimits()));
+            SettingsLayoutHelper.AddStackSection(
+                root,
+                SettingsLayoutHelper.CreateGroup("脚本事件 (明文，保存时 Base64)", BuildScriptSection()));
+            SettingsLayoutHelper.AddStackSection(
+                root,
+                SettingsLayoutHelper.CreateGroup("扩展白名单 (每行一项)", BuildWhitelistSection()));
             Controls.Add(SettingsLayoutHelper.CreateScrollHost(root));
         }
 
@@ -124,80 +132,79 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private Control BuildBasicSecurity()
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(160);
-            battlEyeCheckBox = SettingsLayoutHelper.AddRow(layout, "BattlEye", new CheckBox { Text = "启用 BattlEye", AutoSize = true, Checked = true });
-            verifySignaturesCheckBox = SettingsLayoutHelper.AddRow(layout, "签名验证", new CheckBox { Text = "VerifySignatures", AutoSize = true, Checked = true });
-            kickDuplicateCheckBox = SettingsLayoutHelper.AddRow(layout, "重复 ID", new CheckBox { Text = "允许重复玩家 ID", AutoSize = true });
-            filePatchingCheckBox = SettingsLayoutHelper.AddRow(layout, "FilePatching", new CheckBox { Text = "-filePatching", AutoSize = true });
-            allowedFilePatchingCombo = SettingsLayoutHelper.AddRow(layout, "allowedFilePatching", new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 });
-            allowedFilePatchingCombo.Items.AddRange(new object[] { "0 - 禁用", "1 - 仅 Headless", "2 - 全部客户端" });
-            filePatchingExceptionsTextBox = SettingsLayoutHelper.AddRow(layout, "补丁例外 UID", CreateMultilineTextBox());
+            battlEyeCheckBox = SettingsLayoutHelper.AddRow(
+                layout, "BattlEye", SettingsLayoutHelper.CreateCheckbox("启用 BattlEye", true));
+            verifySignaturesCheckBox = SettingsLayoutHelper.AddRow(
+                layout, "签名验证", SettingsLayoutHelper.CreateCheckbox("VerifySignatures", true));
+            kickDuplicateCheckBox = SettingsLayoutHelper.AddRow(
+                layout, "重复 ID", SettingsLayoutHelper.CreateCheckbox("允许重复玩家 ID", false));
+            filePatchingCheckBox = SettingsLayoutHelper.AddRow(
+                layout, "FilePatching", SettingsLayoutHelper.CreateCheckbox("-filePatching", false));
+            allowedFilePatchingCombo = SettingsLayoutHelper.AddRow(
+                layout,
+                "allowedFilePatching",
+                SettingsLayoutHelper.CreateSelect(200, "0 - 禁用", "1 - 仅 Headless", "2 - 全部客户端"));
+            filePatchingExceptionsTextBox = SettingsLayoutHelper.AddRow(
+                layout, "补丁例外 UID", SettingsLayoutHelper.CreateMultilineInput(70));
             return layout;
         }
 
         private Control BuildBeSection()
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(160);
-            serverCommandPasswordTextBox = SettingsLayoutHelper.AddRow(layout, "命令密码", new TextBox { Dock = DockStyle.Fill });
-            passwordAdminTextBox = SettingsLayoutHelper.AddRow(layout, "管理员密码", new TextBox { Dock = DockStyle.Fill });
-            rconPasswordTextBox = SettingsLayoutHelper.AddRow(layout, "RCon 密码", new TextBox { Dock = DockStyle.Fill });
-            rconPortNumeric = SettingsLayoutHelper.AddRow(layout, "RCon 端口", SettingsLayoutHelper.CreateNumeric(1024, 65535, 2310, 120));
-            beMaxPingNumeric = SettingsLayoutHelper.AddRow(layout, "BE MaxPing", SettingsLayoutHelper.CreateNumeric(50, 2000, 500, 120));
-            adminsTextBox = SettingsLayoutHelper.AddRow(layout, "管理员 UID", CreateMultilineTextBox());
+            serverCommandPasswordTextBox = SettingsLayoutHelper.AddRow(
+                layout, "命令密码", SettingsLayoutHelper.CreatePasswordInput());
+            passwordAdminTextBox = SettingsLayoutHelper.AddRow(
+                layout, "管理员密码", SettingsLayoutHelper.CreatePasswordInput());
+            rconPasswordTextBox = SettingsLayoutHelper.AddRow(
+                layout, "RCon 密码", SettingsLayoutHelper.CreatePasswordInput());
+            rconPortNumeric = SettingsLayoutHelper.AddRow(
+                layout, "RCon 端口", SettingsLayoutHelper.CreateNumeric(1024, 65535, 2310, 120));
+            beMaxPingNumeric = SettingsLayoutHelper.AddRow(
+                layout, "BE MaxPing", SettingsLayoutHelper.CreateNumeric(50, 2000, 500, 120));
+            adminsTextBox = SettingsLayoutHelper.AddRow(
+                layout, "管理员 UID", SettingsLayoutHelper.CreateMultilineInput(70));
             return layout;
         }
 
         private Control BuildBeLimits()
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(180);
-            maxCreateVehicleCount = SettingsLayoutHelper.AddRow(layout, "CreateVehicle 次数", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
-            maxCreateVehicleSeconds = SettingsLayoutHelper.AddRow(layout, "CreateVehicle 秒数", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
-            maxSetPosCount = SettingsLayoutHelper.AddRow(layout, "SetPos 次数", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
-            maxSetPosSeconds = SettingsLayoutHelper.AddRow(layout, "SetPos 秒数", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
+            maxCreateVehicleCount = SettingsLayoutHelper.AddRow(
+                layout, "CreateVehicle 次数", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
+            maxCreateVehicleSeconds = SettingsLayoutHelper.AddRow(
+                layout, "CreateVehicle 秒数", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
+            maxSetPosCount = SettingsLayoutHelper.AddRow(
+                layout, "SetPos 次数", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
+            maxSetPosSeconds = SettingsLayoutHelper.AddRow(
+                layout, "SetPos 秒数", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
             return layout;
         }
 
         private Control BuildScriptSection()
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(160);
-            onHackedDataTextBox = SettingsLayoutHelper.AddRow(layout, "onHackedData", CreateMultilineTextBox());
-            onDifferentDataTextBox = SettingsLayoutHelper.AddRow(layout, "onDifferentData", CreateMultilineTextBox());
-            onUnsignedDataTextBox = SettingsLayoutHelper.AddRow(layout, "onUnsignedData", CreateMultilineTextBox());
+            onHackedDataTextBox = SettingsLayoutHelper.AddRow(
+                layout, "onHackedData", SettingsLayoutHelper.CreateMultilineInput(70));
+            onDifferentDataTextBox = SettingsLayoutHelper.AddRow(
+                layout, "onDifferentData", SettingsLayoutHelper.CreateMultilineInput(70));
+            onUnsignedDataTextBox = SettingsLayoutHelper.AddRow(
+                layout, "onUnsignedData", SettingsLayoutHelper.CreateMultilineInput(70));
             return layout;
         }
 
         private Control BuildWhitelistSection()
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(180);
-            allowedLoadFileTextBox = SettingsLayoutHelper.AddRow(layout, "LoadFile", CreateMultilineTextBox());
-            allowedPreprocessTextBox = SettingsLayoutHelper.AddRow(layout, "Preprocess", CreateMultilineTextBox());
-            allowedHtmlLoadTextBox = SettingsLayoutHelper.AddRow(layout, "HTML Load", CreateMultilineTextBox());
-            allowedHtmlUriTextBox = SettingsLayoutHelper.AddRow(layout, "HTML URI", CreateMultilineTextBox());
+            allowedLoadFileTextBox = SettingsLayoutHelper.AddRow(
+                layout, "LoadFile", SettingsLayoutHelper.CreateMultilineInput(70));
+            allowedPreprocessTextBox = SettingsLayoutHelper.AddRow(
+                layout, "Preprocess", SettingsLayoutHelper.CreateMultilineInput(70));
+            allowedHtmlLoadTextBox = SettingsLayoutHelper.AddRow(
+                layout, "HTML Load", SettingsLayoutHelper.CreateMultilineInput(70));
+            allowedHtmlUriTextBox = SettingsLayoutHelper.AddRow(
+                layout, "HTML URI", SettingsLayoutHelper.CreateMultilineInput(70));
             return layout;
-        }
-
-        private static GroupBox WrapGroup(string title, Control content)
-        {
-            content.Dock = DockStyle.Top;
-            return new GroupBox
-            {
-                Text = title,
-                Dock = DockStyle.Top,
-                AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                Padding = new Padding(8),
-                Controls = { content },
-            };
-        }
-
-        private static TextBox CreateMultilineTextBox()
-        {
-            return new TextBox
-            {
-                Multiline = true,
-                Height = 70,
-                Dock = DockStyle.Fill,
-                ScrollBars = ScrollBars.Vertical,
-            };
         }
 
         private static string JoinLines(System.Collections.Generic.IEnumerable<string> lines)

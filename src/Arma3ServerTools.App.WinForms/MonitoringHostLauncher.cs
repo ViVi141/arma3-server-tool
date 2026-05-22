@@ -55,7 +55,7 @@ namespace Arma3ServerTools.App.WinForms
                 try
                 {
                     startedProcess.CloseMainWindow();
-                    if (!startedProcess.WaitForExit(1500))
+                    if (!startedProcess.WaitForExit(400))
                     {
                         startedProcess.Kill();
                     }
