@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Windows.Forms;
+using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Core.Models;
 using AntTabs = AntdUI.Tabs;
 
@@ -33,7 +34,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             AddTab("任务", new MissionSettingsPanel());
             AddTab("定时", new CronTasksPanel());
             AddTab("统计", new StatisticsManagementPanel());
-            AddTab("RCon", new RconManagementPanel());
+            AddTab(UiLabels.RemoteControlTab, new RconManagementPanel());
             AddTab("封禁", new BansPanel());
 
             panels.Remove(networkPanel);

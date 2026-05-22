@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Windows.Forms;
+using Arma3ServerTools.App.WinForms;
 using AntButton = AntdUI.Button;
 using AntCheckbox = AntdUI.Checkbox;
 using AntInput = AntdUI.Input;
@@ -398,32 +399,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         public static Control CreateScrollHost(Control content)
         {
-            content.Dock = DockStyle.Top;
-            content.AutoSize = true;
-
-            var scroll = new Panel
+            var scroll = new SettingsScrollPanel
             {
                 Dock = DockStyle.Fill,
-                AutoScroll = true,
                 Padding = AppTheme.ContentPadding,
-                BackColor = Color.White,
             };
-            scroll.Controls.Add(content);
-            scroll.Resize += delegate
-            {
-                SyncScrollContentWidth(scroll, content);
-            };
-            SyncScrollContentWidth(scroll, content);
+            scroll.AttachContent(content);
             return scroll;
-        }
-
-        private static void SyncScrollContentWidth(Panel scroll, Control content)
-        {
-            int width = scroll.ClientSize.Width - scroll.Padding.Left - scroll.Padding.Right;
-            if (width > 0 && content.Width != width)
-            {
-                content.Width = width;
-            }
         }
 
         public static int Clamp(int min, int max, int value)

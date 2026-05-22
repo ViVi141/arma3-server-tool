@@ -20,7 +20,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             : base("添加定时任务", new Size(420, 260))
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(100);
-            cronInput = SettingsLayoutHelper.AddRow(layout, "Cron", SettingsLayoutHelper.CreateInput(true));
+            cronInput = SettingsLayoutHelper.AddRow(layout, "Cron 表达式", SettingsLayoutHelper.CreateInput(true));
             cronInput.Text = "0 0 4 * * ?";
 
             actionSelect = SettingsLayoutHelper.AddRow(layout, "操作", SettingsLayoutHelper.CreateSelect(200, "重启服务器"));

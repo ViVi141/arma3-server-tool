@@ -205,11 +205,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             };
 
             SettingsLayoutHelper.AddRow(layout, "最大上传带宽 (Mbps)", uploadMbpsNumeric);
-            SettingsLayoutHelper.AddRow(layout, "LimitFPS", limitFpsHintLabel);
+            SettingsLayoutHelper.AddRow(layout, "帧率上限", limitFpsHintLabel);
             SettingsLayoutHelper.AddRow(layout, "计算预览", simplePreviewLabel, 120);
 
             var hint = AntdUiHelper.CreateHintLabel(
-                "公式：峰值带宽 ≈ LimitFPS × MaxMsgSend × MaxPacketSize。LimitFPS 请在「性能」页设置；简易模式按 85% "
+                "公式：峰值带宽 ≈ 帧率上限 × 单帧最大消息数 × 最大数据包大小。帧率上限请在「性能」页设置；简易模式按 85% "
                     + "上行留余量自动推算 basic.cfg 参数。",
                 520);
             SettingsLayoutHelper.AddRow(layout, string.Empty, hint, 72);
@@ -222,7 +222,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             var layout = SettingsLayoutHelper.CreateFormLayout(160);
             maxMsgSendNumeric = SettingsLayoutHelper.AddRow(
                 layout,
-                "MaxMsgSend",
+                "单帧最大消息数",
                 SettingsLayoutHelper.CreateNumeric(
                     NetworkBandwidthCalculator.MaxMsgSendMinimum,
                     NetworkBandwidthCalculator.MaxMsgSendMaximum,
@@ -230,31 +230,31 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     120));
             maxSizeGuaranteedNumeric = SettingsLayoutHelper.AddRow(
                 layout,
-                "MaxSizeGuaranteed",
+                "可靠包最大尺寸",
                 SettingsLayoutHelper.CreateNumeric(1, 4096, 512, 120));
             maxSizeNonguaranteedNumeric = SettingsLayoutHelper.AddRow(
                 layout,
-                "MaxSizeNonguaranteed",
+                "非可靠包最大尺寸",
                 SettingsLayoutHelper.CreateNumeric(1, 4096, 256, 120));
             minBandwidthNumeric =
-                SettingsLayoutHelper.AddRow(layout, "MinBandwidth", SettingsLayoutHelper.CreateNumeric(0, int.MaxValue, 256, 120));
+                SettingsLayoutHelper.AddRow(layout, "最小带宽 (bps)", SettingsLayoutHelper.CreateNumeric(0, int.MaxValue, 256, 120));
             maxBandwidthNumeric = SettingsLayoutHelper.AddRow(
                 layout,
-                "MaxBandwidth",
+                "最大带宽 (bps)",
                 SettingsLayoutHelper.CreateNumeric(0, int.MaxValue, 1048576000, 120));
             minErrorNumeric = SettingsLayoutHelper.AddRow(
                 layout,
-                "MinErrorToSend",
+                "同步误差阈值 (远)",
                 SettingsLayoutHelper.CreateDecimalNumeric(0, 1m, 0.001m, 120, 3));
             minErrorNearNumeric = SettingsLayoutHelper.AddRow(
                 layout,
-                "MinErrorToSendNear",
+                "同步误差阈值 (近)",
                 SettingsLayoutHelper.CreateDecimalNumeric(0, 1m, 0.001m, 120, 3));
             maxPacketSizeNumeric =
-                SettingsLayoutHelper.AddRow(layout, "MaxPacketSize", SettingsLayoutHelper.CreateNumeric(256, 4096, 1400, 120));
+                SettingsLayoutHelper.AddRow(layout, "最大数据包大小", SettingsLayoutHelper.CreateNumeric(256, 4096, 1400, 120));
             maxCustomFileSizeNumeric = SettingsLayoutHelper.AddRow(
                 layout,
-                "MaxCustomFileSize",
+                "自定义文件上限 (KB)",
                 SettingsLayoutHelper.CreateNumeric(1, 65536, 1024, 120));
 
             return AntdUiHelper.CreateSection("basic.cfg 专业参数", layout);
@@ -265,23 +265,23 @@ namespace Arma3ServerTools.App.WinForms.Controls
             var layout = SettingsLayoutHelper.CreateFormLayout(160);
             steamProtocolNumeric = SettingsLayoutHelper.AddRow(
                 layout,
-                "SteamProtocolMaxDataSize",
+                "Steam 协议数据上限",
                 SettingsLayoutHelper.CreateNumeric(256, 4096, 1024, 120));
             disconnectTimeoutNumeric =
-                SettingsLayoutHelper.AddRow(layout, "DisconnectTimeout", SettingsLayoutHelper.CreateNumeric(1, 300, 10, 120));
+                SettingsLayoutHelper.AddRow(layout, "断线超时 (秒)", SettingsLayoutHelper.CreateNumeric(1, 300, 10, 120));
             maxDesyncNumeric =
-                SettingsLayoutHelper.AddRow(layout, "MaxDesync", SettingsLayoutHelper.CreateNumeric(1, 1000, 150, 120));
+                SettingsLayoutHelper.AddRow(layout, "最大不同步值", SettingsLayoutHelper.CreateNumeric(1, 1000, 150, 120));
             maxPingNumeric =
-                SettingsLayoutHelper.AddRow(layout, "MaxPing", SettingsLayoutHelper.CreateNumeric(50, 2000, 300, 120));
+                SettingsLayoutHelper.AddRow(layout, "最大延迟 (ms)", SettingsLayoutHelper.CreateNumeric(50, 2000, 300, 120));
             maxPacketLossNumeric =
-                SettingsLayoutHelper.AddRow(layout, "MaxPacketLoss", SettingsLayoutHelper.CreateNumeric(1, 100, 50, 120));
+                SettingsLayoutHelper.AddRow(layout, "最大丢包率 (%)", SettingsLayoutHelper.CreateNumeric(1, 100, 50, 120));
             upnpCheckBox =
-                SettingsLayoutHelper.AddRow(layout, "UPNP", SettingsLayoutHelper.CreateCheckbox("启用 UPNP", false));
+                SettingsLayoutHelper.AddRow(layout, "UPnP", SettingsLayoutHelper.CreateCheckbox("自动映射端口 (UPnP)", false));
             loopBackCheckBox =
-                SettingsLayoutHelper.AddRow(layout, "LoopBack", SettingsLayoutHelper.CreateCheckbox("LAN 模式", false));
+                SettingsLayoutHelper.AddRow(layout, "局域网模式", SettingsLayoutHelper.CreateCheckbox("仅允许局域网连接", false));
             bandwidthAlgCheckBox = SettingsLayoutHelper.AddRow(
                 layout,
-                "BandwidthAlg",
+                "带宽算法",
                 SettingsLayoutHelper.CreateCheckbox("实验性带宽算法 (-bandwidthAlg=2)", false));
 
             return AntdUiHelper.CreateSection("server.cfg / 启动参数", layout);
@@ -344,16 +344,16 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 uploadMbpsNumeric.Value);
 
             var preview = new System.Text.StringBuilder();
-            preview.AppendLine("MaxMsgSend = " + estimate.MaxMsgSend);
+            preview.AppendLine("单帧最大消息数 = " + estimate.MaxMsgSend);
             if (estimate.IsMaxMsgSendCapped)
             {
                 preview.AppendLine("（理论值 " + estimate.RawMaxMsgSend + "，已截断至上限 "
                     + NetworkBandwidthCalculator.MaxMsgSendMaximum + "）");
             }
 
-            preview.AppendLine("MinBandwidth = " + estimate.MinBandwidth + " bps");
-            preview.AppendLine("MaxBandwidth = " + estimate.MaxBandwidth + " bps");
-            preview.AppendLine("MaxPacketSize = " + estimate.MaxPacketSize);
+            preview.AppendLine("最小带宽 = " + estimate.MinBandwidth + " bps");
+            preview.AppendLine("最大带宽 = " + estimate.MaxBandwidth + " bps");
+            preview.AppendLine("最大数据包 = " + estimate.MaxPacketSize);
             decimal peakMbps = NetworkBandwidthCalculator.EstimatePeakUploadMbps(
                 estimate.MaxMsgSend,
                 limitFps,
@@ -364,7 +364,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             if (estimate.ExceedsStabilityHintThreshold)
             {
                 preview.AppendLine();
-                preview.Append("提示：MaxMsgSend > "
+                preview.Append("提示：单帧最大消息数 > "
                     + NetworkBandwidthCalculator.MaxMsgSendStabilityHintThreshold
                     + "，建议实机观察 FPS、CPU 与同步情况。");
             }
@@ -385,7 +385,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return boundConfig.StartupParameters.LimitFPS;
             }
 
-            return 50;
+            return 60;
         }
 
         private static decimal ClampDecimal(AntInputNumber numeric, decimal value)

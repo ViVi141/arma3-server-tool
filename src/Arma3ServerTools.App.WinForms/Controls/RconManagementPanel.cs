@@ -80,7 +80,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             AppTheme.ApplyTo(this);
 
             var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
-            connectButton = SettingsLayoutHelper.CreateButton("连接 RCon");
+            connectButton = SettingsLayoutHelper.CreateButton("连接远程控制");
             refreshPlayersButton = CreateActionButton("刷新玩家");
             kickButton = CreateActionButton("踢出选中");
             syncPlayersButton = CreateActionButton("同步到玩家库");
@@ -114,19 +114,19 @@ namespace Arma3ServerTools.App.WinForms.Controls
             playerMessageInput.Text = "私信内容";
 
             playersTable = CreateRconTable(
-                new AntdTableHelper.ColumnSpec("Id", "Id", "10%", AntdUI.ColumnAlign.Center),
-                new AntdTableHelper.ColumnSpec("Name", "Name", "28%", AntdUI.ColumnAlign.Left),
-                new AntdTableHelper.ColumnSpec("Guid", "Guid", "34%", AntdUI.ColumnAlign.Left),
-                new AntdTableHelper.ColumnSpec("Ip", "Ip", "28%", AntdUI.ColumnAlign.Left));
+                new AntdTableHelper.ColumnSpec("Id", "序号", "10%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Name", "昵称", "28%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Guid", "Steam GUID", "34%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Ip", "IP 地址", "28%", AntdUI.ColumnAlign.Left));
             bansTable = CreateRconTable(
-                new AntdTableHelper.ColumnSpec("Id", "Id", "10%", AntdUI.ColumnAlign.Center),
-                new AntdTableHelper.ColumnSpec("Guid", "Guid", "28%", AntdUI.ColumnAlign.Left),
-                new AntdTableHelper.ColumnSpec("Ip", "Ip", "18%", AntdUI.ColumnAlign.Left),
-                new AntdTableHelper.ColumnSpec("Duration", "Duration", "14%", AntdUI.ColumnAlign.Left),
-                new AntdTableHelper.ColumnSpec("Reason", "Reason", "30%", AntdUI.ColumnAlign.Left));
+                new AntdTableHelper.ColumnSpec("Id", "序号", "10%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Guid", "Steam GUID", "28%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Ip", "IP 地址", "18%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Duration", "封禁时长", "14%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Reason", "原因", "30%", AntdUI.ColumnAlign.Left));
             missionsTable = CreateRconTable(
-                new AntdTableHelper.ColumnSpec("Map", "Map", "42%", AntdUI.ColumnAlign.Left),
-                new AntdTableHelper.ColumnSpec("Mission", "Mission", "58%", AntdUI.ColumnAlign.Left));
+                new AntdTableHelper.ColumnSpec("Map", "地图", "42%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Mission", "任务", "58%", AntdUI.ColumnAlign.Left));
 
             var tabs = AntdUiHelper.CreateTabsPanel();
             AntdUiHelper.AddTabPage(tabs, "在线玩家", playersTable);
@@ -153,7 +153,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             Enabled = true;
-            statusLabel.Text = "RCon 端口 " + config.BattlEyeConfig.RConPort + "，点击连接";
+            statusLabel.Text = "远程控制端口 " + config.BattlEyeConfig.RConPort + "，点击连接";
         }
 
         public void ApplyToModel()

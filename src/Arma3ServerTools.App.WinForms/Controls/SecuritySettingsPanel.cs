@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
+using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Core.Models;
 using AntCheckbox = AntdUI.Checkbox;
 using AntInput = AntdUI.Input;
@@ -43,11 +44,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             Dock = DockStyle.Fill;
             var root = SettingsLayoutHelper.CreateSectionsStack();
             SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("基础安全", BuildBasicSecurity()));
-            SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("BattlEye / RCon", BuildBeSection()));
+            SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("BattlEye / 远程控制", BuildBeSection()));
             SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("BattlEye 限流 (部分)", BuildBeLimits()));
             SettingsLayoutHelper.AddStackSection(
                 root,
-                SettingsLayoutHelper.CreateGroup("脚本事件 (明文，保存时 Base64)", BuildScriptSection()));
+                SettingsLayoutHelper.CreateGroup(UiLabels.ScriptEventsGroup, BuildScriptSection()));
             SettingsLayoutHelper.AddStackSection(
                 root,
                 SettingsLayoutHelper.CreateGroup("扩展白名单 (每行一项)", BuildWhitelistSection()));
@@ -133,19 +134,19 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(160);
             battlEyeCheckBox = SettingsLayoutHelper.AddRow(
-                layout, "BattlEye", SettingsLayoutHelper.CreateCheckbox("启用 BattlEye", true));
+                layout, "BattlEye 反作弊", SettingsLayoutHelper.CreateCheckbox("启用 BattlEye", true));
             verifySignaturesCheckBox = SettingsLayoutHelper.AddRow(
-                layout, "签名验证", SettingsLayoutHelper.CreateCheckbox("VerifySignatures", true));
+                layout, "模组签名", SettingsLayoutHelper.CreateCheckbox("校验模组数字签名", true));
             kickDuplicateCheckBox = SettingsLayoutHelper.AddRow(
-                layout, "重复 ID", SettingsLayoutHelper.CreateCheckbox("允许重复玩家 ID", false));
+                layout, "重复 Steam ID", SettingsLayoutHelper.CreateCheckbox("允许同一 ID 重复进入", false));
             filePatchingCheckBox = SettingsLayoutHelper.AddRow(
-                layout, "FilePatching", SettingsLayoutHelper.CreateCheckbox("-filePatching", false));
+                layout, "文件补丁", SettingsLayoutHelper.CreateCheckbox("允许客户端文件补丁 (-filePatching)", false));
             allowedFilePatchingCombo = SettingsLayoutHelper.AddRow(
                 layout,
-                "allowedFilePatching",
-                SettingsLayoutHelper.CreateSelect(200, "0 - 禁用", "1 - 仅 Headless", "2 - 全部客户端"));
+                "补丁权限",
+                SettingsLayoutHelper.CreateSelect(200, "0 - 完全禁用", "1 - 仅无头客户端", "2 - 全部客户端"));
             filePatchingExceptionsTextBox = SettingsLayoutHelper.AddRow(
-                layout, "补丁例外 UID", SettingsLayoutHelper.CreateMultilineInput(70));
+                layout, "补丁白名单 UID", SettingsLayoutHelper.CreateMultilineInput(70));
             return layout;
         }
 
@@ -157,11 +158,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             passwordAdminTextBox = SettingsLayoutHelper.AddRow(
                 layout, "管理员密码", SettingsLayoutHelper.CreatePasswordInput());
             rconPasswordTextBox = SettingsLayoutHelper.AddRow(
-                layout, "RCon 密码", SettingsLayoutHelper.CreatePasswordInput());
+                layout, "远程控制密码", SettingsLayoutHelper.CreatePasswordInput());
             rconPortNumeric = SettingsLayoutHelper.AddRow(
-                layout, "RCon 端口", SettingsLayoutHelper.CreateNumeric(1024, 65535, 2310, 120));
+                layout, "远程控制端口", SettingsLayoutHelper.CreateNumeric(1024, 65535, 2310, 120));
             beMaxPingNumeric = SettingsLayoutHelper.AddRow(
-                layout, "BE MaxPing", SettingsLayoutHelper.CreateNumeric(50, 2000, 500, 120));
+                layout, "BattlEye 最大延迟", SettingsLayoutHelper.CreateNumeric(50, 2000, 500, 120));
             adminsTextBox = SettingsLayoutHelper.AddRow(
                 layout, "管理员 UID", SettingsLayoutHelper.CreateMultilineInput(70));
             return layout;
@@ -171,13 +172,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(180);
             maxCreateVehicleCount = SettingsLayoutHelper.AddRow(
-                layout, "CreateVehicle 次数", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
+                layout, "CreateVehicle 次数上限", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
             maxCreateVehicleSeconds = SettingsLayoutHelper.AddRow(
-                layout, "CreateVehicle 秒数", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
+                layout, "CreateVehicle 统计窗口 (秒)", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
             maxSetPosCount = SettingsLayoutHelper.AddRow(
-                layout, "SetPos 次数", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
+                layout, "SetPos 次数上限", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
             maxSetPosSeconds = SettingsLayoutHelper.AddRow(
-                layout, "SetPos 秒数", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
+                layout, "SetPos 统计窗口 (秒)", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
             return layout;
         }
 
@@ -185,11 +186,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(160);
             onHackedDataTextBox = SettingsLayoutHelper.AddRow(
-                layout, "onHackedData", SettingsLayoutHelper.CreateMultilineInput(70));
+                layout, "检测到篡改数据", SettingsLayoutHelper.CreateMultilineInput(70));
             onDifferentDataTextBox = SettingsLayoutHelper.AddRow(
-                layout, "onDifferentData", SettingsLayoutHelper.CreateMultilineInput(70));
+                layout, "检测到数据不一致", SettingsLayoutHelper.CreateMultilineInput(70));
             onUnsignedDataTextBox = SettingsLayoutHelper.AddRow(
-                layout, "onUnsignedData", SettingsLayoutHelper.CreateMultilineInput(70));
+                layout, "检测到未签名数据", SettingsLayoutHelper.CreateMultilineInput(70));
             return layout;
         }
 
@@ -197,13 +198,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(180);
             allowedLoadFileTextBox = SettingsLayoutHelper.AddRow(
-                layout, "LoadFile", SettingsLayoutHelper.CreateMultilineInput(70));
+                layout, "LoadFile 扩展名", SettingsLayoutHelper.CreateMultilineInput(70));
             allowedPreprocessTextBox = SettingsLayoutHelper.AddRow(
-                layout, "Preprocess", SettingsLayoutHelper.CreateMultilineInput(70));
+                layout, "预处理文件扩展名", SettingsLayoutHelper.CreateMultilineInput(70));
             allowedHtmlLoadTextBox = SettingsLayoutHelper.AddRow(
-                layout, "HTML Load", SettingsLayoutHelper.CreateMultilineInput(70));
+                layout, "HTML 加载扩展名", SettingsLayoutHelper.CreateMultilineInput(70));
             allowedHtmlUriTextBox = SettingsLayoutHelper.AddRow(
-                layout, "HTML URI", SettingsLayoutHelper.CreateMultilineInput(70));
+                layout, "允许的 HTML URI", SettingsLayoutHelper.CreateMultilineInput(70));
             return layout;
         }
 

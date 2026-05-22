@@ -523,7 +523,7 @@ namespace Arma3ServerTools.Core.Models
         public int MaxMem { get; set; } = 0;
 
         //服务器最大FPS limitFPS
-        public int LimitFPS { get; set; } = 1000;
+        public int LimitFPS { get; set; } = 60;
 
 
         //禁用日志 -noLogs
