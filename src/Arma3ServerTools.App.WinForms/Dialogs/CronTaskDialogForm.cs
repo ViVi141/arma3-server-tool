@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms.Controls;
+using Arma3ServerTools.Core.Scheduling;
 using AntButton = AntdUI.Button;
 using AntCheckbox = AntdUI.Checkbox;
 using AntInput = AntdUI.Input;
@@ -23,7 +24,15 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             cronInput = SettingsLayoutHelper.AddRow(layout, "Cron 表达式", SettingsLayoutHelper.CreateInput(true));
             cronInput.Text = "0 0 4 * * ?";
 
-            actionSelect = SettingsLayoutHelper.AddRow(layout, "操作", SettingsLayoutHelper.CreateSelect(200, "重启服务器"));
+            actionSelect = SettingsLayoutHelper.AddRow(
+                layout,
+                "操作",
+                SettingsLayoutHelper.CreateSelect(
+                    200,
+                    "重启服务器",
+                    "启动服务器",
+                    "停止服务器",
+                    "检测并重启"));
             actionSelect.SelectedIndex = 0;
 
             remarkInput = SettingsLayoutHelper.AddRow(layout, "备注", SettingsLayoutHelper.CreateInput(true));
@@ -51,18 +60,19 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
         public string ActionText
         {
+            get { return CronTaskTool.ActionToText(SelectedAction); }
+        }
+
+        public int SelectedAction
+        {
             get
             {
-                if (actionSelect.SelectedIndex >= 0 && actionSelect.SelectedIndex < actionSelect.Items.Count)
+                if (actionSelect.SelectedIndex >= 0 && actionSelect.SelectedIndex < CronTaskTool.ActionDetectRestart + 1)
                 {
-                    object itemObj = actionSelect.Items[actionSelect.SelectedIndex];
-                    if (itemObj is AntdUI.SelectItem item)
-                    {
-                        return Convert.ToString(item.Text);
-                    }
+                    return actionSelect.SelectedIndex;
                 }
 
-                return string.Empty;
+                return CronTaskTool.ActionRestart;
             }
         }
 

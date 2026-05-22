@@ -82,14 +82,9 @@ namespace Arma3ServerTools.Core.Config
                 .Append(config.ServerUUID)
                 .Append(GameConfigFormat.DoubleQuotes);
 
-            string headlessClientMod = string.Empty;
-            foreach (ModsEntity entity in config.StartupParameters.modsEntities)
-            {
-                if (entity.HeadlessClientMod)
-                {
-                    headlessClientMod += entity.ModPath + GameConfigFormat.Semicolon;
-                }
-            }
+            string headlessClientMod = ModCommandLineBuilder.BuildHeadlessModList(
+                config.ServerDir,
+                config.StartupParameters.modsEntities);
 
             sb.Append(" ")
                 .Append(GameConfigFormat.DoubleQuotes)
@@ -201,50 +196,16 @@ namespace Arma3ServerTools.Core.Config
                 .Append(config.ServerUUID)
                 .Append(GameConfigFormat.DoubleQuotes);
 
-            string clientMod = string.Empty;
-            string serverMod = string.Empty;
-            if (config.StartupParameters.DLCWS)
-            {
-                clientMod += "WS;";
-            }
+            string clientMod = BuildDlcModList(config.StartupParameters);
+            string userClientMods = ModCommandLineBuilder.BuildClientModList(
+                config.ServerDir,
+                config.StartupParameters.modsEntities);
+            clientMod = CombineModListSegments(clientMod, userClientMods);
 
-            if (config.StartupParameters.DLCVN)
-            {
-                clientMod += "VN;";
-            }
-
-            if (config.StartupParameters.DLCCSLA)
-            {
-                clientMod += "CSLA;";
-            }
-
-            if (config.StartupParameters.DLCGM)
-            {
-                clientMod += "GM;";
-            }
-
-            if (config.StartupParameters.DLCcontact)
-            {
-                clientMod += "contact;";
-            }
-
-            foreach (ModsEntity entity in config.StartupParameters.modsEntities)
-            {
-                if (entity.LocalMod)
-                {
-                    clientMod += entity.ModPath + GameConfigFormat.Semicolon;
-                }
-
-                if (entity.ServerMod)
-                {
-                    serverMod += entity.ModPath + GameConfigFormat.Semicolon;
-                }
-            }
-
-            if (config.ServerTaskManagement.EnableMonitor)
-            {
-                serverMod += ToolConstants.MonitoringServerModToken + GameConfigFormat.Semicolon;
-            }
+            string serverMod = ModCommandLineBuilder.BuildServerModList(
+                config.ServerDir,
+                config.StartupParameters.modsEntities,
+                config.ServerTaskManagement.EnableMonitor);
 
             sb.Append(" ")
                 .Append(GameConfigFormat.DoubleQuotes)
@@ -289,6 +250,52 @@ namespace Arma3ServerTools.Core.Config
 
                 sb.Append(" ").Append(trimmed);
             }
+        }
+
+        internal static string BuildDlcModList(StartupParameters startupParameters)
+        {
+            var segments = new List<string>();
+            if (startupParameters.DLCWS)
+            {
+                segments.Add("WS");
+            }
+
+            if (startupParameters.DLCVN)
+            {
+                segments.Add("VN");
+            }
+
+            if (startupParameters.DLCCSLA)
+            {
+                segments.Add("CSLA");
+            }
+
+            if (startupParameters.DLCGM)
+            {
+                segments.Add("GM");
+            }
+
+            if (startupParameters.DLCcontact)
+            {
+                segments.Add("contact");
+            }
+
+            return string.Join(";", segments);
+        }
+
+        internal static string CombineModListSegments(string firstSegment, string secondSegment)
+        {
+            if (string.IsNullOrEmpty(firstSegment))
+            {
+                return secondSegment ?? string.Empty;
+            }
+
+            if (string.IsNullOrEmpty(secondSegment))
+            {
+                return firstSegment;
+            }
+
+            return firstSegment + ";" + secondSegment;
         }
 
         public static bool IsPortInUse(int port)

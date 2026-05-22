@@ -46,7 +46,7 @@ namespace Arma3ServerTools.Application.Services
                 return OperationResult.Fail("找不到服务器可执行文件: " + executable);
             }
 
-            ProcessStartResult startResult = processRunner.Start(executable, config.StartCommandLine);
+            ProcessStartResult startResult = processRunner.Start(executable, config.StartCommandLine, config.ServerDir);
             if (!startResult.Success)
             {
                 return OperationResult.Fail("启动失败: " + startResult.Message);
@@ -123,7 +123,7 @@ namespace Arma3ServerTools.Application.Services
                 return OperationResult.Fail("找不到服务器可执行文件: " + executable);
             }
 
-            ProcessStartResult startResult = processRunner.Start(executable, args);
+            ProcessStartResult startResult = processRunner.Start(executable, args, config.ServerDir);
             if (!startResult.Success)
             {
                 return OperationResult.Fail("启动 Headless Client 失败: " + startResult.Message);

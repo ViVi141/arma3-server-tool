@@ -478,8 +478,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
                         Path.GetFileName(dialog.SelectedPath.TrimEnd('\\')),
                         Path.GetFileName(dialog.SelectedPath.TrimEnd('\\')),
                         0,
-                        false,
-                        false,
+                        true,
+                        true,
                         false,
                         true));
                 ScanMods();

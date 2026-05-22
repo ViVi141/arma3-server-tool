@@ -6,6 +6,7 @@ using Arma3ServerTools.Core.Config;
 using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.Core.Repositories;
 using Arma3ServerTools.Core.Security;
+using Arma3ServerTools.TestSupport;
 using Xunit;
 
 namespace Arma3ServerTools.Core.Tests
@@ -208,72 +209,88 @@ namespace Arma3ServerTools.Core.Tests
         [Fact]
         public void BuildStartCommandLine_IncludesStartupFlagsAndExtraArgs()
         {
-            string extraArgsPlain = "-customFlag=1\r\n-skipIntro";
-            string extraArgsEncoded = Convert.ToBase64String(Encoding.Default.GetBytes(extraArgsPlain));
-
-            var config = new ArmaServerConfig
+            string root = AutomatedTestWorkspace.CreateRoot("a3flags-test");
+            try
             {
-                ServerUUID = "flags-test",
-                ServerDir = @"D:\arma\server",
-                StartupParameters = new StartupParameters
+                string serverDir = Path.Combine(root, "server");
+                string clientModDir = Path.Combine(serverDir, "client");
+                string serverModDir = Path.Combine(serverDir, "servermod");
+                Directory.CreateDirectory(Path.Combine(clientModDir, "addons"));
+                Directory.CreateDirectory(Path.Combine(serverModDir, "addons"));
+
+                string extraArgsPlain = "-customFlag=1\r\n-skipIntro";
+                string extraArgsEncoded = Convert.ToBase64String(Encoding.Default.GetBytes(extraArgsPlain));
+
+                var config = new ArmaServerConfig
                 {
-                    AutoInit = true,
-                    FilePatching = true,
-                    PidFile = "server.pid",
-                    Ranking = "rank.log",
-                    Port = 2302,
-                    BandwidthAlg = true,
-                    EnableHT = true,
-                    Hugepages = true,
-                    LoadMissionToMemory = true,
-                    DisableServerThread = true,
-                    CpuCount = 4,
-                    ExThreads = 2,
-                    MaxMem = 8192,
-                    LimitFPS = 60,
-                    NoLogs = true,
-                    Netlog = true,
-                    DLCWS = true,
-                    DLCVN = true,
-                    DLCCSLA = true,
-                    DLCGM = true,
-                    DLCcontact = true,
-                    StartConfigArgs = extraArgsEncoded,
-                    modsEntities = new System.Collections.Generic.List<ModsEntity>
+                    ServerUUID = "flags-test",
+                    ServerDir = serverDir,
+                    StartupParameters = new StartupParameters
                     {
-                        new ModsEntity(@"D:\mods\client", "client", "Client", 1, true, false, false, false),
-                        new ModsEntity(@"D:\mods\server", "server", "Server", 2, false, true, false, false),
+                        AutoInit = true,
+                        FilePatching = true,
+                        PidFile = "server.pid",
+                        Ranking = "rank.log",
+                        Port = 2302,
+                        BandwidthAlg = true,
+                        EnableHT = true,
+                        Hugepages = true,
+                        LoadMissionToMemory = true,
+                        DisableServerThread = true,
+                        CpuCount = 4,
+                        ExThreads = 2,
+                        MaxMem = 8192,
+                        LimitFPS = 60,
+                        NoLogs = true,
+                        Netlog = true,
+                        DLCWS = true,
+                        DLCVN = true,
+                        DLCCSLA = true,
+                        DLCGM = true,
+                        DLCcontact = true,
+                        StartConfigArgs = extraArgsEncoded,
+                        modsEntities = new System.Collections.Generic.List<ModsEntity>
+                        {
+                            new ModsEntity(clientModDir, "client", "Client", 1, true, false, false, false),
+                            new ModsEntity(serverModDir, "servermod", "Server", 2, false, true, false, false),
+                        },
                     },
-                },
-            };
+                };
 
-            string commandLine = new GameConfigWriter().BuildStartCommandLine(config);
+                string commandLine = new GameConfigWriter().BuildStartCommandLine(config);
 
-            Assert.Contains("-autoInit", commandLine);
-            Assert.Contains("-filePatching", commandLine);
-            Assert.Contains("-pid=server.pid", commandLine);
-            Assert.Contains("-ranking=rank.log", commandLine);
-            Assert.Contains("-port=2302", commandLine);
-            Assert.Contains("-bandwidthAlg=2", commandLine);
-            Assert.Contains("-enableHT", commandLine);
-            Assert.Contains("-hugepages", commandLine);
-            Assert.Contains("-loadMissionToMemory", commandLine);
-            Assert.Contains("-disableServerThread", commandLine);
-            Assert.Contains("-cpuCount=4", commandLine);
-            Assert.Contains("-exThreads=2", commandLine);
-            Assert.Contains("-maxMem=8192", commandLine);
-            Assert.Contains("-limitFPS=60", commandLine);
-            Assert.Contains("-noLogs", commandLine);
-            Assert.Contains("-netlog", commandLine);
-            Assert.Contains("WS;", commandLine);
-            Assert.Contains("VN;", commandLine);
-            Assert.Contains("CSLA;", commandLine);
-            Assert.Contains("GM;", commandLine);
-            Assert.Contains("contact;", commandLine);
-            Assert.Contains(@"-mod=", commandLine);
-            Assert.Contains(@"-serverMod=", commandLine);
-            Assert.Contains(@"-customFlag=1", commandLine);
-            Assert.Contains("-skipIntro", commandLine);
+                Assert.Contains("-autoInit", commandLine);
+                Assert.Contains("-filePatching", commandLine);
+                Assert.Contains("-pid=server.pid", commandLine);
+                Assert.Contains("-ranking=rank.log", commandLine);
+                Assert.Contains("-port=2302", commandLine);
+                Assert.Contains("-bandwidthAlg=2", commandLine);
+                Assert.Contains("-enableHT", commandLine);
+                Assert.Contains("-hugepages", commandLine);
+                Assert.Contains("-loadMissionToMemory", commandLine);
+                Assert.Contains("-disableServerThread", commandLine);
+                Assert.Contains("-cpuCount=4", commandLine);
+                Assert.Contains("-exThreads=2", commandLine);
+                Assert.Contains("-maxMem=8192", commandLine);
+                Assert.Contains("-limitFPS=60", commandLine);
+                Assert.Contains("-noLogs", commandLine);
+                Assert.Contains("-netlog", commandLine);
+                Assert.Contains("WS;", commandLine);
+                Assert.Contains("VN;", commandLine);
+                Assert.Contains("CSLA;", commandLine);
+                Assert.Contains("GM;", commandLine);
+                Assert.Contains("contact;", commandLine);
+                Assert.Contains(@"-mod=", commandLine);
+                Assert.Contains(@"-serverMod=", commandLine);
+                Assert.Contains("@client", commandLine);
+                Assert.Contains("@servermod", commandLine);
+                Assert.Contains(@"-customFlag=1", commandLine);
+                Assert.Contains("-skipIntro", commandLine);
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
         }
 
         [Fact]

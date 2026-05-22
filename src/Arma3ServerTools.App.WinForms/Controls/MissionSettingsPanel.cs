@@ -110,7 +110,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             Enabled = true;
-            forcedDifficultySelect.SelectedIndex = MissionsTool.DifficultyToInt(config.ServerConfig.ForcedDifficulty);
+            forcedDifficultySelect.SelectedIndex = MissionsTool.ForcedDifficultyEnglishToUiIndex(
+                config.ServerConfig.ForcedDifficulty);
             autoSelectCheckBox.Checked = config.ServerConfig.AutoSelectMission;
             randomOrderCheckBox.Checked = config.ServerConfig.RandomMissionOrder;
             RefreshMissionGrid();
@@ -135,7 +136,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
                         row.Choose));
             }
 
-            boundConfig.ServerConfig.ForcedDifficulty = MissionsTool.IntToDifficulty(forcedDifficultySelect.SelectedIndex);
+            boundConfig.ServerConfig.ForcedDifficulty = MissionsTool.ForcedDifficultyUiToEnglish(
+                forcedDifficultySelect.SelectedIndex);
             boundConfig.ServerConfig.AutoSelectMission = autoSelectCheckBox.Checked;
             boundConfig.ServerConfig.RandomMissionOrder = randomOrderCheckBox.Checked;
         }
