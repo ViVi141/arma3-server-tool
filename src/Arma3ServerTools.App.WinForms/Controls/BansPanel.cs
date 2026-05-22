@@ -3,36 +3,64 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.App.WinForms.Dialogs;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.Core.Repositories;
+using AntLabel = AntdUI.Label;
+using AntPanel = AntdUI.Panel;
+using AntTable = AntdUI.Table;
 
 namespace Arma3ServerTools.App.WinForms.Controls
 {
+    internal sealed class LocalBanRow
+    {
+        public string Guid { get; set; } = string.Empty;
+
+        public string Time { get; set; } = string.Empty;
+
+        public string Reason { get; set; } = string.Empty;
+    }
+
+    internal sealed class RemoteBanRow
+    {
+        public string Guid { get; set; } = string.Empty;
+
+        public string Time { get; set; } = string.Empty;
+
+        public string Reason { get; set; } = string.Empty;
+
+        public string AddTime { get; set; } = string.Empty;
+
+        public string Source { get; set; } = string.Empty;
+    }
+
     internal sealed class BansPanel : UserControl, IServerSettingsPanel
     {
-        private readonly DataGridView localGrid;
-        private readonly DataGridView remoteGrid;
-        private readonly Button loadLocalButton;
-        private readonly Button fetchRemoteButton;
-        private readonly Button saveButton;
-        private readonly Button mergeButton;
-        private readonly Button mergeAllButton;
-        private readonly Button manageUrlsButton;
-        private readonly Button deleteLocalButton;
-        private readonly Button addRemoteButton;
+        private readonly AntTable localTable;
+        private readonly AntTable remoteTable;
+        private readonly AntdUI.Button loadLocalButton;
+        private readonly AntdUI.Button fetchRemoteButton;
+        private readonly AntdUI.Button saveButton;
+        private readonly AntdUI.Button mergeButton;
+        private readonly AntdUI.Button mergeAllButton;
+        private readonly AntdUI.Button manageUrlsButton;
+        private readonly AntdUI.Button deleteLocalButton;
+        private readonly AntdUI.Button addRemoteButton;
 
         private readonly BansService bansService;
         private readonly BansUrlRepository bansUrlRepository;
         private ArmaServerConfig boundConfig;
+        private readonly List<LocalBanRow> localRows = new List<LocalBanRow>();
+        private readonly List<RemoteBanRow> remoteRows = new List<RemoteBanRow>();
+
         private List<LocalBansEntity> localBans = new List<LocalBansEntity>();
 
         public BansPanel()
         {
-            Dock = DockStyle.Fill;
-            Padding = new Padding(12);
+            AppTheme.ApplyTo(this);
 
             bansService = AppServices.Instance.BansService;
             bansUrlRepository = AppServices.Instance.BansUrlRepository;
@@ -42,14 +70,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 Dock = DockStyle.Top,
                 AutoSize = true,
             };
-            loadLocalButton = new Button { Text = "读取本地", AutoSize = true };
-            fetchRemoteButton = new Button { Text = "拉取联合封禁", AutoSize = true };
-            manageUrlsButton = new Button { Text = "管理 URL...", AutoSize = true };
-            mergeButton = new Button { Text = "合并选中到本地", AutoSize = true };
-            mergeAllButton = new Button { Text = "合并全部到本地", AutoSize = true };
-            saveButton = new Button { Text = "保存本地封禁", AutoSize = true };
-            deleteLocalButton = new Button { Text = "删除本地选中", AutoSize = true };
-            addRemoteButton = new Button { Text = "添加远程选中", AutoSize = true };
+            loadLocalButton = SettingsLayoutHelper.CreateButton("读取本地");
+            fetchRemoteButton = SettingsLayoutHelper.CreateButton("拉取联合封禁");
+            manageUrlsButton = SettingsLayoutHelper.CreateButton("管理 URL...");
+            mergeButton = SettingsLayoutHelper.CreateButton("合并选中到本地");
+            mergeAllButton = SettingsLayoutHelper.CreateButton("合并全部到本地");
+            saveButton = SettingsLayoutHelper.CreateButton("保存本地封禁");
+            deleteLocalButton = SettingsLayoutHelper.CreateButton("删除本地选中");
+            addRemoteButton = SettingsLayoutHelper.CreateButton("添加远程选中");
             loadLocalButton.Click += OnLoadLocal;
             fetchRemoteButton.Click += OnFetchRemote;
             manageUrlsButton.Click += OnManageUrls;
@@ -67,17 +95,19 @@ namespace Arma3ServerTools.App.WinForms.Controls
             toolbar.Controls.Add(deleteLocalButton);
             toolbar.Controls.Add(saveButton);
 
+            localTable = CreateLocalBanTable();
+            remoteTable = CreateRemoteBanTable();
+            remoteTable.MultipleRows = true;
+
             var split = new SplitContainer
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Horizontal,
-                SplitterDistance = 220,
             };
+            SplitContainerHelper.BindProportionalSplit(split, 0.48, true, 140, 140);
 
-            localGrid = CreateBanGrid(false);
-            remoteGrid = CreateBanGrid(true);
-            split.Panel1.Controls.Add(WrapGrid("本地封禁", localGrid));
-            split.Panel2.Controls.Add(WrapGrid("联合封禁列表", remoteGrid));
+            split.Panel1.Controls.Add(WrapGridSection("本地封禁", localTable));
+            split.Panel2.Controls.Add(WrapGridSection("联合封禁列表", remoteTable));
 
             Controls.Add(split);
             Controls.Add(toolbar);
@@ -86,9 +116,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
         public void Bind(ArmaServerConfig config)
         {
             boundConfig = config;
-            localGrid.Rows.Clear();
-            remoteGrid.Rows.Clear();
+            localRows.Clear();
+            remoteRows.Clear();
             localBans.Clear();
+            AntdTableHelper.BindList(localTable, localRows);
+            AntdTableHelper.BindList(remoteTable, remoteRows);
             if (config == null)
             {
                 Enabled = false;
@@ -101,41 +133,51 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         public void ApplyToModel()
         {
-            // 封禁数据写入 bans.txt，不写入 json 配置。
         }
 
-        private static DataGridView CreateBanGrid(bool includeSource)
+        private static AntTable CreateLocalBanTable()
         {
-            var grid = new DataGridView
+            AntTable table = AntdTableHelper.CreateStandardTable();
+            table.MultipleRows = true;
+            table.Columns = new AntdUI.ColumnCollection
             {
-                Dock = DockStyle.Fill,
-                ReadOnly = true,
-                AllowUserToAddRows = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                new AntdUI.Column("Guid", "GUID/IP/UID") { ReadOnly = true, Width = "34%" },
+                new AntdUI.Column("Time", "到期日期") { ReadOnly = true, Width = "22%" },
+                new AntdUI.Column("Reason", "原因") { ReadOnly = true, Width = "44%" },
             };
-            grid.Columns.Add("Guid", "GUID/IP/UID");
-            grid.Columns.Add("Time", "到期日期");
-            grid.Columns.Add("Reason", "原因");
-            if (includeSource)
-            {
-                grid.Columns.Add("AddTime", "添加日期");
-                grid.Columns.Add("Source", "列表来源");
-            }
-
-            return grid;
+            return table;
         }
 
-        private static Control WrapGrid(string title, Control grid)
+        private static AntTable CreateRemoteBanTable()
         {
-            var group = new GroupBox
+            AntTable table = AntdTableHelper.CreateStandardTable();
+            table.Columns = new AntdUI.ColumnCollection
             {
-                Text = title,
-                Dock = DockStyle.Fill,
-                Padding = new Padding(8),
+                new AntdUI.Column("Guid", "GUID/IP/UID") { ReadOnly = true, Width = "26%" },
+                new AntdUI.Column("Time", "到期日期") { ReadOnly = true, Width = "14%" },
+                new AntdUI.Column("Reason", "原因") { ReadOnly = true, Width = "22%" },
+                new AntdUI.Column("AddTime", "添加日期") { ReadOnly = true, Width = "14%" },
+                new AntdUI.Column("Source", "列表来源") { ReadOnly = true, Width = "24%" },
             };
-            group.Controls.Add(grid);
-            return group;
+            return table;
+        }
+
+        private static Control WrapGridSection(string title, Control grid)
+        {
+            grid.Dock = DockStyle.Fill;
+
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+            };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            layout.Controls.Add(AntdUiHelper.CreateSectionHeader(title), 0, 0);
+            layout.Controls.Add(grid, 0, 1);
+            return layout;
         }
 
         private void OnLoadLocal(object sender, EventArgs e)
@@ -146,11 +188,19 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             localBans = bansService.LoadLocalBans(boundConfig.ServerDir, boundConfig.ServerUUID).ToList();
-            localGrid.Rows.Clear();
+            localRows.Clear();
             foreach (LocalBansEntity ban in localBans)
             {
-                localGrid.Rows.Add(ban.GUID, ban.Time, ban.Reason);
+                localRows.Add(
+                    new LocalBanRow
+                    {
+                        Guid = ban.GUID,
+                        Time = ban.Time,
+                        Reason = ban.Reason,
+                    });
             }
+
+            AntdTableHelper.BindList(localTable, localRows);
         }
 
         private async void OnFetchRemote(object sender, EventArgs e)
@@ -161,15 +211,25 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 List<BansUrlEntity> urls = bansUrlRepository.Load();
                 IReadOnlyList<LocalBansEntity> remoteBans = await Task.Run(
                     () => bansService.FetchRemoteBansFromUrls(urls)).ConfigureAwait(true);
-                remoteGrid.Rows.Clear();
+                remoteRows.Clear();
                 foreach (LocalBansEntity ban in remoteBans)
                 {
-                    remoteGrid.Rows.Add(ban.GUID, ban.Time, ban.Reason, ban.AddTime, ban.SyncName);
+                    remoteRows.Add(
+                        new RemoteBanRow
+                        {
+                            Guid = ban.GUID,
+                            Time = ban.Time,
+                            Reason = ban.Reason,
+                            AddTime = ban.AddTime,
+                            Source = ban.SyncName,
+                        });
                 }
+
+                AntdTableHelper.BindList(remoteTable, remoteRows);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "拉取失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUiHelper.ShowError(FindForm(), ex.Message, "拉取失败");
             }
             finally
             {
@@ -202,55 +262,93 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void MergeRemoteRows(bool allRows)
         {
-            int added = 0;
-            IEnumerable<DataGridViewRow> rows;
+            IEnumerable<RemoteBanRow> enumerate;
             if (allRows)
             {
-                rows = remoteGrid.Rows.Cast<DataGridViewRow>();
+                enumerate = remoteRows;
             }
             else
             {
-                rows = remoteGrid.SelectedRows.Cast<DataGridViewRow>();
+                enumerate = GetSelectedRemoteRows();
             }
 
-            foreach (DataGridViewRow row in rows)
+            int added = 0;
+            foreach (RemoteBanRow row in enumerate)
             {
-                if (row.IsNewRow)
-                {
-                    continue;
-                }
-
-                string guid = Convert.ToString(row.Cells["Guid"].Value);
+                string guid = row.Guid;
                 if (string.IsNullOrEmpty(guid))
                 {
                     continue;
                 }
 
-                if (localBans.Any(ban => string.Equals(ban.GUID, guid, StringComparison.OrdinalIgnoreCase)))
+                bool exists = false;
+                foreach (LocalBansEntity existing in localBans)
+                {
+                    if (string.Equals(existing.GUID, guid, StringComparison.OrdinalIgnoreCase))
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+
+                if (exists)
                 {
                     continue;
                 }
 
                 var entity = new LocalBansEntity(
                     guid,
-                    Convert.ToString(row.Cells["Time"].Value),
-                    Convert.ToString(row.Cells["Reason"].Value),
+                    row.Time,
+                    row.Reason,
                     string.Empty,
                     string.Empty);
                 localBans.Add(entity);
-                localGrid.Rows.Add(entity.GUID, entity.Time, entity.Reason);
+                localRows.Add(
+                    new LocalBanRow
+                    {
+                        Guid = entity.GUID,
+                        Time = entity.Time,
+                        Reason = entity.Reason,
+                    });
                 added++;
             }
 
+            AntdTableHelper.BindList(localTable, localRows);
             if (added > 0)
             {
-                MessageBox.Show("已合并 " + added + " 条封禁到本地列表，请点击「保存本地封禁」写入文件。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AntdUiHelper.ShowInfo(FindForm(), "已合并 " + added + " 条封禁到本地列表，请点击「保存本地封禁」写入文件。", "提示");
             }
+        }
+
+        private List<RemoteBanRow> GetSelectedRemoteRows()
+        {
+            var list = new List<RemoteBanRow>();
+            if (remoteTable.MultipleRows && remoteTable.SelectedIndexs != null && remoteTable.SelectedIndexs.Length > 0)
+            {
+                foreach (int si in remoteTable.SelectedIndexs)
+                {
+                    int di = si - 1;
+                    if (di >= 0 && di < remoteRows.Count)
+                    {
+                        list.Add(remoteRows[di]);
+                    }
+                }
+
+                return list;
+            }
+
+            int single = AntdTableHelper.GetSelectedRowIndex(remoteTable);
+            if (single >= 0 && single < remoteRows.Count)
+            {
+                list.Add(remoteRows[single]);
+            }
+
+            return list;
         }
 
         private void OnAddRemoteSelected(object sender, EventArgs e)
         {
-            if (remoteGrid.SelectedRows.Count == 0)
+            if (GetSelectedRemoteRows().Count == 0)
             {
                 return;
             }
@@ -261,22 +359,56 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void OnDeleteLocalSelected(object sender, EventArgs e)
         {
-            if (localGrid.SelectedRows.Count == 0)
+            List<int> indices = GetSelectedLocalIndicesSortedDesc();
+            if (indices.Count == 0)
             {
                 return;
             }
 
-            foreach (DataGridViewRow row in localGrid.SelectedRows)
+            foreach (int idx in indices)
             {
-                string guid = Convert.ToString(row.Cells["Guid"].Value);
-                if (string.IsNullOrEmpty(guid))
+                if (idx < 0 || idx >= localRows.Count)
                 {
                     continue;
                 }
 
-                localBans.RemoveAll(ban => string.Equals(ban.GUID, guid, StringComparison.OrdinalIgnoreCase));
-                localGrid.Rows.Remove(row);
+                string guid = localRows[idx].Guid;
+                if (!string.IsNullOrEmpty(guid))
+                {
+                    localBans.RemoveAll(ban => string.Equals(ban.GUID, guid, StringComparison.OrdinalIgnoreCase));
+                    localRows.RemoveAt(idx);
+                }
             }
+
+            AntdTableHelper.BindList(localTable, localRows);
+        }
+
+        private List<int> GetSelectedLocalIndicesSortedDesc()
+        {
+            var list = new List<int>();
+            if (localTable.MultipleRows && localTable.SelectedIndexs != null && localTable.SelectedIndexs.Length > 0)
+            {
+                foreach (int si in localTable.SelectedIndexs)
+                {
+                    int di = si - 1;
+                    if (di >= 0)
+                    {
+                        list.Add(di);
+                    }
+                }
+            }
+            else
+            {
+                int single = AntdTableHelper.GetSelectedRowIndex(localTable);
+                if (single >= 0)
+                {
+                    list.Add(single);
+                }
+            }
+
+            list.Sort();
+            list.Reverse();
+            return list;
         }
 
         private void OnSaveLocal(object sender, EventArgs e)
@@ -289,11 +421,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             OperationResult result = bansService.SaveLocalBans(boundConfig.ServerDir, boundConfig.ServerUUID, localBans);
             if (result.Success)
             {
-                MessageBox.Show("封禁列表已保存。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AntdUiHelper.ShowInfo(FindForm(), "封禁列表已保存。", "成功");
             }
             else
             {
-                MessageBox.Show(result.Message, "失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUiHelper.ShowError(FindForm(), result.Message, "失败");
             }
         }
     }

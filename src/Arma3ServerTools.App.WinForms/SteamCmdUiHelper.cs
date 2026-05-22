@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Windows.Forms;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
@@ -16,14 +15,11 @@ namespace Arma3ServerTools.App.WinForms
                 return true;
             }
 
-            DialogResult answer = MessageBox.Show(
+            if (!AntdUiHelper.Confirm(
                 owner,
-                check.Message + Environment.NewLine + Environment.NewLine
-                    + "是否从 Steam 官方源自动下载并安装到 extension 目录？",
                 "缺少 SteamCMD",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question);
-            if (answer != DialogResult.Yes)
+                check.Message + Environment.NewLine + Environment.NewLine
+                    + "是否从 Steam 官方源自动下载并安装到 extension 目录？"))
             {
                 return false;
             }
@@ -41,16 +37,11 @@ namespace Arma3ServerTools.App.WinForms
 
             if (check.Success)
             {
-                MessageBox.Show(
-                    owner,
-                    check.Message,
-                    "SteamCMD 已就绪",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+                AntdUiHelper.ShowInfo(owner, check.Message, "SteamCMD 已就绪");
                 return true;
             }
 
-            MessageBox.Show(owner, check.Message, "失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            AntdUiHelper.ShowError(owner, check.Message, "失败");
             return false;
         }
     }

@@ -2,64 +2,79 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using AntButton = AntdUI.Button;
+using AntPanel = AntdUI.Panel;
+using AntTable = AntdUI.Table;
+using Arma3ServerTools.App.WinForms;
+using Arma3ServerTools.App.WinForms.Controls;
 using Arma3ServerTools.Core.Models;
 
 namespace Arma3ServerTools.App.WinForms.Dialogs
 {
-    internal sealed class ModuleScanPathForm : Form
+    internal sealed class ModuleScanPathForm : AntdDialogForm
     {
-        private readonly DataGridView grid;
+        private readonly AntTable grid;
         private readonly List<ModuleScanPathEntity> paths;
 
         public ModuleScanPathForm(IList<ModuleScanPathEntity> initial)
+            : base()
         {
             Text = "模组扫描路径";
-            Width = 760;
-            Height = 420;
-            StartPosition = FormStartPosition.CenterParent;
+            ApplyPreferredDialogSizing(760, 420, null);
+
             paths = new List<ModuleScanPathEntity>();
             if (initial != null)
             {
                 paths.AddRange(initial);
             }
 
-            var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(8) };
-            var addButton = new Button { Text = "添加", AutoSize = true };
-            var removeButton = new Button { Text = "删除", AutoSize = true };
+            var toolbar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                Padding = UiScaleHelper.ScalePadding(8),
+            };
+
+            AntButton addButton = SettingsLayoutHelper.CreateButton("添加");
             addButton.Click += OnAdd;
+            AntButton removeButton = SettingsLayoutHelper.CreateButton("删除");
             removeButton.Click += OnRemove;
             toolbar.Controls.Add(addButton);
             toolbar.Controls.Add(removeButton);
 
-            grid = new DataGridView
+            grid = AntdTableHelper.CreateStandardTable();
+            grid.Columns = new AntdUI.ColumnCollection
             {
-                Dock = DockStyle.Fill,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                AllowUserToAddRows = false,
+                new AntdUI.Column("ModulePath", "扫描路径") { Width = "48%", Ellipsis = true },
+                new AntdUI.Column("Prefix", "前缀过滤") { Width = "18%" },
+                new AntdUI.Column("Remark", "备注") { Width = "34%", Ellipsis = true },
             };
-            grid.Columns.Add("ModulePath", "扫描路径");
-            grid.Columns.Add("Prefix", "前缀过滤");
-            grid.Columns.Add("Remark", "备注");
+            grid.CellEndEdit += OnScanPathCellEndEdit;
 
-            var okButton = new Button { Text = "确定", DialogResult = DialogResult.OK, Width = 80 };
-            var cancelButton = new Button { Text = "取消", DialogResult = DialogResult.Cancel, Width = 80 };
-            var buttons = new FlowLayoutPanel
+            AntButton okay = AntdUiHelper.CreatePrimaryButton("确定");
+            okay.Click += delegate
             {
-                Dock = DockStyle.Bottom,
-                FlowDirection = FlowDirection.RightToLeft,
-                Height = 44,
-                Padding = new Padding(12, 6, 12, 8),
+                DialogResult = DialogResult.OK;
+                Close();
             };
-            buttons.Controls.Add(cancelButton);
-            buttons.Controls.Add(okButton);
 
-            Controls.Add(grid);
+            AntButton cancel = AntdUiHelper.CreateToolbarButton("取消");
+            cancel.Click += delegate
+            {
+                DialogResult = DialogResult.Cancel;
+                Close();
+            };
+
+            Control buttonBar = CreateButtonBar(okay, cancel);
+
+            var filler = new AntPanel { Dock = DockStyle.Fill };
+            filler.Controls.Add(grid);
+
+            Controls.Add(buttonBar);
             Controls.Add(toolbar);
-            Controls.Add(buttons);
-            AcceptButton = okButton;
-            CancelButton = cancelButton;
-            ReloadGrid();
+            Controls.Add(filler);
+
+            ReloadTable();
         }
 
         public IList<ModuleScanPathEntity> GetPaths()
@@ -67,13 +82,55 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             return paths;
         }
 
-        private void ReloadGrid()
+        private void ReloadTable()
         {
-            grid.Rows.Clear();
-            foreach (ModuleScanPathEntity item in paths)
+            grid.DataSource = null;
+            AntdTableHelper.BindList(grid, paths);
+        }
+
+        private bool OnScanPathCellEndEdit(object sender, AntdUI.TableEndEditEventArgs e)
+        {
+            var entity = e.Record as ModuleScanPathEntity;
+            if (entity == null)
             {
-                grid.Rows.Add(item.ModulePath, item.Prefix, item.Remark);
+                return true;
             }
+
+            if (e.Column == null || string.IsNullOrEmpty(e.Column.Key))
+            {
+                return true;
+            }
+
+            string key = e.Column.Key;
+            string newText;
+            if (e.Value == null)
+            {
+                newText = string.Empty;
+            }
+            else
+            {
+                newText = e.Value.Trim();
+            }
+
+            if (key == "ModulePath")
+            {
+                entity.ModulePath = newText;
+                return true;
+            }
+
+            if (key == "Prefix")
+            {
+                entity.Prefix = newText;
+                return true;
+            }
+
+            if (key == "Remark")
+            {
+                entity.Remark = newText;
+                return true;
+            }
+
+            return true;
         }
 
         private void OnAdd(object sender, EventArgs e)
@@ -86,23 +143,20 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 }
 
                 paths.Add(new ModuleScanPathEntity(dialog.SelectedPath, string.Empty, "手动添加"));
-                ReloadGrid();
+                ReloadTable();
             }
         }
 
         private void OnRemove(object sender, EventArgs e)
         {
-            if (grid.SelectedRows.Count == 0)
+            int index = AntdTableHelper.GetSelectedRowIndex(grid);
+            if (index < 0 || index >= paths.Count)
             {
                 return;
             }
 
-            int index = grid.SelectedRows[0].Index;
-            if (index >= 0 && index < paths.Count)
-            {
-                paths.RemoveAt(index);
-                ReloadGrid();
-            }
+            paths.RemoveAt(index);
+            ReloadTable();
         }
     }
 }

@@ -10,36 +10,65 @@ using Arma3ServerTools.App.WinForms.Dialogs;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
+using AntTable = AntdUI.Table;
+using AntSelect = AntdUI.Select;
 
 namespace Arma3ServerTools.App.WinForms.Controls
 {
+    internal enum ModTableSortMode
+    {
+        ScanOrder = 0,
+        DirName = 1,
+        ModName = 2,
+        ModId = 3,
+        UpdatedTime = 4,
+    }
+
+    internal enum ModTableVisibilityFilter
+    {
+        All = 0,
+        SelectedOnly = 1,
+        UnselectedOnly = 2,
+    }
+
+    internal enum ModDisableScope
+    {
+        Client = 0,
+        Server = 1,
+        HeadlessClient = 2,
+        All = 3,
+    }
+
     internal sealed class ModSettingsPanel : UserControl, IServerSettingsPanel
     {
-        private readonly DataGridView modsGrid;
-        private readonly CheckBox autoCopyBikeyCheckBox;
-        private readonly CheckBox dlcContactCheckBox;
-        private readonly CheckBox dlcGmCheckBox;
-        private readonly CheckBox dlcCslaCheckBox;
-        private readonly CheckBox dlcWsCheckBox;
-        private readonly CheckBox dlcVnCheckBox;
+        private readonly AntTable modsTable;
+        private readonly AntSelect sortSelect;
+        private readonly AntSelect visibilitySelect;
+        private readonly AntdUI.Checkbox autoCopyBikeyCheckBox;
+        private readonly AntdUI.Checkbox dlcContactCheckBox;
+        private readonly AntdUI.Checkbox dlcGmCheckBox;
+        private readonly AntdUI.Checkbox dlcCslaCheckBox;
+        private readonly AntdUI.Checkbox dlcWsCheckBox;
+        private readonly AntdUI.Checkbox dlcVnCheckBox;
 
         private ArmaServerConfig boundConfig;
-        private List<ScannedModRow> rows = new List<ScannedModRow>();
+        private List<ScannedModRow> allRows = new List<ScannedModRow>();
+        private ModTableSortMode sortMode = ModTableSortMode.ScanOrder;
+        private ModTableVisibilityFilter visibilityFilter = ModTableVisibilityFilter.All;
 
         public ModSettingsPanel()
         {
-            Dock = DockStyle.Fill;
-            Padding = new Padding(12);
+            AppTheme.ApplyTo(this);
 
             var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
-            var refreshButton = new Button { Text = "扫描刷新", AutoSize = true };
-            var scanPathButton = new Button { Text = "扫描路径...", AutoSize = true };
-            var addLocalButton = new Button { Text = "添加本地模组", AutoSize = true };
-            var downloadButton = new Button { Text = "下载选中模组", AutoSize = true };
-            var pasteButton = new Button { Text = "从剪贴板导入 ID", AutoSize = true };
-            var htmlDownloadButton = new Button { Text = "从 HTML 下载...", AutoSize = true };
-            var htmlEnableButton = new Button { Text = "从 HTML 启用...", AutoSize = true };
-            var bikeyButton = new Button { Text = "管理 Bikey", AutoSize = true };
+            AntdUI.Button refreshButton = SettingsLayoutHelper.CreateButton("扫描刷新");
+            AntdUI.Button scanPathButton = SettingsLayoutHelper.CreateButton("扫描路径...");
+            AntdUI.Button addLocalButton = SettingsLayoutHelper.CreateButton("添加本地模组");
+            AntdUI.Button downloadButton = SettingsLayoutHelper.CreateButton("下载选中模组");
+            AntdUI.Button pasteButton = SettingsLayoutHelper.CreateButton("从剪贴板导入 ID");
+            AntdUI.Button htmlDownloadButton = SettingsLayoutHelper.CreateButton("从 HTML 下载...");
+            AntdUI.Button htmlEnableButton = SettingsLayoutHelper.CreateButton("从 HTML 启用...");
+            AntdUI.Button bikeyButton = SettingsLayoutHelper.CreateButton("管理 Bikey");
             refreshButton.Click += delegate { ScanMods(); };
             scanPathButton.Click += OnEditScanPaths;
             addLocalButton.Click += OnAddLocalMod;
@@ -57,49 +86,143 @@ namespace Arma3ServerTools.App.WinForms.Controls
             toolbar.Controls.Add(htmlEnableButton);
             toolbar.Controls.Add(bikeyButton);
 
-            modsGrid = new DataGridView
+            sortSelect = SettingsLayoutHelper.CreateSelect(
+                140,
+                "扫描顺序",
+                "文件夹名",
+                "模组名",
+                "Workshop ID",
+                "更新时间");
+            sortSelect.SelectedIndex = 0;
+            sortSelect.SelectedIndexChanged += OnSortOrFilterChanged;
+
+            visibilitySelect = SettingsLayoutHelper.CreateSelect(140, "显示全部", "仅已选择", "仅未选择");
+            visibilitySelect.SelectedIndex = 0;
+            visibilitySelect.SelectedIndexChanged += OnSortOrFilterChanged;
+
+            var viewBar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
+            viewBar.Controls.Add(new AntdUI.Label
             {
-                Dock = DockStyle.Fill,
-                AllowUserToAddRows = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                Text = "排序",
+                AutoSizeMode = AntdUI.TAutoSize.Auto,
+                Padding = new Padding(0, UiScaleHelper.Scale(8), UiScaleHelper.Scale(6), 0),
+            });
+            viewBar.Controls.Add(sortSelect);
+            viewBar.Controls.Add(new AntdUI.Label
+            {
+                Text = "可见性",
+                AutoSizeMode = AntdUI.TAutoSize.Auto,
+                Padding = new Padding(UiScaleHelper.Scale(12), UiScaleHelper.Scale(8), UiScaleHelper.Scale(6), 0),
+            });
+            viewBar.Controls.Add(visibilitySelect);
+
+            var disableBar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
+            disableBar.Controls.Add(new AntdUI.Label
+            {
+                Text = "全部禁用",
+                AutoSizeMode = AntdUI.TAutoSize.Auto,
+                Padding = new Padding(0, UiScaleHelper.Scale(8), UiScaleHelper.Scale(6), 0),
+            });
+            AntdUI.Button disableClientButton = SettingsLayoutHelper.CreateButton("客户端");
+            AntdUI.Button disableServerButton = SettingsLayoutHelper.CreateButton("服务器");
+            AntdUI.Button disableHcButton = SettingsLayoutHelper.CreateButton("HC");
+            AntdUI.Button disableAllButton = SettingsLayoutHelper.CreateButton("全部");
+            disableClientButton.Click += delegate { DisableMods(ModDisableScope.Client); };
+            disableServerButton.Click += delegate { DisableMods(ModDisableScope.Server); };
+            disableHcButton.Click += delegate { DisableMods(ModDisableScope.HeadlessClient); };
+            disableAllButton.Click += delegate { DisableMods(ModDisableScope.All); };
+            disableBar.Controls.Add(disableClientButton);
+            disableBar.Controls.Add(disableServerButton);
+            disableBar.Controls.Add(disableHcButton);
+            disableBar.Controls.Add(disableAllButton);
+
+            modsTable = AntdTableHelper.CreateStandardTable();
+            var updateCol = new AntdUI.ColumnSwitch("UpdateSelected", "更新");
+            updateCol.Call = OnModSwitchCall;
+            var localCol = new AntdUI.ColumnSwitch("LocalMod", "客户端模组");
+            localCol.Call = OnModSwitchCall;
+            var serverCol = new AntdUI.ColumnSwitch("ServerMod", "服务器模组");
+            serverCol.Call = OnModSwitchCall;
+            var hcCol = new AntdUI.ColumnSwitch("HeadlessClientMod", "HC 模组");
+            hcCol.Call = OnModSwitchCall;
+
+            modsTable.Columns = new AntdUI.ColumnCollection
+            {
+                new AntdUI.Column("RowIndex", "序号") { ReadOnly = true, Width = "4%" },
+                updateCol,
+                new AntdUI.Column("ModDirName", "文件夹名")
+                {
+                    ReadOnly = true,
+                    Width = "9%",
+                    SortOrder = true,
+                },
+                new AntdUI.Column("ModName", "模组名")
+                {
+                    ReadOnly = true,
+                    Width = "13%",
+                    SortOrder = true,
+                },
+                new AntdUI.Column("ModId", "Workshop ID")
+                {
+                    ReadOnly = true,
+                    Width = "8%",
+                    SortOrder = true,
+                },
+                localCol,
+                serverCol,
+                hcCol,
+                new AntdUI.Column("InputLocalModLabel", "本地导入")
+                {
+                    ReadOnly = true,
+                    Width = "6%",
+                },
+                new AntdUI.Column("ModPath", "路径") { ReadOnly = true, Width = "22%" },
+                new AntdUI.Column("UpdatedTime", "更新时间")
+                {
+                    ReadOnly = true,
+                    Width = "10%",
+                    SortOrder = true,
+                },
             };
-            modsGrid.Columns.Add(new DataGridViewCheckBoxColumn { Name = "UpdateSelected", HeaderText = "更新" });
-            modsGrid.Columns.Add("ModDirName", "文件夹名");
-            modsGrid.Columns["ModDirName"].ReadOnly = true;
-            modsGrid.Columns.Add("ModName", "模组名");
-            modsGrid.Columns["ModName"].ReadOnly = true;
-            modsGrid.Columns.Add("ModId", "Workshop ID");
-            modsGrid.Columns["ModId"].ReadOnly = true;
-            modsGrid.Columns.Add(new DataGridViewCheckBoxColumn { Name = "LocalMod", HeaderText = "客户端模组" });
-            modsGrid.Columns.Add(new DataGridViewCheckBoxColumn { Name = "ServerMod", HeaderText = "服务器模组" });
-            modsGrid.Columns.Add(new DataGridViewCheckBoxColumn { Name = "HeadlessClientMod", HeaderText = "HC 模组" });
-            modsGrid.Columns.Add(new DataGridViewCheckBoxColumn { Name = "InputLocalMod", HeaderText = "本地导入" });
-            modsGrid.Columns["InputLocalMod"].ReadOnly = true;
-            modsGrid.Columns.Add("ModPath", "路径");
-            modsGrid.Columns["ModPath"].ReadOnly = true;
-            modsGrid.Columns.Add("UpdatedTime", "更新时间");
-            modsGrid.Columns["UpdatedTime"].ReadOnly = true;
-            modsGrid.CellValueChanged += OnModCellChanged;
 
             var optionsLayout = SettingsLayoutHelper.CreateFormLayout(120);
-            autoCopyBikeyCheckBox = SettingsLayoutHelper.AddRow(optionsLayout, "AutoCopyBikey", new CheckBox { Text = "自动复制 bikey 到服务器 Keys", AutoSize = true, Checked = true });
-            dlcContactCheckBox = SettingsLayoutHelper.AddRow(optionsLayout, "DLC Contact", new CheckBox { Text = "Contact DLC", AutoSize = true });
-            dlcGmCheckBox = SettingsLayoutHelper.AddRow(optionsLayout, "DLC GM", new CheckBox { Text = "GM DLC", AutoSize = true });
-            dlcCslaCheckBox = SettingsLayoutHelper.AddRow(optionsLayout, "DLC CSLA", new CheckBox { Text = "CSLA DLC", AutoSize = true });
-            dlcWsCheckBox = SettingsLayoutHelper.AddRow(optionsLayout, "DLC WS", new CheckBox { Text = "Western Sahara DLC", AutoSize = true });
-            dlcVnCheckBox = SettingsLayoutHelper.AddRow(optionsLayout, "DLC VN", new CheckBox { Text = "S.O.G. DLC", AutoSize = true });
+            autoCopyBikeyCheckBox = SettingsLayoutHelper.AddRow(
+                optionsLayout,
+                "AutoCopyBikey",
+                SettingsLayoutHelper.CreateCheckbox("自动复制 bikey 到服务器 Keys", true));
+            dlcContactCheckBox = SettingsLayoutHelper.AddRow(
+                optionsLayout,
+                "DLC Contact",
+                SettingsLayoutHelper.CreateCheckbox("Contact DLC", false));
+            dlcGmCheckBox = SettingsLayoutHelper.AddRow(
+                optionsLayout,
+                "DLC GM",
+                SettingsLayoutHelper.CreateCheckbox("GM DLC", false));
+            dlcCslaCheckBox = SettingsLayoutHelper.AddRow(
+                optionsLayout,
+                "DLC CSLA",
+                SettingsLayoutHelper.CreateCheckbox("CSLA DLC", false));
+            dlcWsCheckBox = SettingsLayoutHelper.AddRow(
+                optionsLayout,
+                "DLC WS",
+                SettingsLayoutHelper.CreateCheckbox("Western Sahara DLC", false));
+            dlcVnCheckBox = SettingsLayoutHelper.AddRow(
+                optionsLayout,
+                "DLC VN",
+                SettingsLayoutHelper.CreateCheckbox("S.O.G. DLC", false));
 
             var split = new SplitContainer
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Horizontal,
-                SplitterDistance = 320,
             };
-            split.Panel1.Controls.Add(modsGrid);
+            SplitContainerHelper.BindProportionalSplit(split, 0.68, true, 180, 140);
+            split.Panel1.Controls.Add(modsTable);
             split.Panel2.Controls.Add(SettingsLayoutHelper.CreateScrollHost(optionsLayout));
 
             Controls.Add(split);
+            Controls.Add(disableBar);
+            Controls.Add(viewBar);
             Controls.Add(toolbar);
         }
 
@@ -109,8 +232,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             if (config == null)
             {
                 Enabled = false;
-                rows.Clear();
-                modsGrid.Rows.Clear();
+                allRows.Clear();
+                RefreshTableView();
                 return;
             }
 
@@ -131,19 +254,19 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            SyncRowsFromGrid();
             boundConfig.StartupParameters.modsEntities.Clear();
-            foreach (ScannedModRow row in rows)
+            foreach (ScannedModRow row in allRows)
             {
-                boundConfig.StartupParameters.modsEntities.Add(new ModsEntity(
-                    row.ModPath,
-                    row.ModDirName,
-                    row.ModName,
-                    row.ModId,
-                    row.LocalMod,
-                    row.ServerMod,
-                    row.HeadlessClientMod,
-                    row.InputLocalMod));
+                boundConfig.StartupParameters.modsEntities.Add(
+                    new ModsEntity(
+                        row.ModPath,
+                        row.ModDirName,
+                        row.ModName,
+                        row.ModId,
+                        row.LocalMod,
+                        row.ServerMod,
+                        row.HeadlessClientMod,
+                        row.InputLocalMod));
             }
 
             boundConfig.AutoCopyBikey = autoCopyBikeyCheckBox.Checked;
@@ -154,6 +277,106 @@ namespace Arma3ServerTools.App.WinForms.Controls
             boundConfig.StartupParameters.DLCVN = dlcVnCheckBox.Checked;
         }
 
+        private bool OnModSwitchCall(bool checkedAfterChange, object record, int rowIndex, int columnIndex)
+        {
+            if (record is ScannedModRow row)
+            {
+                SyncBikeysForRow(row);
+            }
+
+            RefreshTableView();
+            return checkedAfterChange;
+        }
+
+        private void DisableMods(ModDisableScope scope)
+        {
+            if (boundConfig == null || allRows.Count == 0)
+            {
+                return;
+            }
+
+            bool changed = false;
+            foreach (ScannedModRow row in allRows)
+            {
+                if (ApplyDisableScope(row, scope))
+                {
+                    changed = true;
+                }
+            }
+
+            if (!changed)
+            {
+                return;
+            }
+
+            RefreshTableView();
+        }
+
+        private bool ApplyDisableScope(ScannedModRow row, ModDisableScope scope)
+        {
+            bool changed = false;
+
+            if (scope == ModDisableScope.Client || scope == ModDisableScope.All)
+            {
+                if (row.LocalMod)
+                {
+                    row.LocalMod = false;
+                    SyncBikeysForRow(row);
+                    changed = true;
+                }
+            }
+
+            if (scope == ModDisableScope.Server || scope == ModDisableScope.All)
+            {
+                if (row.ServerMod)
+                {
+                    row.ServerMod = false;
+                    changed = true;
+                }
+            }
+
+            if (scope == ModDisableScope.HeadlessClient || scope == ModDisableScope.All)
+            {
+                if (row.HeadlessClientMod)
+                {
+                    row.HeadlessClientMod = false;
+                    changed = true;
+                }
+            }
+
+            return changed;
+        }
+
+        private void SyncBikeysForRow(ScannedModRow row)
+        {
+            if (boundConfig == null)
+            {
+                return;
+            }
+
+            AppServices.Instance.BikeyService.CopyBikeysForMod(boundConfig, ToModsEntity(row));
+        }
+
+        private static ModsEntity ToModsEntity(ScannedModRow row)
+        {
+            return new ModsEntity(
+                row.ModPath,
+                row.ModDirName,
+                row.ModName,
+                row.ModId,
+                row.LocalMod,
+                row.ServerMod,
+                row.HeadlessClientMod,
+                row.InputLocalMod);
+        }
+
+        private void OnSortOrFilterChanged(object sender, EventArgs e)
+        {
+            sortMode = (ModTableSortMode)SettingsLayoutHelper.Clamp(0, 4, sortSelect.SelectedIndex);
+            visibilityFilter = (ModTableVisibilityFilter)SettingsLayoutHelper.Clamp(0, 2, visibilitySelect.SelectedIndex);
+            RefreshTableView();
+        }
+
         private void ScanMods()
         {
             if (boundConfig == null)
@@ -161,73 +384,59 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            rows = AppServices.Instance.ModScannerService
+            allRows = AppServices.Instance.ModScannerService
                 .Scan(boundConfig, AppServices.Instance.GetSteamCmdSettings())
                 .ToList();
-            ReloadGrid();
+            RefreshTableView();
         }
 
-        private void ReloadGrid()
+        private void RefreshTableView()
         {
-            modsGrid.Rows.Clear();
-            foreach (ScannedModRow row in rows)
+            IEnumerable<ScannedModRow> query = allRows;
+
+            if (visibilityFilter == ModTableVisibilityFilter.SelectedOnly)
             {
-                modsGrid.Rows.Add(
-                    row.UpdateSelected,
-                    row.ModDirName,
-                    row.ModName,
-                    row.ModId,
-                    row.LocalMod,
-                    row.ServerMod,
-                    row.HeadlessClientMod,
-                    row.InputLocalMod,
-                    row.ModPath,
-                    row.UpdatedTime);
+                query = query.Where(row => row.IsAnyModSelected);
             }
+            else if (visibilityFilter == ModTableVisibilityFilter.UnselectedOnly)
+            {
+                query = query.Where(row => !row.IsAnyModSelected);
+            }
+
+            query = ApplySort(query);
+
+            List<ScannedModRow> displayRows = query.ToList();
+            for (int i = 0; i < displayRows.Count; i++)
+            {
+                displayRows[i].RowIndex = i + 1;
+            }
+
+            AntdTableHelper.BindList(modsTable, displayRows);
         }
 
-        private void SyncRowsFromGrid()
+        private IEnumerable<ScannedModRow> ApplySort(IEnumerable<ScannedModRow> source)
         {
-            rows.Clear();
-            foreach (DataGridViewRow gridRow in modsGrid.Rows)
+            if (sortMode == ModTableSortMode.DirName)
             {
-                if (gridRow.IsNewRow)
-                {
-                    continue;
-                }
-
-                rows.Add(new ScannedModRow
-                {
-                    UpdateSelected = Convert.ToBoolean(gridRow.Cells["UpdateSelected"].Value ?? false),
-                    ModDirName = Convert.ToString(gridRow.Cells["ModDirName"].Value),
-                    ModName = Convert.ToString(gridRow.Cells["ModName"].Value),
-                    ModId = Convert.ToInt64(gridRow.Cells["ModId"].Value ?? 0L),
-                    LocalMod = Convert.ToBoolean(gridRow.Cells["LocalMod"].Value ?? false),
-                    ServerMod = Convert.ToBoolean(gridRow.Cells["ServerMod"].Value ?? false),
-                    HeadlessClientMod = Convert.ToBoolean(gridRow.Cells["HeadlessClientMod"].Value ?? false),
-                    InputLocalMod = Convert.ToBoolean(gridRow.Cells["InputLocalMod"].Value ?? false),
-                    ModPath = Convert.ToString(gridRow.Cells["ModPath"].Value),
-                    UpdatedTime = Convert.ToString(gridRow.Cells["UpdatedTime"].Value),
-                });
-            }
-        }
-
-        private void OnModCellChanged(object sender, DataGridViewCellEventArgs e)
-        {
-            if (boundConfig == null || e.RowIndex < 0)
-            {
-                return;
+                return source.OrderBy(row => row.ModDirName, StringComparer.OrdinalIgnoreCase);
             }
 
-            SyncRowsFromGrid();
-            if (e.RowIndex >= rows.Count)
+            if (sortMode == ModTableSortMode.ModName)
             {
-                return;
+                return source.OrderBy(row => row.ModName, StringComparer.OrdinalIgnoreCase);
             }
 
-            ScannedModRow row = rows[e.RowIndex];
-            var mod = new ModsEntity(row.ModPath, row.ModDirName, row.ModName, row.ModId, row.LocalMod, row.ServerMod, row.HeadlessClientMod, row.InputLocalMod);
-            AppServices.Instance.BikeyService.CopyBikeysForMod(boundConfig, mod);
+            if (sortMode == ModTableSortMode.ModId)
+            {
+                return source.OrderBy(row => row.ModId);
+            }
+
+            if (sortMode == ModTableSortMode.UpdatedTime)
+            {
+                return source.OrderByDescending(row => row.UpdatedAt ?? DateTime.MinValue);
+            }
+
+            return source.OrderBy(row => row.ScanOrder);
         }
 
         private void OnEditScanPaths(object sender, EventArgs e)
@@ -255,20 +464,21 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
                 if (!Directory.Exists(Path.Combine(dialog.SelectedPath, "addons")))
                 {
-                    MessageBox.Show("所选目录不是有效的 Arma3 模组目录（缺少 addons）。", "无效模组", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    AntdUiHelper.ShowWarning(FindForm(), "所选目录不是有效的 Arma3 模组目录（缺少 addons）。", "无效模组");
                     return;
                 }
 
                 ApplyToModel();
-                boundConfig.StartupParameters.modsEntities.Add(new ModsEntity(
-                    dialog.SelectedPath,
-                    Path.GetFileName(dialog.SelectedPath.TrimEnd('\\')),
-                    Path.GetFileName(dialog.SelectedPath.TrimEnd('\\')),
-                    0,
-                    false,
-                    false,
-                    false,
-                    true));
+                boundConfig.StartupParameters.modsEntities.Add(
+                    new ModsEntity(
+                        dialog.SelectedPath,
+                        Path.GetFileName(dialog.SelectedPath.TrimEnd('\\')),
+                        Path.GetFileName(dialog.SelectedPath.TrimEnd('\\')),
+                        0,
+                        false,
+                        false,
+                        false,
+                        true));
                 ScanMods();
             }
         }
@@ -276,9 +486,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private void OnDownloadSelected(object sender, EventArgs e)
         {
             SteamcmdEntity settings = AppServices.Instance.GetSteamCmdSettings();
-            SyncRowsFromGrid();
             var modIds = new List<ulong>();
-            foreach (ScannedModRow row in rows)
+            foreach (ScannedModRow row in allRows)
             {
                 if (row.UpdateSelected && row.ModId > 0)
                 {
@@ -287,11 +496,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             if (ModDownloadUiHelper.TryDownloadMods(
-                FindForm(),
-                modIds,
-                rows,
-                settings,
-                AppServices.Instance.SteamCmdService))
+                    FindForm(),
+                    modIds,
+                    allRows,
+                    settings,
+                    AppServices.Instance.SteamCmdService))
             {
                 ScanMods();
             }
@@ -329,17 +538,17 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             if (ids.Count == 0)
             {
-                MessageBox.Show("剪贴板中未找到 Workshop ID。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AntdUiHelper.ShowInfo(FindForm(), "剪贴板中未找到 Workshop ID。", "提示");
                 return;
             }
 
             SteamcmdEntity settings = AppServices.Instance.GetSteamCmdSettings();
             if (ModDownloadUiHelper.TryDownloadMods(
-                FindForm(),
-                ids,
-                null,
-                settings,
-                AppServices.Instance.SteamCmdService))
+                    FindForm(),
+                    ids,
+                    null,
+                    settings,
+                    AppServices.Instance.SteamCmdService))
             {
                 ScanMods();
             }
@@ -363,14 +572,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("读取 HTML 失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    AntdUiHelper.ShowError(FindForm(), "读取 HTML 失败: " + ex.Message, "错误");
                     return null;
                 }
 
                 List<LauncherHtmlModEntry> entries = LauncherHtmlModParser.Parse(html);
                 if (entries.Count == 0)
                 {
-                    MessageBox.Show("没有从 HTML 中解析到 Workshop 模组 ID。", "读取失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    AntdUiHelper.ShowWarning(FindForm(), "没有从 HTML 中解析到 Workshop 模组 ID。", "读取失败");
                     return null;
                 }
 
@@ -388,10 +597,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             SteamcmdEntity settings = AppServices.Instance.GetSteamCmdSettings();
             if (ModDownloadUiHelper.TryDownloadModsFromHtml(
-                FindForm(),
-                entries,
-                settings,
-                AppServices.Instance.SteamCmdService))
+                    FindForm(),
+                    entries,
+                    settings,
+                    AppServices.Instance.SteamCmdService))
             {
                 ScanMods();
             }
@@ -412,16 +621,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             ApplyToModel();
             SteamcmdEntity settings = AppServices.Instance.GetSteamCmdSettings();
-            if (ModEnableUiHelper.TryEnableModsFromHtml(
+            ModEnableUiHelper.TryEnableModsFromHtml(
                 FindForm(),
                 entries,
                 boundConfig,
                 settings,
                 AppServices.Instance.SteamCmdService,
                 AppServices.Instance.BikeyService,
-                ScanMods))
-            {
-            }
+                ScanMods);
         }
 
         private void OnManageBikeys(object sender, EventArgs e)
@@ -439,7 +646,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 builder.AppendLine(key);
             }
 
-            MessageBox.Show(builder.ToString(), "Bikey 列表", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            AntdUiHelper.ShowInfo(FindForm(), builder.ToString(), "Bikey 列表");
         }
     }
 }

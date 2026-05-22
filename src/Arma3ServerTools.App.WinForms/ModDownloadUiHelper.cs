@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Text;
 using System.Windows.Forms;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.App.WinForms.Dialogs;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
+using AntButton = AntdUI.Button;
+using AntLabel = AntdUI.Label;
 
 namespace Arma3ServerTools.App.WinForms
 {
@@ -29,7 +32,7 @@ namespace Arma3ServerTools.App.WinForms
         {
             if (htmlEntries == null || htmlEntries.Count == 0)
             {
-                MessageBox.Show(owner, "HTML 中未解析到 Workshop 模组 ID。", "读取失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AntdUiHelper.ShowWarning(owner, "HTML 中未解析到 Workshop 模组 ID。", "读取失败");
                 return false;
             }
 
@@ -52,13 +55,13 @@ namespace Arma3ServerTools.App.WinForms
         {
             if (settings == null || string.IsNullOrEmpty(settings.u) || string.IsNullOrEmpty(settings.d))
             {
-                MessageBox.Show(owner, "请先配置 SteamCMD 账号和 Workshop 根目录。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AntdUiHelper.ShowWarning(owner, "请先配置 SteamCMD 账号和 Workshop 根目录。", "提示");
                 return false;
             }
 
             if (modIds == null || modIds.Count == 0)
             {
-                MessageBox.Show(owner, "没有可下载的 Workshop 模组 ID。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AntdUiHelper.ShowInfo(owner, "没有可下载的 Workshop 模组 ID。", "提示");
                 return false;
             }
 
@@ -70,7 +73,8 @@ namespace Arma3ServerTools.App.WinForms
             IList<ulong> confirmedIds;
             using (ModDownloadConfirmForm confirmDialog = CreateConfirmDialog(modIds, htmlEntries))
             {
-                if (confirmDialog.ShowDialog(owner) != DialogResult.OK)
+                Form ownerForm = owner as Form;
+                if (confirmDialog.ShowDialog(ownerForm) != DialogResult.OK)
                 {
                     return false;
                 }
@@ -80,7 +84,7 @@ namespace Arma3ServerTools.App.WinForms
 
             if (confirmedIds.Count == 0)
             {
-                MessageBox.Show(owner, "请至少选择一个模组。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AntdUiHelper.ShowInfo(owner, "请至少选择一个模组。", "提示");
                 return false;
             }
 
@@ -107,11 +111,11 @@ namespace Arma3ServerTools.App.WinForms
 
             if (result.Success)
             {
-                MessageBox.Show(owner, result.Message, "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AntdUiHelper.ShowInfo(owner, result.Message, "成功");
                 return true;
             }
 
-            MessageBox.Show(owner, result.Message, "失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            AntdUiHelper.ShowError(owner, result.Message, "失败");
             return false;
         }
 
@@ -122,26 +126,16 @@ namespace Arma3ServerTools.App.WinForms
                 return true;
             }
 
-            DialogResult choice = MessageBox.Show(
-                owner,
-                "直接使用 steamcmd 下载吗？\n\n"
-                + "是：启动 steamcmd 控制台（需输入 Steam Guard 验证码）\n"
-                + "否：使用自带 steamcmdTools（带进度界面）",
-                "选择下载工具",
-                MessageBoxButtons.YesNoCancel,
-                MessageBoxIcon.Question);
-
-            if (choice == DialogResult.Cancel)
+            Form ownerForm = owner as Form;
+            using (var dialog = new SteamDownloadToolChoiceDialog())
             {
-                return null;
-            }
+                if (dialog.ShowDialog(ownerForm) != DialogResult.OK)
+                {
+                    return null;
+                }
 
-            if (choice == DialogResult.Yes)
-            {
-                return true;
+                return dialog.UseDirectSteamCmd;
             }
-
-            return false;
         }
 
         private static bool ConfirmOutsideWorkshopPaths(IWin32Window owner, IList<ScannedModRow> scannedRows, string workshopRoot)
@@ -175,13 +169,7 @@ namespace Arma3ServerTools.App.WinForms
                 return true;
             }
 
-            DialogResult confirm = MessageBox.Show(
-                owner,
-                "以下模组不在 Workshop 根目录下，继续会在 SteamCMD 目录重新下载一份：\n\n" + builder,
-                "注意",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning);
-            return confirm == DialogResult.Yes;
+            return AntdUiHelper.Confirm(owner, "注意", "以下模组不在 Workshop 根目录下，继续会在 SteamCMD 目录重新下载一份：\n\n" + builder);
         }
 
         private static ModDownloadConfirmForm CreateConfirmDialog(
@@ -194,6 +182,76 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             return new ModDownloadConfirmForm(modIds);
+        }
+
+        private sealed class SteamDownloadToolChoiceDialog : AntdDialogForm
+        {
+            internal bool UseDirectSteamCmd { get; private set; }
+
+            internal SteamDownloadToolChoiceDialog()
+                : base()
+            {
+                Text = "选择下载工具";
+                ApplyPreferredDialogSizing(520, 240, null);
+
+                AntLabel hint = AntdUiHelper.CreateHintLabel(
+                    "直接使用 steamcmd 下载吗？" + Environment.NewLine + Environment.NewLine
+                    + "是：启动 steamcmd 控制台（需输入 Steam Guard 验证码）" + Environment.NewLine
+                    + "否：使用自带 steamcmdTools（带进度界面）",
+                    480);
+                hint.Dock = DockStyle.Top;
+
+                AntButton yesButton = AntdUiHelper.CreatePrimaryButton("是");
+                yesButton.Margin = new Padding(UiScaleHelper.Scale(8), 0, 0, 0);
+                yesButton.Click += delegate
+                {
+                    UseDirectSteamCmd = true;
+                    DialogResult = DialogResult.OK;
+                    Close();
+                };
+
+                AntButton noButton = AntdUiHelper.CreateToolbarButton("否");
+                noButton.Margin = new Padding(UiScaleHelper.Scale(8), 0, 0, 0);
+                noButton.Click += delegate
+                {
+                    UseDirectSteamCmd = false;
+                    DialogResult = DialogResult.OK;
+                    Close();
+                };
+
+                AntButton cancelButton = AntdUiHelper.CreateToolbarButton("取消");
+                cancelButton.Margin = new Padding(UiScaleHelper.Scale(8), 0, 0, 0);
+                cancelButton.Click += delegate
+                {
+                    DialogResult = DialogResult.Cancel;
+                    Close();
+                };
+
+                var buttonPanel = new FlowLayoutPanel
+                {
+                    Dock = DockStyle.Bottom,
+                    FlowDirection = FlowDirection.RightToLeft,
+                    AutoSize = true,
+                    Padding = new Padding(
+                        UiScaleHelper.Scale(12),
+                        UiScaleHelper.Scale(4),
+                        UiScaleHelper.Scale(12),
+                        UiScaleHelper.Scale(8)),
+                };
+                buttonPanel.Controls.Add(cancelButton);
+                buttonPanel.Controls.Add(noButton);
+                buttonPanel.Controls.Add(yesButton);
+
+                var filler = new AntdUI.Panel
+                {
+                    Dock = DockStyle.Fill,
+                    Padding = AppTheme.ContentPadding,
+                };
+                filler.Controls.Add(hint);
+
+                Controls.Add(buttonPanel);
+                Controls.Add(filler);
+            }
         }
     }
 }

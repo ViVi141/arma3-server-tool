@@ -241,6 +241,11 @@ namespace Arma3ServerTools.Core.Config
                 }
             }
 
+            if (config.ServerTaskManagement.EnableMonitor)
+            {
+                serverMod += "@destiny_server" + GameConfigFormat.Semicolon;
+            }
+
             sb.Append(" ")
                 .Append(GameConfigFormat.DoubleQuotes)
                 .Append("-mod=")
@@ -252,25 +257,38 @@ namespace Arma3ServerTools.Core.Config
                 .Append(serverMod)
                 .Append(GameConfigFormat.DoubleQuotes);
 
-            try
-            {
-                if (!string.IsNullOrEmpty(config.StartupParameters.StartConfigArgs))
-                {
-                    string[] extraArgs = config.StartupParameters.StartConfigArgs.Split(
-                        new[] { Environment.NewLine },
-                        StringSplitOptions.RemoveEmptyEntries);
-                    foreach (string arg in extraArgs)
-                    {
-                        sb.Append(" ").Append(arg);
-                    }
-                }
-            }
-            catch
-            {
-            }
+            AppendStartupExtraArgs(sb, config.StartupParameters.StartConfigArgs);
 
             config.StartCommandLine = sb.ToString();
             return config.StartCommandLine;
+        }
+
+        internal static void AppendStartupExtraArgs(StringBuilder sb, string startConfigArgs)
+        {
+            string decoded;
+            if (!GameConfigEncoding.TryDecodeBase64(startConfigArgs, out decoded))
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(decoded))
+            {
+                return;
+            }
+
+            string[] extraArgs = decoded.Split(
+                new[] { "\r\n", "\n" },
+                StringSplitOptions.RemoveEmptyEntries);
+            foreach (string arg in extraArgs)
+            {
+                string trimmed = arg.Trim();
+                if (string.IsNullOrEmpty(trimmed))
+                {
+                    continue;
+                }
+
+                sb.Append(" ").Append(trimmed);
+            }
         }
 
         public static bool IsPortInUse(int port)
@@ -857,15 +875,10 @@ namespace Arma3ServerTools.Core.Config
 
         private static void AppendBase64DecodedLine(StringBuilder sb, string base64)
         {
-            try
+            string decoded;
+            if (GameConfigEncoding.TryDecodeBase64(base64, out decoded))
             {
-                if (!string.IsNullOrEmpty(base64))
-                {
-                    sb.AppendLine(Encoding.Default.GetString(Convert.FromBase64String(base64)));
-                }
-            }
-            catch
-            {
+                sb.AppendLine(decoded);
             }
         }
     }

@@ -1,20 +1,22 @@
 using System.Windows.Forms;
 using Arma3ServerTools.Core.Models;
+using AntCheckbox = AntdUI.Checkbox;
+using AntInputNumber = AntdUI.InputNumber;
 
 namespace Arma3ServerTools.App.WinForms.Controls
 {
     internal sealed class PerformanceSettingsPanel : UserControl, IServerSettingsPanel
     {
-        private readonly CheckBox enableHtCheckBox;
-        private readonly CheckBox hugepagesCheckBox;
-        private readonly CheckBox loadMissionCheckBox;
-        private readonly CheckBox disableServerThreadCheckBox;
-        private readonly NumericUpDown cpuCountNumeric;
-        private readonly NumericUpDown exThreadsNumeric;
-        private readonly NumericUpDown maxMemNumeric;
-        private readonly NumericUpDown limitFpsNumeric;
-        private readonly NumericUpDown terrainGridNumeric;
-        private readonly NumericUpDown viewDistanceNumeric;
+        private readonly AntCheckbox enableHtCheckBox;
+        private readonly AntCheckbox hugepagesCheckBox;
+        private readonly AntCheckbox loadMissionCheckBox;
+        private readonly AntCheckbox disableServerThreadCheckBox;
+        private readonly AntInputNumber cpuCountNumeric;
+        private readonly AntInputNumber exThreadsNumeric;
+        private readonly AntInputNumber maxMemNumeric;
+        private readonly AntInputNumber limitFpsNumeric;
+        private readonly AntInputNumber terrainGridNumeric;
+        private readonly AntInputNumber viewDistanceNumeric;
 
         private ArmaServerConfig boundConfig;
 
@@ -22,10 +24,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             Dock = DockStyle.Fill;
             var layout = SettingsLayoutHelper.CreateFormLayout(160);
-            enableHtCheckBox = SettingsLayoutHelper.AddRow(layout, "EnableHT", new CheckBox { Text = "-enableHT", AutoSize = true, Checked = true });
-            hugepagesCheckBox = SettingsLayoutHelper.AddRow(layout, "Hugepages", new CheckBox { Text = "-hugepages", AutoSize = true });
-            loadMissionCheckBox = SettingsLayoutHelper.AddRow(layout, "LoadMission", new CheckBox { Text = "-loadMissionToMemory", AutoSize = true, Checked = true });
-            disableServerThreadCheckBox = SettingsLayoutHelper.AddRow(layout, "DisableServerThread", new CheckBox { Text = "-disableServerThread", AutoSize = true });
+            enableHtCheckBox = SettingsLayoutHelper.AddRow(layout, "EnableHT", SettingsLayoutHelper.CreateCheckbox("-enableHT", true));
+            hugepagesCheckBox = SettingsLayoutHelper.AddRow(layout, "Hugepages", SettingsLayoutHelper.CreateCheckbox("-hugepages", false));
+            loadMissionCheckBox = SettingsLayoutHelper.AddRow(layout, "LoadMission", SettingsLayoutHelper.CreateCheckbox("-loadMissionToMemory", true));
+            disableServerThreadCheckBox = SettingsLayoutHelper.AddRow(layout, "DisableServerThread", SettingsLayoutHelper.CreateCheckbox("-disableServerThread", false));
             cpuCountNumeric = SettingsLayoutHelper.AddRow(layout, "CpuCount", SettingsLayoutHelper.CreateNumeric(0, 128, 0, 120));
             exThreadsNumeric = SettingsLayoutHelper.AddRow(layout, "ExThreads", SettingsLayoutHelper.CreateNumeric(0, 32, 0, 120));
             maxMemNumeric = SettingsLayoutHelper.AddRow(layout, "MaxMem (MB)", SettingsLayoutHelper.CreateNumeric(0, 65536, 0, 120));

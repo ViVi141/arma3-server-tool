@@ -7,6 +7,8 @@
     <AssemblyName>Arma3ServerTools</AssemblyName>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>Assets\1_arma3server_x64.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,6 +28,10 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="AntdUI" Version="2.3.14" />
+  </ItemGroup>
+
   <Target Name="CopyMonitoringHost" AfterTargets="Build">
     <PropertyGroup>
       <MonitoringHostOutDir>$(MSBuildProjectDirectory)\..\Arma3ServerTools.MonitoringHost\bin\$(Configuration)\net10.0-windows\</MonitoringHostOutDir>
@@ -36,21 +42,14 @@
       <MonitoringHostFiles Include="$(MonitoringHostOutDir)**\*.*" />
     </ItemGroup>
     <MakeDir Directories="$(MonitoringHostDeployDir)" Condition="Exists('$(MonitoringHostOutDir)$(MonitoringHostExeName)')" />
-    <Copy
-      SourceFiles="@(MonitoringHostFiles)"
-      DestinationFolder="$(MonitoringHostDeployDir)%(RecursiveDir)"
-      SkipUnchangedFiles="true"
-      Condition="Exists('$(MonitoringHostOutDir)$(MonitoringHostExeName)')" />
+    <Copy SourceFiles="@(MonitoringHostFiles)" DestinationFolder="$(MonitoringHostDeployDir)%(RecursiveDir)" SkipUnchangedFiles="true" Condition="Exists('$(MonitoringHostOutDir)$(MonitoringHostExeName)')" />
   </Target>
   <Target Name="BuildSteamCmdToolsIfNeeded" BeforeTargets="CopySteamCmdTools">
     <PropertyGroup>
       <SteamCmdToolsProject>$(MSBuildProjectDirectory)\..\..\Steamcmdtools\steamcmd\steamcmdTools.csproj</SteamCmdToolsProject>
       <SteamCmdToolsBuildDir>$(MSBuildProjectDirectory)\..\..\Steamcmdtools\steamcmd\bin\$(Configuration)\net10.0-windows\</SteamCmdToolsBuildDir>
     </PropertyGroup>
-    <MSBuild
-      Projects="$(SteamCmdToolsProject)"
-      Properties="Configuration=$(Configuration)"
-      Condition="Exists('$(SteamCmdToolsProject)') And !Exists('$(SteamCmdToolsBuildDir)steamcmdTools.exe')" />
+    <MSBuild Projects="$(SteamCmdToolsProject)" Properties="Configuration=$(Configuration)" Condition="Exists('$(SteamCmdToolsProject)') And !Exists('$(SteamCmdToolsBuildDir)steamcmdTools.exe')" />
   </Target>
   <Target Name="CopySteamCmdTools" AfterTargets="Build">
     <PropertyGroup>
@@ -62,11 +61,7 @@
       <SteamCmdToolsFiles Include="$(SteamCmdToolsOutDir)**\*.*" />
     </ItemGroup>
     <MakeDir Directories="$(SteamCmdToolsDeployDir)" Condition="Exists('$(SteamCmdToolsOutDir)$(SteamCmdToolsExeName)')" />
-    <Copy
-      SourceFiles="@(SteamCmdToolsFiles)"
-      DestinationFolder="$(SteamCmdToolsDeployDir)%(RecursiveDir)"
-      SkipUnchangedFiles="true"
-      Condition="Exists('$(SteamCmdToolsOutDir)$(SteamCmdToolsExeName)')" />
+    <Copy SourceFiles="@(SteamCmdToolsFiles)" DestinationFolder="$(SteamCmdToolsDeployDir)%(RecursiveDir)" SkipUnchangedFiles="true" Condition="Exists('$(SteamCmdToolsOutDir)$(SteamCmdToolsExeName)')" />
   </Target>
 
 </Project>

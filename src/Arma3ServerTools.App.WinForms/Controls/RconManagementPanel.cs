@@ -1,48 +1,86 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core.Models;
 using BytexDigital.BattlEye.Rcon.Domain;
+using AntLabel = AntdUI.Label;
+using AntTable = AntdUI.Table;
 
 namespace Arma3ServerTools.App.WinForms.Controls
 {
+    internal sealed class RconPlayerRow
+    {
+        public int Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public string Guid { get; set; } = string.Empty;
+
+        public string Ip { get; set; } = string.Empty;
+    }
+
+    internal sealed class RconBanRow
+    {
+        public int Id { get; set; }
+
+        public string Guid { get; set; } = string.Empty;
+
+        public string Ip { get; set; } = string.Empty;
+
+        public string Duration { get; set; } = string.Empty;
+
+        public string Reason { get; set; } = string.Empty;
+    }
+
+    internal sealed class RconMissionRow
+    {
+        public string Map { get; set; } = string.Empty;
+
+        public string Mission { get; set; } = string.Empty;
+    }
+
     internal sealed class RconManagementPanel : UserControl, IServerSettingsPanel
     {
-        private readonly Button connectButton;
-        private readonly Button refreshPlayersButton;
-        private readonly Button kickButton;
-        private Button refreshBansButton;
-        private Button removeBanButton;
-        private Button loadBansButton;
-        private Button saveBansButton;
-        private Button sendAllButton;
-        private Button sendPlayerButton;
-        private Button refreshMissionsButton;
-        private Button restartMissionButton;
-        private Button lockButton;
-        private Button unlockButton;
-        private readonly Button syncPlayersButton;
+        private readonly AntdUI.Button connectButton;
+        private readonly AntdUI.Button refreshPlayersButton;
+        private readonly AntdUI.Button kickButton;
+        private AntdUI.Button refreshBansButton;
+        private AntdUI.Button removeBanButton;
+        private AntdUI.Button loadBansButton;
+        private AntdUI.Button saveBansButton;
+        private AntdUI.Button sendAllButton;
+        private AntdUI.Button sendPlayerButton;
+        private AntdUI.Button refreshMissionsButton;
+        private AntdUI.Button restartMissionButton;
+        private AntdUI.Button lockButton;
+        private AntdUI.Button unlockButton;
+        private readonly AntdUI.Button syncPlayersButton;
 
-        private readonly DataGridView playersGrid;
-        private readonly DataGridView bansGrid;
-        private readonly DataGridView missionsGrid;
-        private readonly TextBox kickReasonTextBox;
-        private readonly TextBox broadcastTextBox;
-        private readonly TextBox playerMessageTextBox;
-        private readonly Label statusLabel;
+        private readonly AntTable playersTable;
+        private readonly AntTable bansTable;
+        private readonly AntTable missionsTable;
+        private readonly AntdUI.Input kickReasonInput;
+        private readonly AntdUI.Input broadcastInput;
+        private readonly AntdUI.Input playerMessageInput;
+        private readonly AntLabel statusLabel;
+
+        private readonly List<RconPlayerRow> playerRows = new List<RconPlayerRow>();
+        private readonly List<RconBanRow> banRows = new List<RconBanRow>();
+        private readonly List<RconMissionRow> missionRows = new List<RconMissionRow>();
 
         private ArmaServerConfig boundConfig;
         private bool connected;
 
         public RconManagementPanel()
         {
-            Dock = DockStyle.Fill;
-            Padding = new Padding(12);
+            AppTheme.ApplyTo(this);
 
             var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
-            connectButton = new Button { Text = "连接 RCon", AutoSize = true };
+            connectButton = SettingsLayoutHelper.CreateButton("连接 RCon");
             refreshPlayersButton = CreateActionButton("刷新玩家");
             kickButton = CreateActionButton("踢出选中");
             syncPlayersButton = CreateActionButton("同步到玩家库");
@@ -55,29 +93,48 @@ namespace Arma3ServerTools.App.WinForms.Controls
             toolbar.Controls.Add(kickButton);
             toolbar.Controls.Add(syncPlayersButton);
 
-            statusLabel = new Label
+            statusLabel = new AntLabel
             {
                 Dock = DockStyle.Top,
-                AutoSize = true,
+                AutoSizeMode = AntdUI.TAutoSize.Auto,
                 Text = "未连接",
-                Padding = new Padding(0, 8, 0, 8),
+                Padding = new Padding(0, UiScaleHelper.Scale(8), 0, UiScaleHelper.Scale(8)),
             };
 
-            kickReasonTextBox = new TextBox { Dock = DockStyle.Top, Text = "管理员踢出" };
-            broadcastTextBox = new TextBox { Dock = DockStyle.Top, Text = "服务器公告" };
-            playerMessageTextBox = new TextBox { Dock = DockStyle.Top, Text = "私信内容" };
+            kickReasonInput = SettingsLayoutHelper.CreateInput(true);
+            kickReasonInput.Dock = DockStyle.Top;
+            kickReasonInput.Text = "管理员踢出";
 
-            playersGrid = CreateGrid(new[] { "Id", "Name", "Guid", "Ip" });
-            bansGrid = CreateGrid(new[] { "Id", "Guid", "Ip", "Duration", "Reason" });
-            missionsGrid = CreateGrid(new[] { "Map", "Mission" });
+            broadcastInput = SettingsLayoutHelper.CreateInput(true);
+            broadcastInput.Dock = DockStyle.Top;
+            broadcastInput.Text = "服务器公告";
 
-            var tabs = new TabControl { Dock = DockStyle.Fill };
-            tabs.TabPages.Add(WrapPage("在线玩家", playersGrid));
-            tabs.TabPages.Add(WrapPage("BattlEye 封禁", CreateBanPanel()));
-            tabs.TabPages.Add(WrapPage("任务 / 控制", CreateMissionPanel()));
+            playerMessageInput = SettingsLayoutHelper.CreateInput(true);
+            playerMessageInput.Dock = DockStyle.Top;
+            playerMessageInput.Text = "私信内容";
+
+            playersTable = CreateRconTable(
+                new AntdTableHelper.ColumnSpec("Id", "Id", "10%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Name", "Name", "28%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Guid", "Guid", "34%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Ip", "Ip", "28%", AntdUI.ColumnAlign.Left));
+            bansTable = CreateRconTable(
+                new AntdTableHelper.ColumnSpec("Id", "Id", "10%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Guid", "Guid", "28%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Ip", "Ip", "18%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Duration", "Duration", "14%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Reason", "Reason", "30%", AntdUI.ColumnAlign.Left));
+            missionsTable = CreateRconTable(
+                new AntdTableHelper.ColumnSpec("Map", "Map", "42%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Mission", "Mission", "58%", AntdUI.ColumnAlign.Left));
+
+            var tabs = AntdUiHelper.CreateTabsPanel();
+            AntdUiHelper.AddTabPage(tabs, "在线玩家", playersTable);
+            AntdUiHelper.AddTabPage(tabs, "BattlEye 封禁", CreateBanPanel());
+            AntdUiHelper.AddTabPage(tabs, "任务 / 控制", CreateMissionPanel());
 
             Controls.Add(tabs);
-            Controls.Add(kickReasonTextBox);
+            Controls.Add(kickReasonInput);
             Controls.Add(statusLabel);
             Controls.Add(toolbar);
         }
@@ -120,8 +177,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             banToolbar.Controls.Add(loadBansButton);
             banToolbar.Controls.Add(saveBansButton);
 
-            bansGrid.Dock = DockStyle.Fill;
-            panel.Controls.Add(bansGrid);
+            bansTable.Dock = DockStyle.Fill;
+            panel.Controls.Add(bansTable);
             panel.Controls.Add(banToolbar);
             return panel;
         }
@@ -150,12 +207,12 @@ namespace Arma3ServerTools.App.WinForms.Controls
             missionToolbar.Controls.Add(sendAllButton);
             missionToolbar.Controls.Add(sendPlayerButton);
 
-            broadcastTextBox.Dock = DockStyle.Top;
-            playerMessageTextBox.Dock = DockStyle.Top;
-            missionsGrid.Dock = DockStyle.Fill;
-            panel.Controls.Add(missionsGrid);
-            panel.Controls.Add(playerMessageTextBox);
-            panel.Controls.Add(broadcastTextBox);
+            broadcastInput.Dock = DockStyle.Top;
+            playerMessageInput.Dock = DockStyle.Top;
+            missionsTable.Dock = DockStyle.Fill;
+            panel.Controls.Add(missionsTable);
+            panel.Controls.Add(playerMessageInput);
+            panel.Controls.Add(broadcastInput);
             panel.Controls.Add(missionToolbar);
             return panel;
         }
@@ -186,7 +243,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             catch (Exception ex)
             {
                 statusLabel.Text = "连接失败: " + ex.Message;
-                MessageBox.Show(ex.Message, "RCon 连接失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUiHelper.ShowError(FindForm(), ex.Message, "RCon 连接失败");
                 connected = false;
                 SetConnectedUi(false);
             }
@@ -198,39 +255,51 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private async void OnKickPlayer(object sender, EventArgs e)
         {
-            if (!connected || playersGrid.SelectedRows.Count == 0)
+            if (!connected)
+            {
+                return;
+            }
+
+            int idx = AntdTableHelper.GetSelectedRowIndex(playersTable);
+            if (idx < 0 || idx >= playerRows.Count)
             {
                 return;
             }
 
             try
             {
-                int playerId = Convert.ToInt32(playersGrid.SelectedRows[0].Cells["Id"].Value);
-                await AppServices.Instance.RconService.KickAsync(playerId, kickReasonTextBox.Text.Trim()).ConfigureAwait(true);
+                int playerId = playerRows[idx].Id;
+                await AppServices.Instance.RconService.KickAsync(playerId, kickReasonInput.Text.Trim()).ConfigureAwait(true);
                 await LoadPlayersAsync().ConfigureAwait(true);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "踢出失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUiHelper.ShowError(FindForm(), ex.Message, "踢出失败");
             }
         }
 
         private async void OnRemoveBan(object sender, EventArgs e)
         {
-            if (!connected || bansGrid.SelectedRows.Count == 0)
+            if (!connected)
+            {
+                return;
+            }
+
+            int idx = AntdTableHelper.GetSelectedRowIndex(bansTable);
+            if (idx < 0 || idx >= banRows.Count)
             {
                 return;
             }
 
             try
             {
-                int banId = Convert.ToInt32(bansGrid.SelectedRows[0].Cells["Id"].Value);
+                int banId = banRows[idx].Id;
                 await AppServices.Instance.RconService.RemoveBanAsync(banId).ConfigureAwait(true);
                 await LoadBansAsync().ConfigureAwait(true);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "移除封禁失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUiHelper.ShowError(FindForm(), ex.Message, "移除封禁失败");
             }
         }
 
@@ -243,41 +312,49 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             try
             {
-                await AppServices.Instance.RconService.SendMessageAsync(broadcastTextBox.Text.Trim()).ConfigureAwait(true);
+                await AppServices.Instance.RconService.SendMessageAsync(broadcastInput.Text.Trim()).ConfigureAwait(true);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "发送失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUiHelper.ShowError(FindForm(), ex.Message, "发送失败");
             }
         }
 
         private async void OnSendPlayerMessage(object sender, EventArgs e)
         {
-            if (!connected || playersGrid.SelectedRows.Count == 0)
+            if (!connected)
+            {
+                return;
+            }
+
+            int idx = AntdTableHelper.GetSelectedRowIndex(playersTable);
+            if (idx < 0 || idx >= playerRows.Count)
             {
                 return;
             }
 
             try
             {
-                int playerId = Convert.ToInt32(playersGrid.SelectedRows[0].Cells["Id"].Value);
-                await AppServices.Instance.RconService.SendMessageToPlayerAsync(playerId, playerMessageTextBox.Text.Trim()).ConfigureAwait(true);
+                int playerId = playerRows[idx].Id;
+                await AppServices.Instance.RconService.SendMessageToPlayerAsync(playerId, playerMessageInput.Text.Trim()).ConfigureAwait(true);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "发送失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUiHelper.ShowError(FindForm(), ex.Message, "发送失败");
             }
         }
 
         private async Task LoadPlayersAsync()
         {
-            playersGrid.Rows.Clear();
             if (!connected)
             {
+                playerRows.Clear();
+                AntdTableHelper.BindList(playersTable, playerRows);
                 return;
             }
 
-            System.Collections.Generic.IReadOnlyList<Player> players = await AppServices.Instance.RconService.GetPlayersAsync().ConfigureAwait(true);
+            IReadOnlyList<Player> players = await AppServices.Instance.RconService.GetPlayersAsync().ConfigureAwait(true);
+            playerRows.Clear();
             foreach (Player player in players)
             {
                 string ip = string.Empty;
@@ -286,8 +363,17 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     ip = player.RemoteEndpoint.Address.ToString();
                 }
 
-                playersGrid.Rows.Add(player.Id, player.Name, player.Guid, ip);
+                playerRows.Add(
+                    new RconPlayerRow
+                    {
+                        Id = player.Id,
+                        Name = player.Name,
+                        Guid = player.Guid,
+                        Ip = ip,
+                    });
             }
+
+            AntdTableHelper.BindList(playersTable, playerRows);
         }
 
         private async Task SyncPlayersAsync()
@@ -297,24 +383,31 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            System.Collections.Generic.IReadOnlyList<Player> players = await AppServices.Instance.RconService.GetPlayersAsync().ConfigureAwait(true);
+            IReadOnlyList<Player> players = await AppServices.Instance.RconService.GetPlayersAsync().ConfigureAwait(true);
             AppServices.Instance.PlayerDirectoryService.SyncPlayers(players);
-            MessageBox.Show("已将在线玩家同步到 destiny_players.db。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            AntdUiHelper.ShowInfo(FindForm(), "已将在线玩家同步到 destiny_players.db。", "完成");
         }
 
         private async Task LoadBansAsync()
         {
-            bansGrid.Rows.Clear();
             if (!connected)
             {
+                banRows.Clear();
+                AntdTableHelper.BindList(bansTable, banRows);
                 return;
             }
 
-            System.Collections.Generic.IReadOnlyList<PlayerBan> bans = await AppServices.Instance.RconService.GetBansAsync().ConfigureAwait(true);
+            IReadOnlyList<PlayerBan> bans = await AppServices.Instance.RconService.GetBansAsync().ConfigureAwait(true);
+            banRows.Clear();
             foreach (PlayerBan ban in bans)
             {
                 string guid = ban.Guid ?? string.Empty;
-                string ip = ban.Ip != null ? ban.Ip.ToString() : string.Empty;
+                string ip = string.Empty;
+                if (ban.Ip != null)
+                {
+                    ip = ban.Ip.ToString();
+                }
+
                 string duration;
                 if (ban.IsPermanent)
                 {
@@ -325,8 +418,18 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     duration = ban.DurationLeft.ToString();
                 }
 
-                bansGrid.Rows.Add(ban.Id, guid, ip, duration, ban.Reason);
+                banRows.Add(
+                    new RconBanRow
+                    {
+                        Id = ban.Id,
+                        Guid = guid,
+                        Ip = ip,
+                        Duration = duration,
+                        Reason = ban.Reason,
+                    });
             }
+
+            AntdTableHelper.BindList(bansTable, banRows);
         }
 
         private async Task LoadBansCommandAsync()
@@ -338,22 +441,31 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private async Task SaveBansCommandAsync()
         {
             await AppServices.Instance.RconService.SaveBansAsync().ConfigureAwait(true);
-            MessageBox.Show("已执行 SaveBans。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            AntdUiHelper.ShowInfo(FindForm(), "已执行 SaveBans。", "完成");
         }
 
         private async Task LoadMissionsAsync()
         {
-            missionsGrid.Rows.Clear();
             if (!connected)
             {
+                missionRows.Clear();
+                AntdTableHelper.BindList(missionsTable, missionRows);
                 return;
             }
 
-            System.Collections.Generic.IReadOnlyList<Mission> missions = await AppServices.Instance.RconService.GetMissionsAsync().ConfigureAwait(true);
+            IReadOnlyList<Mission> missions = await AppServices.Instance.RconService.GetMissionsAsync().ConfigureAwait(true);
+            missionRows.Clear();
             foreach (Mission mission in missions)
             {
-                missionsGrid.Rows.Add(mission.Map, mission.Name);
+                missionRows.Add(
+                    new RconMissionRow
+                    {
+                        Map = mission.Map,
+                        Mission = mission.Name,
+                    });
             }
+
+            AntdTableHelper.BindList(missionsTable, missionRows);
         }
 
         private async Task RestartMissionAsync()
@@ -375,7 +487,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             if (!connected)
             {
-                MessageBox.Show("请先连接 RCon。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AntdUiHelper.ShowInfo(FindForm(), "请先连接 RCon。", "提示");
                 return;
             }
 
@@ -385,7 +497,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "操作失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUiHelper.ShowError(FindForm(), ex.Message, "操作失败");
             }
         }
 
@@ -408,40 +520,38 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void ClearGrids()
         {
-            playersGrid.Rows.Clear();
-            bansGrid.Rows.Clear();
-            missionsGrid.Rows.Clear();
+            playerRows.Clear();
+            banRows.Clear();
+            missionRows.Clear();
+            AntdTableHelper.BindList(playersTable, playerRows);
+            AntdTableHelper.BindList(bansTable, banRows);
+            AntdTableHelper.BindList(missionsTable, missionRows);
         }
 
-        private static Button CreateActionButton(string text)
+        private static AntdUI.Button CreateActionButton(string text)
         {
-            return new Button { Text = text, AutoSize = true, Enabled = false };
+            AntdUI.Button button = SettingsLayoutHelper.CreateButton(text);
+            button.Enabled = false;
+            return button;
         }
 
-        private static DataGridView CreateGrid(string[] columns)
+        private static AntTable CreateRconTable(params AntdTableHelper.ColumnSpec[] specs)
         {
-            var grid = new DataGridView
+            AntTable table = AntdTableHelper.CreateStandardTable();
+            var columns = new AntdUI.ColumnCollection();
+            foreach (AntdTableHelper.ColumnSpec spec in specs)
             {
-                ReadOnly = true,
-                AllowUserToAddRows = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-            };
-
-            foreach (string column in columns)
-            {
-                grid.Columns.Add(column, column);
+                columns.Add(
+                    new AntdUI.Column(spec.Key, spec.Title)
+                    {
+                        Width = spec.Width,
+                        Align = spec.Align,
+                        ReadOnly = true,
+                    });
             }
 
-            return grid;
-        }
-
-        private static TabPage WrapPage(string title, Control content)
-        {
-            var page = new TabPage(title);
-            content.Dock = DockStyle.Fill;
-            page.Controls.Add(content);
-            return page;
+            table.Columns = columns;
+            return table;
         }
     }
 }

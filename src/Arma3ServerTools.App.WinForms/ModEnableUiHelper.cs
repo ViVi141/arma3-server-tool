@@ -22,19 +22,19 @@ namespace Arma3ServerTools.App.WinForms
         {
             if (config == null)
             {
-                MessageBox.Show(owner, "请先选择服务器配置。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AntdUiHelper.ShowWarning(owner, "请先选择服务器配置。", "提示");
                 return false;
             }
 
             if (settings == null || string.IsNullOrEmpty(settings.d))
             {
-                MessageBox.Show(owner, "请先在 SteamCMD 设置中配置 Workshop 根目录。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AntdUiHelper.ShowWarning(owner, "请先在 SteamCMD 设置中配置 Workshop 根目录。", "提示");
                 return false;
             }
 
             if (htmlEntries == null || htmlEntries.Count == 0)
             {
-                MessageBox.Show(owner, "HTML 中未解析到模组。", "读取失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AntdUiHelper.ShowWarning(owner, "HTML 中未解析到模组。", "读取失败");
                 return false;
             }
 
@@ -44,7 +44,8 @@ namespace Arma3ServerTools.App.WinForms
             bool downloadMissing;
             using (var dialog = new HtmlModEnableForm(htmlEntries, settings.d, enabler))
             {
-                if (dialog.ShowDialog(owner) != DialogResult.OK)
+                Form ownerForm = owner as Form;
+                if (dialog.ShowDialog(ownerForm) != DialogResult.OK)
                 {
                     return false;
                 }
@@ -56,7 +57,7 @@ namespace Arma3ServerTools.App.WinForms
 
             if (selectedEntries.Count == 0)
             {
-                MessageBox.Show(owner, "请至少勾选一个要启用的模组。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AntdUiHelper.ShowInfo(owner, "请至少勾选一个要启用的模组。", "提示");
                 return false;
             }
 
@@ -83,12 +84,10 @@ namespace Arma3ServerTools.App.WinForms
             ModEnableApplyResult applyResult = enabler.ApplyHtmlMods(config, settings.d, selectedEntries, target);
             if (applyResult.AppliedCount == 0)
             {
-                MessageBox.Show(
+                AntdUiHelper.ShowWarning(
                     owner,
                     "没有模组被启用。请确认模组已下载到 Workshop 目录，或勾选「启用前下载未安装的模组」。",
-                    "启用失败",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
+                    "启用失败");
                 return false;
             }
 
@@ -118,7 +117,7 @@ namespace Arma3ServerTools.App.WinForms
                 }
             }
 
-            MessageBox.Show(owner, message.ToString(), "启用完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            AntdUiHelper.ShowInfo(owner, message.ToString(), "启用完成");
             return true;
         }
 

@@ -86,6 +86,7 @@ namespace Arma3ServerTools.Application.Services
             }
 
             var rows = new List<ScannedModRow>();
+            int scanOrder = 0;
             foreach (string directory in directories)
             {
                 ModsEntity saved = FindSavedMod(config, directory);
@@ -94,6 +95,8 @@ namespace Arma3ServerTools.Application.Services
                 row.ModPath = directory;
                 row.ModDirName = ModFileTools.GetDirectoryName(directory);
                 row.UpdateSelected = false;
+                row.ScanOrder = scanOrder;
+                scanOrder++;
                 if (saved != null)
                 {
                     row.ModName = saved.ModName;
@@ -111,6 +114,11 @@ namespace Arma3ServerTools.Application.Services
                     row.InputLocalMod = false;
                 }
 
+                if (IsWorkshopModPath(directory, steamcmd))
+                {
+                    row.InputLocalMod = false;
+                }
+
                 if (meta != null)
                 {
                     if (!string.IsNullOrEmpty(meta.Name))
@@ -125,7 +133,8 @@ namespace Arma3ServerTools.Application.Services
 
                     if (meta.TimeStamp != 0)
                     {
-                        row.UpdatedTime = DateTime.FromBinary(meta.TimeStamp).ToString();
+                        row.UpdatedAt = DateTime.FromBinary(meta.TimeStamp);
+                        row.UpdatedTime = row.UpdatedAt.Value.ToString();
                     }
                 }
 
@@ -138,6 +147,25 @@ namespace Arma3ServerTools.Application.Services
             }
 
             return rows;
+        }
+
+        internal static bool IsWorkshopModPath(string modPath, SteamcmdEntity steamcmd)
+        {
+            if (string.IsNullOrEmpty(modPath))
+            {
+                return false;
+            }
+
+            if (steamcmd != null && !string.IsNullOrEmpty(steamcmd.d))
+            {
+                string workshopRoot = Path.Combine(steamcmd.d, @"steamapps\workshop\content\107410");
+                if (modPath.StartsWith(workshopRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return modPath.IndexOf(@"workshop\content\107410", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static ModsEntity FindSavedMod(ArmaServerConfig config, string modPath)
@@ -161,6 +189,10 @@ namespace Arma3ServerTools.Application.Services
 
     public sealed class ScannedModRow
     {
+        public int RowIndex { get; set; }
+
+        public int ScanOrder { get; set; }
+
         public bool UpdateSelected { get; set; }
 
         public string ModDirName { get; set; }
@@ -177,8 +209,28 @@ namespace Arma3ServerTools.Application.Services
 
         public bool InputLocalMod { get; set; }
 
+        public string InputLocalModLabel
+        {
+            get
+            {
+                if (InputLocalMod)
+                {
+                    return "是";
+                }
+
+                return "否";
+            }
+        }
+
+        public bool IsAnyModSelected
+        {
+            get { return LocalMod || ServerMod || HeadlessClientMod; }
+        }
+
         public string ModPath { get; set; }
 
         public string UpdatedTime { get; set; }
+
+        public DateTime? UpdatedAt { get; set; }
     }
 }

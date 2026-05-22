@@ -1,29 +1,83 @@
 using System;
 using System.Windows.Forms;
+using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Application.Monitoring;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core.Models;
+using AntLabel = AntdUI.Label;
+using AntTable = AntdUI.Table;
 
 namespace Arma3ServerTools.App.WinForms.Controls
 {
+    internal sealed class StatisticsPlayerStatRow
+    {
+        public string PlayerId { get; set; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
+
+        public int Infantry { get; set; }
+
+        public int Soft { get; set; }
+
+        public int Armor { get; set; }
+
+        public int Air { get; set; }
+
+        public int Deaths { get; set; }
+
+        public int Score { get; set; }
+
+        public int Online { get; set; }
+
+        public string Time { get; set; } = string.Empty;
+    }
+
+    internal sealed class StatisticsObjectStatRow
+    {
+        public string Id { get; set; } = string.Empty;
+
+        public string Players { get; set; } = string.Empty;
+
+        public string Units { get; set; } = string.Empty;
+
+        public string Fps { get; set; } = string.Empty;
+
+        public string FpsMin { get; set; } = string.Empty;
+
+        public string Time { get; set; } = string.Empty;
+    }
+
+    internal sealed class StatisticsPlayerDirectoryRow
+    {
+        public string Guid { get; set; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
+
+        public string Ip { get; set; } = string.Empty;
+
+        public string LastSeen { get; set; } = string.Empty;
+    }
+
     internal sealed class StatisticsManagementPanel : UserControl, IServerSettingsPanel
     {
-        private readonly DataGridView playerStatsGrid;
-        private readonly DataGridView objectStatsGrid;
-        private readonly DataGridView playerDirectoryGrid;
-        private readonly Label summaryLabel;
+        private readonly AntTable playerStatsTable;
+        private readonly AntTable objectStatsTable;
+        private readonly AntTable playerDirectoryTable;
+        private readonly AntLabel summaryLabel;
 
         private ArmaServerConfig boundConfig;
+        private readonly System.Collections.Generic.List<StatisticsPlayerStatRow> playerStatRows = new System.Collections.Generic.List<StatisticsPlayerStatRow>();
+        private readonly System.Collections.Generic.List<StatisticsObjectStatRow> objectStatRows = new System.Collections.Generic.List<StatisticsObjectStatRow>();
+        private readonly System.Collections.Generic.List<StatisticsPlayerDirectoryRow> directoryRows = new System.Collections.Generic.List<StatisticsPlayerDirectoryRow>();
 
         public StatisticsManagementPanel()
         {
-            Dock = DockStyle.Fill;
-            Padding = new Padding(12);
+            AppTheme.ApplyTo(this);
 
             var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
-            var refreshButton = new Button { Text = "刷新统计", AutoSize = true };
-            var initOnlineButton = new Button { Text = "重置在线状态", AutoSize = true };
-            var cleanupButton = new Button { Text = "清理一月前快照", AutoSize = true };
+            AntdUI.Button refreshButton = SettingsLayoutHelper.CreateButton("刷新统计");
+            AntdUI.Button initOnlineButton = SettingsLayoutHelper.CreateButton("重置在线状态");
+            AntdUI.Button cleanupButton = SettingsLayoutHelper.CreateButton("清理一月前快照");
             refreshButton.Click += delegate { RefreshAll(); };
             initOnlineButton.Click += OnInitOnline;
             cleanupButton.Click += OnCleanupOldData;
@@ -31,22 +85,42 @@ namespace Arma3ServerTools.App.WinForms.Controls
             toolbar.Controls.Add(initOnlineButton);
             toolbar.Controls.Add(cleanupButton);
 
-            summaryLabel = new Label
+            summaryLabel = new AntLabel
             {
                 Dock = DockStyle.Top,
-                AutoSize = true,
-                Padding = new Padding(0, 8, 0, 8),
+                AutoSizeMode = AntdUI.TAutoSize.Auto,
+                Padding = new Padding(0, UiScaleHelper.Scale(8), 0, UiScaleHelper.Scale(8)),
                 Text = "选择服务器后点击刷新统计",
             };
 
-            var tabs = new TabControl { Dock = DockStyle.Fill };
-            playerStatsGrid = CreateGrid(new[] { "PlayerId", "Name", "Infantry", "Soft", "Armor", "Air", "Deaths", "Score", "Online", "Time" });
-            objectStatsGrid = CreateGrid(new[] { "Id", "Players", "Units", "FPS", "FPS Min", "Time" });
-            playerDirectoryGrid = CreateGrid(new[] { "Guid", "Name", "IP", "LastSeen" });
+            var tabs = AntdUiHelper.CreateTabsPanel();
+            playerStatsTable = CreateStatsTable(
+                new AntdTableHelper.ColumnSpec("PlayerId", "PlayerId", "8%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Name", "Name", "14%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Infantry", "Infantry", "7%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Soft", "Soft", "7%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Armor", "Armor", "7%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Air", "Air", "7%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Deaths", "Deaths", "7%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Score", "Score", "9%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Online", "Online", "8%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Time", "Time", "26%", AntdUI.ColumnAlign.Left));
+            objectStatsTable = CreateStatsTable(
+                new AntdTableHelper.ColumnSpec("Id", "Id", "12%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Players", "Players", "15%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Units", "Units", "15%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Fps", "FPS", "12%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("FpsMin", "FPS Min", "14%", AntdUI.ColumnAlign.Center),
+                new AntdTableHelper.ColumnSpec("Time", "Time", "32%", AntdUI.ColumnAlign.Left));
+            playerDirectoryTable = CreateStatsTable(
+                new AntdTableHelper.ColumnSpec("Guid", "Guid", "28%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Name", "Name", "24%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("Ip", "IP", "18%", AntdUI.ColumnAlign.Left),
+                new AntdTableHelper.ColumnSpec("LastSeen", "LastSeen", "30%", AntdUI.ColumnAlign.Left));
 
-            tabs.TabPages.Add(WrapPage("战斗统计", playerStatsGrid));
-            tabs.TabPages.Add(WrapPage("服务器快照", objectStatsGrid));
-            tabs.TabPages.Add(WrapPage("玩家库", playerDirectoryGrid));
+            AntdUiHelper.AddTabPage(tabs, "战斗统计", playerStatsTable);
+            AntdUiHelper.AddTabPage(tabs, "服务器快照", objectStatsTable);
+            AntdUiHelper.AddTabPage(tabs, "玩家库", playerDirectoryTable);
 
             Controls.Add(tabs);
             Controls.Add(summaryLabel);
@@ -56,9 +130,12 @@ namespace Arma3ServerTools.App.WinForms.Controls
         public void Bind(ArmaServerConfig config)
         {
             boundConfig = config;
-            playerStatsGrid.Rows.Clear();
-            objectStatsGrid.Rows.Clear();
-            playerDirectoryGrid.Rows.Clear();
+            playerStatRows.Clear();
+            objectStatRows.Clear();
+            directoryRows.Clear();
+            AntdTableHelper.BindList(playerStatsTable, playerStatRows);
+            AntdTableHelper.BindList(objectStatsTable, objectStatRows);
+            AntdTableHelper.BindList(playerDirectoryTable, directoryRows);
             if (config == null)
             {
                 Enabled = false;
@@ -85,43 +162,62 @@ namespace Arma3ServerTools.App.WinForms.Controls
             try
             {
                 MonitoringQueryService query = AppServices.Instance.MonitoringQueryService;
-                playerStatsGrid.Rows.Clear();
+                playerStatRows.Clear();
                 foreach (MonitoringPlayerStatRecord row in query.GetPlayerStats(boundConfig.ServerUUID, 500))
                 {
-                    playerStatsGrid.Rows.Add(
-                        row.PlayerId,
-                        row.PlayerName,
-                        row.InfantryKills,
-                        row.SoftVehicleKills,
-                        row.ArmorKills,
-                        row.AirKills,
-                        row.Deaths,
-                        row.TotalScore,
-                        row.Online,
-                        row.CreateTime);
+                    playerStatRows.Add(
+                        new StatisticsPlayerStatRow
+                        {
+                            PlayerId = row.PlayerId,
+                            Name = row.PlayerName,
+                            Infantry = row.InfantryKills,
+                            Soft = row.SoftVehicleKills,
+                            Armor = row.ArmorKills,
+                            Air = row.AirKills,
+                            Deaths = row.Deaths,
+                            Score = row.TotalScore,
+                            Online = row.Online,
+                            Time = row.CreateTime,
+                        });
                 }
 
-                objectStatsGrid.Rows.Clear();
+                AntdTableHelper.BindList(playerStatsTable, playerStatRows);
+
+                objectStatRows.Clear();
                 foreach (MonitoringObjectStatRecord row in query.GetRecentObjectStats(boundConfig.ServerUUID, 200))
                 {
-                    objectStatsGrid.Rows.Add(
-                        row.Id,
-                        row.AllPlayers,
-                        row.AllUnits,
-                        row.Fps,
-                        row.FpsMin,
-                        row.CreateTime);
+                    objectStatRows.Add(
+                        new StatisticsObjectStatRow
+                        {
+                            Id = row.Id.ToString(),
+                            Players = row.AllPlayers.ToString(),
+                            Units = row.AllUnits.ToString(),
+                            Fps = row.Fps.ToString(),
+                            FpsMin = row.FpsMin.ToString(),
+                            Time = row.CreateTime,
+                        });
                 }
 
-                playerDirectoryGrid.Rows.Clear();
+                AntdTableHelper.BindList(objectStatsTable, objectStatRows);
+
+                directoryRows.Clear();
                 foreach (PlayerDB player in AppServices.Instance.PlayerDirectoryService.LoadAll())
                 {
-                    playerDirectoryGrid.Rows.Add(player.Guid, player.Name, player.Ip, player.Time);
+                    directoryRows.Add(
+                        new StatisticsPlayerDirectoryRow
+                        {
+                            Guid = player.Guid,
+                            Name = player.Name,
+                            Ip = player.Ip,
+                            LastSeen = player.Time,
+                        });
                 }
+
+                AntdTableHelper.BindList(playerDirectoryTable, directoryRows);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "刷新统计失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUiHelper.ShowError(FindForm(), ex.Message, "刷新统计失败");
             }
         }
 
@@ -134,65 +230,53 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             try
             {
-                int rows = AppServices.Instance.MonitoringQueryService.InitPlayerOnlineInfo(boundConfig.ServerUUID);
-                MessageBox.Show("已重置在线状态，影响行数: " + rows, "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                int rowsAffected = AppServices.Instance.MonitoringQueryService.InitPlayerOnlineInfo(boundConfig.ServerUUID);
+                AntdUiHelper.ShowInfo(FindForm(), "已重置在线状态，影响行数: " + rowsAffected, "完成");
                 RefreshAll();
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUiHelper.ShowError(FindForm(), ex.Message, "失败");
             }
         }
 
         private void OnCleanupOldData(object sender, EventArgs e)
         {
-            DialogResult confirm = MessageBox.Show(
-                "确定删除一个月前的服务器快照数据？",
-                "确认",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning);
-            if (confirm != DialogResult.Yes)
+            bool confirmed = AntdUiHelper.Confirm(FindForm(), "确认", "确定删除一个月前的服务器快照数据？");
+            if (!confirmed)
             {
                 return;
             }
 
             try
             {
-                int rows = AppServices.Instance.MonitoringQueryService.DeleteObjectStatsOlderThanOneMonth();
-                MessageBox.Show("已清理 " + rows + " 条快照记录。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                int rowsAffected = AppServices.Instance.MonitoringQueryService.DeleteObjectStatsOlderThanOneMonth();
+                AntdUiHelper.ShowInfo(FindForm(), "已清理 " + rowsAffected + " 条快照记录。", "完成");
                 RefreshAll();
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AntdUiHelper.ShowError(FindForm(), ex.Message, "失败");
             }
         }
 
-        private static DataGridView CreateGrid(string[] columns)
+        private static AntTable CreateStatsTable(params AntdTableHelper.ColumnSpec[] specs)
         {
-            var grid = new DataGridView
+            AntTable table = AntdTableHelper.CreateStandardTable();
+            var columns = new AntdUI.ColumnCollection();
+            foreach (AntdTableHelper.ColumnSpec spec in specs)
             {
-                Dock = DockStyle.Fill,
-                ReadOnly = true,
-                AllowUserToAddRows = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-            };
-
-            foreach (string column in columns)
-            {
-                grid.Columns.Add(column, column);
+                columns.Add(
+                    new AntdUI.Column(spec.Key, spec.Title)
+                    {
+                        Width = spec.Width,
+                        Align = spec.Align,
+                        ReadOnly = true,
+                    });
             }
 
-            return grid;
-        }
-
-        private static TabPage WrapPage(string title, Control content)
-        {
-            var page = new TabPage(title);
-            content.Dock = DockStyle.Fill;
-            page.Controls.Add(content);
-            return page;
+            table.Columns = columns;
+            return table;
         }
     }
 }

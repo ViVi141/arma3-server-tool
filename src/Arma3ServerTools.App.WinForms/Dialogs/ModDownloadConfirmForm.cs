@@ -3,14 +3,18 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using AntLabel = AntdUI.Label;
+using AntPanel = AntdUI.Panel;
+using AntTable = AntdUI.Table;
 using Arma3ServerTools.Application.Services;
+using Arma3ServerTools.App.WinForms;
 
 namespace Arma3ServerTools.App.WinForms.Dialogs
 {
-    internal sealed class ModDownloadConfirmForm : Form
+    internal sealed class ModDownloadConfirmForm : AntdDialogForm
     {
-        private readonly DataGridView grid;
-        private readonly Label statusLabel;
+        private readonly AntTable grid;
+        private readonly AntLabel statusLabel;
         private readonly List<SteamWorkshopModInfo> mods;
 
         public ModDownloadConfirmForm(IList<ulong> modIds)
@@ -25,54 +29,56 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         }
 
         private ModDownloadConfirmForm(List<SteamWorkshopModInfo> initialMods)
+            : base()
         {
             Text = "确认需要更新/下载的模组";
-            Width = 900;
-            Height = 520;
-            StartPosition = FormStartPosition.CenterParent;
+            ApplyPreferredDialogSizing(900, 520, null);
+
             mods = initialMods;
 
-            statusLabel = new Label
+            statusLabel = new AntLabel
             {
                 Dock = DockStyle.Top,
-                AutoSize = true,
-                Padding = new Padding(12, 12, 12, 6),
+                AutoSizeMode = AntdUI.TAutoSize.Auto,
+                Padding = UiScaleHelper.ScalePadding(12, 6),
                 Text = "正在从 Steam API 加载模组信息...",
             };
 
-            grid = new DataGridView
+            grid = AntdTableHelper.CreateStandardTable();
+            grid.Columns = new AntdUI.ColumnCollection
             {
-                Dock = DockStyle.Fill,
-                AllowUserToAddRows = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                ReadOnly = false,
+                new AntdUI.ColumnCheck("Selected", "确认下载") { Width = "10%", Editable = true },
+                new AntdUI.Column("Title", "模组名称") { Width = "24%", Ellipsis = true, ReadOnly = true },
+                new AntdUI.Column("ModId", "Workshop ID") { Width = "14%", Align = AntdUI.ColumnAlign.Center },
+                new AntdUI.Column("FileSizeMb", "大小") { Width = "10%", Align = AntdUI.ColumnAlign.Center },
+                new AntdUI.Column("Description", "描述") { Width = "42%", Ellipsis = true, ReadOnly = true },
             };
-            grid.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Selected", HeaderText = "确认下载" });
-            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Title", HeaderText = "模组名称", ReadOnly = true });
-            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "ModId", HeaderText = "Workshop ID", ReadOnly = true });
-            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "FileSizeMb", HeaderText = "大小", ReadOnly = true });
-            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Description", HeaderText = "描述", ReadOnly = true });
+            grid.CheckedChanged += OnGridCheckedChanged;
 
-            var okButton = new Button { Text = "开始下载", DialogResult = DialogResult.OK, Width = 90 };
-            var cancelButton = new Button { Text = "取消", DialogResult = DialogResult.Cancel, Width = 90 };
-            var buttons = new FlowLayoutPanel
+            var cancelButton = AntdUiHelper.CreateToolbarButton("取消");
+            cancelButton.Click += delegate
             {
-                Dock = DockStyle.Bottom,
-                FlowDirection = FlowDirection.RightToLeft,
-                Height = 44,
-                Padding = new Padding(12, 6, 12, 8),
+                DialogResult = DialogResult.Cancel;
+                Close();
             };
-            buttons.Controls.Add(cancelButton);
-            buttons.Controls.Add(okButton);
 
-            Controls.Add(grid);
+            var okButton = AntdUiHelper.CreatePrimaryButton("开始下载");
+            okButton.Click += delegate
+            {
+                DialogResult = DialogResult.OK;
+                Close();
+            };
+
+            Control buttonBar = CreateButtonBar(okButton, cancelButton, "开始下载", "取消");
+
+            var filler = new AntPanel { Dock = DockStyle.Fill };
+            filler.Controls.Add(grid);
+
+            Controls.Add(buttonBar);
             Controls.Add(statusLabel);
-            Controls.Add(buttons);
-            AcceptButton = okButton;
-            CancelButton = cancelButton;
+            Controls.Add(filler);
 
-            ReloadGrid();
+            ReloadTable();
             Shown += OnShown;
         }
 
@@ -101,10 +107,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             try
             {
                 List<SteamWorkshopModInfo> loaded = await Task.Run(
-                    delegate
-                    {
-                        return new SteamWorkshopApiService().FetchModDetails(ids);
-                    }).ConfigureAwait(true);
+                    delegate { return new SteamWorkshopApiService().FetchModDetails(ids); }).ConfigureAwait(true);
 
                 if (loaded.Count > 0)
                 {
@@ -121,7 +124,21 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 statusLabel.Text = "加载 Steam 详情失败，仍可按 HTML/ID 勾选下载。";
             }
 
-            ReloadGrid();
+            if (!IsDisposed)
+            {
+                ReloadTable();
+            }
+        }
+
+        private void OnGridCheckedChanged(object sender, AntdUI.TableCheckEventArgs e)
+        {
+            var modInfo = e.Record as SteamWorkshopModInfo;
+            if (modInfo == null)
+            {
+                return;
+            }
+
+            modInfo.Selected = e.Value;
         }
 
         private void MergeLoadedDetails(List<SteamWorkshopModInfo> loaded)
@@ -170,10 +187,20 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
                 if (!exists)
                 {
+                    string missingTitle;
+                    if (titleById.ContainsKey(missingId))
+                    {
+                        missingTitle = titleById[missingId];
+                    }
+                    else
+                    {
+                        missingTitle = "Workshop " + missingId;
+                    }
+
                     mods.Add(new SteamWorkshopModInfo
                     {
                         ModId = missingId,
-                        Title = titleById.ContainsKey(missingId) ? titleById[missingId] : "Workshop " + missingId,
+                        Title = missingTitle,
                         Selected = selectedById[missingId],
                         FileSizeMb = "-",
                         Description = string.Empty,
@@ -182,32 +209,10 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             }
         }
 
-        private void ReloadGrid()
+        private void ReloadTable()
         {
-            grid.Rows.Clear();
-            foreach (SteamWorkshopModInfo mod in mods)
-            {
-                grid.Rows.Add(mod.Selected, mod.Title, mod.ModId, mod.FileSizeMb, mod.Description);
-            }
-        }
-
-        protected override void OnFormClosing(FormClosingEventArgs e)
-        {
-            if (DialogResult == DialogResult.OK)
-            {
-                for (int i = 0; i < grid.Rows.Count; i++)
-                {
-                    if (i >= mods.Count)
-                    {
-                        break;
-                    }
-
-                    object cellValue = grid.Rows[i].Cells["Selected"].Value;
-                    mods[i].Selected = cellValue != null && Convert.ToBoolean(cellValue);
-                }
-            }
-
-            base.OnFormClosing(e);
+            grid.DataSource = null;
+            AntdTableHelper.BindList(grid, mods);
         }
 
         private static List<SteamWorkshopModInfo> ConvertIds(IList<ulong> modIds)

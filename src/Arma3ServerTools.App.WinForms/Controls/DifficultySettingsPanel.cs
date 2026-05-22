@@ -1,36 +1,39 @@
 using System.Windows.Forms;
 using Arma3ServerTools.Core.Models;
+using AntCheckbox = AntdUI.Checkbox;
+using AntInputNumber = AntdUI.InputNumber;
+using AntSelect = AntdUI.Select;
 
 namespace Arma3ServerTools.App.WinForms.Controls
 {
     internal sealed class DifficultySettingsPanel : UserControl, IServerSettingsPanel
     {
-        private readonly ComboBox groupIndicatorsCombo;
-        private readonly ComboBox friendlyTagsCombo;
-        private readonly ComboBox enemyTagsCombo;
-        private readonly ComboBox detectedMinesCombo;
-        private readonly ComboBox commandsCombo;
-        private readonly ComboBox waypointsCombo;
-        private readonly CheckBox tacticalPingCheckBox;
-        private readonly ComboBox weaponInfoCombo;
-        private readonly ComboBox stanceIndicatorCombo;
-        private readonly CheckBox staminaBarCheckBox;
-        private readonly CheckBox weaponCrosshairCheckBox;
-        private readonly CheckBox visionAidCheckBox;
-        private readonly ComboBox thirdPersonCombo;
-        private readonly CheckBox cameraShakeCheckBox;
-        private readonly CheckBox scoreTableCheckBox;
-        private readonly CheckBox deathMessagesCheckBox;
-        private readonly CheckBox vonIdCheckBox;
-        private readonly CheckBox mapContentCheckBox;
-        private readonly CheckBox mapContentFriendlyCheckBox;
-        private readonly CheckBox mapContentEnemyCheckBox;
-        private readonly CheckBox mapContentMinesCheckBox;
-        private readonly CheckBox reducedDamageCheckBox;
-        private readonly CheckBox autoReportCheckBox;
-        private readonly CheckBox multipleSavesCheckBox;
-        private readonly NumericUpDown skillAiNumeric;
-        private readonly NumericUpDown precisionAiNumeric;
+        private readonly AntSelect groupIndicatorsCombo;
+        private readonly AntSelect friendlyTagsCombo;
+        private readonly AntSelect enemyTagsCombo;
+        private readonly AntSelect detectedMinesCombo;
+        private readonly AntSelect commandsCombo;
+        private readonly AntSelect waypointsCombo;
+        private readonly AntCheckbox tacticalPingCheckBox;
+        private readonly AntSelect weaponInfoCombo;
+        private readonly AntSelect stanceIndicatorCombo;
+        private readonly AntCheckbox staminaBarCheckBox;
+        private readonly AntCheckbox weaponCrosshairCheckBox;
+        private readonly AntCheckbox visionAidCheckBox;
+        private readonly AntSelect thirdPersonCombo;
+        private readonly AntCheckbox cameraShakeCheckBox;
+        private readonly AntCheckbox scoreTableCheckBox;
+        private readonly AntCheckbox deathMessagesCheckBox;
+        private readonly AntCheckbox vonIdCheckBox;
+        private readonly AntCheckbox mapContentCheckBox;
+        private readonly AntCheckbox mapContentFriendlyCheckBox;
+        private readonly AntCheckbox mapContentEnemyCheckBox;
+        private readonly AntCheckbox mapContentMinesCheckBox;
+        private readonly AntCheckbox reducedDamageCheckBox;
+        private readonly AntCheckbox autoReportCheckBox;
+        private readonly AntCheckbox multipleSavesCheckBox;
+        private readonly AntInputNumber skillAiNumeric;
+        private readonly AntInputNumber precisionAiNumeric;
 
         private ArmaServerConfig boundConfig;
 
@@ -44,24 +47,24 @@ namespace Arma3ServerTools.App.WinForms.Controls
             detectedMinesCombo = AddTriStateCombo(layout, "地雷范围");
             commandsCombo = AddTriStateCombo(layout, "命令图标");
             waypointsCombo = AddTriStateCombo(layout, "航点");
-            tacticalPingCheckBox = SettingsLayoutHelper.AddRow(layout, "战术 Ping", new CheckBox { AutoSize = true });
+            tacticalPingCheckBox = SettingsLayoutHelper.AddRow(layout, "战术 Ping", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
             weaponInfoCombo = AddTriStateCombo(layout, "武器信息");
             stanceIndicatorCombo = AddTriStateCombo(layout, "姿态指示");
-            staminaBarCheckBox = SettingsLayoutHelper.AddRow(layout, "耐力条", new CheckBox { AutoSize = true });
-            weaponCrosshairCheckBox = SettingsLayoutHelper.AddRow(layout, "武器准星", new CheckBox { AutoSize = true });
-            visionAidCheckBox = SettingsLayoutHelper.AddRow(layout, "视觉辅助", new CheckBox { AutoSize = true });
+            staminaBarCheckBox = SettingsLayoutHelper.AddRow(layout, "耐力条", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
+            weaponCrosshairCheckBox = SettingsLayoutHelper.AddRow(layout, "武器准星", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
+            visionAidCheckBox = SettingsLayoutHelper.AddRow(layout, "视觉辅助", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
             thirdPersonCombo = AddTriStateCombo(layout, "第三人称");
-            cameraShakeCheckBox = SettingsLayoutHelper.AddRow(layout, "相机摇晃", new CheckBox { AutoSize = true });
-            scoreTableCheckBox = SettingsLayoutHelper.AddRow(layout, "得分表", new CheckBox { AutoSize = true });
-            deathMessagesCheckBox = SettingsLayoutHelper.AddRow(layout, "死亡消息", new CheckBox { AutoSize = true });
-            vonIdCheckBox = SettingsLayoutHelper.AddRow(layout, "VoN ID", new CheckBox { AutoSize = true });
-            mapContentCheckBox = SettingsLayoutHelper.AddRow(layout, "扩展地图", new CheckBox { AutoSize = true });
-            mapContentFriendlyCheckBox = SettingsLayoutHelper.AddRow(layout, "友军单位", new CheckBox { AutoSize = true });
-            mapContentEnemyCheckBox = SettingsLayoutHelper.AddRow(layout, "敌军单位", new CheckBox { AutoSize = true });
-            mapContentMinesCheckBox = SettingsLayoutHelper.AddRow(layout, "地图地雷", new CheckBox { AutoSize = true });
-            reducedDamageCheckBox = SettingsLayoutHelper.AddRow(layout, "减伤", new CheckBox { AutoSize = true });
-            autoReportCheckBox = SettingsLayoutHelper.AddRow(layout, "自动报告", new CheckBox { AutoSize = true });
-            multipleSavesCheckBox = SettingsLayoutHelper.AddRow(layout, "多重存档", new CheckBox { AutoSize = true });
+            cameraShakeCheckBox = SettingsLayoutHelper.AddRow(layout, "相机摇晃", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
+            scoreTableCheckBox = SettingsLayoutHelper.AddRow(layout, "得分表", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
+            deathMessagesCheckBox = SettingsLayoutHelper.AddRow(layout, "死亡消息", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
+            vonIdCheckBox = SettingsLayoutHelper.AddRow(layout, "VoN ID", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
+            mapContentCheckBox = SettingsLayoutHelper.AddRow(layout, "扩展地图", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
+            mapContentFriendlyCheckBox = SettingsLayoutHelper.AddRow(layout, "友军单位", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
+            mapContentEnemyCheckBox = SettingsLayoutHelper.AddRow(layout, "敌军单位", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
+            mapContentMinesCheckBox = SettingsLayoutHelper.AddRow(layout, "地图地雷", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
+            reducedDamageCheckBox = SettingsLayoutHelper.AddRow(layout, "减伤", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
+            autoReportCheckBox = SettingsLayoutHelper.AddRow(layout, "自动报告", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
+            multipleSavesCheckBox = SettingsLayoutHelper.AddRow(layout, "多重存档", SettingsLayoutHelper.CreateCheckbox(string.Empty, false));
             skillAiNumeric = SettingsLayoutHelper.AddRow(layout, "SkillAI", CreateAiNumeric());
             precisionAiNumeric = SettingsLayoutHelper.AddRow(layout, "PrecisionAI", CreateAiNumeric());
             Controls.Add(SettingsLayoutHelper.CreateScrollHost(layout));
@@ -150,25 +153,16 @@ namespace Arma3ServerTools.App.WinForms.Controls
             profile.PrecisionAI = (double)precisionAiNumeric.Value;
         }
 
-        private static ComboBox AddTriStateCombo(TableLayoutPanel layout, string label)
+        private static AntSelect AddTriStateCombo(TableLayoutPanel layout, string label)
         {
-            var combo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
-            combo.Items.AddRange(new object[] { "禁用", "仅友军", "全部" });
+            AntSelect combo = SettingsLayoutHelper.CreateSelect(200, "禁用", "仅友军", "全部");
             SettingsLayoutHelper.AddRow(layout, label, combo);
             return combo;
         }
 
-        private static NumericUpDown CreateAiNumeric()
+        private static AntInputNumber CreateAiNumeric()
         {
-            return new NumericUpDown
-            {
-                Minimum = 0.05m,
-                Maximum = 1m,
-                DecimalPlaces = 2,
-                Increment = 0.05m,
-                Value = 0.5m,
-                Width = 120,
-            };
+            return SettingsLayoutHelper.CreateDecimalNumeric(0.05m, 1m, 0.5m, 120, 2);
         }
 
         private static int ToFlag(bool value)

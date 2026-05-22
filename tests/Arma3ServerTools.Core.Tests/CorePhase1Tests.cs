@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Config;
 using Arma3ServerTools.Core.Models;
@@ -202,6 +203,93 @@ namespace Arma3ServerTools.Core.Tests
             Assert.Contains("line-test", commandLine);
             Assert.Contains("server.cfg", commandLine);
             Assert.NotNull(config.StartCommandLine);
+        }
+
+        [Fact]
+        public void BuildStartCommandLine_IncludesStartupFlagsAndExtraArgs()
+        {
+            string extraArgsPlain = "-customFlag=1\r\n-skipIntro";
+            string extraArgsEncoded = Convert.ToBase64String(Encoding.Default.GetBytes(extraArgsPlain));
+
+            var config = new ArmaServerConfig
+            {
+                ServerUUID = "flags-test",
+                ServerDir = @"D:\arma\server",
+                StartupParameters = new StartupParameters
+                {
+                    AutoInit = true,
+                    FilePatching = true,
+                    PidFile = "server.pid",
+                    Ranking = "rank.log",
+                    Port = 2302,
+                    BandwidthAlg = true,
+                    EnableHT = true,
+                    Hugepages = true,
+                    LoadMissionToMemory = true,
+                    DisableServerThread = true,
+                    CpuCount = 4,
+                    ExThreads = 2,
+                    MaxMem = 8192,
+                    LimitFPS = 60,
+                    NoLogs = true,
+                    Netlog = true,
+                    DLCWS = true,
+                    DLCVN = true,
+                    DLCCSLA = true,
+                    DLCGM = true,
+                    DLCcontact = true,
+                    StartConfigArgs = extraArgsEncoded,
+                    modsEntities = new System.Collections.Generic.List<ModsEntity>
+                    {
+                        new ModsEntity(@"D:\mods\client", "client", "Client", 1, true, false, false, false),
+                        new ModsEntity(@"D:\mods\server", "server", "Server", 2, false, true, false, false),
+                    },
+                },
+            };
+
+            string commandLine = new GameConfigWriter().BuildStartCommandLine(config);
+
+            Assert.Contains("-autoInit", commandLine);
+            Assert.Contains("-filePatching", commandLine);
+            Assert.Contains("-pid=server.pid", commandLine);
+            Assert.Contains("-ranking=rank.log", commandLine);
+            Assert.Contains("-port=2302", commandLine);
+            Assert.Contains("-bandwidthAlg=2", commandLine);
+            Assert.Contains("-enableHT", commandLine);
+            Assert.Contains("-hugepages", commandLine);
+            Assert.Contains("-loadMissionToMemory", commandLine);
+            Assert.Contains("-disableServerThread", commandLine);
+            Assert.Contains("-cpuCount=4", commandLine);
+            Assert.Contains("-exThreads=2", commandLine);
+            Assert.Contains("-maxMem=8192", commandLine);
+            Assert.Contains("-limitFPS=60", commandLine);
+            Assert.Contains("-noLogs", commandLine);
+            Assert.Contains("-netlog", commandLine);
+            Assert.Contains("WS;", commandLine);
+            Assert.Contains("VN;", commandLine);
+            Assert.Contains("CSLA;", commandLine);
+            Assert.Contains("GM;", commandLine);
+            Assert.Contains("contact;", commandLine);
+            Assert.Contains(@"-mod=", commandLine);
+            Assert.Contains(@"-serverMod=", commandLine);
+            Assert.Contains(@"-customFlag=1", commandLine);
+            Assert.Contains("-skipIntro", commandLine);
+        }
+
+        [Fact]
+        public void BuildStartCommandLine_AddsDestinyServerModWhenMonitorEnabled()
+        {
+            var config = new ArmaServerConfig
+            {
+                ServerUUID = "monitor-test",
+                ServerDir = @"D:\arma\server",
+                StartupParameters = new StartupParameters { Port = 2302 },
+                ServerTaskManagement = new ServerManagement { EnableMonitor = true },
+            };
+
+            string commandLine = new GameConfigWriter().BuildStartCommandLine(config);
+
+            Assert.Contains("@destiny_server", commandLine);
         }
 
         [Fact]
