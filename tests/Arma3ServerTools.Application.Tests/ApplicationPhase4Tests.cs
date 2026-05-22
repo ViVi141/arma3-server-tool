@@ -43,27 +43,23 @@ namespace Arma3ServerTools.Application.Tests
         }
 
         [Fact]
-        public void FetchRemoteBansFromUrls_MergesWithoutDuplicates()
+        public void SaveLoadLocalBans_ParsesPermanentBanMarker()
         {
-            string root = AutomatedTestWorkspace.CreateRoot("a3bans-remote");
+            string root = AutomatedTestWorkspace.CreateRoot("a3bans-permanent");
             try
             {
-                string bansFile = Path.Combine(root, "shared-bans.txt");
-                File.WriteAllText(
-                    bansFile,
-                    "guid-a -1 reason-a" + Environment.NewLine
-                    + "guid-b 2026-01-01 reason-b");
+                string serverDir = Path.Combine(root, "server");
+                string uuid = "ban-permanent-uuid";
+                string bansPath = Path.Combine(serverDir, "bans.txt");
+                Directory.CreateDirectory(serverDir);
+                File.WriteAllText(bansPath, "76561198000000001 -1 cheat");
 
                 var service = new BansService();
-                var urls = new List<BansUrlEntity>
-                {
-                    new BansUrlEntity(new Uri(bansFile).AbsoluteUri, true),
-                    new BansUrlEntity(new Uri(bansFile).AbsoluteUri, true),
-                };
+                IReadOnlyList<LocalBansEntity> loaded = service.LoadLocalBans(serverDir, uuid);
 
-                IReadOnlyList<LocalBansEntity> remote = service.FetchRemoteBansFromUrls(urls);
-
-                Assert.Equal(2, remote.Count);
+                Assert.Single(loaded);
+                Assert.Equal("永久封禁", loaded[0].Time);
+                Assert.Equal("cheat", loaded[0].Reason);
             }
             finally
             {

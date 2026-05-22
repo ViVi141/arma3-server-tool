@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Net;
-using System.Text;using Arma3ServerTools.Core;
+using System.Text;
+using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 
 namespace Arma3ServerTools.Application.Services
@@ -23,59 +23,7 @@ namespace Arma3ServerTools.Application.Services
                 }
 
                 string content = File.ReadAllText(path, Utf8NoBom);
-                AppendParsedBans(content, result, seen, true, string.Empty);
-            }
-
-            return result;
-        }
-
-        public IReadOnlyList<LocalBansEntity> FetchRemoteBans(string url)
-        {
-            var result = new List<LocalBansEntity>();
-            if (string.IsNullOrWhiteSpace(url))
-            {
-                return result;
-            }
-
-            using (var client = new WebClient())
-            {
-                client.Encoding = Utf8NoBom;
-                string content = client.DownloadString(url);
-                AppendParsedBans(content, result, new HashSet<string>(StringComparer.OrdinalIgnoreCase), false, url);
-            }
-
-            return result;
-        }
-
-        public IReadOnlyList<LocalBansEntity> FetchRemoteBansFromUrls(IEnumerable<BansUrlEntity> urls)
-        {
-            var result = new List<LocalBansEntity>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (urls == null)
-            {
-                return result;
-            }
-
-            foreach (BansUrlEntity entry in urls)
-            {
-                if (entry == null || !entry.enable || string.IsNullOrWhiteSpace(entry.url))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    using (var client = new WebClient())
-                    {
-                        client.Encoding = Utf8NoBom;
-                        string content = client.DownloadString(entry.url);
-                        AppendParsedBans(content, result, seen, false, entry.url);
-                    }
-                }
-                catch
-                {
-                    // 单个 URL 失败不影响其余列表。
-                }
+                AppendParsedBans(content, result, seen);
             }
 
             return result;
@@ -132,9 +80,7 @@ namespace Arma3ServerTools.Application.Services
         private static void AppendParsedBans(
             string data,
             List<LocalBansEntity> target,
-            HashSet<string> seen,
-            bool local,
-            string sourceName)
+            HashSet<string> seen)
         {
             if (string.IsNullOrEmpty(data))
             {
@@ -162,16 +108,7 @@ namespace Arma3ServerTools.Application.Services
                 }
 
                 string reason = parts.Length > 2 ? parts[2] : string.Empty;
-                if (local)
-                {
-                    target.Add(new LocalBansEntity(parts[0], expiry, reason, string.Empty, string.Empty));
-                }
-                else
-                {
-                    string addTime = parts.Length > 3 ? parts[3] : string.Empty;
-                    string syncName = parts.Length > 4 ? parts[4] : sourceName;
-                    target.Add(new LocalBansEntity(parts[0], expiry, reason, addTime, syncName));
-                }
+                target.Add(new LocalBansEntity(parts[0], expiry, reason, string.Empty, string.Empty));
             }
         }
     }
