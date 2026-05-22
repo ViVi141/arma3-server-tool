@@ -16,7 +16,7 @@ namespace Arma3ServerTools.App.WinForms
 
         private AppServices()
         {
-            Paths = new AppPaths(AppDomain.CurrentDomain.SetupInformation.ApplicationBase);
+            Paths = new AppPaths(AppContext.BaseDirectory);
 
             var repository = new ServerConfigRepository(Paths);
             SteamCmdConfigRepository = new SteamCmdConfigRepository(Paths);

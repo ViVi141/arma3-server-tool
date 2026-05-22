@@ -2,12 +2,10 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <RootNamespace>Arma3ServerTools.MonitoringHost</RootNamespace>
     <AssemblyName>Arma3ServerTools.MonitoringHost</AssemblyName>
-    <LangVersion>latest</LangVersion>
     <UseWindowsForms>true</UseWindowsForms>
-    <Nullable>disable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>

@@ -11,7 +11,7 @@ namespace Arma3ServerTools.App.WinForms
         [STAThread]
         private static void Main()
         {
-            if (ContainsChineseInPath(AppDomain.CurrentDomain.SetupInformation.ApplicationBase))
+            if (ContainsChineseInPath(AppContext.BaseDirectory))
             {
                 MessageBox.Show(
                     "你当前的开服工具路径里包含中文，这会导致一系列问题，请确保安装路径里不包含中文!",

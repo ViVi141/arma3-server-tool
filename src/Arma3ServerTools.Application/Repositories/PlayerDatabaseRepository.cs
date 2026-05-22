@@ -1,19 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SQLite;
 using System.IO;
 using System.Text;
+using Arma3ServerTools.Application.IO;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Config;
 using Arma3ServerTools.Core.Models;
+using Microsoft.Data.Sqlite;
 
 namespace Arma3ServerTools.Application.Repositories
 {
     public sealed class PlayerDatabaseRepository : IDisposable
     {
         private readonly IAppPaths paths;
-        private SQLiteConnection connection;
+        private SqliteConnection connection;
 
         public PlayerDatabaseRepository(IAppPaths paths)
         {
@@ -28,12 +29,7 @@ namespace Arma3ServerTools.Application.Repositories
             }
 
             string dbPath = Path.Combine(paths.ApplicationBase, "destiny_players.db");
-            if (!File.Exists(dbPath))
-            {
-                SQLiteConnection.CreateFile(dbPath);
-            }
-
-            connection = new SQLiteConnection("Data Source=" + dbPath + ";Version=3;Compress=True;");
+            connection = new SqliteConnection(BuildConnectionString(dbPath));
             connection.Open();
             EnsureSchema();
         }
@@ -41,7 +37,7 @@ namespace Arma3ServerTools.Application.Repositories
         public int CountByGuid(string guid)
         {
             EnsureInitialized();
-            using (SQLiteCommand command = new SQLiteCommand(
+            using (SqliteCommand command = new SqliteCommand(
                 "SELECT COUNT(*) FROM destiny_players WHERE guid = @guid",
                 connection))
             {
@@ -53,7 +49,7 @@ namespace Arma3ServerTools.Application.Repositories
         public int Insert(string guid, string playerName, string ip, string createDate)
         {
             EnsureInitialized();
-            using (SQLiteCommand command = new SQLiteCommand(
+            using (SqliteCommand command = new SqliteCommand(
                 "INSERT INTO destiny_players (guid, player_name, ip, create_date) VALUES (@guid, @name, @ip, @date)",
                 connection))
             {
@@ -68,7 +64,7 @@ namespace Arma3ServerTools.Application.Repositories
         public int Update(string guid, string playerName, string ip, string createDate)
         {
             EnsureInitialized();
-            using (SQLiteCommand command = new SQLiteCommand(
+            using (SqliteCommand command = new SqliteCommand(
                 "UPDATE destiny_players SET player_name = @name, ip = @ip, create_date = @date WHERE guid = @guid",
                 connection))
             {
@@ -84,8 +80,8 @@ namespace Arma3ServerTools.Application.Repositories
         {
             EnsureInitialized();
             var result = new List<PlayerDB>();
-            using (SQLiteCommand command = new SQLiteCommand("SELECT id, guid, player_name, ip, create_date FROM destiny_players", connection))
-            using (SQLiteDataReader reader = command.ExecuteReader())
+            using (SqliteCommand command = new SqliteCommand("SELECT id, guid, player_name, ip, create_date FROM destiny_players", connection))
+            using (SqliteDataReader reader = command.ExecuteReader())
             {
                 while (reader.Read())
                 {
@@ -110,6 +106,16 @@ namespace Arma3ServerTools.Application.Repositories
             }
         }
 
+        private static string BuildConnectionString(string dbPath)
+        {
+            var builder = new SqliteConnectionStringBuilder
+            {
+                DataSource = dbPath,
+                Pooling = false,
+            };
+            return builder.ConnectionString;
+        }
+
         private void EnsureSchema()
         {
             string schemaPath = Path.Combine(paths.ApplicationBase, @"sql\destiny_players.sql");
@@ -119,10 +125,7 @@ namespace Arma3ServerTools.Application.Repositories
             }
 
             string sql = File.ReadAllText(schemaPath, new UTF8Encoding(false));
-            using (SQLiteCommand command = new SQLiteCommand(sql, connection))
-            {
-                command.ExecuteNonQuery();
-            }
+            SqliteScriptExecutor.ExecuteScript(connection, sql);
         }
     }
 }

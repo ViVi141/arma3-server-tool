@@ -6,8 +6,8 @@
 
 | 项目 | 路径 | 说明 |
 |------|------|------|
-| **Arma3ServerTools.Core** | `src/Arma3ServerTools.Core/` | 领域层（net48），无 UI 依赖 |
-| **Arma3ServerTools.Application** | `src/Arma3ServerTools.Application/` | 应用服务层（net48） |
+| **Arma3ServerTools.Core** | `src/Arma3ServerTools.Core/` | 领域层（net10.0-windows），无 UI 依赖 |
+| **Arma3ServerTools.Application** | `src/Arma3ServerTools.Application/` | 应用服务层（net10.0-windows） |
 | **Arma3ServerTools.App.WinForms** | `src/Arma3ServerTools.App.WinForms/` | WinForms 主程序（输出 `Arma3ServerTools.exe`） |
 | **Arma3ServerTools.MonitoringHost** | `src/Arma3ServerTools.MonitoringHost/` | WM_COPYDATA 监控宿主（独立进程） |
 | **Arma3ServerTools.Core.Tests** | `tests/Arma3ServerTools.Core.Tests/` | Core 单元测试 |

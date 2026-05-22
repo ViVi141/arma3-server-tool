@@ -1,9 +1,9 @@
 using System;
-using System.Data.SQLite;
 using System.IO;
 using Arma3ServerTools.Application.Monitoring;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 namespace Arma3ServerTools.Application.Tests
@@ -23,10 +23,15 @@ namespace Arma3ServerTools.Application.Tests
                 ingest.Ingest("PlayerInfo:server-a:42:Tester:1:2:3:4:5:100");
 
                 database.EnsureInitialized();
-                using (SQLiteConnection connection = new SQLiteConnection("Data Source=" + Path.Combine(root, "destiny_statistics.db")))
+                var connectionBuilder = new SqliteConnectionStringBuilder
+                {
+                    DataSource = Path.Combine(root, "destiny_statistics.db"),
+                    Pooling = false,
+                };
+                using (SqliteConnection connection = new SqliteConnection(connectionBuilder.ConnectionString))
                 {
                     connection.Open();
-                    using (SQLiteCommand command = new SQLiteCommand(
+                    using (SqliteCommand command = new SqliteCommand(
                         "SELECT COUNT(*) FROM a3_player_info WHERE player_id = '42'",
                         connection))
                     {
@@ -58,8 +63,8 @@ namespace Arma3ServerTools.Application.Tests
         {
             string[] candidates = new[]
             {
-                Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "sql", "destiny_statistics.sql")),
-                Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", "sql", "destiny_statistics.sql")),
+                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "sql", "destiny_statistics.sql")),
+                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "sql", "destiny_statistics.sql")),
             };
 
             for (int i = 0; i < candidates.Length; i++)

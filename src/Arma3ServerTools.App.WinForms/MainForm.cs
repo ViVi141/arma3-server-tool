@@ -137,7 +137,7 @@ namespace Arma3ServerTools.App.WinForms
         private void StartMonitoringHost()
         {
             string message;
-            if (!MonitoringHostLauncher.TryStart(AppDomain.CurrentDomain.SetupInformation.ApplicationBase, out message))
+            if (!MonitoringHostLauncher.TryStart(AppContext.BaseDirectory, out message))
             {
                 if (!string.IsNullOrEmpty(message))
                 {

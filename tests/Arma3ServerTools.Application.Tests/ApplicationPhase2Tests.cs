@@ -118,10 +118,10 @@ namespace Arma3ServerTools.Application.Tests
             string path = Path.Combine(Path.GetTempPath(), "a3app-test-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(path);
             Directory.CreateDirectory(Path.Combine(path, "config"));
-            string sqlSource = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "sql", "destiny_statistics.sql");
+            string sqlSource = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "sql", "destiny_statistics.sql");
             if (!File.Exists(sqlSource))
             {
-                sqlSource = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", "sql", "destiny_statistics.sql"));
+                sqlSource = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "sql", "destiny_statistics.sql"));
             }
 
             if (File.Exists(sqlSource))

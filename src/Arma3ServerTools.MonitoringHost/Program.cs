@@ -44,7 +44,7 @@ namespace Arma3ServerTools.MonitoringHost
             };
             Controls.Add(label);
 
-            var paths = new AppPaths(AppDomain.CurrentDomain.SetupInformation.ApplicationBase);
+            var paths = new AppPaths(AppContext.BaseDirectory);
             ingestService = new QueuedMonitoringIngestService(new MonitoringDatabase(paths));
 
             Load += OnFormLoad;

@@ -25,8 +25,8 @@ namespace Arma3ServerTools.TestSupport
         {
             string[] candidates = new[]
             {
-                Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "sql", "destiny_statistics.sql")),
-                Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", "sql", "destiny_statistics.sql")),
+                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "sql", "destiny_statistics.sql")),
+                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "sql", "destiny_statistics.sql")),
             };
 
             for (int i = 0; i < candidates.Length; i++)

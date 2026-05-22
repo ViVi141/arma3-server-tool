@@ -106,7 +106,7 @@ arma3-server-tool/
 │   ├── Arma3ServerTools.Application/    # 可选：应用服务编排 net48
 │   ├── Arma3ServerTools.App.WinForms/   # 新主程序 WinExe net48
 │   ├── Arma3ServerTools.MonitoringHost/ # 隐藏窗体 WM_COPYDATA net48
-│   ├── Arma3ServerTools.AppUpdate/      # 升级器（去 DevExpress）
+│   ├── Arma3ServerTools.AppUpdate/      # 升级器（阶段 8 / P4 最低，去 DevExpress）
 │   └── DestinyServerMonitoring/         # RVExtension DLL
 ├── sql/                                 # destiny_*.sql
 ├── extension/                           # steamcmd.exe（文档说明，可不提交）
@@ -115,7 +115,7 @@ arma3-server-tool/
 └── Arma3ServerTools.sln                 # 新解决方案（逐步替代 a3.sln）
 ```
 
-**TFM**：阶段 1～5 统一 **.NET Framework 4.8**；阶段 6 可评估 Core 升级 **.NET 8**。
+**TFM**：阶段 1～4 在 **.NET Framework 4.8** 上完成；**阶段 7** 迁移至 **.NET 10 LTS**；**阶段 5** 首版开源 Release 以 **net10** 为基线（详见 [docs/net10-migration-plan.md](net10-migration-plan.md)）。
 
 ---
 
@@ -154,7 +154,7 @@ arma3-server-tool/
 | `FluentDesignForm`、`Modules/**`、`Dialog/**` | `legacy/a3` 参考；`App.WinForms` 新实现 |
 | `Window/ProcessCommunication.cs` | `MonitoringHost` |
 | `Window/ServerStatisticsManagement.cs` | v0.2+ 或简化表格 |
-| `AppUpdate` | 去 DevExpress 的标准 Form |
+| `AppUpdate` | 去 DevExpress 的标准 Form（**P4 最低**，见阶段 8） |
 | `DestinyServerMonitoring` | 保持，构建 DLL 随文档分发 |
 | `Steamcmdtools/` | **不维护**，逻辑并入 Core |
 
@@ -252,6 +252,8 @@ public sealed class OperationResult {
 
 ## 八、分阶段实施计划
 
+> **当前实施顺序（阶段 4 完成后）**：**阶段 7**（net10 迁移）→ **阶段 5**（开源 Release v1.0）→ 阶段 6（可选 Web）→ 阶段 8（AppUpdate backlog）
+
 ### 阶段 0：准备（1～2 天）
 
 - [x] 添加 `LICENSE`（**Apache 2.0**，与原作者许可一致）+ `NOTICE` 原作者
@@ -299,10 +301,9 @@ public sealed class OperationResult {
 - [x] IPv4 校验、调度器退出 `StopAsync`、`DetectRestart` 接口化
 - [x] Cron 定时任务 UI + 调度同步
 - [x] 封禁（本地 + 多 URL 联合列表拉取/合并 + `bans.json` 管理）
-- [ ] AppUpdate 去 DevExpress
 - [x] `a3/` 标记 deprecated（见 `a3/DEPRECATED.md`）
 
-**验收**：主要设置页可编辑保存；SteamCMD/模组/RCon/封禁/Cron/统计/玩家库可用。 ✅（2026-05-22 build + 自动化测试 **52/52** 通过，xUnit 跳过 **0**；AppUpdate 待办）
+**验收**：主要设置页可编辑保存；SteamCMD/模组/RCon/封禁/Cron/统计/玩家库可用。 ✅（2026-05-22 build + 自动化测试 **52/52** 通过，xUnit 跳过 **0**）
 
 **自动化测试**（无需真实 Arma3 / SteamCMD）：
 
@@ -317,17 +318,46 @@ dotnet test Arma3ServerTools.sln -c Release
 覆盖：配置读写、写 cfg、启停管道、AES/`data.json`、封禁、模组扫描/Bikey、SteamCMD 路径解析、监控入库/查询/异步入库、玩家库同步、RCon 未连接守卫、IPv4 校验等。  
 **无自动化覆盖**（需人工或集成环境）：WinForms UI、真实 BattlEye RCon 协议、Steam 登录与 Workshop 下载、MonitoringHost WM_COPYDATA 联调。
 
-### 阶段 5：开源发布（3～5 天）
+### 阶段 7：.NET 10 LTS 迁移（7～11 天，**Release 之前**，详见 [net10-migration-plan.md](net10-migration-plan.md)）
 
-- [ ] Release 不含 DevExpress DLL
-- [ ] README 构建说明、`extension/steamcmd` 说明
-- [ ] 可选：GitHub Actions MSBuild
+**前置：** 阶段 4 验收通过 + 阶段 A 仓库清理。
+
+**包评估摘要（§3）：** P0 换 `Microsoft.Data.Sqlite`；P1 移除 `Nito.AsyncEx`、`HttpWebRequest`→`HttpClient`、升级 Quartz/System.Management；P2 可选 Newtonsoft→STJ。
+
+- [ ] 7.0 准备（SDK 10、net48 快照 tag、基准测试）
+- [ ] 7.1 Core + Core.Tests → `net10.0-windows`（含 Nito 移除）
+- [ ] 7.2 Application + `Microsoft.Data.Sqlite` 替换 + HttpClient
+- [ ] 7.3 WinForms + MonitoringHost
+- [ ] 7.4 steamcmdTools + 发布策略（框架依赖 / 自包含）
+- [ ] 7.5 CI 与文档更新
+
+**验收**：`dotnet test` 全绿；英文路径冒烟通过；无 net48 / Stub SQLite / Nito.AsyncEx 依赖。
+
+### 阶段 5：开源发布（3～5 天，**阶段 7 完成后**）
+
+**前置：** 阶段 7.5 迁移 DoD 达成。
+
+- [ ] Release 基于 **net10**；不含 DevExpress DLL
+- [ ] README：构建说明、**.NET 10 Desktop Runtime** 或 self-contained 包说明、`extension/steamcmd` 说明
+- [ ] （可选）暂附旧 `AppUpdate/`（net472）或文档说明手动更新；不要求新版 AppUpdate
+- [ ] 可选：GitHub Actions（SDK 10.x + `dotnet test`）
+- [ ] 打 tag `v1.0`（或项目约定版本号）
+
+**验收**：Release 包在目标环境可启动；CI 绿；文档与 net10 TFM 一致。
 
 ### 阶段 6（可选）：C# Web
 
 - [ ] `Arma3ServerTools.Host` + Blazor Server
 - [ ] 共用 Application 服务层
 - [ ] MonitoringHost 不变
+
+### 阶段 8（最低优先级 backlog）：AppUpdate
+
+> 排在阶段 5 Release、7b、阶段 6 之后；**不阻塞**首版 Release。详见 [net10-migration-plan.md §7.6](net10-migration-plan.md)。
+
+- [ ] 去 DevExpress 的标准 WinForms 升级器
+- [ ] net10 重写 `src/Arma3ServerTools.AppUpdate`（原 7.6）
+- [ ] 主程序更新入口接线；废弃根目录 `AppUpdate/`
 
 ---
 
@@ -365,7 +395,8 @@ dotnet test Arma3ServerTools.sln -c Release
 | M2 | 启停 + 写 cfg + MonitoringHost | 第 2 周 | ✅ 进程启停 + 监控入库（Application 层） |
 | M3 | WinForms MVP 可开服 | 第 3 周 | ✅ |
 | M4 | 主要设置页 + RCon + SteamCMD/模组/封禁 | 第 4～6 周 | ✅ |
-| M5 | 开源 Release v1.0 | 第 6～7 周 |
+| M5 | net10 迁移（阶段 7） | 第 7～8 周 | |
+| M6 | 开源 Release v1.0（net10） | 第 8～9 周 | |
 
 ---
 
@@ -395,3 +426,5 @@ dotnet test Arma3ServerTools.sln -c Release
 | 1.1 | 2026-05-22 | 许可定为 Apache 2.0（与原作者一致） |
 | 1.2 | 2026-05-22 | 阶段 0/1 完成：Core 骨架可独立编译 |
 | 1.6 | 2026-05-22 | 迁移 steamcmdTools + WM_COPYDATA 备用下载、Steam Workshop API 确认对话框 |
+| 1.7 | 2026-05-22 | AppUpdate 迁至阶段 8（P4 最低）；自阶段 4/5/7 主线路径移除 |
+| 1.8 | 2026-05-22 | 实施顺序改为阶段 7 → 阶段 5；首版 Release 基于 net10 |
