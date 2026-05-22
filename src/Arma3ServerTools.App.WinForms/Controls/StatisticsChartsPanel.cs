@@ -28,7 +28,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 Dock = DockStyle.Top,
                 AutoSizeMode = AntdUI.TAutoSize.Auto,
                 Padding = new Padding(0, 0, 0, UiScaleHelper.Scale(8)),
-                Text = "暂无快照数据，请启用监控并在服务器运行后刷新统计。",
+                Text = "暂无快照数据。请启用监控模组、启动服务器并运行一段时间后刷新统计；"
+                    + "也可查看上方排查清单或点击「检测监控组件」。",
             };
 
             var layout = new TableLayoutPanel

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Arma3ServerTools.Application.Scheduling;
@@ -84,6 +85,52 @@ namespace Arma3ServerTools.Application.Services
 
                 await scheduler.ScheduleJob(job, trigger).ConfigureAwait(false);
             }
+        }
+
+        public async Task<string> GetNextFireSummaryAsync(string serverUuid)
+        {
+            await StartAsync().ConfigureAwait(false);
+            if (scheduler == null)
+            {
+                return string.Empty;
+            }
+
+            var triggerKeys = await scheduler
+                .GetTriggerKeys(Quartz.Impl.Matchers.GroupMatcher<TriggerKey>.GroupEquals(serverUuid))
+                .ConfigureAwait(false);
+            if (triggerKeys == null || triggerKeys.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            DateTimeOffset? earliest = null;
+            foreach (TriggerKey triggerKey in triggerKeys)
+            {
+                ITrigger trigger = await scheduler.GetTrigger(triggerKey).ConfigureAwait(false);
+                if (trigger == null)
+                {
+                    continue;
+                }
+
+                DateTimeOffset? next = trigger.GetNextFireTimeUtc();
+                if (!next.HasValue)
+                {
+                    continue;
+                }
+
+                if (!earliest.HasValue || next.Value < earliest.Value)
+                {
+                    earliest = next;
+                }
+            }
+
+            if (!earliest.HasValue)
+            {
+                return string.Empty;
+            }
+
+            return "下次调度 "
+                + earliest.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
         }
     }
 }

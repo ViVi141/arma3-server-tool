@@ -43,21 +43,23 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
    - **安全**：BattlEye、RCon 密码与端口、**RCon 地址**（默认 127.0.0.1）
    - **任务**：选择 `.pbo` 任务
    - **模组**：扫描 Workshop 目录并勾选模组（需事先用 SteamCMD 自行下载模组）
-3. **保存配置** → **写入配置文件**
+3. **保存到工具** → 可选 **应用到服务器目录**（写入 `server.cfg` 等；也可在点击 **启动** 时自动写入）
+
+> **说明：** 「保存到工具」只更新工具内的 JSON 配置；Arma 3 实际读取的是服务器目录下的 cfg 文件。通过本工具 **启动** 时会自动写入 cfg，因此日常改完设置后直接点启动即可；若需在不启动的情况下检查磁盘上的 cfg，请使用 **应用到服务器目录**。
 
 ## 5. 监控与统计（可选）
 
-在 **定时** 页勾选：
+在 **统计** 页勾选：
 
 - **启用监控模组 (@a3st_monitor)** — 启动参数会加入 `@a3st_monitor` 服务器模组
 - **启用统计入库** — 运行时将性能/击杀等数据写入 `a3st_statistics.db`
 
-需自行编译并部署 Monitoring RVExtension（`DestinyServerMonitoring/` 目录，见 [monitoring-cpp-dll-build.md](monitoring-cpp-dll-build.md)）及 **`@a3st_monitor`** 模组到服务器目录（旧版为 `@destiny_server`，不兼容）。主程序启动时会拉起 `monitoring/Arma3ServerTools.MonitoringHost.exe` 接收游戏进程数据。
+需自行编译 Monitoring RVExtension（`DestinyServerMonitoring/` 目录，见 [monitoring-cpp-dll-build.md](monitoring-cpp-dll-build.md)），或通过 **应用到服务器目录** 自动部署 DLL 与 `@a3st_monitor`。主程序启动时会拉起 `monitoring/Arma3ServerTools.MonitoringHost.exe` 接收游戏进程数据。
 
 ## 6. 启动服务器
 
-1. 确认已 **写入配置文件**
-2. 点击 **启动**
+1. 确认状态栏显示 **已同步**，或接受「启动时将自动写入」提示
+2. 点击 **启动**（会先写入 `server.cfg` 再启动进程）
 3. 在 **远程控制** 页连接 RCon，管理在线玩家（踢人、封禁、切换任务等）
 
 ## 7. 封禁管理
@@ -68,7 +70,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 ## 8. 多服与复制
 
 - **服务器 → 复制为新建...** 可基于现有 json 快速创建第二套配置（新 UUID，可改目录）
-- 修改端口、RCon 密码等后保存并写 cfg
+- 修改端口、RCon 密码等后 **保存到工具**，再 **应用到服务器目录** 或直接 **启动**
 
 ## 9. 常见问题
 
@@ -79,4 +81,4 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 | 模组未出现 | 确认 Workshop 扫描路径与 SteamCMD 下载目录一致 |
 | 统计无数据 | 勾选「启用统计入库」并确认 MonitoringHost 在运行 |
 
-更多架构说明见 [architecture.md](architecture.md)，完整 backlog 见 [product-roadmap.md](product-roadmap.md)。
+更多架构说明见 [architecture.md](architecture.md)，完整 backlog 见 [product-roadmap.md](product-roadmap.md)，用户体验优化清单见 [ux-optimization-backlog.md](ux-optimization-backlog.md)。

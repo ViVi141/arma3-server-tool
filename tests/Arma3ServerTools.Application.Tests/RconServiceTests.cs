@@ -39,6 +39,16 @@ namespace Arma3ServerTools.Application.Tests
         }
 
         [Fact]
+        public async Task ChangeRconPasswordAsync_WithoutConnect_Throws()
+        {
+            using (var service = new RconService())
+            {
+                await Assert.ThrowsAsync<InvalidOperationException>(
+                    async () => await service.ChangeRconPasswordAsync("new-pass").ConfigureAwait(false));
+            }
+        }
+
+        [Fact]
         public void SendMessageAsync_WithoutConnect_Throws()
         {
             using (var service = new RconService())

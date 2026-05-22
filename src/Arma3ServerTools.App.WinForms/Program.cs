@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Windows.Forms;
 using Arma3ServerTools.Core.Validation;
 
@@ -14,8 +15,14 @@ namespace Arma3ServerTools.App.WinForms
             {
                 AntdUI.Modal.open(
                     "失败",
-                    "你当前的开服工具路径里包含中文，这会导致一系列问题，请确保安装路径里不包含中文!",
+                    UiLabels.PathRulesShort,
                     AntdUI.TType.Error);
+                Process.GetCurrentProcess().Kill();
+                return;
+            }
+
+            if (!DesktopRuntimeChecker.TryEnsureDesktopRuntime(null))
+            {
                 Process.GetCurrentProcess().Kill();
                 return;
             }

@@ -1,9 +1,10 @@
 using System;
 using System.Drawing;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using AntButton = AntdUI.Button;
 using AntLabel = AntdUI.Label;
-using AntPanel = AntdUI.Panel;
 using Arma3ServerTools.App.WinForms.Dialogs;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core.Models;
@@ -14,13 +15,17 @@ namespace Arma3ServerTools.App.WinForms.Controls
     {
         private readonly AntLabel statusValueLabel;
         private readonly AntLabel pidValueLabel;
+        private readonly AntLabel onlineValueLabel;
         private readonly AntLabel hostValueLabel;
         private readonly AntLabel portValueLabel;
+        private readonly AntLabel monitoringSummaryLabel;
+        private readonly AntLabel scheduleSummaryLabel;
         private readonly AntLabel rptValueLabel;
         private readonly AntButton preflightButton;
         private readonly AntButton rptButton;
 
         private ArmaServerConfig boundConfig;
+        private int refreshGeneration;
 
         public ServerOverviewPanel()
         {
@@ -29,8 +34,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             var layout = SettingsLayoutHelper.CreateFormLayout(120);
             statusValueLabel = AddValueRow(layout, "运行状态", "—");
             pidValueLabel = AddValueRow(layout, "进程 PID", "—");
+            onlineValueLabel = AddValueRow(layout, "在线人数", "—");
             hostValueLabel = AddValueRow(layout, "主机名", "—");
             portValueLabel = AddValueRow(layout, "游戏端口", "—");
+            monitoringSummaryLabel = AddValueRow(layout, "监控 / 统计", "—");
+            scheduleSummaryLabel = AddValueRow(layout, "定时 / 重启", "—");
             rptValueLabel = AddValueRow(layout, "最新 RPT", "—");
 
             var toolbar = new FlowLayoutPanel
@@ -50,7 +58,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             toolbar.Controls.Add(aboutButton);
 
             AntLabel hint = AntdUiHelper.CreateHintLabel(
-                "概览页显示当前选中服务器的状态。启动前建议运行检查；运行中可在 RPT 中查看错误信息。",
+                "概览页显示当前选中服务器的状态。运行中会通过 RCon 尝试刷新在线人数；"
+                + "监控与定时摘要可在「统计」「定时」Tab 中配置。",
                 640);
             hint.Dock = DockStyle.Top;
 
@@ -85,6 +94,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
+            refreshGeneration++;
+            int generation = refreshGeneration;
+
             ServerRunState state = AppServices.Instance.ProcessService.SyncState(boundConfig.ServerUUID);
             statusValueLabel.Text = ServerRunStateFormatter.ToDisplay(state);
 
@@ -98,6 +110,16 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 pidValueLabel.Text = "—";
             }
 
+            if (state == ServerRunState.Running)
+            {
+                onlineValueLabel.Text = "查询中…";
+                BeginRefreshOnlineCount(generation);
+            }
+            else
+            {
+                onlineValueLabel.Text = "—";
+            }
+
             string hostName = boundConfig.ServerConfig.HostName;
             if (string.IsNullOrWhiteSpace(hostName))
             {
@@ -109,6 +131,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             portValueLabel.Text = boundConfig.StartupParameters.Port.ToString();
+            monitoringSummaryLabel.Text = ServerOperationsSummaryBuilder.BuildMonitoringLine(boundConfig);
+            BeginRefreshScheduleSummary(generation);
 
             string rptPath = AppServices.Instance.RptLogService.FindLatestRptPath(boundConfig);
             if (string.IsNullOrEmpty(rptPath))
@@ -121,12 +145,77 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
         }
 
+        private async void BeginRefreshOnlineCount(int generation)
+        {
+            ArmaServerConfig config = boundConfig;
+            if (config == null)
+            {
+                return;
+            }
+
+            string host = config.BattlEyeConfig.RConHost;
+            if (string.IsNullOrWhiteSpace(host))
+            {
+                host = "127.0.0.1";
+            }
+
+            int? count = await AppServices.Instance.RconQuickProbe.TryGetOnlinePlayerCountAsync(
+                host,
+                config.BattlEyeConfig.RConPort,
+                config.BattlEyeConfig.RConPassword,
+                CancellationToken.None).ConfigureAwait(true);
+
+            if (generation != refreshGeneration || boundConfig != config)
+            {
+                return;
+            }
+
+            if (count.HasValue)
+            {
+                onlineValueLabel.Text = count.Value.ToString() + " 人（RCon）";
+            }
+            else
+            {
+                onlineValueLabel.Text = "不可用（需 BattlEye + RCon 密码）";
+            }
+        }
+
+        private async void BeginRefreshScheduleSummary(int generation)
+        {
+            ArmaServerConfig config = boundConfig;
+            if (config == null)
+            {
+                return;
+            }
+
+            string nextFire = string.Empty;
+            try
+            {
+                nextFire = await AppServices.Instance.SchedulerService
+                    .GetNextFireSummaryAsync(config.ServerUUID)
+                    .ConfigureAwait(true);
+            }
+            catch
+            {
+            }
+
+            if (generation != refreshGeneration || boundConfig != config)
+            {
+                return;
+            }
+
+            scheduleSummaryLabel.Text = ServerOperationsSummaryBuilder.BuildCronLine(config, nextFire);
+        }
+
         private void ClearValues()
         {
             statusValueLabel.Text = "—";
             pidValueLabel.Text = "—";
+            onlineValueLabel.Text = "—";
             hostValueLabel.Text = "—";
             portValueLabel.Text = "—";
+            monitoringSummaryLabel.Text = "—";
+            scheduleSummaryLabel.Text = "—";
             rptValueLabel.Text = "—";
         }
 
@@ -139,7 +228,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             ServerRunState state = AppServices.Instance.ProcessService.GetState(boundConfig.ServerUUID);
             var items = AppServices.Instance.PreflightChecker.Check(boundConfig, state);
-            using (var dialog = new Dialogs.PreflightReportForm(items, false))
+            using (var dialog = new PreflightReportForm(items, false))
             {
                 dialog.ShowDialog(FindForm());
             }
@@ -159,7 +248,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            using (var dialog = new Dialogs.RptLogViewerForm(path, AppServices.Instance.RptLogService))
+            using (var dialog = new RptLogViewerForm(path, AppServices.Instance.RptLogService))
             {
                 dialog.ShowDialog(FindForm());
             }

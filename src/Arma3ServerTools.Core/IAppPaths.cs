@@ -11,7 +11,7 @@ namespace Arma3ServerTools.Core
     }
 
     /// <summary>
-    /// Default path layout matching the legacy tool (config/*.json under install root).
+    /// Default path layout: config/*.json under install root.
     /// </summary>
     public sealed class AppPaths : IAppPaths
     {

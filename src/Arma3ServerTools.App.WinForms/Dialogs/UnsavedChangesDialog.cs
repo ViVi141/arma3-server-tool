@@ -9,6 +9,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         Cancel = 0,
         Discard = 1,
         Save = 2,
+        ApplyToServer = 3,
     }
 
     internal sealed class UnsavedChangesDialog : AntdDialogForm
@@ -17,23 +18,31 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             : base()
         {
             Text = "未保存的更改";
-            ApplyPreferredDialogSizing(440, 160, null);
+            ApplyPreferredDialogSizing(520, 200, null);
 
-            string message = "配置 \"" + configName + "\" 有未保存的修改。" + System.Environment.NewLine
-                + "是否在继续之前保存？";
+            string message = "配置 \"" + configName + "\" 有未保存的修改。"
+                + System.Environment.NewLine
+                + "「保存到工具」仅更新工具内 JSON；「应用到服务器目录」会写入 server.cfg 等游戏文件。";
 
             var body = new AntdUI.Label
             {
                 Text = message,
                 Dock = DockStyle.Fill,
                 AutoSizeMode = AntdUI.TAutoSize.Auto,
-                MaximumSize = new Size(UiScaleHelper.Scale(400), 0),
+                MaximumSize = new Size(UiScaleHelper.Scale(480), 0),
                 Padding = AppTheme.ContentPadding,
             };
 
-            AntButton saveButton = AntdUiHelper.CreatePrimaryButton("保存");
+            AntButton applyButton = AntdUiHelper.CreatePrimaryButton(UiLabels.ApplyToServerButton);
+            AntButton saveButton = AntdUiHelper.CreateToolbarButton(UiLabels.SaveToToolButton);
             AntButton discardButton = AntdUiHelper.CreateToolbarButton("不保存");
             AntButton cancelButton = AntdUiHelper.CreateToolbarButton("取消");
+            applyButton.Click += delegate
+            {
+                Choice = UnsavedChangesChoice.ApplyToServer;
+                DialogResult = DialogResult.OK;
+                Close();
+            };
             saveButton.Click += delegate
             {
                 Choice = UnsavedChangesChoice.Save;
@@ -67,6 +76,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             bar.Controls.Add(cancelButton);
             bar.Controls.Add(discardButton);
             bar.Controls.Add(saveButton);
+            bar.Controls.Add(applyButton);
 
             Controls.Add(body);
             Controls.Add(bar);

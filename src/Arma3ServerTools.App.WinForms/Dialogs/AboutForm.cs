@@ -58,7 +58,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 + "Arma 3 与 BattlEye 分别为 Bohemia Interactive 与 BattlEye Innovations 的商标；"
                 + "本项目与上述公司无隶属关系。",
                 contentWidth));
-            AddStackRow(stack, CreateSectionHeader("项目 lineage"));
+            AddStackRow(stack, CreateSectionHeader("项目来源"));
             AddStackRow(stack, CreateBodyLabel(
                 "当前维护：ViVi141（GitHub 仓库见上）"
                 + Environment.NewLine

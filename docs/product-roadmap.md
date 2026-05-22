@@ -136,7 +136,7 @@ flowchart TD
 | P1-01 | P1 | **RCon 在线封禁**：临时 / 永久 | ✅ | S | — | 玩家表选中→填原因→封禁；调用 `BanOnlinePlayerAsync` |
 | P1-02 | P1 | **本地封禁添加**：手动录入 GUID + 原因 | ✅ | S | — | BansPanel「添加」→保存写入 `bans.txt` |
 | P1-03 | P1 | **RCon 加载任务**：选中 mission → `#mission` | ✅ | S | — | `LoadMissionCommand` + `RconService.LoadMissionAsync` + UI 按钮 |
-| P1-04 | P1 | **EnableMonitor UI**：勾选启用 `@destiny_server` | ✅ | S | — | 安全/性能/定时任一页增加开关；写 cfg 含 serverMod |
+| P1-04 | P1 | **EnableMonitor UI**：勾选启用 `@a3st_monitor` | ✅ | S | — | 统计页开关；写 cfg 含 serverMod |
 | P1-05 | P1 | **EnableMonitoringService UI**：统计入库开关 | ✅ | S | — | 与 MainForm 启停逻辑一致；默认说明文案 |
 | P1-06 | P1 | **复制服务器配置** | ✅ | M | — | 菜单「复制为新建」：新 UUID、可选新 ServerDir |
 | P1-07 | P1 | **Bikey 管理对话框** | ✅ | M | — | 列表 Keys 目录；可打开文件夹；非 MessageBox |
@@ -151,7 +151,7 @@ flowchart TD
 | 5-01 | P0 | Release 不含 DevExpress / 旧 a3 二进制 | ✅ | — | 仓库已删 |
 | 5-02 | P0 | README：构建、运行、**.NET 10 Desktop Runtime** | ✅ | M | 新用户可按 README 跑通 |
 | 5-03 | P0 | README：`extension/steamcmd` 手动放置说明 | ✅ | S | 与 SteamCmdBootstrapper 下载逻辑一致 |
-| 5-04 | P0 | README：DestinyServerMonitoring / `@destiny_server` 部署 | ✅ | M | 链到 A-03 或内嵌简版 |
+| 5-04 | P0 | README：DestinyServerMonitoring / `@a3st_monitor` 部署 | ✅ | M | 链到 A-03 或内嵌简版 |
 | 5-05 | P0 | LICENSE + NOTICE 完整 | ✅ | S | Apache 2.0 + THIRD-PARTY-NOTICES |
 | 5-06 | P0 | 打 tag `v1.0.0` + GitHub Release 附件 | 🔄 | S | 见 release-v1.0.0.md |
 | 5-07 | P1 | 版本号写入程序集 / 关于页 | ✅ | S | Directory.Build.props 1.0.0 |
@@ -274,7 +274,7 @@ flowchart TD
 | 风险 | 影响 | 缓解 |
 |------|------|------|
 | 用户未装 .NET 10 Desktop Runtime | 无法启动 | self-contained 包或安装程序检测 |
-| 监控 DLL / `@destiny_server` 部署复杂 | 统计功能闲置 | A-03 文档 + P1-04/P1-05 UI |
+| 监控 DLL / `@a3st_monitor` 部署复杂 | 统计功能闲置 | A-03 文档 + P1-04/P1-05 UI |
 | RCon 仅测 localhost | 远程管理失败 | P1-08 + 手动 LAN 测试 |
 | 无 AppUpdate | 升级靠手动 | 5-03 + 8-xx 后续 |
 | WinForms 无 UI 自动化 | 回归靠人工 | Q-04 checklist |

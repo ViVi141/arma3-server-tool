@@ -84,6 +84,37 @@ namespace Arma3ServerTools.Application.Tests
                 AutomatedTestWorkspace.DeleteRoot(root);
             }
         }
+
+        [Fact]
+        public void Check_EmptyRConPasswordWithBattlEye_ReturnsWarning()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3preflight-rcon");
+            try
+            {
+                string serverDir = Path.Combine(root, "server");
+                AutomatedTestWorkspace.CreateFakeDedicatedServer(serverDir);
+
+                var config = new ArmaServerConfig
+                {
+                    ServerDir = serverDir,
+                    ServerUUID = "uuid-test",
+                    x64 = true,
+                    StartupParameters = new StartupParameters { Port = AutomatedTestWorkspace.FindAvailableUdpPort() },
+                    ServerConfig = new ServerConfig { HostName = "Test Server", BattlEye = true },
+                    BattlEyeConfig = new BattlEye { RConPassword = string.Empty },
+                };
+
+                var checker = new ServerPreflightChecker(new MonitoringDeploymentService(new Core.AppPaths(root)));
+                var items = checker.Check(config, ServerRunState.Stopped);
+
+                Assert.False(checker.HasBlockingErrors(items));
+                Assert.True(checker.HasBlockingWarnings(items));
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
     }
 
     public class RptLogServiceTests

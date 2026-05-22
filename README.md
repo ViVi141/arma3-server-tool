@@ -4,13 +4,11 @@
 
 **当前维护仓库：** [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
 
-> 自本仓库重构版起，磁盘路径与监控协议标识已统一为 `a3st_*` 前缀，**与旧版 DESTINY 工具（`destiny_*`）不兼容**。从旧版升级请重新「写入配置文件」并更新监控 DLL / `@a3st_monitor` 模组。
-
 ---
 
 ## 目录
 
-- [仓库 lineage](#仓库-lineage)
+- [项目来源](#项目来源)
 - [命名约定](#命名约定)
 - [主要功能](#主要功能)
 - [项目结构](#项目结构)
@@ -23,20 +21,20 @@
 
 ---
 
-## 仓库 lineage
+## 项目来源
 
 | 角色 | 说明 |
 |------|------|
 | **本仓库（当前维护）** | [github.com/ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool) |
 | **维护者** | [ViVi141](https://github.com/ViVi141) |
-| **上游 Fork** | [airmoer/arma3-server-tool](https://github.com/airmoer/arma3-server-tool) — DevExpress 旧版源码；**未必是原作者最初发布的仓库** |
+| **上游 Fork** | [airmoer/arma3-server-tool](https://github.com/airmoer/arma3-server-tool) — DevExpress 源码参考 |
 
-### 原作者与历史（DESTINY 开服工具）
+### 原作者与历史
 
 - **Blue**、**七龙** — destiny studio
-- 原作者 GitHub 组织：[SkyCityStudio](https://github.com/SkyCityStudio)；该账号下**目前无公开仓库**。早期开源地址曾为 `SkyCityStudio/arma3-server-tool`
+- 原作者 GitHub 组织：[SkyCityStudio](https://github.com/SkyCityStudio)
 - 历史项目页：[destiny.cool — ARMA3 开服工具](https://destiny.cool/s/arma3-tool)
-- 原作者 **七龙** 博文（2024-03）：[ARMA3 DESTINY开服工具](https://destiny.cool/archives/1709790542346)
+- 博文（2024-03）：[ARMA3 DESTINY开服工具](https://destiny.cool/archives/1709790542346)
 
 本仓库为 **去 DevExpress、.NET 10 分层重构** 的独立演进分支。二次开发请保留 [NOTICE](NOTICE) 中的原作者信息及上述出处链接。
 
@@ -46,13 +44,13 @@
 
 运行时标识集中在 `src/Arma3ServerTools.Core/ToolConstants.cs`：
 
-| 用途 | 新名称 | 旧版（DESTINY） |
-|------|--------|-----------------|
-| 服务器 cfg 目录 | `a3st_serverconfig/` | `destiny_serverconfig/` |
-| 统计库 | `a3st_statistics.db` | `destiny_statistics.db` |
-| 玩家库 | `a3st_players.db` | `destiny_players.db` |
-| 监控模组 | `@a3st_monitor` | `@destiny_server` |
-| 监控宿主窗口标题 | `A3-Arma3ServerTools-ProcessCommunicationModule` | `A3-DestinyStudio-ProcessCommunicationModule` |
+| 用途 | 名称 |
+|------|------|
+| 服务器 cfg 目录 | `a3st_serverconfig/` |
+| 统计库 | `a3st_statistics.db` |
+| 玩家库 | `a3st_players.db` |
+| 监控模组 | `@a3st_monitor` |
+| 监控宿主窗口标题 | `A3-Arma3ServerTools-ProcessCommunicationModule` |
 
 ---
 
@@ -79,7 +77,7 @@
 | `src/Arma3ServerTools.Application` | 应用服务层 |
 | `src/Arma3ServerTools.App.WinForms` | 主程序，输出 `Arma3ServerTools.exe` |
 | `src/Arma3ServerTools.MonitoringHost` | 监控 WM_COPYDATA 宿主进程 |
-| `DestinyServerMonitoring/` | 服务端 RVExtension 源码（历史目录名；需与新版窗口标题一并重新编译） |
+| `DestinyServerMonitoring/` | 服务端 RVExtension 源码（构建产物见 `ToolConstants.MonitoringExtensionDllFileName`） |
 | `tests/` | 单元测试（Core / Application） |
 
 Release 输出示例：
@@ -132,7 +130,6 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 - 安装路径**不能包含中文**（启动时会检测并退出）
 - 编译前请**关闭正在运行的主程序**，避免 `monitoring/` 下 DLL 被占用
 - 主程序退出时会自动关闭监控宿主进程
-- 从旧版 DESTINY 迁移时，请对照 [命名约定](#命名约定) 更新服务器目录与监控组件
 - 本地 `.vs/`、`bin/`、`obj/` 为构建缓存，无需提交；克隆后执行 `dotnet restore` 即可
 
 ---
@@ -144,6 +141,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 | [docs/first-server-guide.md](docs/first-server-guide.md) | 首次开服指南 |
 | [docs/refactoring-plan.md](docs/refactoring-plan.md) | 分层改造说明 |
 | [docs/product-roadmap.md](docs/product-roadmap.md) | 实施计划与 backlog |
+| [docs/ux-optimization-backlog.md](docs/ux-optimization-backlog.md) | 用户体验优化任务（v1.1） |
 | [docs/release-v1.0.0.md](docs/release-v1.0.0.md) | v1.0 发布清单 |
 | [docs/smoke-checklist.md](docs/smoke-checklist.md) | 冒烟验收清单 |
 | [docs/monitoring-cpp-dll-build.md](docs/monitoring-cpp-dll-build.md) | Monitoring DLL 构建 |

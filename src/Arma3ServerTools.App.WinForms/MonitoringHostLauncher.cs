@@ -15,6 +15,11 @@ namespace Arma3ServerTools.App.WinForms
 
         private static Process startedProcess;
 
+        public static bool IsHostRunning()
+        {
+            return FindWindow(null, WindowTitle) != IntPtr.Zero;
+        }
+
         public static bool TryStart(string applicationBase, out string message)
         {
             message = string.Empty;
