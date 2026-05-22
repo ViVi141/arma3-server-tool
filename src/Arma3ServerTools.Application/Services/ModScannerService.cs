@@ -192,6 +192,8 @@ namespace Arma3ServerTools.Application.Services
 
         public int ScanOrder { get; set; }
 
+        public bool UpdateSelected { get; set; }
+
         public string ModDirName { get; set; }
 
         public string ModName { get; set; }

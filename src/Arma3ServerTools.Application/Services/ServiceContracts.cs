@@ -105,6 +105,8 @@ namespace Arma3ServerTools.Application.Services
 
         OperationResult InstallDedicatedServer(string installDir);
 
+        OperationResult DownloadWorkshopItems(System.Collections.Generic.IList<ulong> modIds);
+
         void InvalidateExecutableCache();
     }
 

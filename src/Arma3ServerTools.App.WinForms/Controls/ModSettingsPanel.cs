@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.App.WinForms.Dialogs;
@@ -65,16 +67,25 @@ namespace Arma3ServerTools.App.WinForms.Controls
             AntdUI.Button refreshButton = SettingsLayoutHelper.CreateButton("扫描刷新");
             AntdUI.Button scanPathButton = SettingsLayoutHelper.CreateButton("扫描路径...");
             AntdUI.Button addLocalButton = SettingsLayoutHelper.CreateButton("添加本地模组");
+            AntdUI.Button downloadButton = SettingsLayoutHelper.CreateButton("下载选中模组");
+            AntdUI.Button pasteButton = SettingsLayoutHelper.CreateButton("从剪贴板导入 ID");
+            AntdUI.Button htmlDownloadButton = SettingsLayoutHelper.CreateButton("从 HTML 下载...");
             AntdUI.Button htmlEnableButton = SettingsLayoutHelper.CreateButton("从 HTML 启用...");
             AntdUI.Button bikeyButton = SettingsLayoutHelper.CreateButton("管理 Bikey");
             refreshButton.Click += delegate { ScanMods(); };
             scanPathButton.Click += OnEditScanPaths;
             addLocalButton.Click += OnAddLocalMod;
+            downloadButton.Click += OnDownloadSelected;
+            pasteButton.Click += OnPasteModIds;
+            htmlDownloadButton.Click += OnImportFromHtmlDownload;
             htmlEnableButton.Click += OnImportFromHtmlEnable;
             bikeyButton.Click += OnManageBikeys;
             toolbar.Controls.Add(refreshButton);
             toolbar.Controls.Add(scanPathButton);
             toolbar.Controls.Add(addLocalButton);
+            toolbar.Controls.Add(downloadButton);
+            toolbar.Controls.Add(pasteButton);
+            toolbar.Controls.Add(htmlDownloadButton);
             toolbar.Controls.Add(htmlEnableButton);
             toolbar.Controls.Add(bikeyButton);
 
@@ -129,6 +140,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             disableBar.Controls.Add(disableAllButton);
 
             modsTable = AntdTableHelper.CreateStandardTable();
+            var updateCol = new AntdUI.ColumnSwitch("UpdateSelected", "更新");
+            updateCol.Call = OnModSwitchCall;
             var localCol = new AntdUI.ColumnSwitch("LocalMod", "客户端模组");
             localCol.Call = OnModSwitchCall;
             var serverCol = new AntdUI.ColumnSwitch("ServerMod", "服务器模组");
@@ -139,6 +152,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             modsTable.Columns = new AntdUI.ColumnCollection
             {
                 new AntdUI.Column("RowIndex", "序号") { ReadOnly = true, Width = "4%" },
+                updateCol,
                 new AntdUI.Column("ModDirName", "文件夹名")
                 {
                     ReadOnly = true,
@@ -526,7 +540,102 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 boundConfig,
                 settings,
                 appServices.BikeyService,
-                ScanMods);
+                ScanMods,
+                appServices.SteamCmdService,
+                appServices.Paths);
+        }
+
+        private async void OnDownloadSelected(object sender, EventArgs e)
+        {
+            SteamcmdEntity settings = appServices.GetSteamCmdSettings();
+            var modIds = new List<ulong>();
+            foreach (ScannedModRow row in allRows)
+            {
+                if (row.UpdateSelected && row.ModId > 0)
+                {
+                    modIds.Add((ulong)row.ModId);
+                }
+            }
+
+            if (await ModDownloadUiHelper.TryDownloadModsAsync(
+                    FindForm(),
+                    modIds,
+                    allRows,
+                    settings,
+                    appServices.SteamCmdService,
+                    appServices.Paths).ConfigureAwait(true))
+            {
+                ScanMods();
+            }
+        }
+
+        private async void OnPasteModIds(object sender, EventArgs e)
+        {
+            string clipboard = Clipboard.GetText();
+            if (string.IsNullOrWhiteSpace(clipboard))
+            {
+                return;
+            }
+
+            var ids = new List<ulong>();
+            foreach (Match match in Regex.Matches(clipboard, @"\bid=.*?(\d{5,12})\b"))
+            {
+                ulong id;
+                if (ulong.TryParse(match.Groups[1].Value, out id))
+                {
+                    ids.Add(id);
+                }
+            }
+
+            if (ids.Count == 0)
+            {
+                foreach (Match match in Regex.Matches(clipboard, @"\d{5,12}"))
+                {
+                    ulong id;
+                    if (ulong.TryParse(match.Value, out id))
+                    {
+                        ids.Add(id);
+                    }
+                }
+            }
+
+            if (ids.Count == 0)
+            {
+                AntdUiHelper.ShowInfo(FindForm(), "剪贴板中未找到 Workshop ID。", "提示");
+                return;
+            }
+
+            SteamcmdEntity settings = appServices.GetSteamCmdSettings();
+            if (await ModDownloadUiHelper.TryDownloadModsAsync(
+                    FindForm(),
+                    ids,
+                    null,
+                    settings,
+                    appServices.SteamCmdService,
+                    appServices.Paths).ConfigureAwait(true))
+            {
+                ScanMods();
+            }
+        }
+
+        private async void OnImportFromHtmlDownload(object sender, EventArgs e)
+        {
+            List<LauncherHtmlModEntry> entries = TryLoadHtmlEntries();
+            if (entries == null)
+            {
+                return;
+            }
+
+            SteamcmdEntity settings = appServices.GetSteamCmdSettings();
+            if (await ModDownloadUiHelper.TryDownloadModsFromHtmlAsync(
+                    FindForm(),
+                    entries,
+                    settings,
+                    appServices.SteamCmdService,
+                    appServices.Paths).ConfigureAwait(true))
+            {
+                ScanMods();
+            }
         }
 
         private void OnManageBikeys(object sender, EventArgs e)

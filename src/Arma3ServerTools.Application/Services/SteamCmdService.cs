@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Arma3ServerTools.Application.ProcessManagement;
@@ -10,6 +12,8 @@ namespace Arma3ServerTools.Application.Services
     public sealed class SteamCmdService : ISteamCmdService
     {
         private const int Arma3DedicatedAppId = 233780;
+
+        private const int Arma3WorkshopAppId = 107410;
 
         private readonly IAppPaths paths;
         private readonly ISteamCmdConfigProvider configProvider;
@@ -99,6 +103,110 @@ namespace Arma3ServerTools.Application.Services
                 + " +app_update " + Arma3DedicatedAppId + " -beta creatordlc validate";
 
             return StartSteamCmd(arguments);
+        }
+
+        public OperationResult DownloadWorkshopItems(IList<ulong> modIds)
+        {
+            OperationResult validation = EnsureSteamCmdAvailable(false);
+            if (!validation.Success)
+            {
+                return validation;
+            }
+
+            SteamcmdEntity settings = configProvider.GetSettings();
+            if (settings == null || string.IsNullOrEmpty(settings.u))
+            {
+                return OperationResult.Fail("SteamCMD 账号未配置。请在「工具 → SteamCMD 设置」中填写账号。");
+            }
+
+            if (modIds == null || modIds.Count == 0)
+            {
+                return OperationResult.Fail("没有要下载的 Workshop 模组 ID。");
+            }
+
+            string workshopRoot = SteamCmdPathHelper.NormalizeWorkshopRoot(paths, settings.d);
+            if (string.IsNullOrWhiteSpace(workshopRoot))
+            {
+                return OperationResult.Fail("Workshop 根目录未配置。请在「工具 → SteamCMD 设置」中填写。");
+            }
+
+            EnsureWorkshopContentDirectory(workshopRoot);
+
+            string arguments = BuildWorkshopDownloadArguments(settings, workshopRoot, modIds);
+            OperationResult startResult = StartSteamCmd(arguments);
+            if (!startResult.Success)
+            {
+                return startResult;
+            }
+
+            int downloadCount = CountDistinctModIds(modIds);
+            return OperationResult.Ok(
+                "SteamCMD 已启动，将下载 " + downloadCount + " 个 Workshop 模组。"
+                + System.Environment.NewLine
+                + "下载目录: "
+                + Path.Combine(workshopRoot, ModEnablerService.WorkshopContentRelativePath)
+                + System.Environment.NewLine
+                + "请在控制台窗口中完成 Steam Guard 验证，待下载完成后关闭窗口并刷新模组列表。");
+        }
+
+        private static string BuildWorkshopDownloadArguments(
+            SteamcmdEntity settings,
+            string workshopRoot,
+            IList<ulong> modIds)
+        {
+            var builder = new StringBuilder();
+            builder.Append("+force_install_dir \"")
+                .Append(workshopRoot)
+                .Append("\" +login ")
+                .Append(settings.u)
+                .Append(' ')
+                .Append(settings.p);
+
+            var seen = new HashSet<ulong>();
+            for (int i = 0; i < modIds.Count; i++)
+            {
+                ulong modId = modIds[i];
+                if (modId == 0 || !seen.Add(modId))
+                {
+                    continue;
+                }
+
+                builder.Append(" +workshop_download_item ")
+                    .Append(Arma3WorkshopAppId)
+                    .Append(' ')
+                    .Append(modId);
+            }
+
+            builder.Append(" +quit");
+            return builder.ToString();
+        }
+
+        private static int CountDistinctModIds(IList<ulong> modIds)
+        {
+            var seen = new HashSet<ulong>();
+            for (int i = 0; i < modIds.Count; i++)
+            {
+                ulong modId = modIds[i];
+                if (modId != 0)
+                {
+                    seen.Add(modId);
+                }
+            }
+
+            return seen.Count;
+        }
+
+        private static void EnsureWorkshopContentDirectory(string workshopRoot)
+        {
+            try
+            {
+                Directory.CreateDirectory(
+                    Path.Combine(workshopRoot, ModEnablerService.WorkshopContentRelativePath));
+            }
+            catch
+            {
+                // Best effort.
+            }
         }
 
         private string ResolveSteamCmdExecutable()
