@@ -49,11 +49,10 @@ Release 输出目录示例：`src/Arma3ServerTools.App.WinForms/bin/Release/net1
 #### 描述
 1.  **Arma3ServerTools** — 主程序（`src/Arma3ServerTools.App.WinForms`）
 2.  **DestinyServerMonitoring** — Arma 3 服务器 DLL 扩展，用于与开服工具通讯
-3.  **Steamcmdtools** — SteamCMD 辅助下载器（构建时复制到输出目录）
 
 
 #### 特色和优点:
-1.	可以添加创意工坊的MODID/URL，启动器导出来自HTML，从剪辑版复制的ID，本地的模组等识别并下载（使用steamcmd）。
+1.	可以扫描本地/Workshop 模组目录，从 Arma3 启动器 HTML 导入并启用模组，手动添加本地模组。
 2.	可以下载DLC服务端，更新指定服务端
 3.	自动配置BE反作弊的基本规则，配置基本的关于创建，杀死，传送等基本的BE规则。
 4.	自动配置rcon密码和端口

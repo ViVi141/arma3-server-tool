@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
-using AntCheckbox = AntdUI.Checkbox;
 using AntLabel = AntdUI.Label;
 using AntPanel = AntdUI.Panel;
 using AntSelect = AntdUI.Select;
@@ -21,7 +20,6 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
         private readonly AntTable grid;
         private readonly AntSelect targetSelect;
-        private readonly AntCheckbox downloadMissingCheckBox;
         private readonly AntLabel statusLabel;
 
         private readonly List<HtmlModGridRow> gridRows;
@@ -86,10 +84,6 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 "全部 (客户端 + 服务端 + 无头)");
             targetSelect.SelectedIndex = 0;
             targetPanel.Controls.Add(targetSelect);
-
-            downloadMissingCheckBox = SettingsLayoutHelper.CreateCheckbox("启用前下载未安装的模组", false);
-            downloadMissingCheckBox.Margin = new Padding(UiScaleHelper.Scale(16), UiScaleHelper.Scale(4), 0, 0);
-            targetPanel.Controls.Add(downloadMissingCheckBox);
 
             grid = AntdTableHelper.CreateStandardTable();
             grid.Columns = new AntdUI.ColumnCollection
@@ -160,11 +154,6 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             }
 
             return ModApplyTarget.Client;
-        }
-
-        public bool ShouldDownloadMissing()
-        {
-            return downloadMissingCheckBox.Checked;
         }
 
         private void ReloadTable()

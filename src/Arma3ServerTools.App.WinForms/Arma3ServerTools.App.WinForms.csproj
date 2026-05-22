@@ -44,24 +44,5 @@
     <MakeDir Directories="$(MonitoringHostDeployDir)" Condition="Exists('$(MonitoringHostOutDir)$(MonitoringHostExeName)')" />
     <Copy SourceFiles="@(MonitoringHostFiles)" DestinationFolder="$(MonitoringHostDeployDir)%(RecursiveDir)" SkipUnchangedFiles="true" Condition="Exists('$(MonitoringHostOutDir)$(MonitoringHostExeName)')" />
   </Target>
-  <Target Name="BuildSteamCmdToolsIfNeeded" BeforeTargets="CopySteamCmdTools">
-    <PropertyGroup>
-      <SteamCmdToolsProject>$(MSBuildProjectDirectory)\..\..\Steamcmdtools\steamcmd\steamcmdTools.csproj</SteamCmdToolsProject>
-      <SteamCmdToolsBuildDir>$(MSBuildProjectDirectory)\..\..\Steamcmdtools\steamcmd\bin\$(Configuration)\net10.0-windows\</SteamCmdToolsBuildDir>
-    </PropertyGroup>
-    <MSBuild Projects="$(SteamCmdToolsProject)" Properties="Configuration=$(Configuration)" Condition="Exists('$(SteamCmdToolsProject)') And !Exists('$(SteamCmdToolsBuildDir)steamcmdTools.exe')" />
-  </Target>
-  <Target Name="CopySteamCmdTools" AfterTargets="Build">
-    <PropertyGroup>
-      <SteamCmdToolsOutDir>$(MSBuildProjectDirectory)\..\..\Steamcmdtools\steamcmd\bin\$(Configuration)\net10.0-windows\</SteamCmdToolsOutDir>
-      <SteamCmdToolsDeployDir>$(OutputPath)steamcmdTools\</SteamCmdToolsDeployDir>
-      <SteamCmdToolsExeName>steamcmdTools.exe</SteamCmdToolsExeName>
-    </PropertyGroup>
-    <ItemGroup>
-      <SteamCmdToolsFiles Include="$(SteamCmdToolsOutDir)**\*.*" />
-    </ItemGroup>
-    <MakeDir Directories="$(SteamCmdToolsDeployDir)" Condition="Exists('$(SteamCmdToolsOutDir)$(SteamCmdToolsExeName)')" />
-    <Copy SourceFiles="@(SteamCmdToolsFiles)" DestinationFolder="$(SteamCmdToolsDeployDir)%(RecursiveDir)" SkipUnchangedFiles="true" Condition="Exists('$(SteamCmdToolsOutDir)$(SteamCmdToolsExeName)')" />
-  </Target>
 
 </Project>

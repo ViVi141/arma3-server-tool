@@ -92,12 +92,6 @@ namespace Arma3ServerTools.Application.Services
         OperationResult EnsureSteamCmdAvailable(bool downloadIfMissing);
 
         OperationResult InstallDedicatedServer(string installDir);
-
-        OperationResult UpdateWorkshopMods(IEnumerable<ulong> modIds);
-
-        OperationResult UpdateWorkshopModsViaTools(IEnumerable<ulong> modIds);
-
-        bool IsSteamCmdToolsAvailable();
     }
 
     public interface IMonitoringIngestService
