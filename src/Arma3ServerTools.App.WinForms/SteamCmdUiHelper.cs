@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Arma3ServerTools.Application.Services;
@@ -12,8 +13,9 @@ namespace Arma3ServerTools.App.WinForms
             IWin32Window owner,
             ISteamCmdService steamCmdService)
         {
-            OperationResult check = await Task.Run(
-                () => steamCmdService.EnsureSteamCmdAvailable(false)).ConfigureAwait(true);
+            OperationResult check = await steamCmdService
+                .EnsureSteamCmdAvailableAsync(false, CancellationToken.None)
+                .ConfigureAwait(true);
             if (check.Success)
             {
                 return true;
@@ -30,8 +32,9 @@ namespace Arma3ServerTools.App.WinForms
 
             AntdUiHelper.ShowInfo(owner, "正在下载 SteamCMD，请稍候...", "请稍候");
 
-            check = await Task.Run(
-                () => steamCmdService.EnsureSteamCmdAvailable(true)).ConfigureAwait(true);
+            check = await steamCmdService
+                .EnsureSteamCmdAvailableAsync(true, CancellationToken.None)
+                .ConfigureAwait(true);
 
             if (check.Success)
             {
@@ -49,8 +52,9 @@ namespace Arma3ServerTools.App.WinForms
 
         public static async Task<OperationResult> DownloadSteamCmdAsync(IWin32Window owner, ISteamCmdService steamCmdService)
         {
-            OperationResult check = await Task.Run(
-                () => steamCmdService.EnsureSteamCmdAvailable(false)).ConfigureAwait(true);
+            OperationResult check = await steamCmdService
+                .EnsureSteamCmdAvailableAsync(false, CancellationToken.None)
+                .ConfigureAwait(true);
             if (check.Success)
             {
                 return check;
@@ -58,8 +62,9 @@ namespace Arma3ServerTools.App.WinForms
 
             AntdUiHelper.ShowInfo(owner, "正在下载 SteamCMD，请稍候...", "请稍候");
 
-            return await Task.Run(
-                () => steamCmdService.EnsureSteamCmdAvailable(true)).ConfigureAwait(true);
+            return await steamCmdService
+                .EnsureSteamCmdAvailableAsync(true, CancellationToken.None)
+                .ConfigureAwait(true);
         }
     }
 }

@@ -526,8 +526,11 @@ namespace Arma3ServerTools.App.WinForms
                 if (!SaveCurrentConfigInternal(false))
                 {
                     e.Cancel = true;
+                    return;
                 }
             }
+
+            UiBackgroundTasks.ShutdownScheduler(services.SchedulerService);
         }
 
         private bool HasUnsavedChanges()
@@ -696,14 +699,6 @@ namespace Arma3ServerTools.App.WinForms
             {
                 trayNotifyIcon.Visible = false;
                 trayNotifyIcon.Dispose();
-            }
-
-            try
-            {
-                services.SchedulerService.StopAsync().GetAwaiter().GetResult();
-            }
-            catch
-            {
             }
 
             MonitoringHostLauncher.StopStartedHost();

@@ -113,11 +113,17 @@ namespace BytexDigital.BattlEye.Rcon
         /// <returns>True if a response was received, false if a timeout occurred.</returns>
         public bool Fetch<ResponseType, CommandType>(CommandType command, int timeout, out ResponseType result) where CommandType : Command, IProvidesResponse<ResponseType>
         {
-            (bool success, var resultData) = FetchAsync<ResponseType, CommandType>(command, new CancellationTokenSource(timeout).Token).ConfigureAwait(false).GetAwaiter().GetResult();
+            var request = Send(command);
+            bool success = request.WaitUntilResponseReceived(timeout);
 
-            result = resultData;
+            if (success && request.ResponseReceived)
+            {
+                result = (command as IProvidesResponse<ResponseType>).GetResponse();
+                return true;
+            }
 
-            return success;
+            result = default;
+            return false;
         }
 
         public async Task<(bool, ResponseType)> FetchAsync<ResponseType, CommandType>(CommandType command, CancellationToken? cancellationToken) where CommandType : Command, IProvidesResponse<ResponseType>

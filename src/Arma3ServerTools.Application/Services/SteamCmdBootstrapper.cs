@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 using Arma3ServerTools.Core;
 
 namespace Arma3ServerTools.Application.Services
@@ -10,7 +12,7 @@ namespace Arma3ServerTools.Application.Services
     {
         public const string DownloadUrl = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip";
 
-        private static readonly HttpClient HttpClient = new HttpClient
+        private static readonly HttpClient SharedHttpClient = new HttpClient
         {
             Timeout = TimeSpan.FromMinutes(5),
         };
@@ -27,6 +29,13 @@ namespace Arma3ServerTools.Application.Services
 
         public static OperationResult DownloadBundledSteamCmd(IAppPaths paths)
         {
+            return DownloadBundledSteamCmdAsync(paths, CancellationToken.None).GetAwaiter().GetResult();
+        }
+
+        public static async Task<OperationResult> DownloadBundledSteamCmdAsync(
+            IAppPaths paths,
+            CancellationToken cancellationToken)
+        {
             string extensionDir = GetBundledDirectory(paths);
             string executablePath = GetBundledExecutablePath(paths);
             if (File.Exists(executablePath))
@@ -39,8 +48,10 @@ namespace Arma3ServerTools.Application.Services
             try
             {
                 Directory.CreateDirectory(extensionDir);
-                byte[] zipBytes = HttpClient.GetByteArrayAsync(DownloadUrl).GetAwaiter().GetResult();
-                File.WriteAllBytes(zipPath, zipBytes);
+                byte[] zipBytes = await SharedHttpClient
+                    .GetByteArrayAsync(DownloadUrl, cancellationToken)
+                    .ConfigureAwait(false);
+                await File.WriteAllBytesAsync(zipPath, zipBytes, cancellationToken).ConfigureAwait(false);
 
                 ExtractZip(zipPath, extensionDir);
                 if (File.Exists(zipPath))
@@ -55,7 +66,7 @@ namespace Arma3ServerTools.Application.Services
 
                 return OperationResult.Ok("SteamCMD 已下载到: " + executablePath);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 return OperationResult.Fail("下载 SteamCMD 失败: " + ex.Message);
             }

@@ -33,12 +33,12 @@ namespace BytexDigital.BattlEye.Rcon
 
         public void BeginReceiving()
         {
-            Task.Run(() => Receive());
+            _ = ReceiveAsync();
         }
 
         public void BeginHeartbeat()
         {
-            Task.Run(() => Heartbeat());
+            _ = HeartbeatAsync();
         }
 
         public void Send(NetworkMessage networkMessage)
@@ -67,7 +67,7 @@ namespace BytexDigital.BattlEye.Rcon
 
         internal void FireProtocolEvent(GenericParsedEventArgs args) => ProtocolEvent?.Invoke(this, args);
 
-        private async void Receive()
+        private async Task ReceiveAsync()
         {
             try
             {
@@ -76,16 +76,16 @@ namespace BytexDigital.BattlEye.Rcon
                 while (!_cancellationToken.IsCancellationRequested)
                 {
                     var receiveTask = _udpClient.ReceiveAsync();
-                    var task = await Task.WhenAny(receiveTask, closeTask).ConfigureAwait(false);
+                    var completedTask = await Task.WhenAny(receiveTask, closeTask).ConfigureAwait(false);
 
-                    if (task == closeTask)
+                    if (completedTask == closeTask)
                     {
                         break;
                     }
 
                     if (!receiveTask.IsFaulted)
                     {
-                        var result = receiveTask.Result;
+                        var result = await receiveTask.ConfigureAwait(false);
                         try { _handler.Handle(result.Buffer); } catch { }
                     }
                 }
@@ -96,11 +96,11 @@ namespace BytexDigital.BattlEye.Rcon
             }
         }
 
-        private async void Heartbeat()
+        private async Task HeartbeatAsync()
         {
             while (!_cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(3000);
+                await Task.Delay(3000).ConfigureAwait(false);
 
                 if (_cancellationToken.IsCancellationRequested)
                 {
@@ -110,15 +110,20 @@ namespace BytexDigital.BattlEye.Rcon
                 var keepAlivePacket = new CommandNetworkRequest("");
 
                 Send(keepAlivePacket);
-                keepAlivePacket.WaitUntilAcknowledged(5000);
-
-                if (!keepAlivePacket.Acknowledged)
+                using (var timeoutSource = new CancellationTokenSource(5000))
                 {
-                    try
+                    bool acknowledged = await keepAlivePacket
+                        .WaitUntilAcknowledgedAsync(timeoutSource.Token)
+                        .ConfigureAwait(false);
+
+                    if (!acknowledged)
                     {
-                        Disconnected?.Invoke(this, new EventArgs());
+                        try
+                        {
+                            Disconnected?.Invoke(this, new EventArgs());
+                        }
+                        catch { }
                     }
-                    catch { }
                 }
             }
         }

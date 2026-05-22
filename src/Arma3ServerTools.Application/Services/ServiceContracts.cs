@@ -95,6 +95,10 @@ namespace Arma3ServerTools.Application.Services
     {
         OperationResult EnsureSteamCmdAvailable(bool downloadIfMissing);
 
+        System.Threading.Tasks.Task<OperationResult> EnsureSteamCmdAvailableAsync(
+            bool downloadIfMissing,
+            System.Threading.CancellationToken cancellationToken);
+
         OperationResult InstallDedicatedServer(string installDir);
 
         void InvalidateExecutableCache();
