@@ -29,6 +29,11 @@ namespace Arma3ServerTools.Application.Services
         {
             string extensionDir = GetBundledDirectory(paths);
             string executablePath = GetBundledExecutablePath(paths);
+            if (File.Exists(executablePath))
+            {
+                return OperationResult.Ok("SteamCMD 已存在于: " + executablePath);
+            }
+
             string zipPath = Path.Combine(extensionDir, "steamcmd.zip");
 
             try

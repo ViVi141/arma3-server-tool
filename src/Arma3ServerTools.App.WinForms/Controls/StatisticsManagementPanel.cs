@@ -128,11 +128,12 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 new AntdTableHelper.ColumnSpec("Ip", "IP 地址", "18%", AntdUI.ColumnAlign.Left),
                 new AntdTableHelper.ColumnSpec("LastSeen", "最后上线", "30%", AntdUI.ColumnAlign.Left));
 
-            AntdUiHelper.AddTabPage(tabs, "战斗统计", playerStatsTable);
-            AntdUiHelper.AddTabPage(tabs, "服务器快照", objectStatsTable);
-            AntdUiHelper.AddTabPage(tabs, "玩家库", playerDirectoryTable);
             chartsPanel = new StatisticsChartsPanel();
+
             AntdUiHelper.AddTabPage(tabs, "趋势图表", chartsPanel);
+            AntdUiHelper.AddTabPage(tabs, "服务器快照", objectStatsTable);
+            AntdUiHelper.AddTabPage(tabs, "战斗统计", playerStatsTable);
+            AntdUiHelper.AddTabPage(tabs, "玩家库", playerDirectoryTable);
 
             Controls.Add(tabs);
             Controls.Add(summaryLabel);

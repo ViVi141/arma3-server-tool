@@ -38,6 +38,7 @@ namespace Arma3ServerTools.App.WinForms
                     FileName = hostExe,
                     WorkingDirectory = hostDirectory,
                     UseShellExecute = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
                 });
                 return true;
             }

@@ -1,8 +1,11 @@
 using System;
 using System.Drawing;
+using System.IO;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.App.WinForms.Controls;
+using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.Core.Validation;
@@ -16,12 +19,12 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         private readonly AntInput passwordInput;
         private readonly AntInput workshopRootInput;
         private readonly AntInput serverInstallInput;
-
+        private readonly AntdUI.Label steamCmdStatusLabel;
         public SteamCmdConfigForm(SteamcmdEntity current)
             : base()
         {
             Text = "SteamCMD 配置";
-            ApplyPreferredDialogSizing(520, 240, null);
+            ApplyPreferredDialogSizing(520, 380, null);
 
             var layout = SettingsLayoutHelper.CreateFormLayout(120);
 
@@ -30,6 +33,14 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             workshopRootInput = AddBrowseRow(layout, "Workshop 根目录", BrowseWorkshop_Click);
             serverInstallInput = AddBrowseRow(layout, "专用服务器目录", BrowseServer_Click);
 
+            steamCmdStatusLabel = new AntdUI.Label
+            {
+                AutoSizeMode = AntdUI.TAutoSize.None,
+                Height = UiScaleHelper.Scale(48),
+                ForeColor = Color.Gray,
+            };
+            SettingsLayoutHelper.AddRow(layout, "SteamCMD 状态", steamCmdStatusLabel, 56);
+
             if (current != null)
             {
                 userInput.Text = current.u ?? string.Empty;
@@ -37,6 +48,11 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 workshopRootInput.Text = current.d ?? string.Empty;
                 serverInstallInput.Text = current.i ?? string.Empty;
             }
+
+            RefreshSteamCmdStatus();
+
+            AntButton downloadButton = SettingsLayoutHelper.CreateButton("下载 SteamCMD");
+            downloadButton.Click += OnDownloadSteamCmd;
 
             var okButton = SettingsLayoutHelper.CreateButton("保存");
             okButton.Type = AntdUI.TTypeMini.Primary;
@@ -51,11 +67,25 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 DialogResult = DialogResult.Cancel;
                 Close();
             };
-            Control buttonBar = CreateButtonBar(okButton, cancelButton, "保存", "取消");
+
+            var buttonBar = CreateButtonBar(okButton, cancelButton, "保存", "取消");
+            var actionBar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Bottom,
+                FlowDirection = FlowDirection.LeftToRight,
+                AutoSize = true,
+                Padding = new Padding(
+                    UiScaleHelper.Scale(12),
+                    UiScaleHelper.Scale(4),
+                    UiScaleHelper.Scale(12),
+                    0),
+            };
+            actionBar.Controls.Add(downloadButton);
 
             var body = SettingsLayoutHelper.CreateScrollHost(layout);
             Controls.Add(body);
             Controls.Add(buttonBar);
+            Controls.Add(actionBar);
         }
 
         public SteamcmdEntity BuildSettings()
@@ -104,8 +134,68 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 if (dialog.ShowDialog(this) == DialogResult.OK)
                 {
                     target.Text = dialog.SelectedPath;
+                    RefreshSteamCmdStatus();
                 }
             }
+        }
+
+        private async void OnDownloadSteamCmd(object sender, EventArgs e)
+        {
+            OperationResult result = await SteamCmdUiHelper.DownloadSteamCmdAsync(
+                this,
+                AppServices.Instance.SteamCmdService).ConfigureAwait(true);
+            if (result.Success)
+            {
+                AntdUiHelper.ShowInfo(this, result.Message, "SteamCMD 已就绪");
+            }
+            else
+            {
+                AntdUiHelper.ShowError(this, result.Message, "下载失败");
+            }
+
+            RefreshSteamCmdStatus();
+        }
+
+        private void RefreshSteamCmdStatus()
+        {
+            IAppPaths paths = AppServices.Instance.Paths;
+            string bundledPath = SteamCmdBootstrapper.GetBundledExecutablePath(paths);
+            bool bundledExists = File.Exists(bundledPath);
+            string workshopRoot = workshopRootInput.Text.Trim();
+            string customPath = string.Empty;
+            bool customExists = false;
+            if (!string.IsNullOrEmpty(workshopRoot))
+            {
+                customPath = Path.Combine(workshopRoot, "steamcmd.exe");
+                customExists = File.Exists(customPath);
+            }
+
+            var status = new System.Text.StringBuilder();
+            status.AppendLine("内置: " + bundledPath);
+            if (bundledExists)
+            {
+                status.Append("  → 已安装");
+            }
+            else
+            {
+                status.Append("  → 未找到");
+            }
+
+            if (!string.IsNullOrEmpty(customPath))
+            {
+                status.AppendLine();
+                status.AppendLine("Workshop 根: " + customPath);
+                if (customExists)
+                {
+                    status.Append("  → 已安装");
+                }
+                else
+                {
+                    status.Append("  → 未找到");
+                }
+            }
+
+            steamCmdStatusLabel.Text = status.ToString().TrimEnd();
         }
 
         private AntInput AddBrowseRow(TableLayoutPanel layout, string label, EventHandler onBrowseClick)
@@ -113,6 +203,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             var panel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             var textInput = SettingsLayoutHelper.CreateInput(false);
             textInput.Width = UiScaleHelper.Scale(320);
+            textInput.TextChanged += delegate { RefreshSteamCmdStatus(); };
 
             AntButton browseButton = SettingsLayoutHelper.CreateButton("浏览...");
             browseButton.Click += onBrowseClick;

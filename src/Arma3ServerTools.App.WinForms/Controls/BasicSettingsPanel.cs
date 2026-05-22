@@ -188,7 +188,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private Control BuildBasicRows()
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(120);
-            configNameTextBox = SettingsLayoutHelper.AddRow(layout, "配置名称", SettingsLayoutHelper.CreateInput(true));
+            configNameTextBox = SettingsLayoutHelper.AddRow(
+                layout,
+                "配置名称",
+                SettingsLayoutHelper.CreateReadOnlyInput(0));
             serverDirTextBox = SettingsLayoutHelper.CreateReadOnlyInput(0);
             var browseButton = SettingsLayoutHelper.CreateButton("浏览...");
             browseButton.Click += OnBrowseServerDir;

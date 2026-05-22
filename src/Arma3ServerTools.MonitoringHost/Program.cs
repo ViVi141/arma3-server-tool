@@ -28,44 +28,32 @@ namespace Arma3ServerTools.MonitoringHost
         public MonitoringHostForm()
         {
             Text = WindowTitle;
-            Width = 655;
-            Height = 33;
-            FormBorderStyle = FormBorderStyle.FixedSingle;
-            ControlBox = false;
-            TopMost = true;
-            StartPosition = FormStartPosition.CenterScreen;
-            ShowInTaskbar = true;
-
-            var label = new Label
-            {
-                Text = "进程通信模块运行中（接收 ARMA3 监控数据）",
-                Dock = DockStyle.Fill,
-                TextAlign = System.Drawing.ContentAlignment.MiddleCenter,
-            };
-            Controls.Add(label);
+            FormBorderStyle = FormBorderStyle.None;
+            ShowInTaskbar = false;
+            StartPosition = FormStartPosition.Manual;
+            Location = new System.Drawing.Point(-32000, -32000);
+            Size = new System.Drawing.Size(1, 1);
+            Opacity = 0;
 
             var paths = new AppPaths(AppContext.BaseDirectory);
             ingestService = new QueuedMonitoringIngestService(new MonitoringDatabase(paths));
 
-            Load += OnFormLoad;
             FormClosed += OnFormClosed;
+        }
+
+        protected override void SetVisibleCore(bool value)
+        {
+            if (!IsHandleCreated)
+            {
+                CreateHandle();
+            }
+
+            base.SetVisibleCore(false);
         }
 
         private void OnFormClosed(object sender, FormClosedEventArgs e)
         {
             ingestService.Dispose();
-        }
-
-        private void OnFormLoad(object sender, EventArgs e)
-        {
-            Timer timer = new Timer();
-            timer.Interval = 2500;
-            timer.Tick += delegate
-            {
-                timer.Stop();
-                Hide();
-            };
-            timer.Start();
         }
 
         protected override void DefWndProc(ref Message message)

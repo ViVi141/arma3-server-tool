@@ -12,6 +12,8 @@ namespace Arma3ServerTools.Application.Services
         private readonly IAppPaths paths;
         private readonly ISteamCmdConfigProvider configProvider;
         private readonly ProcessManagement.IProcessRunner processRunner;
+        private bool executablePathCached;
+        private string cachedExecutablePath;
 
         public SteamCmdService(
             IAppPaths paths,
@@ -21,6 +23,12 @@ namespace Arma3ServerTools.Application.Services
             this.paths = paths;
             this.configProvider = configProvider;
             this.processRunner = processRunner;
+        }
+
+        public void InvalidateExecutableCache()
+        {
+            executablePathCached = false;
+            cachedExecutablePath = null;
         }
 
         public OperationResult EnsureSteamCmdAvailable(bool downloadIfMissing)
@@ -39,6 +47,7 @@ namespace Arma3ServerTools.Application.Services
                     return downloadResult;
                 }
 
+                InvalidateExecutableCache();
                 executablePath = ResolveSteamCmdExecutable();
                 if (!string.IsNullOrEmpty(executablePath))
                 {
@@ -76,9 +85,15 @@ namespace Arma3ServerTools.Application.Services
 
         private string ResolveSteamCmdExecutable()
         {
-            string bundledPath = SteamCmdBootstrapper.GetBundledExecutablePath(paths);
-            if (File.Exists(bundledPath))
+            if (executablePathCached)
             {
+                return cachedExecutablePath;
+            }
+
+            string bundledPath = SteamCmdBootstrapper.GetBundledExecutablePath(paths);
+            if (SafeFileExists(bundledPath))
+            {
+                CacheExecutablePath(bundledPath);
                 return bundledPath;
             }
 
@@ -86,13 +101,38 @@ namespace Arma3ServerTools.Application.Services
             if (settings != null && !string.IsNullOrEmpty(settings.d))
             {
                 string workshopPath = Path.Combine(settings.d, "steamcmd.exe");
-                if (File.Exists(workshopPath))
+                if (SafeFileExists(workshopPath))
                 {
+                    CacheExecutablePath(workshopPath);
                     return workshopPath;
                 }
             }
 
+            CacheExecutablePath(null);
             return null;
+        }
+
+        private void CacheExecutablePath(string executablePath)
+        {
+            cachedExecutablePath = executablePath;
+            executablePathCached = true;
+        }
+
+        private static bool SafeFileExists(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+
+            try
+            {
+                return File.Exists(path);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private OperationResult StartSteamCmd(string arguments)
