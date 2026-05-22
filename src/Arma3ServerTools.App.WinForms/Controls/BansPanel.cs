@@ -7,6 +7,7 @@ using Arma3ServerTools.App.WinForms.Dialogs;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
+using AntLabel = AntdUI.Label;
 using AntTable = AntdUI.Table;
 
 namespace Arma3ServerTools.App.WinForms.Controls
@@ -39,6 +40,15 @@ namespace Arma3ServerTools.App.WinForms.Controls
             AppTheme.ApplyTo(this);
 
             bansService = AppServices.Instance.BansService;
+
+            AntLabel banSystemsHint = AntdUiHelper.CreateHintLabel(
+                "本页管理 Arma 本地 bans.txt（写入后需重启服务器或 BattlEye 执行 LoadBans 才会生效）。"
+                + " BattlEye 内存封禁与 bans.txt 是两套体系：在线封禁、LoadBans / SaveBans 请在「"
+                + UiLabels.RemoteControlTab
+                + "」→「BattlEye 封禁」中操作。",
+                720);
+            banSystemsHint.Dock = DockStyle.Top;
+            banSystemsHint.Padding = new Padding(0, 0, 0, UiScaleHelper.Scale(8));
 
             var toolbar = new FlowLayoutPanel
             {
@@ -75,6 +85,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             Controls.Add(layout);
             Controls.Add(toolbar);
+            Controls.Add(banSystemsHint);
         }
 
         public void Bind(ArmaServerConfig config)

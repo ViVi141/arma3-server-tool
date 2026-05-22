@@ -62,9 +62,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 SettingsLayoutHelper.CreateGroup("当前服务器", BuildCurrentServerSection(out currentServerDirLabel)));
 
             AntLabel hint = AntdUiHelper.CreateHintLabel(
-                "Workshop 根目录通常为 SteamCMD 解压目录（含 steamcmd.exe）。"
+                UiLabels.PathRulesHint
+                    + " Workshop 根目录通常为 SteamCMD 解压目录（含 steamcmd.exe）。"
                     + "模组实际位于 steamapps\\workshop\\content\\107410。"
-                    + "保存配置时会同步写入 Steam 设置并更新模组扫描路径。",
+                    + "保存到工具时会同步写入 Steam 设置并更新模组扫描路径。",
                 640);
             hint.Dock = DockStyle.Top;
 

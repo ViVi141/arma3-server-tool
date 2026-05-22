@@ -194,6 +194,18 @@ namespace Arma3ServerTools.Application.Services
             return Task.CompletedTask;
         }
 
+        public Task ChangeRconPasswordAsync(string newPassword)
+        {
+            EnsureConnected();
+            if (string.IsNullOrWhiteSpace(newPassword))
+            {
+                throw new ArgumentException("新密码不能为空。", nameof(newPassword));
+            }
+
+            client.Send(new ChangeRconPasswordCommand(newPassword.Trim()));
+            return Task.CompletedTask;
+        }
+
         public void Dispose()
         {
             DisposeClient();

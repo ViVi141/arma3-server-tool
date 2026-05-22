@@ -6,6 +6,7 @@ using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Application.Monitoring;
 using Arma3ServerTools.Application.Services;
+using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using AntLabel = AntdUI.Label;
 using AntTable = AntdUI.Table;
@@ -67,6 +68,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly AntTable objectStatsTable;
         private readonly AntTable playerDirectoryTable;
         private readonly AntLabel summaryLabel;
+        private readonly AntLabel emptyDataGuideLabel;
+        private readonly AntLabel healthResultLabel;
+        private readonly AntdUI.Checkbox enableMonitorCheckBox;
+        private readonly AntdUI.Checkbox enableMonitoringServiceCheckBox;
         private readonly StatisticsChartsPanel chartsPanel;
 
         private ArmaServerConfig boundConfig;
@@ -89,11 +94,62 @@ namespace Arma3ServerTools.App.WinForms.Controls
             cleanupButton.Click += OnCleanupOldData;
             exportCsvButton.Click += OnExportCsv;
             exportHtmlButton.Click += OnExportHtmlReport;
+            exportHtmlButton.Click += OnExportHtmlReport;
             toolbar.Controls.Add(refreshButton);
             toolbar.Controls.Add(initOnlineButton);
             toolbar.Controls.Add(cleanupButton);
             toolbar.Controls.Add(exportCsvButton);
             toolbar.Controls.Add(exportHtmlButton);
+
+            var monitoringOptionsBar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                Padding = new Padding(0, 0, 0, UiScaleHelper.Scale(4)),
+            };
+            enableMonitorCheckBox = SettingsLayoutHelper.CreateCheckbox(
+                "启用监控模组 (" + ToolConstants.MonitoringServerModToken + ")",
+                false);
+            enableMonitoringServiceCheckBox = SettingsLayoutHelper.CreateCheckbox(
+                "启用统计入库 (" + ToolConstants.StatisticsDatabaseFileName + ")",
+                false);
+            enableMonitorCheckBox.Margin = new Padding(0, UiScaleHelper.Scale(4), UiScaleHelper.Scale(16), 0);
+            enableMonitoringServiceCheckBox.Margin = new Padding(0, UiScaleHelper.Scale(4), 0, 0);
+            monitoringOptionsBar.Controls.Add(enableMonitorCheckBox);
+            monitoringOptionsBar.Controls.Add(enableMonitoringServiceCheckBox);
+
+            var healthBar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                Padding = new Padding(0, 0, 0, UiScaleHelper.Scale(4)),
+            };
+            AntdUI.Button healthCheckButton = SettingsLayoutHelper.CreateButton("检测监控组件");
+            healthCheckButton.Click += OnRunHealthCheck;
+            healthBar.Controls.Add(healthCheckButton);
+
+            healthResultLabel = new AntLabel
+            {
+                Dock = DockStyle.Top,
+                AutoSizeMode = AntdUI.TAutoSize.Auto,
+                Padding = new Padding(0, 0, 0, UiScaleHelper.Scale(4)),
+                Text = string.Empty,
+                Visible = false,
+            };
+
+            emptyDataGuideLabel = AntdUiHelper.CreateHintLabel(
+                "暂无统计数据。请逐项排查："
+                + Environment.NewLine
+                + "1. 在本页勾选「启用监控模组」与「启用统计入库」，并保存到工具后「应用到服务器目录」。"
+                + Environment.NewLine
+                + "2. 启动服务器；统计入库需 MonitoringHost 在后台运行（启动服务器时自动拉起）。"
+                + Environment.NewLine
+                + "3. 确认任务模组已加载，且地图运行一段时间后点击「刷新统计」。"
+                + Environment.NewLine
+                + "4. 点击「检测监控组件」确认 DLL、模组与入库宿主就绪。",
+                720);
+            emptyDataGuideLabel.Dock = DockStyle.Top;
+            emptyDataGuideLabel.Visible = false;
 
             summaryLabel = new AntLabel
             {
@@ -136,6 +192,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
             AntdUiHelper.AddTabPage(tabs, "玩家库", playerDirectoryTable);
 
             Controls.Add(tabs);
+            Controls.Add(emptyDataGuideLabel);
+            Controls.Add(healthResultLabel);
+            Controls.Add(healthBar);
+            Controls.Add(monitoringOptionsBar);
             Controls.Add(summaryLabel);
             Controls.Add(toolbar);
         }
@@ -153,16 +213,70 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 Enabled = false;
                 summaryLabel.Text = "未选择服务器";
+                emptyDataGuideLabel.Visible = false;
+                healthResultLabel.Visible = false;
                 return;
             }
 
             Enabled = true;
+            enableMonitorCheckBox.Checked = config.ServerTaskManagement.EnableMonitor;
+            enableMonitoringServiceCheckBox.Checked = config.ServerTaskManagement.EnableMonitoringService;
             summaryLabel.Text = "统计服务器: " + config.ConfigName + " (" + config.ServerUUID + ")";
             RefreshAll();
         }
 
         public void ApplyToModel()
         {
+            if (boundConfig == null)
+            {
+                return;
+            }
+
+            boundConfig.ServerTaskManagement.EnableMonitor = enableMonitorCheckBox.Checked;
+            boundConfig.ServerTaskManagement.EnableMonitoringService = enableMonitoringServiceCheckBox.Checked;
+        }
+
+        private void OnRunHealthCheck(object sender, EventArgs e)
+        {
+            MonitoringHealthChecker checker = AppServices.Instance.MonitoringHealthChecker;
+            IReadOnlyList<MonitoringHealthItem> items = checker.Check(boundConfig);
+
+            bool hostRunning = MonitoringHostLauncher.IsHostRunning();
+            var builder = new System.Text.StringBuilder();
+            foreach (MonitoringHealthItem item in items)
+            {
+                string prefix;
+                if (item.IsOk)
+                {
+                    prefix = "[正常] ";
+                }
+                else
+                {
+                    prefix = "[异常] ";
+                }
+
+                builder.AppendLine(prefix + item.Title);
+                builder.AppendLine("  " + item.Detail);
+            }
+
+            if (hostRunning)
+            {
+                builder.AppendLine("[正常] 统计入库宿主进程");
+                builder.AppendLine("  监控宿主窗口已在运行。");
+            }
+            else
+            {
+                builder.AppendLine("[提示] 统计入库宿主进程");
+                builder.AppendLine("  当前未运行；启动服务器且启用统计入库时会自动拉起。");
+            }
+
+            healthResultLabel.Text = builder.ToString().TrimEnd();
+            healthResultLabel.Visible = true;
+        }
+
+        private void UpdateEmptyDataGuide(bool hasData)
+        {
+            emptyDataGuideLabel.Visible = boundConfig != null && !hasData;
         }
 
         private void RefreshAll()
@@ -235,6 +349,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 }
 
                 AntdTableHelper.BindList(playerDirectoryTable, directoryRows);
+
+                bool hasData = playerRecords.Count > 0 || objectRecords.Count > 0;
+                UpdateEmptyDataGuide(hasData);
             }
             catch (Exception ex)
             {

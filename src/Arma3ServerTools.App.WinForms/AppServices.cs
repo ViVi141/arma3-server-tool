@@ -38,6 +38,7 @@ namespace Arma3ServerTools.App.WinForms
             BikeyService = new BikeyService();
             BansService = new BansService();
             MonitoringDeploymentService = new MonitoringDeploymentService(Paths);
+            MonitoringHealthChecker = new MonitoringHealthChecker(MonitoringDeploymentService, Paths);
             PreflightChecker = new ServerPreflightChecker(MonitoringDeploymentService);
             RptLogService = new RptLogService();
 
@@ -45,6 +46,7 @@ namespace Arma3ServerTools.App.WinForms
             MonitoringQueryService = new MonitoringQueryService(MonitoringDatabase);
             PlayerDirectoryService = new PlayerDirectoryService(PlayerDatabaseRepository);
             RconService = new RconService();
+            RconQuickProbe = new RconQuickProbe();
         }
 
         public static AppServices Instance
@@ -90,6 +92,8 @@ namespace Arma3ServerTools.App.WinForms
 
         public MonitoringDeploymentService MonitoringDeploymentService { get; }
 
+        public MonitoringHealthChecker MonitoringHealthChecker { get; }
+
         public ServerPreflightChecker PreflightChecker { get; }
 
         public RptLogService RptLogService { get; }
@@ -101,6 +105,8 @@ namespace Arma3ServerTools.App.WinForms
         public PlayerDirectoryService PlayerDirectoryService { get; }
 
         public IRconService RconService { get; }
+
+        public RconQuickProbe RconQuickProbe { get; }
 
         public string CurrentServerUuid { get; set; }
 

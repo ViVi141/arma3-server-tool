@@ -14,6 +14,8 @@ namespace Arma3ServerTools.Application.Services
         public string Detail { get; set; } = string.Empty;
 
         public bool IsError { get; set; }
+
+        public bool IsWarning { get; set; }
     }
 
     public sealed class ServerPreflightChecker
@@ -54,6 +56,19 @@ namespace Arma3ServerTools.Application.Services
             foreach (PreflightCheckItem item in items)
             {
                 if (item.IsError)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public bool HasBlockingWarnings(IReadOnlyList<PreflightCheckItem> items)
+        {
+            foreach (PreflightCheckItem item in items)
+            {
+                if (item.IsWarning)
                 {
                     return true;
                 }
@@ -259,8 +274,9 @@ namespace Arma3ServerTools.Application.Services
                 items.Add(new PreflightCheckItem
                 {
                     Title = "RCon 密码",
-                    Detail = "BattlEye 已启用但未设置 RCon 密码。",
+                    Detail = "BattlEye 已启用但未设置 RCon 密码；远程控制与部分管理功能将不可用。",
                     IsError = false,
+                    IsWarning = true,
                 });
             }
             else

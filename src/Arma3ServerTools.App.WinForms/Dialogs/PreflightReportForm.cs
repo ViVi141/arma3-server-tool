@@ -18,6 +18,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             ApplyPreferredDialogSizing(640, 480, null);
 
             bool hasError = false;
+            bool hasWarning = false;
             var builder = new StringBuilder();
             foreach (PreflightCheckItem item in items)
             {
@@ -25,6 +26,11 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 {
                     hasError = true;
                     builder.AppendLine("[错误] " + item.Title);
+                }
+                else if (item.IsWarning)
+                {
+                    hasWarning = true;
+                    builder.AppendLine("[警告] " + item.Title);
                 }
                 else
                 {
@@ -47,7 +53,8 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             };
 
             AntButton proceedButton = AntdUiHelper.CreateToolbarButton("仍要启动");
-            proceedButton.Visible = allowProceedDespiteWarnings && !hasError;
+            bool showProceed = allowProceedDespiteWarnings && !hasError && hasWarning;
+            proceedButton.Visible = showProceed;
             proceedButton.Click += delegate
             {
                 DialogResult = DialogResult.OK;
@@ -56,7 +63,6 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
             if (hasError)
             {
-                proceedButton.Visible = false;
                 AntLabel warn = new AntLabel
                 {
                     Dock = DockStyle.Top,
@@ -64,6 +70,18 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                     ForeColor = Color.Firebrick,
                     Padding = UiScaleHelper.ScalePadding(12, 8),
                     Text = "存在错误项，请修复后再启动。",
+                };
+                Controls.Add(warn);
+            }
+            else if (hasWarning && allowProceedDespiteWarnings)
+            {
+                AntLabel warn = new AntLabel
+                {
+                    Dock = DockStyle.Top,
+                    AutoSizeMode = AntdUI.TAutoSize.Auto,
+                    ForeColor = Color.DarkOrange,
+                    Padding = UiScaleHelper.ScalePadding(12, 8),
+                    Text = "存在警告项，确认风险后可继续启动。",
                 };
                 Controls.Add(warn);
             }
@@ -76,7 +94,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 Padding = UiScaleHelper.ScalePadding(12, 4, 12, 8),
             };
             buttonBar.Controls.Add(closeButton);
-            if (proceedButton.Visible)
+            if (showProceed)
             {
                 buttonBar.Controls.Add(proceedButton);
             }

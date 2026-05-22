@@ -30,8 +30,6 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly AntdUI.Button addButton;
         private readonly AntdUI.Button removeButton;
         private readonly AntdUI.Button syncButton;
-        private readonly AntdUI.Checkbox enableMonitorCheckBox;
-        private readonly AntdUI.Checkbox enableMonitoringServiceCheckBox;
 
         private ArmaServerConfig boundConfig;
         private List<CronGridRow> cronRows = new List<CronGridRow>();
@@ -55,22 +53,6 @@ namespace Arma3ServerTools.App.WinForms.Controls
             toolbar.Controls.Add(removeButton);
             toolbar.Controls.Add(syncButton);
 
-            var optionsBar = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Top,
-                AutoSize = true,
-            };
-            enableMonitorCheckBox = SettingsLayoutHelper.CreateCheckbox(
-                "启用监控模组 (" + ToolConstants.MonitoringServerModToken + ")",
-                false);
-            enableMonitoringServiceCheckBox = SettingsLayoutHelper.CreateCheckbox(
-                "启用统计入库 (" + ToolConstants.StatisticsDatabaseFileName + ")",
-                false);
-            enableMonitorCheckBox.Margin = new Padding(0, UiScaleHelper.Scale(4), UiScaleHelper.Scale(16), 0);
-            enableMonitoringServiceCheckBox.Margin = new Padding(0, UiScaleHelper.Scale(4), 0, 0);
-            optionsBar.Controls.Add(enableMonitorCheckBox);
-            optionsBar.Controls.Add(enableMonitoringServiceCheckBox);
-
             cronTable = AntdTableHelper.CreateStandardTable();
             cronTable.MultipleRows = true;
             var enabledCol = new AntdUI.ColumnSwitch("Enabled", "启用");
@@ -85,7 +67,6 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             Controls.Add(cronTable);
             Controls.Add(toolbar);
-            Controls.Add(optionsBar);
         }
 
         public void Bind(ArmaServerConfig config)
@@ -100,8 +81,6 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             Enabled = true;
-            enableMonitorCheckBox.Checked = config.ServerTaskManagement.EnableMonitor;
-            enableMonitoringServiceCheckBox.Checked = config.ServerTaskManagement.EnableMonitoringService;
             foreach (KeyValuePair<string, CronEntity> pair in config.ServerTaskManagement.CronEntity)
             {
                 CronEntity cron = pair.Value;
@@ -137,8 +116,6 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            boundConfig.ServerTaskManagement.EnableMonitor = enableMonitorCheckBox.Checked;
-            boundConfig.ServerTaskManagement.EnableMonitoringService = enableMonitoringServiceCheckBox.Checked;
             boundConfig.ServerTaskManagement.CronEntity.Clear();
             foreach (CronGridRow row in cronRows)
             {

@@ -80,11 +80,15 @@ namespace Arma3ServerTools.Application.Services
         System.Threading.Tasks.Task LockServerAsync();
 
         System.Threading.Tasks.Task UnlockServerAsync();
+
+        System.Threading.Tasks.Task ChangeRconPasswordAsync(string newPassword);
     }
 
     public interface ISchedulerService
     {
         System.Threading.Tasks.Task SyncJobsAsync(string serverUuid, IDictionary<string, CronEntity> crons);
+
+        System.Threading.Tasks.Task<string> GetNextFireSummaryAsync(string serverUuid);
 
         System.Threading.Tasks.Task StartAsync();
 

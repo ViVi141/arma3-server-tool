@@ -1,7 +1,7 @@
 namespace Arma3ServerTools.Core
 {
     /// <summary>
-    /// 工具在磁盘与 Arma 3 侧的命名约定（与旧版 DESTINY 路径不兼容，升级后需重新写入 cfg）。
+    /// 工具在磁盘与 Arma 3 侧的命名约定（a3st_* 前缀）。
     /// </summary>
     public static class ToolConstants
     {

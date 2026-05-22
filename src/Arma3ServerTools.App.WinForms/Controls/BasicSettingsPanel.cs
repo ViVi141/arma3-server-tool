@@ -8,6 +8,7 @@ using Arma3ServerTools.Core.Validation;
 using AntCheckbox = AntdUI.Checkbox;
 using AntInput = AntdUI.Input;
 using AntInputNumber = AntdUI.InputNumber;
+using AntLabel = AntdUI.Label;
 using AntSelect = AntdUI.Select;
 
 namespace Arma3ServerTools.App.WinForms.Controls
@@ -55,6 +56,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             AppTheme.ApplyTo(this);
             Dock = DockStyle.Fill;
             var root = SettingsLayoutHelper.CreateSectionsStack();
+            AntLabel pathHint = AntdUiHelper.CreateHintLabel(UiLabels.PathRulesHint, 640);
+            SettingsLayoutHelper.AddStackSection(root, pathHint);
             SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("基础", BuildBasicRows()));
             SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("欢迎语 / 文件", BuildMotdRows()));
             SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("语音 (VoN)", BuildVoiceRows()));

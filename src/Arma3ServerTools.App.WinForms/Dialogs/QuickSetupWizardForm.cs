@@ -72,10 +72,10 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             writeCfgCheckBox = SettingsLayoutHelper.AddRow(
                 layout,
                 "完成后",
-                SettingsLayoutHelper.CreateCheckbox("保存并写入 server.cfg / basic.cfg", true));
+                SettingsLayoutHelper.CreateCheckbox("保存到工具并应用到服务器目录", true));
 
             AntLabel hint = AntdUiHelper.CreateHintLabel(
-                "路径不能包含中文。向导将创建新的服务器配置；专用服务器需已安装到所选目录。",
+                UiLabels.PathRulesHint + " 向导将创建新的服务器配置；专用服务器需已安装到所选目录。",
                 500);
             hint.Dock = DockStyle.Top;
 
@@ -98,6 +98,8 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
         public ArmaServerConfig CreatedConfig { get; private set; }
 
+        public bool AppliedConfigToServer { get; private set; }
+
         private void OnFinish(object sender, EventArgs e)
         {
             string name = nameInput.Text.Trim();
@@ -116,7 +118,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
             if (PathValidation.ContainsChinese(dir) || PathValidation.ContainsChinese(AppContext.BaseDirectory))
             {
-                AntdUiHelper.ShowWarning(this, "工具或服务器路径不能包含中文。", "提示");
+                AntdUiHelper.ShowWarning(this, UiLabels.PathRulesShort, "提示");
                 return;
             }
 
@@ -138,15 +140,18 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 config.BattlEyeConfig.RConHost = "127.0.0.1";
 
                 AppServices.Instance.ConfigService.Save(config);
+                AppliedConfigToServer = false;
 
                 if (writeCfgCheckBox.Checked)
                 {
                     OperationResult writeResult = AppServices.Instance.ConfigWriter.WriteAll(config);
                     if (!writeResult.Success)
                     {
-                        AntdUiHelper.ShowError(this, writeResult.Message, "写入 cfg 失败");
+                        AntdUiHelper.ShowError(this, writeResult.Message, "应用到服务器目录失败");
                         return;
                     }
+
+                    AppliedConfigToServer = true;
                 }
 
                 CreatedConfig = config;

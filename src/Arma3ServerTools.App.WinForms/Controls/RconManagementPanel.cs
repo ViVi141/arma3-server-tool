@@ -62,7 +62,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private AntdUI.Button restartMissionButton;
         private AntdUI.Button lockButton;
         private AntdUI.Button unlockButton;
+        private AntdUI.Button changePasswordButton;
         private readonly AntdUI.Button syncPlayersButton;
+        private readonly AntdUI.Input newRconPasswordInput;
 
         private readonly AntTable playersTable;
         private readonly AntTable bansTable;
@@ -97,12 +99,19 @@ namespace Arma3ServerTools.App.WinForms.Controls
             banTempButton.Click += OnBanTemporary;
             banPermButton.Click += OnBanPermanent;
             syncPlayersButton.Click += delegate { RunSafeAsync(SyncPlayersAsync); };
+            changePasswordButton = CreateActionButton("修改 RCon 密码");
+            changePasswordButton.Click += OnChangeRconPassword;
             toolbar.Controls.Add(connectButton);
             toolbar.Controls.Add(refreshPlayersButton);
             toolbar.Controls.Add(kickButton);
             toolbar.Controls.Add(banTempButton);
             toolbar.Controls.Add(banPermButton);
             toolbar.Controls.Add(syncPlayersButton);
+            toolbar.Controls.Add(changePasswordButton);
+
+            newRconPasswordInput = SettingsLayoutHelper.CreateInput(true);
+            newRconPasswordInput.Dock = DockStyle.Top;
+            newRconPasswordInput.PlaceholderText = "新 RCon 密码（连接后可用，会同步写入工具配置）";
 
             statusLabel = new AntLabel
             {
@@ -160,6 +169,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             AntdUiHelper.AddTabPage(tabs, "BattlEye 封禁", CreateBanPanel());
 
             Controls.Add(tabs);
+            Controls.Add(newRconPasswordInput);
             Controls.Add(kickReasonInput);
             Controls.Add(banDurationBar);
             Controls.Add(statusLabel);
@@ -288,6 +298,48 @@ namespace Arma3ServerTools.App.WinForms.Controls
             finally
             {
                 connectButton.Enabled = true;
+            }
+        }
+
+        private async void OnChangeRconPassword(object sender, EventArgs e)
+        {
+            if (!connected || boundConfig == null)
+            {
+                AntdUiHelper.ShowInfo(FindForm(), "请先连接 RCon。", "提示");
+                return;
+            }
+
+            string newPassword = newRconPasswordInput.Text.Trim();
+            if (string.IsNullOrEmpty(newPassword))
+            {
+                AntdUiHelper.ShowWarning(FindForm(), "请输入新 RCon 密码。", "提示");
+                return;
+            }
+
+            if (!AntdUiHelper.Confirm(FindForm(), "确认", "确定通过 RCon 修改服务器密码吗？当前连接将保持有效。"))
+            {
+                return;
+            }
+
+            SetRconBusy(true);
+            try
+            {
+                await AppServices.Instance.RconService.ChangeRconPasswordAsync(newPassword).ConfigureAwait(true);
+                boundConfig.BattlEyeConfig.RConPassword = newPassword;
+                await Task.Run(() => AppServices.Instance.ConfigService.Save(boundConfig)).ConfigureAwait(true);
+                newRconPasswordInput.Text = string.Empty;
+                AntdUiHelper.ShowInfo(
+                    FindForm(),
+                    "RCon 密码已修改并已保存到工具配置；请记得「应用到服务器目录」以更新 BattlEye 配置文件。",
+                    "完成");
+            }
+            catch (Exception ex)
+            {
+                AntdUiHelper.ShowError(FindForm(), ex.Message, "修改失败");
+            }
+            finally
+            {
+                SetRconBusy(false);
             }
         }
 
@@ -732,6 +784,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             unlockButton.Enabled = connected && !busy;
             sendAllButton.Enabled = connected && !busy;
             sendPlayerButton.Enabled = connected && !busy;
+            changePasswordButton.Enabled = connected && !busy;
         }
 
         private void SetConnectedUi(bool isConnected)
@@ -752,6 +805,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             unlockButton.Enabled = isConnected;
             sendAllButton.Enabled = isConnected;
             sendPlayerButton.Enabled = isConnected;
+            changePasswordButton.Enabled = isConnected;
         }
 
         private void ClearGrids()
