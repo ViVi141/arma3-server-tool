@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core.Models;
@@ -8,6 +9,7 @@ namespace Arma3ServerTools.App.WinForms
 {
     internal static class UiBackgroundTasks
     {
+        private static readonly TimeSpan SchedulerShutdownTimeout = TimeSpan.FromSeconds(5);
         public static void WarmScheduler(ISchedulerService schedulerService)
         {
             Task.Run(async () =>
@@ -24,16 +26,33 @@ namespace Arma3ServerTools.App.WinForms
 
         public static void WarmSteamCmdResolution(ISteamCmdService steamCmdService)
         {
-            Task.Run(() =>
+            Task.Run(async () =>
             {
                 try
                 {
-                    steamCmdService.EnsureSteamCmdAvailable(false);
+                    await steamCmdService
+                        .EnsureSteamCmdAvailableAsync(false, CancellationToken.None)
+                        .ConfigureAwait(false);
                 }
                 catch
                 {
                 }
             });
+        }
+
+        public static void ShutdownScheduler(ISchedulerService schedulerService)
+        {
+            try
+            {
+                Task shutdownTask = Task.Run(async () =>
+                {
+                    await schedulerService.StopAsync().ConfigureAwait(false);
+                });
+                shutdownTask.Wait(SchedulerShutdownTimeout);
+            }
+            catch
+            {
+            }
         }
 
         public static void SyncSchedulerJobs(

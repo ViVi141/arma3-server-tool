@@ -1,4 +1,6 @@
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using Arma3ServerTools.Application.ProcessManagement;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
@@ -33,6 +35,15 @@ namespace Arma3ServerTools.Application.Services
 
         public OperationResult EnsureSteamCmdAvailable(bool downloadIfMissing)
         {
+            return EnsureSteamCmdAvailableAsync(downloadIfMissing, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+        }
+
+        public async Task<OperationResult> EnsureSteamCmdAvailableAsync(
+            bool downloadIfMissing,
+            CancellationToken cancellationToken)
+        {
             string executablePath = ResolveSteamCmdExecutable();
             if (!string.IsNullOrEmpty(executablePath))
             {
@@ -41,7 +52,9 @@ namespace Arma3ServerTools.Application.Services
 
             if (downloadIfMissing)
             {
-                OperationResult downloadResult = SteamCmdBootstrapper.DownloadBundledSteamCmd(paths);
+                OperationResult downloadResult = await SteamCmdBootstrapper
+                    .DownloadBundledSteamCmdAsync(paths, cancellationToken)
+                    .ConfigureAwait(false);
                 if (!downloadResult.Success)
                 {
                     return downloadResult;
@@ -55,6 +68,11 @@ namespace Arma3ServerTools.Application.Services
                 }
             }
 
+            return BuildMissingSteamCmdResult();
+        }
+
+        private OperationResult BuildMissingSteamCmdResult()
+        {
             string bundledPath = SteamCmdBootstrapper.GetBundledExecutablePath(paths);
             return OperationResult.Fail(
                 "找不到 steamcmd.exe。" + System.Environment.NewLine

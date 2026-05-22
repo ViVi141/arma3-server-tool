@@ -20,7 +20,9 @@ namespace Arma3ServerTools.Application.Services
                 ReconnectOnFailure = false,
             };
 
-            if (!client.Connect())
+            bool connectedOnFirstAttempt = await Task.Run(() => client.Connect(), cancellationToken)
+                .ConfigureAwait(false);
+            if (!connectedOnFirstAttempt)
             {
                 throw new InvalidOperationException("无法连接到 BattlEye RCon。");
             }
