@@ -13,6 +13,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly List<Control> tabContents = new List<Control>();
         private readonly HashSet<int> layoutReadyTabs = new HashSet<int>();
 
+        public ServerOverviewPanel OverviewPanel { get; private set; }
+
         public ServerSettingsHost()
         {
             Dock = DockStyle.Fill;
@@ -24,6 +26,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             };
             tabs.SelectedIndexChanged += OnSettingsTabChanged;
 
+            OverviewPanel = AddTab("概览", new ServerOverviewPanel());
             NetworkSettingsPanel networkPanel = AddTab("网络", new NetworkSettingsPanel());
             AddTab("基本", new BasicSettingsPanel());
             AddTab("安全", new SecuritySettingsPanel());
@@ -70,6 +73,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             RefreshActiveTab(tabs.SelectedIndex);
+        }
+
+        public void RefreshOverview()
+        {
+            if (OverviewPanel != null)
+            {
+                OverviewPanel.RefreshOverview();
+            }
         }
 
         private void OnSettingsTabChanged(object sender, AntdUI.IntEventArgs e)

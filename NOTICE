@@ -12,5 +12,5 @@ This product includes software developed as part of the Arma3 Server Tools
 project. See LICENSE for the full Apache License, Version 2.0 terms.
 
 Third-party components used in this project may be subject to their own
-licenses. Refer to package documentation and THIRD-PARTY-NOTICES where
-applicable.
+licenses. Refer to THIRD-PARTY-NOTICES.txt for a summary of NuGet packages
+and vendored libraries included in v1.0.0 releases.

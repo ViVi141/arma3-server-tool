@@ -398,6 +398,9 @@ namespace Arma3ServerTools.Core.Models
         //beRcon端口
         public int RConPort { get; set; } = 2310;
 
+        // RCon 连接地址（默认本机）
+        public string RConHost { get; set; } = "127.0.0.1";
+
         //最大延迟
         public int MaxPing { get; set; } = 500;
 

@@ -15,6 +15,8 @@ namespace Arma3ServerTools.Application.Services
         void Delete(string serverUuid);
 
         ArmaServerConfig Create(string name, string serverDir);
+
+        ArmaServerConfig Clone(string sourceServerUuid, string newName, string newServerDir);
     }
 
     public interface IServerProcessService
@@ -72,6 +74,8 @@ namespace Arma3ServerTools.Application.Services
         System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<BytexDigital.BattlEye.Rcon.Domain.Mission>> GetMissionsAsync();
 
         System.Threading.Tasks.Task RestartMissionAsync();
+
+        System.Threading.Tasks.Task LoadMissionAsync(string missionName);
 
         System.Threading.Tasks.Task LockServerAsync();
 

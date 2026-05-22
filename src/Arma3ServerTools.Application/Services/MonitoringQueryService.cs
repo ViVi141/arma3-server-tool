@@ -33,5 +33,10 @@ namespace Arma3ServerTools.Application.Services
         {
             return database.QueryRecentObjectStats(serverUuid, limit);
         }
+
+        public List<MonitoringObjectStatRecord> GetObjectStatsTimeline(string serverUuid, int limit)
+        {
+            return database.QueryObjectStatsTimeline(serverUuid, limit);
+        }
     }
 }

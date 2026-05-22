@@ -60,6 +60,11 @@ namespace Arma3ServerTools.App.WinForms
             return new Padding(Scale(horizontal), Scale(vertical), Scale(horizontal), Scale(vertical));
         }
 
+        public static Padding ScalePadding(int left, int top, int right, int bottom)
+        {
+            return new Padding(Scale(left), Scale(top), Scale(right), Scale(bottom));
+        }
+
         public static Size GetPreferredDialogSize(int logicalWidth, int logicalHeight, Form owner)
         {
             Size scaled = ScaleSize(logicalWidth, logicalHeight);

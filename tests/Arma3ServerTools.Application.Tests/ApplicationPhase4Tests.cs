@@ -211,6 +211,38 @@ namespace Arma3ServerTools.Application.Tests
         }
     }
 
+    public class ServerConfigServiceCloneTests
+    {
+        [Fact]
+        public void Clone_CreatesNewUuidAndResetsProcessId()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3clone-config");
+            try
+            {
+                string serverDir = Path.Combine(root, "server");
+                Directory.CreateDirectory(serverDir);
+                var repository = new ServerConfigRepository(new AppPaths(root));
+                var service = new ServerConfigService(repository);
+                ArmaServerConfig source = service.Create("Source", serverDir);
+                source.ServerTaskManagement.ProcessById = 4242;
+                source.BattlEyeConfig.RConHost = "192.168.1.10";
+                service.Save(source);
+
+                ArmaServerConfig copy = service.Clone(source.ServerUUID, "Copy", serverDir);
+
+                Assert.NotEqual(source.ServerUUID, copy.ServerUUID);
+                Assert.Equal("Copy", copy.ConfigName);
+                Assert.Equal(0, copy.ServerTaskManagement.ProcessById);
+                Assert.Equal("192.168.1.10", copy.BattlEyeConfig.RConHost);
+                Assert.True(repository.Exists(copy.ServerUUID));
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+    }
+
     public class SteamCmdServicePhase4Tests
     {
         [Fact]

@@ -1,11 +1,11 @@
 using System;
 using System.Drawing;
-using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.App.WinForms.Controls;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
+using Arma3ServerTools.Core.Validation;
 using AntButton = AntdUI.Button;
 using AntInput = AntdUI.Input;
 namespace Arma3ServerTools.App.WinForms.Dialogs
@@ -71,10 +71,10 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
         public OperationResult ValidateSettings()
         {
-            if (ContainsChinese(userInput.Text)
-                || ContainsChinese(passwordInput.Text)
-                || ContainsChinese(workshopRootInput.Text)
-                || ContainsChinese(serverInstallInput.Text))
+            if (PathValidation.ContainsChinese(userInput.Text)
+                || PathValidation.ContainsChinese(passwordInput.Text)
+                || PathValidation.ContainsChinese(workshopRootInput.Text)
+                || PathValidation.ContainsChinese(serverInstallInput.Text))
             {
                 return OperationResult.Fail("SteamCMD 相关路径和账号不能包含中文。");
             }
@@ -106,16 +106,6 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                     target.Text = dialog.SelectedPath;
                 }
             }
-        }
-
-        private static bool ContainsChinese(string value)
-        {
-            if (string.IsNullOrEmpty(value))
-            {
-                return false;
-            }
-
-            return Regex.IsMatch(value, @"[\u4e00-\u9fa5]");
         }
 
         private AntInput AddBrowseRow(TableLayoutPanel layout, string label, EventHandler onBrowseClick)

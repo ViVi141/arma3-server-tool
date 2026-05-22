@@ -214,20 +214,57 @@ namespace Arma3ServerTools.Application.Monitoring
                 {
                     while (reader.Read())
                     {
-                        result.Add(new MonitoringObjectStatRecord
-                        {
-                            Id = reader.GetInt32(0),
-                            AllPlayers = reader.GetInt32(1),
-                            AllUnits = reader.GetInt32(2),
-                            Fps = reader.GetInt32(3),
-                            FpsMin = reader.GetInt32(4),
-                            CreateTime = reader.GetString(5),
-                        });
+                        result.Add(ReadObjectStatRecord(reader, includeTimestamp: false));
                     }
                 }
             }
 
             return result;
+        }
+
+        public List<MonitoringObjectStatRecord> QueryObjectStatsTimeline(string serverUuid, int limit)
+        {
+            EnsureInitialized();
+            var result = new List<MonitoringObjectStatRecord>();
+            using (SqliteCommand command = new SqliteCommand(
+                "SELECT o.id, o.all_player, o.all_units, o.fps, o.fps_min, o.create_time, o.create_time_timestamp "
+                + "FROM a3_object_manipulation_num o INNER JOIN a3_servers s ON o.server_id = s.id "
+                + "WHERE s.server_name = @serverName ORDER BY o.create_time_timestamp ASC LIMIT @limit",
+                connection))
+            {
+                command.Parameters.AddWithValue("@serverName", serverUuid);
+                command.Parameters.AddWithValue("@limit", limit);
+                using (SqliteDataReader reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        result.Add(ReadObjectStatRecord(reader, includeTimestamp: true));
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        private static MonitoringObjectStatRecord ReadObjectStatRecord(
+            SqliteDataReader reader,
+            bool includeTimestamp)
+        {
+            var record = new MonitoringObjectStatRecord
+            {
+                Id = reader.GetInt32(0),
+                AllPlayers = reader.GetInt32(1),
+                AllUnits = reader.GetInt32(2),
+                Fps = reader.GetInt32(3),
+                FpsMin = reader.GetInt32(4),
+                CreateTime = reader.GetString(5),
+            };
+            if (includeTimestamp && !reader.IsDBNull(6))
+            {
+                record.CreateTimeTimestamp = reader.GetInt64(6);
+            }
+
+            return record;
         }
 
         public void Dispose()

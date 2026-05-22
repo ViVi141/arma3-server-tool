@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Config;
+using Arma3ServerTools.Core.IO;
 using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.Core.Repositories;
 
@@ -67,6 +68,35 @@ namespace Arma3ServerTools.Application.Services
             };
             repository.Save(config);
             return config;
+        }
+
+        public ArmaServerConfig Clone(string sourceServerUuid, string newName, string newServerDir)
+        {
+            if (string.IsNullOrWhiteSpace(sourceServerUuid))
+            {
+                throw new ConfigException("源服务器 UUID 不能为空。");
+            }
+
+            if (string.IsNullOrWhiteSpace(newName))
+            {
+                throw new ConfigException("新配置名称不能为空。");
+            }
+
+            ArmaServerConfig source = repository.Get(sourceServerUuid);
+            string json = JsonSerializer.ToJson(source);
+            ArmaServerConfig copy = JsonSerializer.FromJson<ArmaServerConfig>(json);
+            if (copy == null)
+            {
+                throw new ConfigException("复制配置失败。");
+            }
+
+            copy.ServerUUID = Guid.NewGuid().ToString("N");
+            copy.ConfigName = newName.Trim();
+            copy.ServerDir = newServerDir;
+            copy.CreateTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            copy.ServerTaskManagement.ProcessById = 0;
+            repository.Save(copy);
+            return copy;
         }
     }
 }

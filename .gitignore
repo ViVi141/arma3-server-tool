@@ -23,6 +23,9 @@ packages/
 data.json
 skin.json
 
+# Release build output
+artifacts/
+
 # Bundled runtime tools (steamcmd.exe installed by bootstrapper)
 extension/*
 !extension/.gitkeep

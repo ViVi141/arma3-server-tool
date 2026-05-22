@@ -38,5 +38,7 @@ namespace Arma3ServerTools.Application.Monitoring
         public int FpsMin { get; set; }
 
         public string CreateTime { get; set; }
+
+        public long CreateTimeTimestamp { get; set; }
     }
 }
