@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net6.0-windows10.0.20348.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>True</UseWPF>
     <StartupObject></StartupObject>
     <ApplicationIcon>IC.ico</ApplicationIcon>
@@ -12,7 +12,6 @@
     <Company>Destiny Studio</Company>
     <Platforms>AnyCPU;x64</Platforms>
     <UseWindowsForms>False</UseWindowsForms>
-    <SupportedOSPlatformVersion>7.0</SupportedOSPlatformVersion>
   </PropertyGroup>
 
   <ItemGroup>

@@ -2,12 +2,10 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <RootNamespace>Arma3ServerTools.App.WinForms</RootNamespace>
     <AssemblyName>Arma3ServerTools</AssemblyName>
-    <LangVersion>latest</LangVersion>
     <UseWindowsForms>true</UseWindowsForms>
-    <Nullable>disable</Nullable>
     <ApplicationIcon>Assets\1_arma3server_x64.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -30,7 +28,7 @@
 
   <Target Name="CopyMonitoringHost" AfterTargets="Build">
     <PropertyGroup>
-      <MonitoringHostOutDir>$(MSBuildProjectDirectory)\..\Arma3ServerTools.MonitoringHost\bin\$(Configuration)\net48\</MonitoringHostOutDir>
+      <MonitoringHostOutDir>$(MSBuildProjectDirectory)\..\Arma3ServerTools.MonitoringHost\bin\$(Configuration)\net10.0-windows\</MonitoringHostOutDir>
       <MonitoringHostDeployDir>$(OutputPath)monitoring\</MonitoringHostDeployDir>
       <MonitoringHostExeName>Arma3ServerTools.MonitoringHost.exe</MonitoringHostExeName>
     </PropertyGroup>
@@ -47,7 +45,7 @@
   <Target Name="BuildSteamCmdToolsIfNeeded" BeforeTargets="CopySteamCmdTools">
     <PropertyGroup>
       <SteamCmdToolsProject>$(MSBuildProjectDirectory)\..\..\Steamcmdtools\steamcmd\steamcmdTools.csproj</SteamCmdToolsProject>
-      <SteamCmdToolsBuildDir>$(MSBuildProjectDirectory)\..\..\Steamcmdtools\steamcmd\bin\$(Configuration)\net6.0-windows10.0.20348.0\</SteamCmdToolsBuildDir>
+      <SteamCmdToolsBuildDir>$(MSBuildProjectDirectory)\..\..\Steamcmdtools\steamcmd\bin\$(Configuration)\net10.0-windows\</SteamCmdToolsBuildDir>
     </PropertyGroup>
     <MSBuild
       Projects="$(SteamCmdToolsProject)"
@@ -56,7 +54,7 @@
   </Target>
   <Target Name="CopySteamCmdTools" AfterTargets="Build">
     <PropertyGroup>
-      <SteamCmdToolsOutDir>$(MSBuildProjectDirectory)\..\..\Steamcmdtools\steamcmd\bin\$(Configuration)\net6.0-windows10.0.20348.0\</SteamCmdToolsOutDir>
+      <SteamCmdToolsOutDir>$(MSBuildProjectDirectory)\..\..\Steamcmdtools\steamcmd\bin\$(Configuration)\net10.0-windows\</SteamCmdToolsOutDir>
       <SteamCmdToolsDeployDir>$(OutputPath)steamcmdTools\</SteamCmdToolsDeployDir>
       <SteamCmdToolsExeName>steamcmdTools.exe</SteamCmdToolsExeName>
     </PropertyGroup>

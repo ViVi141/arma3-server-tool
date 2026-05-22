@@ -3,7 +3,7 @@ using BytexDigital.BattlEye.Rcon.Events;
 using BytexDigital.BattlEye.Rcon.Requests;
 using BytexDigital.BattlEye.Rcon.Responses;
 
-using Nito.AsyncEx;
+using Arma3ServerTools.Core.Threading;
 
 using System;
 using System.Net;

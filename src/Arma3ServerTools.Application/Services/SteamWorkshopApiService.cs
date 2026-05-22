@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -11,6 +10,11 @@ namespace Arma3ServerTools.Application.Services
     {
         public const string PublishedFileDetailsUrl =
             "https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/";
+
+        private static readonly HttpClient HttpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(15),
+        };
 
         public List<SteamWorkshopModInfo> FetchModDetails(IEnumerable<ulong> modIds)
         {
@@ -48,21 +52,16 @@ namespace Arma3ServerTools.Application.Services
                 builder.Append("&publishedfileids[").Append(i).Append("]=").Append(ids[i]);
             }
 
-            byte[] body = Encoding.UTF8.GetBytes(builder.ToString());
-            var request = (HttpWebRequest)WebRequest.Create(PublishedFileDetailsUrl);
-            request.Method = "POST";
-            request.ContentType = "application/x-www-form-urlencoded";
-            request.Timeout = 15000;
-            request.ContentLength = body.Length;
-            using (Stream stream = request.GetRequestStream())
+            using (var content = new StringContent(
+                builder.ToString(),
+                Encoding.UTF8,
+                "application/x-www-form-urlencoded"))
             {
-                stream.Write(body, 0, body.Length);
-            }
-
-            using (WebResponse response = request.GetResponse())
-            using (StreamReader reader = new StreamReader(response.GetResponseStream()))
-            {
-                return reader.ReadToEnd();
+                using (HttpResponseMessage response = HttpClient.PostAsync(PublishedFileDetailsUrl, content).GetAwaiter().GetResult())
+                {
+                    response.EnsureSuccessStatusCode();
+                    return response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                }
             }
         }
 

@@ -16,6 +16,8 @@
 
 #### 构建（新架构）
 
+需要 **[.NET 10 SDK](https://dotnet.microsoft.com/download)** 与 **Windows Desktop Runtime 10**（框架依赖发布时）。
+
 ```text
 dotnet build Arma3ServerTools.sln -c Release
 dotnet test Arma3ServerTools.sln -c Release
@@ -23,12 +25,12 @@ dotnet test Arma3ServerTools.sln -c Release
 
 新解决方案 `Arma3ServerTools.sln` 含：
 
-- `src/Arma3ServerTools.Core` — 领域层（无需 DevExpress）
+- `src/Arma3ServerTools.Core` — 领域层（net10.0-windows，无需 DevExpress）
 - `src/Arma3ServerTools.Application` — 应用服务层
 - `src/Arma3ServerTools.App.WinForms` — 主程序（输出 `Arma3ServerTools.exe`）
 - `src/Arma3ServerTools.MonitoringHost` — 监控 WM_COPYDATA 宿主
 
-Release 输出目录示例：`src/Arma3ServerTools.App.WinForms/bin/Release/net48/`（含 `Arma3ServerTools.exe`、`monitoring/Arma3ServerTools.MonitoringHost.exe`、`sql/destiny_statistics.sql`）。
+Release 输出目录示例：`src/Arma3ServerTools.App.WinForms/bin/Release/net10.0-windows/`（含 `Arma3ServerTools.exe`、`monitoring/Arma3ServerTools.MonitoringHost.exe`、`sql/destiny_statistics.sql`）。
 
 **注意**：安装路径不能包含中文（启动时会检测并退出）。开发时请先关闭主程序再编译，避免 `monitoring/` 下 DLL 被占用；主程序退出时会自动关闭监控宿主。旧 DevExpress 主程序仍用 `a3.sln`。
 

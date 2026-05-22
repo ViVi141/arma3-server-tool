@@ -24,8 +24,8 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-$passedCore = ($testOutput | Select-String -Pattern "Arma3ServerTools\.Core\.Tests\.dll \(net48\)" -Context 0,3 | Select-Object -Last 1)
-$passedApp = ($testOutput | Select-String -Pattern "Arma3ServerTools\.Application\.Tests\.dll \(net48\)" -Context 0,3 | Select-Object -Last 1)
+$passedCore = ($testOutput | Select-String -Pattern "Arma3ServerTools\.Core\.Tests\.dll \(net10\.0" -Context 0,3 | Select-Object -Last 1)
+$passedApp = ($testOutput | Select-String -Pattern "Arma3ServerTools\.Application\.Tests\.dll \(net10\.0" -Context 0,3 | Select-Object -Last 1)
 
 Write-Host ""
 Write-Host "All automated tests passed (xUnit 跳过数 = 0)." -ForegroundColor Green
