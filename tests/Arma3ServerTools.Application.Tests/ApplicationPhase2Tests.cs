@@ -397,6 +397,75 @@ namespace Arma3ServerTools.Application.Tests
             }
         }
 
+        [Fact]
+        public void DownloadWorkshopItems_MissingSteamCmd_ReturnsFailure()
+        {
+            string root = CreateTempRoot();
+            try
+            {
+                var service = new SteamCmdService(
+                    new AppPaths(root),
+                    new InlineSteamCmdConfig(new SteamcmdEntity { u = "user", p = "pass", d = root }),
+                    new FakeProcessRunner());
+
+                OperationResult result = service.DownloadWorkshopItems(new ulong[] { 123456789 });
+                Assert.False(result.Success);
+                Assert.Contains("steamcmd.exe", result.Message);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        }
+
+        [Fact]
+        public void DownloadWorkshopItems_WithSteamCmd_StartsProcess()
+        {
+            string root = CreateTempRoot();
+            try
+            {
+                string workshopRoot = Path.Combine(root, "workshop");
+                AutomatedTestWorkspace.CreateCompleteSteamCmdInstall(workshopRoot);
+                var runner = new FakeProcessRunner();
+                var service = new SteamCmdService(
+                    new AppPaths(root),
+                    new InlineSteamCmdConfig(new SteamcmdEntity { u = "user", p = "pass", d = workshopRoot }),
+                    runner);
+
+                OperationResult result = service.DownloadWorkshopItems(new ulong[] { 111111111, 222222222 });
+                Assert.True(result.Success, result.Message);
+                Assert.Contains("workshop_download_item 107410 111111111", runner.LastArguments);
+                Assert.Contains("workshop_download_item 107410 222222222", runner.LastArguments);
+                Assert.Contains("+quit", runner.LastArguments);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        }
+
+        [Fact]
+        public void DownloadWorkshopItems_MissingAccount_ReturnsFailure()
+        {
+            string root = CreateTempRoot();
+            try
+            {
+                AutomatedTestWorkspace.CreateBundledSteamCmd(root);
+                var service = new SteamCmdService(
+                    new AppPaths(root),
+                    new InlineSteamCmdConfig(new SteamcmdEntity { d = root }),
+                    new FakeProcessRunner());
+
+                OperationResult result = service.DownloadWorkshopItems(new ulong[] { 123456789 });
+                Assert.False(result.Success);
+                Assert.Contains("账号", result.Message);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        }
+
         private static string CreateTempRoot()
         {
             string path = Path.Combine(Path.GetTempPath(), "a3steam-test-" + Guid.NewGuid().ToString("N"));

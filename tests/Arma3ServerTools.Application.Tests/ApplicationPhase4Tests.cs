@@ -317,4 +317,27 @@ namespace Arma3ServerTools.Application.Tests
             }
         }
     }
+
+    public class SteamWorkshopApiServiceTests
+    {
+        [Fact]
+        public void ParseModDetails_ExtractsTitleAndId()
+        {
+            string json = "{ \"response\": { \"publishedfiledetails\": [ { "
+                + "\"publishedfileid\": \"1234567890\", "
+                + "\"creator_app_id\": 107410, "
+                + "\"title\": \"CBA_A3\", "
+                + "\"description\": \"test mod\", "
+                + "\"file_size\": \"1048576\" } ] } }";
+
+            List<SteamWorkshopModInfo> mods = SteamWorkshopApiService.ParseModDetails(
+                json,
+                new List<ulong> { 1234567890UL });
+
+            Assert.Single(mods);
+            Assert.Equal(1234567890UL, mods[0].ModId);
+            Assert.Equal("CBA_A3", mods[0].Title);
+            Assert.Contains("MB", mods[0].FileSizeMb);
+        }
+    }
 }

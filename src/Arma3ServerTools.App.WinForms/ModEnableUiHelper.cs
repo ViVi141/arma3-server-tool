@@ -17,7 +17,9 @@ namespace Arma3ServerTools.App.WinForms
             ArmaServerConfig config,
             SteamcmdEntity settings,
             BikeyService bikeyService,
-            Action refreshGrid)
+            Action refreshGrid,
+            ISteamCmdService steamCmdService = null,
+            IAppPaths appPaths = null)
         {
             if (config == null)
             {
@@ -40,7 +42,13 @@ namespace Arma3ServerTools.App.WinForms
             var enabler = new ModEnablerService();
             IList<LauncherHtmlModEntry> selectedEntries;
             ModApplyTarget target;
-            using (var dialog = new HtmlModEnableForm(htmlEntries, settings.d, enabler))
+            using (var dialog = new HtmlModEnableForm(
+                htmlEntries,
+                settings.d,
+                enabler,
+                steamCmdService,
+                appPaths,
+                settings))
             {
                 Form ownerForm = owner as Form;
                 if (dialog.ShowDialog(ownerForm) != DialogResult.OK)

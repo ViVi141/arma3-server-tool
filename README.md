@@ -2,7 +2,7 @@
 
 面向 Windows 的 **Arma 3 专用服务器** 图形化管理工具（**Arma3 Server Tools**）。使用 C# / .NET 10 开发，集成 BattlEye RCon、多服配置、SteamCMD、监控统计与定时任务等开服常用能力。
 
-**当前版本：v1.1.1** · **当前维护仓库：** [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
+**当前版本：v1.2.0** · **当前维护仓库：** [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
 
 ---
 
@@ -59,7 +59,7 @@
 - **服务器管理** — 多配置并存；复制、搜索、快速配置向导；启动前检查；RPT 日志；进程异常退出桌面通知
 - **BattlEye** — 自动写入基础 BE 规则；集成 BattlEye RCon V2（踢人、封禁、任务控制等）
 - **网络与安全** — RCon 密码/端口；基本 / 网络 / 安全 / 性能 / 日志 / 难度等设置页
-- **模组** — 扫描本地与 Workshop 目录；从 Arma 3 启动器 HTML 导入；手动添加本地模组
+- **模组** — 扫描、勾选、更新/下载（选中模组、剪贴板 ID、HTML 批量下载）；Steam API 确认对话框；HTML 导入启用；Bikey 自动复制
 - **SteamCMD** — 账号与路径配置；下载 `steamcmd`；安装 / 更新专用服务器（AppID 233780）
 - **监控与统计** — SQLite 入库；趋势图表；CSV / HTML 导出；可选服务端 Monitoring DLL（源码目录 `DestinyServerMonitoring/`，输出文件名未改）
 - **定时任务** — Quartz 调度：硬重启、脚本重启、定点重启等
@@ -126,7 +126,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 未指定 `-Version` 时，版本号自动读取 `Directory.Build.props`。也可显式指定：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -Version 1.1.1
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -Version 1.2.0
 ```
 
 首次构建若本机未安装 Inno Setup 6，可加 `-InstallInnoSetup` 自动下载到 `tools/innosetup-6/`：
@@ -143,7 +143,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 | `-SkipInstaller` | 仅生成 `artifacts/_publish/` 目录，不编译安装包 |
 | `-Zip` | 额外生成便携 zip（与旧版行为相同） |
 
-详见 **[docs/release-v1.1.1.md](docs/release-v1.1.1.md)**（历史：[v1.1.0](docs/release-v1.1.0.md)、[v1.0.0](docs/release-v1.0.0.md)）。
+详见 **[docs/release-v1.2.0.md](docs/release-v1.2.0.md)**（历史：[v1.1.1](docs/release-v1.1.1.md)、[v1.1.0](docs/release-v1.1.0.md)、[v1.0.0](docs/release-v1.0.0.md)）。
 
 ---
 
@@ -166,7 +166,8 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 | [docs/refactoring-plan.md](docs/refactoring-plan.md) | 分层改造说明 |
 | [docs/product-roadmap.md](docs/product-roadmap.md) | 实施计划与 backlog |
 | [docs/ux-optimization-backlog.md](docs/ux-optimization-backlog.md) | 用户体验优化任务（v1.1） |
-| [docs/release-v1.1.1.md](docs/release-v1.1.1.md) | **v1.1.1 发布清单** |
+| [docs/release-v1.2.0.md](docs/release-v1.2.0.md) | **v1.2.0 发布清单** |
+| [docs/release-v1.1.1.md](docs/release-v1.1.1.md) | v1.1.1 发布清单 |
 | [docs/release-v1.1.0.md](docs/release-v1.1.0.md) | v1.1.0 发布清单 |
 | [docs/release-v1.0.0.md](docs/release-v1.0.0.md) | v1.0 发布清单 |
 | [docs/smoke-checklist.md](docs/smoke-checklist.md) | 冒烟验收清单 |

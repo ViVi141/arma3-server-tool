@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.App.WinForms.Controls;
 using Arma3ServerTools.Application.Services;
+using Arma3ServerTools.Core;
+using Arma3ServerTools.Core.Models;
 using AntLabel = AntdUI.Label;
 using AntPanel = AntdUI.Panel;
 using AntSelect = AntdUI.Select;
@@ -17,6 +20,9 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         private readonly List<LauncherHtmlModEntry> entries;
         private readonly ModEnablerService enablerService;
         private readonly string workshopRoot;
+        private readonly ISteamCmdService steamCmdService;
+        private readonly IAppPaths appPaths;
+        private readonly SteamcmdEntity steamSettings;
 
         private readonly AntTable grid;
         private readonly AntSelect targetSelect;
@@ -27,10 +33,16 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         public HtmlModEnableForm(
             IList<LauncherHtmlModEntry> htmlEntries,
             string workshopRoot,
-            ModEnablerService enablerService)
+            ModEnablerService enablerService,
+            ISteamCmdService steamCmdService = null,
+            IAppPaths appPaths = null,
+            SteamcmdEntity steamSettings = null)
         {
             this.workshopRoot = workshopRoot ?? string.Empty;
             this.enablerService = enablerService ?? new ModEnablerService();
+            this.steamCmdService = steamCmdService;
+            this.appPaths = appPaths;
+            this.steamSettings = steamSettings;
             entries = new List<LauncherHtmlModEntry>();
             if (htmlEntries != null)
             {
@@ -85,6 +97,23 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             targetSelect.SelectedIndex = 0;
             targetPanel.Controls.Add(targetSelect);
 
+            var actionPanel = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                Padding = new Padding(UiScaleHelper.Scale(12), 0, UiScaleHelper.Scale(12), UiScaleHelper.Scale(8)),
+            };
+            AntdUI.Button downloadMissingButton = SettingsLayoutHelper.CreateButton("下载未安装...");
+            downloadMissingButton.Click += OnDownloadMissing;
+            AntdUI.Button refreshStatusButton = SettingsLayoutHelper.CreateButton("刷新状态");
+            refreshStatusButton.Click += delegate { ReloadTable(); };
+            actionPanel.Controls.Add(downloadMissingButton);
+            actionPanel.Controls.Add(refreshStatusButton);
+            if (steamCmdService == null || steamSettings == null)
+            {
+                downloadMissingButton.Enabled = false;
+            }
+
             grid = AntdTableHelper.CreateStandardTable();
             grid.Columns = new AntdUI.ColumnCollection
             {
@@ -116,6 +145,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
             Controls.Add(buttonBar);
             Controls.Add(filler);
+            Controls.Add(actionPanel);
             Controls.Add(targetPanel);
             Controls.Add(statusLabel);
 
@@ -154,6 +184,40 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             }
 
             return ModApplyTarget.Client;
+        }
+
+        private async void OnDownloadMissing(object sender, EventArgs e)
+        {
+            if (steamCmdService == null || steamSettings == null)
+            {
+                return;
+            }
+
+            var missingEntries = new List<LauncherHtmlModEntry>();
+            foreach (LauncherHtmlModEntry entry in entries)
+            {
+                if (!enablerService.IsModInstalled(workshopRoot, entry.ModId))
+                {
+                    missingEntries.Add(entry);
+                }
+            }
+
+            if (missingEntries.Count == 0)
+            {
+                AntdUiHelper.ShowInfo(this, "列表中的模组均已安装到本地。", "无需下载");
+                return;
+            }
+
+            bool started = await ModDownloadUiHelper.TryDownloadModsFromHtmlAsync(
+                this,
+                missingEntries,
+                steamSettings,
+                steamCmdService,
+                appPaths).ConfigureAwait(true);
+            if (started)
+            {
+                statusLabel.Text = "SteamCMD 下载已启动。完成后请点击「刷新状态」。";
+            }
         }
 
         private void ReloadTable()

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -74,6 +75,34 @@ namespace Arma3ServerTools.App.WinForms
             return await steamCmdService
                 .EnsureSteamCmdAvailableAsync(true, CancellationToken.None)
                 .ConfigureAwait(true);
+        }
+
+        public static async Task<bool> TryDownloadWorkshopModsAsync(
+            IWin32Window owner,
+            ISteamCmdService steamCmdService,
+            IAppPaths paths,
+            IList<ulong> modIds)
+        {
+            if (modIds == null || modIds.Count == 0)
+            {
+                AntdUiHelper.ShowInfo(owner, "没有需要下载的 Workshop 模组。", "提示");
+                return false;
+            }
+
+            if (!await EnsureSteamCmdAvailableAsync(owner, steamCmdService, paths).ConfigureAwait(true))
+            {
+                return false;
+            }
+
+            OperationResult result = steamCmdService.DownloadWorkshopItems(modIds);
+            if (result.Success)
+            {
+                AntdUiHelper.ShowInfo(owner, result.Message, "SteamCMD 已启动");
+                return true;
+            }
+
+            AntdUiHelper.ShowError(owner, result.Message, "下载失败");
+            return false;
         }
 
         private static string ResolveExtensionDirectory(IAppPaths paths)
