@@ -8,8 +8,6 @@ namespace Arma3ServerTools.Application.Services
     {
         private readonly IAppPaths paths;
         private readonly SteamCmdConfigRepository repository;
-        private SteamcmdEntity cachedSettings;
-        private bool settingsLoaded;
 
         public SteamCmdConfigProvider(IAppPaths paths, SteamCmdConfigRepository repository)
         {
@@ -19,15 +17,9 @@ namespace Arma3ServerTools.Application.Services
 
         public SteamcmdEntity GetSettings()
         {
-            if (settingsLoaded)
-            {
-                return cachedSettings;
-            }
-
-            cachedSettings = repository.Load();
-            NormalizeSettings(cachedSettings);
-            settingsLoaded = true;
-            return cachedSettings;
+            SteamcmdEntity settings = repository.Load();
+            NormalizeSettings(settings);
+            return settings;
         }
 
         public void SaveSettings(SteamcmdEntity settings)
@@ -38,14 +30,6 @@ namespace Arma3ServerTools.Application.Services
             }
 
             repository.Save(settings);
-            cachedSettings = settings;
-            settingsLoaded = true;
-        }
-
-        public void InvalidateCache()
-        {
-            settingsLoaded = false;
-            cachedSettings = null;
         }
 
         private void NormalizeSettings(SteamcmdEntity settings)
