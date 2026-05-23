@@ -8,7 +8,7 @@ using BytexDigital.BattlEye.Rcon.Requests;
 
 namespace BytexDigital.BattlEye.Rcon
 {
-    public class NetworkConnection
+    public class NetworkConnection : IDisposable
     {
         private IPEndPoint _remoteEndpoint;
         private CancellationToken _cancellationToken;
@@ -16,6 +16,7 @@ namespace BytexDigital.BattlEye.Rcon
         private NetworkMessageHandler _handler;
         private SequenceCounter _sequenceCounter;
         private DateTime _lastSent = new DateTime();
+        private bool _disposed;
 
         public event EventHandler<string> MessageReceived;
         public event EventHandler<GenericParsedEventArgs> ProtocolEvent;
@@ -43,6 +44,11 @@ namespace BytexDigital.BattlEye.Rcon
 
         public void Send(NetworkMessage networkMessage)
         {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(NetworkConnection));
+            }
+
             _handler.Cleanup();
 
             if (networkMessage is SequentialNetworkRequest sequentialNetworkRequest)
@@ -94,6 +100,9 @@ namespace BytexDigital.BattlEye.Rcon
             {
                 Console.WriteLine(e.ToString());
             }
+            catch (ObjectDisposedException)
+            {
+            }
         }
 
         private async Task HeartbeatAsync()
@@ -126,6 +135,29 @@ namespace BytexDigital.BattlEye.Rcon
                     }
                 }
             }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            try
+            {
+                _udpClient?.Dispose();
+            }
+            catch
+            {
+            }
+
+            _udpClient = null;
+            _handler = null;
+            MessageReceived = null;
+            ProtocolEvent = null;
+            Disconnected = null;
         }
     }
 }

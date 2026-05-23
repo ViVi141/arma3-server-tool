@@ -22,7 +22,10 @@ namespace BytexDigital.BattlEye.Rcon.Requests
         {
             try
             {
-                _responseReceived.Wait(new CancellationTokenSource(timeout).Token);
+                using (var timeoutSource = new CancellationTokenSource(timeout))
+                {
+                    _responseReceived.Wait(timeoutSource.Token);
+                }
                 return true;
             }
             catch
@@ -58,7 +61,10 @@ namespace BytexDigital.BattlEye.Rcon.Requests
         {
             try
             {
-                _acknowledged.Wait(new CancellationTokenSource(timeout).Token);
+                using (var timeoutSource = new CancellationTokenSource(timeout))
+                {
+                    _acknowledged.Wait(timeoutSource.Token);
+                }
                 return true;
             }
             catch
