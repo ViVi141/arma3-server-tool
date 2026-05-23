@@ -26,6 +26,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private AntInputNumber rconPortNumeric;
         private AntInputNumber beMaxPingNumeric;
         private AntInput adminsTextBox;
+        private AntInput doubleIdDetectedTextBox;
+        private AntInput onUserConnectedTextBox;
+        private AntInput onUserDisconnectedTextBox;
+        private AntInput onUserKickedTextBox;
+        private AntInput regularCheckTextBox;
         private AntInput onHackedDataTextBox;
         private AntInput onDifferentDataTextBox;
         private AntInput onUnsignedDataTextBox;
@@ -85,6 +90,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             rconPortNumeric.Value = SettingsLayoutHelper.Clamp(1024, 65535, config.BattlEyeConfig.RConPort);
             beMaxPingNumeric.Value = SettingsLayoutHelper.Clamp(50, 2000, config.BattlEyeConfig.MaxPing);
             adminsTextBox.Text = JoinLines(config.ServerConfig.Admins);
+            doubleIdDetectedTextBox.Text = DecodeBase64(config.ServerConfig.DoubleIdDetected);
+            onUserConnectedTextBox.Text = DecodeBase64(config.ServerConfig.onUserConnected);
+            onUserDisconnectedTextBox.Text = DecodeBase64(config.ServerConfig.onUserDisconnected);
+            onUserKickedTextBox.Text = DecodeBase64(config.ServerConfig.onUserKicked);
+            regularCheckTextBox.Text = DecodeBase64(config.ServerConfig.RegularCheck);
             onHackedDataTextBox.Text = DecodeBase64(config.ServerConfig.onHackedData);
             onDifferentDataTextBox.Text = DecodeBase64(config.ServerConfig.onDifferentData);
             onUnsignedDataTextBox.Text = DecodeBase64(config.ServerConfig.onUnsignedData);
@@ -92,9 +102,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
             allowedPreprocessTextBox.Text = JoinLines(config.ServerConfig.AllowedPreprocessFileExtensions);
             allowedHtmlLoadTextBox.Text = JoinLines(config.ServerConfig.AllowedHTMLLoadExtensions);
             allowedHtmlUriTextBox.Text = JoinLines(config.ServerConfig.AllowedHTMLLoadURIs);
-            maxCreateVehicleCount.Value = config.BattlEyeConfig.MaxCreateVehiclePerInterval.MaxNumbe;
+            maxCreateVehicleCount.Value = config.BattlEyeConfig.MaxCreateVehiclePerInterval.MaxNumber;
             maxCreateVehicleSeconds.Value = config.BattlEyeConfig.MaxCreateVehiclePerInterval.Seconds;
-            maxSetPosCount.Value = config.BattlEyeConfig.MaxSetPosPerInterval.MaxNumbe;
+            maxSetPosCount.Value = config.BattlEyeConfig.MaxSetPosPerInterval.MaxNumber;
             maxSetPosSeconds.Value = config.BattlEyeConfig.MaxSetPosPerInterval.Seconds;
         }
 
@@ -126,6 +136,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             boundConfig.BattlEyeConfig.RConPort = (int)rconPortNumeric.Value;
             boundConfig.BattlEyeConfig.MaxPing = (int)beMaxPingNumeric.Value;
             boundConfig.ServerConfig.Admins = SplitLines(adminsTextBox.Text);
+            boundConfig.ServerConfig.DoubleIdDetected = EncodeBase64(doubleIdDetectedTextBox.Text);
+            boundConfig.ServerConfig.onUserConnected = EncodeBase64(onUserConnectedTextBox.Text);
+            boundConfig.ServerConfig.onUserDisconnected = EncodeBase64(onUserDisconnectedTextBox.Text);
+            boundConfig.ServerConfig.onUserKicked = EncodeBase64(onUserKickedTextBox.Text);
+            boundConfig.ServerConfig.RegularCheck = EncodeBase64(regularCheckTextBox.Text);
             boundConfig.ServerConfig.onHackedData = EncodeBase64(onHackedDataTextBox.Text);
             boundConfig.ServerConfig.onDifferentData = EncodeBase64(onDifferentDataTextBox.Text);
             boundConfig.ServerConfig.onUnsignedData = EncodeBase64(onUnsignedDataTextBox.Text);
@@ -133,9 +148,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
             boundConfig.ServerConfig.AllowedPreprocessFileExtensions = SplitLines(allowedPreprocessTextBox.Text);
             boundConfig.ServerConfig.AllowedHTMLLoadExtensions = SplitLines(allowedHtmlLoadTextBox.Text);
             boundConfig.ServerConfig.AllowedHTMLLoadURIs = SplitLines(allowedHtmlUriTextBox.Text);
-            boundConfig.BattlEyeConfig.MaxCreateVehiclePerInterval.MaxNumbe = (int)maxCreateVehicleCount.Value;
+            boundConfig.BattlEyeConfig.MaxCreateVehiclePerInterval.MaxNumber = (int)maxCreateVehicleCount.Value;
             boundConfig.BattlEyeConfig.MaxCreateVehiclePerInterval.Seconds = (int)maxCreateVehicleSeconds.Value;
-            boundConfig.BattlEyeConfig.MaxSetPosPerInterval.MaxNumbe = (int)maxSetPosCount.Value;
+            boundConfig.BattlEyeConfig.MaxSetPosPerInterval.MaxNumber = (int)maxSetPosCount.Value;
             boundConfig.BattlEyeConfig.MaxSetPosPerInterval.Seconds = (int)maxSetPosSeconds.Value;
         }
 
@@ -197,6 +212,16 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private Control BuildScriptSection()
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(160);
+            doubleIdDetectedTextBox = SettingsLayoutHelper.AddRow(
+                layout, "检测到重复 ID", SettingsLayoutHelper.CreateMultilineInput(70));
+            onUserConnectedTextBox = SettingsLayoutHelper.AddRow(
+                layout, "玩家连接时执行", SettingsLayoutHelper.CreateMultilineInput(70));
+            onUserDisconnectedTextBox = SettingsLayoutHelper.AddRow(
+                layout, "玩家断开连接时执行", SettingsLayoutHelper.CreateMultilineInput(70));
+            onUserKickedTextBox = SettingsLayoutHelper.AddRow(
+                layout, "玩家被踢出时执行", SettingsLayoutHelper.CreateMultilineInput(70));
+            regularCheckTextBox = SettingsLayoutHelper.AddRow(
+                layout, "定期检查脚本", SettingsLayoutHelper.CreateMultilineInput(70));
             onHackedDataTextBox = SettingsLayoutHelper.AddRow(
                 layout, "检测到篡改数据", SettingsLayoutHelper.CreateMultilineInput(70));
             onDifferentDataTextBox = SettingsLayoutHelper.AddRow(
