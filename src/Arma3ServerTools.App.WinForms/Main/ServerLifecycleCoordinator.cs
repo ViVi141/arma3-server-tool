@@ -116,8 +116,29 @@ namespace Arma3ServerTools.App.WinForms
 
         public void RefreshCachedConfig(string serverUuid)
         {
-            ArmaServerConfig config = services.ConfigService.Get(serverUuid);
-            services.LoadedConfigs[serverUuid] = config;
+            ArmaServerConfig latest = services.ConfigService.Get(serverUuid);
+            ArmaServerConfig existing;
+            if (!services.LoadedConfigs.TryGetValue(serverUuid, out existing) || existing == null)
+            {
+                services.LoadedConfigs[serverUuid] = latest;
+                return;
+            }
+
+            existing.ServerTaskManagement = latest.ServerTaskManagement;
+            existing.ServerConfig = latest.ServerConfig;
+            existing.StartupParameters = latest.StartupParameters;
+            existing.BasicConfig = latest.BasicConfig;
+            existing.BattlEyeConfig = latest.BattlEyeConfig;
+            existing.serverProfile = latest.serverProfile;
+            existing.MissionParams = latest.MissionParams;
+            existing.SaveTime = latest.SaveTime;
+            existing.ServerDir = latest.ServerDir;
+            existing.AutoCopyBikey = latest.AutoCopyBikey;
+            existing.StartCommandLine = latest.StartCommandLine;
+            existing.x64 = latest.x64;
+            existing.ServerUUID = latest.ServerUUID;
+            existing.ConfigName = latest.ConfigName;
+            existing.CreateTime = latest.CreateTime;
         }
     }
 }
