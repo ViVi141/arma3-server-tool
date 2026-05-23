@@ -8,9 +8,9 @@ namespace Arma3ServerTools.Core.Models
 {
     public class BEServerCfgEntity
     {
-        public BEServerCfgEntity(int maxNumbe, int seconds)
+        public BEServerCfgEntity(int maxNumber, int seconds)
         {
-            MaxNumbe = maxNumbe;
+            MaxNumber = maxNumber;
             Seconds = seconds;
         }
 
@@ -18,7 +18,7 @@ namespace Arma3ServerTools.Core.Models
         {
         }
 
-        public int MaxNumbe { get; set; }
+        public int MaxNumber { get; set; }
         public int Seconds { get; set; }
     }
 }
