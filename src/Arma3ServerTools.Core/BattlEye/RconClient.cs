@@ -10,7 +10,7 @@ using BytexDigital.BattlEye.Rcon.Responses;
 
 namespace BytexDigital.BattlEye.Rcon
 {
-    public class RconClient
+    public class RconClient : IDisposable
     {
         /// <summary>
         /// Defines the interval after how many milliseconds the <see cref="RconClient"/> is going to reattempt connecting to the rcon server.
@@ -190,6 +190,11 @@ namespace BytexDigital.BattlEye.Rcon
         /// <returns>True if success, otherwise false</returns>
         public bool Connect()
         {
+            if (_cancellationTokenSource == null || _cancellationTokenSource.IsCancellationRequested)
+            {
+                _cancellationTokenSource = new CancellationTokenSource();
+            }
+
             if (IsRunning)
             {
                 return IsConnected;
@@ -231,13 +236,30 @@ namespace BytexDigital.BattlEye.Rcon
         public void Disconnect()
         {
             _cancellationTokenSource?.Cancel();
+            _cancellationTokenSource?.Dispose();
+            _cancellationTokenSource = null;
+
             _connectionCancelTokenSource?.Cancel();
+            _connectionCancelTokenSource?.Dispose();
+            _connectionCancelTokenSource = null;
+
+            DisposeNetworkConnection();
+            _connected.Reset();
+            IsConnected = false;
+            IsRunning = false;
             Disconnected?.Invoke(this, new EventArgs());
+        }
+
+        public void Dispose()
+        {
+            Disconnect();
         }
 
         private bool AttemptConnect()
         {
+            _connectionCancelTokenSource?.Dispose();
             _connectionCancelTokenSource = new CancellationTokenSource();
+            DisposeNetworkConnection();
             _networkConnection = new NetworkConnection(RemoteEndpoint, _connectionCancelTokenSource.Token);
             _networkConnection.BeginReceiving();
             _networkConnection.Disconnected += OnDisconnected;
@@ -302,6 +324,7 @@ namespace BytexDigital.BattlEye.Rcon
             _connectionCancelTokenSource?.Cancel();
             IsConnected = false;
             IsRunning = false;
+            DisposeNetworkConnection();
 
             if (_connectionCancelTokenSource != null && _connectionCancelTokenSource.IsCancellationRequested)
             {
@@ -310,6 +333,20 @@ namespace BytexDigital.BattlEye.Rcon
                     Connect();
                 }
             }
+        }
+
+        private void DisposeNetworkConnection()
+        {
+            if (_networkConnection == null)
+            {
+                return;
+            }
+
+            _networkConnection.Disconnected -= OnDisconnected;
+            _networkConnection.MessageReceived -= OnMessageReceived;
+            _networkConnection.ProtocolEvent -= OnProtocolEvent;
+            _networkConnection.Dispose();
+            _networkConnection = null;
         }
     }
 }
