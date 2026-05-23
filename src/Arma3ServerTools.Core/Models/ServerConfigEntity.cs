@@ -98,7 +98,7 @@ namespace Arma3ServerTools.Core.Models
         //motd 消息间隔  motdInterval
         public int MotdInterval { get; set; } = 1;
 
-        //禁用语音  disableVoN  0 =启用
+        //禁用语音  disableVoN  0 =启用（注意：字段名为"禁用"但值0表示启用，值1表示禁用，与UI标签"启用 VoN"相反）
         public int DisableVoN { get; set; } = 0;
 
         //语音质量 vonCodecQuality
@@ -140,7 +140,7 @@ namespace Arma3ServerTools.Core.Models
         //模组签名验证 verifySignatures 2=验证 0=禁用
         public bool VerifySignatures { get; set; } = true;
 
-        //踢出重复玩家ID kickduplicate
+        //踢出重复玩家ID kickduplicate（注意：值0表示"允许"，值1表示"踢出"，与字段名的含义相反，UI中标签为"允许同一 ID 重复进入"）
         public int Kickduplicate { get; set; } = 0;
 
         //文件修补类型 allowedFilePatching

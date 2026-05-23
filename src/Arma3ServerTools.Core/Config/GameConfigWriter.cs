@@ -710,11 +710,11 @@ namespace Arma3ServerTools.Core.Config
 
         private static void AppendBeInterval(StringBuilder sb, string key, BEServerCfgEntity interval)
         {
-            if (interval.MaxNumbe != 0 && interval.Seconds != 0)
+            if (interval.MaxNumber != 0 && interval.Seconds != 0)
             {
                 sb.Append(key)
                     .Append(" ")
-                    .Append(interval.MaxNumbe)
+                    .Append(interval.MaxNumber)
                     .Append(" ")
                     .AppendLine(interval.Seconds.ToString());
             }
