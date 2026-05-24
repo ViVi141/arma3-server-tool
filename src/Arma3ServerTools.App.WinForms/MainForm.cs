@@ -119,6 +119,7 @@ namespace Arma3ServerTools.App.WinForms
             serverTable = CreateServerTable();
             serverSearchInput = CreateServerSearchInput();
             settingsHost = new ServerSettingsHost(services);
+            settingsHost.SyncIndicatorsChanged += OnSettingsSyncIndicatorsChanged;
             emptyServerGuidePanel = new EmptyServerGuidePanel();
             emptyServerGuidePanel.FirstServerWizardRequested += OnQuickSetupWizard;
             emptyServerGuidePanel.NewServerRequested += OnNewServer;
@@ -662,7 +663,8 @@ namespace Arma3ServerTools.App.WinForms
 
             SyncSchedulerJobs(config);
             CapturePersistedSnapshot(config.ServerUUID);
-            UpdateStatusBar(config);
+            settingsHost.ClearDirtyMarkers();
+            RefreshConfigSyncIndicators();
             RefreshSelectedRowState();
             if (showSuccessMessage)
             {
@@ -691,7 +693,8 @@ namespace Arma3ServerTools.App.WinForms
             SyncSchedulerJobs(config);
             CapturePersistedSnapshot(config.ServerUUID);
             CaptureServerAppliedSnapshot(config.ServerUUID);
-            UpdateStatusBar(config);
+            settingsHost.ClearDirtyMarkers();
+            RefreshConfigSyncIndicators();
             RefreshSelectedRowState();
             if (showSuccessMessage)
             {
@@ -980,7 +983,7 @@ namespace Arma3ServerTools.App.WinForms
         {
             services.CurrentServerUuid = row.ServerUuid;
             settingsHost.Bind(services.GetCurrentConfig());
-            UpdateStatusBar(services.GetCurrentConfig());
+            RefreshConfigSyncIndicators();
         }
 
         private void OnNewServer(object sender, EventArgs e)
@@ -1198,8 +1201,8 @@ namespace Arma3ServerTools.App.WinForms
 
             SyncSchedulerJobs(config);
             CapturePersistedSnapshot(config.ServerUUID);
-            UpdateStatusBar(config);
-            RefreshSelectedRowState();
+            settingsHost.ClearDirtyMarkers();
+            RefreshConfigSyncIndicators();
             AntdUiHelper.ShowInfo(this, UiLabels.SaveToToolSuccess, "成功");
         }
 
@@ -1220,7 +1223,8 @@ namespace Arma3ServerTools.App.WinForms
             if (writeResult.Success)
             {
                 CaptureServerAppliedSnapshot(config.ServerUUID);
-                UpdateStatusBar(config);
+                settingsHost.ClearDirtyMarkers();
+                RefreshConfigSyncIndicators();
                 RefreshSelectedRowState();
                 AntdUiHelper.ShowInfo(this, UiLabels.ApplyToServerSuccess, "成功");
             }
@@ -1247,6 +1251,8 @@ namespace Arma3ServerTools.App.WinForms
 
             SyncSchedulerJobs(config);
             CapturePersistedSnapshot(config.ServerUUID);
+            settingsHost.ClearDirtyMarkers();
+            RefreshConfigSyncIndicators();
 
             IReadOnlyList<PreflightCheckItem> preflightItems = lifecycleCoordinator.BuildPreflightItems(config);
             if (services.PreflightChecker.HasBlockingErrors(preflightItems))
@@ -1274,7 +1280,8 @@ namespace Arma3ServerTools.App.WinForms
             if (result.Success)
             {
                 CaptureServerAppliedSnapshot(config.ServerUUID);
-                UpdateStatusBar(config);
+                settingsHost.ClearDirtyMarkers();
+                RefreshConfigSyncIndicators();
                 AntdUiHelper.ShowInfo(this, UiLabels.StartServerSuccess, "成功");
             }
             else
@@ -1307,7 +1314,8 @@ namespace Arma3ServerTools.App.WinForms
                 if (dialog.AppliedConfigToServer)
                 {
                     CaptureServerAppliedSnapshot(config.ServerUUID);
-                    UpdateStatusBar(config);
+                    settingsHost.ClearDirtyMarkers();
+                    RefreshConfigSyncIndicators();
                 }
             }
         }
@@ -1333,7 +1341,7 @@ namespace Arma3ServerTools.App.WinForms
             }
             else
             {
-                lifecycleCoordinator.RefreshCachedConfig(config.ServerUUID);
+                lifecycleCoordinator.SyncProcessStateToCache(config.ServerUUID);
             }
 
             RefreshSelectedRowState();
@@ -1479,7 +1487,7 @@ namespace Arma3ServerTools.App.WinForms
                 }
 
                 ServerRunState runState = services.ProcessService.SyncState(services.CurrentServerUuid);
-                lifecycleCoordinator.RefreshCachedConfig(services.CurrentServerUuid);
+                lifecycleCoordinator.SyncProcessStateToCache(services.CurrentServerUuid);
                 serverRows[i].RunState = runState;
                 ArmaServerConfig config = services.GetCurrentConfig();
                 if (config != null)
@@ -1488,10 +1496,54 @@ namespace Arma3ServerTools.App.WinForms
                 }
 
                 BindServerTable();
-                SelectServer(services.CurrentServerUuid);
                 settingsHost.RefreshOverview();
-                UpdateStatusBar(services.GetCurrentConfig());
+                RefreshConfigSyncIndicators();
                 return;
+            }
+        }
+
+        private void OnSettingsSyncIndicatorsChanged(object sender, EventArgs e)
+        {
+            RefreshConfigSyncIndicators();
+        }
+
+        private void RefreshConfigSyncIndicators()
+        {
+            ArmaServerConfig config = services.GetCurrentConfig();
+            if (config == null)
+            {
+                UpdateStatusBar(null, ConfigSyncState.FullySynced);
+                return;
+            }
+
+            settingsHost.ApplyAll();
+            ArmaServerConfig current = services.GetCurrentConfig();
+            if (current == null)
+            {
+                current = config;
+            }
+
+            ConfigSyncState state = ConfigSyncStateEvaluator.Evaluate(
+                configSnapshots,
+                config.ServerUUID,
+                current);
+            settingsHost.UpdateSyncIndicators(state);
+            UpdateStatusBar(config, state);
+            UpdateActionButtonMarkers(state);
+        }
+
+        private void UpdateActionButtonMarkers(ConfigSyncState state)
+        {
+            saveButton.Text = UiLabels.SaveToToolButton;
+            writeCfgButton.Text = UiLabels.ApplyToServerButton;
+            if (state == ConfigSyncState.Unsaved)
+            {
+                saveButton.Text += UiLabels.SaveToToolPendingMarker;
+                writeCfgButton.Text += UiLabels.ApplyToServerPendingMarker;
+            }
+            else if (state == ConfigSyncState.SavedToToolOnly)
+            {
+                writeCfgButton.Text += UiLabels.ApplyToServerPendingMarker;
             }
         }
 
@@ -1530,7 +1582,15 @@ namespace Arma3ServerTools.App.WinForms
                     }
 
                     row.RunState = currentState;
-                    lifecycleCoordinator.RefreshCachedConfig(row.ServerUuid);
+                    if (string.Equals(row.ServerUuid, services.CurrentServerUuid, StringComparison.Ordinal))
+                    {
+                        lifecycleCoordinator.SyncProcessStateToCache(row.ServerUuid);
+                    }
+                    else
+                    {
+                        lifecycleCoordinator.RefreshCachedConfig(row.ServerUuid);
+                    }
+
                     stateChanged = true;
                 }
             }
@@ -1565,41 +1625,27 @@ namespace Arma3ServerTools.App.WinForms
         {
             if (config == null)
             {
+                UpdateStatusBar(null, ConfigSyncState.FullySynced);
+                return;
+            }
+
+            RefreshConfigSyncIndicators();
+        }
+
+        private void UpdateStatusBar(ArmaServerConfig config, ConfigSyncState state)
+        {
+            if (config == null)
+            {
                 statusServerLabel.Text = "当前服务器: （未选择）";
                 statusSaveLabel.Text = string.Empty;
+                statusSaveLabel.ForeColor = Color.FromArgb(38, 38, 38);
+                UpdateActionButtonMarkers(ConfigSyncState.FullySynced);
                 return;
             }
 
             statusServerLabel.Text = "当前服务器: " + config.ConfigName + " (" + config.ServerUUID + ")";
-            statusSaveLabel.Text = BuildConfigSyncStatusText(config);
-        }
-
-        private string BuildConfigSyncStatusText(ArmaServerConfig config)
-        {
-            if (config == null)
-            {
-                return string.Empty;
-            }
-
-            string uuid = config.ServerUUID;
-            settingsHost.ApplyAll();
-            ArmaServerConfig current = services.GetCurrentConfig();
-            if (current == null)
-            {
-                current = config;
-            }
-
-            if (configSnapshots.HasChanges(uuid, current))
-            {
-                return UiLabels.StatusUnsavedChanges;
-            }
-
-            if (configSnapshots.HasServerCfgDrift(uuid, current))
-            {
-                return UiLabels.StatusServerCfgDrift;
-            }
-
-            return UiLabels.FormatSyncedStatus(config.SaveTime);
+            statusSaveLabel.Text = ConfigSyncStateEvaluator.GetStatusText(state, config.SaveTime);
+            statusSaveLabel.ForeColor = ConfigSyncStateEvaluator.GetStatusColor(state);
         }
 
         private void ShowServerStoppedNotification(ServerGridRow row, ArmaServerConfig config)

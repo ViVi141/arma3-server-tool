@@ -27,9 +27,20 @@ namespace Arma3ServerTools.App.WinForms
 
         public const string StartServerSuccess = "已写入 server.cfg、basic.cfg、*.Arma3Profile 并启动服务器进程。";
 
-        public const string StatusUnsavedChanges = "有未保存修改";
+        public const string StatusUnsavedChanges = "● 未保存到工具";
 
-        public const string StatusServerCfgDrift = "游戏 cfg 未同步（启动时将自动写入）";
+        public const string StatusServerCfgDrift = "◐ 已保存到工具 · 未写入游戏目录";
+
+        public const string StatusFullySynced = "✓ 工具与游戏目录已同步";
+
+        public const string SyncLegendHint =
+            "橙色字段 = 已修改未保存；Tab 旁 ● = 该页有未保存修改；状态栏 ◐ = 已存 JSON 但未写 server.cfg。";
+
+        public const string TabLocalDirtySuffix = " ●";
+
+        public const string SaveToToolPendingMarker = " ●";
+
+        public const string ApplyToServerPendingMarker = " ●";
 
         public const string ExtraArgsGroup = "附加参数（可直接编辑，保存时自动编码）";
 
@@ -41,10 +52,10 @@ namespace Arma3ServerTools.App.WinForms
         {
             if (string.IsNullOrWhiteSpace(saveTime))
             {
-                return "工具与游戏 cfg 已同步";
+                return StatusFullySynced;
             }
 
-            return "已同步 · " + saveTime;
+            return StatusFullySynced + " · " + saveTime;
         }
 
         public static string CmdFlag(string description, string flag)
