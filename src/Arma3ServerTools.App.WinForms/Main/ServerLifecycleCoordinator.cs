@@ -140,5 +140,27 @@ namespace Arma3ServerTools.App.WinForms
             existing.ConfigName = latest.ConfigName;
             existing.CreateTime = latest.CreateTime;
         }
+
+        /// <summary>
+        /// 从磁盘同步进程 PID 与保存时间，不替换配置子对象，避免覆盖 UI 正在编辑的内存模型。
+        /// </summary>
+        public void SyncProcessStateToCache(string serverUuid)
+        {
+            if (string.IsNullOrEmpty(serverUuid))
+            {
+                return;
+            }
+
+            ArmaServerConfig latest = services.ConfigService.Get(serverUuid);
+            ArmaServerConfig existing;
+            if (!services.LoadedConfigs.TryGetValue(serverUuid, out existing) || existing == null)
+            {
+                services.LoadedConfigs[serverUuid] = latest;
+                return;
+            }
+
+            existing.ServerTaskManagement.ProcessById = latest.ServerTaskManagement.ProcessById;
+            existing.SaveTime = latest.SaveTime;
+        }
     }
 }

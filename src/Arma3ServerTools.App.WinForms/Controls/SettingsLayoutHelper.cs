@@ -12,7 +12,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
 {
     internal static class SettingsLayoutHelper
     {
-        private static readonly Color FormLabelColor = Color.FromArgb(38, 38, 38);
+        public static readonly Color FormLabelColor = Color.FromArgb(38, 38, 38);
+
+        public static Color DirtyFieldLabelColor = Color.FromArgb(212, 56, 13);
 
         public static int FieldHeight
         {

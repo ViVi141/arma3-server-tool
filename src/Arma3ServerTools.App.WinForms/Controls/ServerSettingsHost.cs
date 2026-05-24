@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Core.Models;
+using AntLabel = AntdUI.Label;
 using AntTabs = AntdUI.Tabs;
 
 namespace Arma3ServerTools.App.WinForms.Controls
@@ -25,17 +27,26 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly IAppServices appServices;
         private readonly AntTabs tabs;
         private readonly AntdUI.Checkbox advancedModeCheckBox;
+        private readonly AntLabel syncLegendLabel;
+        private readonly SettingsDirtyTracker dirtyTracker;
         private readonly List<TabDefinition> tabDefinitions = new List<TabDefinition>();
         private readonly List<IServerSettingsPanel> applyPanels = new List<IServerSettingsPanel>();
         private readonly List<Control> tabContents = new List<Control>();
         private readonly HashSet<int> layoutReadyTabs = new HashSet<int>();
+        private readonly HashSet<IServerSettingsPanel> uiSyncedPanels = new HashSet<IServerSettingsPanel>();
         private string lastSelectedTabTitle = "概览";
+        private ArmaServerConfig currentConfig;
+        private string boundServerUuid = string.Empty;
+        private ConfigSyncState currentSyncState = ConfigSyncState.FullySynced;
 
         public ServerOverviewPanel OverviewPanel { get; private set; }
+
+        public event EventHandler SyncIndicatorsChanged;
 
         public ServerSettingsHost(IAppServices appServices)
         {
             this.appServices = appServices;
+            dirtyTracker = new SettingsDirtyTracker(OnDirtyTrackerChanged);
             Dock = DockStyle.Fill;
             BackColor = System.Drawing.Color.White;
 
@@ -49,6 +60,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
             advancedModeCheckBox.Checked = AppUiSettings.Instance.ShowAdvancedSettings;
             advancedModeCheckBox.CheckedChanged += OnAdvancedModeChanged;
             topBar.Controls.Add(advancedModeCheckBox);
+
+            syncLegendLabel = AntdUiHelper.CreateHintLabel(UiLabels.SyncLegendHint, 900);
+            syncLegendLabel.Margin = new Padding(UiScaleHelper.Scale(12), 0, 0, 0);
+            topBar.Controls.Add(syncLegendLabel);
 
             tabs = new AntTabs
             {
@@ -80,19 +95,51 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         public void Bind(ArmaServerConfig config)
         {
-            foreach (IServerSettingsPanel panel in applyPanels)
+            string serverUuid = config != null ? config.ServerUUID : string.Empty;
+            if (config != null
+                && string.Equals(serverUuid, boundServerUuid, StringComparison.Ordinal)
+                && ReferenceEquals(config, currentConfig))
             {
-                panel.Bind(config);
+                return;
             }
 
+            currentConfig = config;
+            boundServerUuid = serverUuid ?? string.Empty;
+            uiSyncedPanels.Clear();
+            dirtyTracker.ClearAll();
+
+            if (config == null)
+            {
+                dirtyTracker.EnterSuppress();
+                try
+                {
+                    foreach (IServerSettingsPanel panel in applyPanels)
+                    {
+                        panel.Bind(null);
+                    }
+                }
+                finally
+                {
+                    dirtyTracker.ExitSuppress();
+                }
+
+                RefreshTabTitles();
+                return;
+            }
+
+            BindActiveTabPanel(forceRefresh: true);
             RefreshActiveTab(tabs.SelectedIndex);
+            RefreshTabTitles();
         }
 
         public void ApplyAll()
         {
             foreach (IServerSettingsPanel panel in applyPanels)
             {
-                panel.ApplyToModel();
+                if (uiSyncedPanels.Contains(panel))
+                {
+                    panel.ApplyToModel();
+                }
             }
         }
 
@@ -108,6 +155,48 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             advancedModeCheckBox.Checked = AppUiSettings.Instance.ShowAdvancedSettings;
             RebuildVisibleTabs();
+        }
+
+        public void ClearDirtyMarkers()
+        {
+            dirtyTracker.ClearAll();
+            RefreshTabTitles();
+        }
+
+        public void ClearDirtyMarkersForActiveTab()
+        {
+            string title = GetActiveTabBaseTitle();
+            if (!string.IsNullOrEmpty(title))
+            {
+                dirtyTracker.ClearTab(title);
+            }
+
+            RefreshTabTitles();
+        }
+
+        public void UpdateSyncIndicators(ConfigSyncState syncState)
+        {
+            currentSyncState = syncState;
+            RefreshTabTitles();
+        }
+
+        public bool HasLocalEdits()
+        {
+            return dirtyTracker.HasAnyLocalEdits();
+        }
+
+        private void OnDirtyTrackerChanged()
+        {
+            RefreshTabTitles();
+            RaiseSyncIndicatorsChanged();
+        }
+
+        private void RaiseSyncIndicatorsChanged()
+        {
+            if (SyncIndicatorsChanged != null)
+            {
+                SyncIndicatorsChanged(this, EventArgs.Empty);
+            }
         }
 
         private T RegisterTab<T>(string title, T control, bool expertOnly, bool applyLast = false) where T : Control
@@ -131,6 +220,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 ApplyLast = applyLast,
             });
 
+            dirtyTracker.RegisterTab(title, control);
+
             if (settingsPanel != null)
             {
                 if (applyLast)
@@ -149,7 +240,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void RebuildVisibleTabs()
         {
-            lastSelectedTabTitle = GetSelectedTabTitle();
+            lastSelectedTabTitle = GetSelectedTabBaseTitle();
             tabs.Pages.Clear();
             tabContents.Clear();
             layoutReadyTabs.Clear();
@@ -180,29 +271,36 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             RefreshActiveTab(tabs.SelectedIndex);
+            RefreshTabTitles();
         }
 
-        private string GetSelectedTabTitle()
+        private string GetSelectedTabBaseTitle()
         {
             int index = tabs.SelectedIndex;
-            if (index < 0 || index >= tabs.Pages.Count)
+            if (index < 0 || index >= tabContents.Count)
             {
-                return lastSelectedTabTitle;
+                return StripTabMarker(lastSelectedTabTitle);
             }
 
-            return tabs.Pages[index].Text ?? lastSelectedTabTitle;
+            if (index >= tabs.Pages.Count)
+            {
+                return StripTabMarker(lastSelectedTabTitle);
+            }
+
+            return StripTabMarker(tabs.Pages[index].Text ?? lastSelectedTabTitle);
         }
 
         private void SelectTabByTitle(string title)
         {
-            if (string.IsNullOrEmpty(title))
+            string baseTitle = StripTabMarker(title);
+            if (string.IsNullOrEmpty(baseTitle))
             {
                 return;
             }
 
             for (int i = 0; i < tabs.Pages.Count; i++)
             {
-                if (string.Equals(tabs.Pages[i].Text, title, StringComparison.Ordinal))
+                if (string.Equals(StripTabMarker(tabs.Pages[i].Text), baseTitle, StringComparison.Ordinal))
                 {
                     tabs.SelectTab(i);
                     return;
@@ -212,9 +310,12 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void OnAdvancedModeChanged(object sender, AntdUI.BoolEventArgs e)
         {
+            ApplyAll();
             AppUiSettings.Instance.ShowAdvancedSettings = advancedModeCheckBox.Checked;
             AppUiSettings.Instance.Save(appServices.Paths.ConfigDirectory);
             RebuildVisibleTabs();
+            BindActiveTabPanel(forceRefresh: true);
+            RefreshTabTitles();
         }
 
         private void OnHostLoad(object sender, EventArgs e)
@@ -229,8 +330,156 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void OnSettingsTabChanged(object sender, AntdUI.IntEventArgs e)
         {
-            lastSelectedTabTitle = GetSelectedTabTitle();
+            lastSelectedTabTitle = GetSelectedTabBaseTitle();
+            BindActiveTabPanel(forceRefresh: false);
             RefreshActiveTab(e.Value);
+            RefreshTabTitles();
+        }
+
+        private void BindActiveTabPanel(bool forceRefresh)
+        {
+            if (currentConfig == null)
+            {
+                return;
+            }
+
+            IServerSettingsPanel panel = GetActiveSettingsPanel();
+            if (panel == null)
+            {
+                return;
+            }
+
+            if (!forceRefresh && uiSyncedPanels.Contains(panel))
+            {
+                return;
+            }
+
+            string tabTitle = GetActiveTabBaseTitle();
+            dirtyTracker.EnterSuppress();
+            try
+            {
+                dirtyTracker.ClearTab(tabTitle);
+                panel.Bind(currentConfig);
+            }
+            finally
+            {
+                dirtyTracker.ExitSuppress();
+            }
+
+            uiSyncedPanels.Add(panel);
+            RefreshTabTitles();
+        }
+
+        private IServerSettingsPanel GetActiveSettingsPanel()
+        {
+            int index = tabs.SelectedIndex;
+            if (index < 0 || index >= tabContents.Count)
+            {
+                return null;
+            }
+
+            return tabContents[index] as IServerSettingsPanel;
+        }
+
+        private string GetActiveTabBaseTitle()
+        {
+            int index = tabs.SelectedIndex;
+            if (index < 0 || index >= tabContents.Count)
+            {
+                return string.Empty;
+            }
+
+            Control content = tabContents[index];
+            foreach (TabDefinition definition in tabDefinitions)
+            {
+                if (ReferenceEquals(definition.Content, content))
+                {
+                    return definition.Title;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private void RefreshTabTitles()
+        {
+            for (int i = 0; i < tabs.Pages.Count; i++)
+            {
+                string baseTitle = GetBaseTitleForVisibleIndex(i);
+                if (string.IsNullOrEmpty(baseTitle))
+                {
+                    continue;
+                }
+
+                string displayTitle = baseTitle;
+                if (dirtyTracker.IsTabLocallyDirty(baseTitle))
+                {
+                    displayTitle = baseTitle + UiLabels.TabLocalDirtySuffix;
+                }
+                else if (currentSyncState == ConfigSyncState.SavedToToolOnly
+                    && IsUiSyncedPanelForTitle(baseTitle))
+                {
+                    displayTitle = baseTitle + " ◐";
+                }
+
+                tabs.Pages[i].Text = displayTitle;
+            }
+        }
+
+        private bool IsUiSyncedPanelForTitle(string baseTitle)
+        {
+            foreach (TabDefinition definition in tabDefinitions)
+            {
+                if (!string.Equals(definition.Title, baseTitle, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                IServerSettingsPanel panel = definition.SettingsPanel;
+                if (panel == null)
+                {
+                    return false;
+                }
+
+                return uiSyncedPanels.Contains(panel);
+            }
+
+            return false;
+        }
+
+        private string GetBaseTitleForVisibleIndex(int visibleIndex)
+        {
+            if (visibleIndex < 0 || visibleIndex >= tabContents.Count)
+            {
+                return string.Empty;
+            }
+
+            Control content = tabContents[visibleIndex];
+            foreach (TabDefinition definition in tabDefinitions)
+            {
+                if (ReferenceEquals(definition.Content, content))
+                {
+                    return definition.Title;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static string StripTabMarker(string title)
+        {
+            if (string.IsNullOrEmpty(title))
+            {
+                return string.Empty;
+            }
+
+            int markerIndex = title.IndexOf(' ');
+            if (markerIndex <= 0)
+            {
+                return title;
+            }
+
+            return title.Substring(0, markerIndex);
         }
 
         private void RefreshActiveTab(int index)
