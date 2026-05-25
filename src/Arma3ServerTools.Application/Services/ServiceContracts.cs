@@ -25,9 +25,15 @@ namespace Arma3ServerTools.Application.Services
     {
         OperationResult Start(string serverUuid);
 
+        OperationResult Start(ArmaServerConfig config);
+
         OperationResult Stop(string serverUuid);
 
+        OperationResult Stop(ArmaServerConfig config);
+
         ServerRunState GetState(string serverUuid);
+
+        ServerRunState GetState(ArmaServerConfig config);
 
         ServerRunState SyncState(string serverUuid);
 

@@ -97,13 +97,28 @@ namespace Arma3ServerTools.Application.Tests
             return OperationResult.Ok();
         }
 
+        public OperationResult Start(ArmaServerConfig config)
+        {
+            return Start(config?.ServerUUID);
+        }
+
         public OperationResult Stop(string serverUuid)
         {
             Actions.Add("Stop:" + serverUuid);
             return OperationResult.Ok();
         }
 
+        public OperationResult Stop(ArmaServerConfig config)
+        {
+            return Stop(config?.ServerUUID);
+        }
+
         public ServerRunState GetState(string serverUuid)
+        {
+            return ServerRunState.Stopped;
+        }
+
+        public ServerRunState GetState(ArmaServerConfig config)
         {
             return ServerRunState.Stopped;
         }

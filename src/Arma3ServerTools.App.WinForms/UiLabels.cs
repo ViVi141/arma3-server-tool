@@ -36,6 +36,10 @@ namespace Arma3ServerTools.App.WinForms
         public const string SyncLegendHint =
             "橙色字段 = 已修改未保存；Tab 旁 ● = 该页有未保存修改；状态栏 ◐ = 已存 JSON 但未写 server.cfg。";
 
+        public const string ConfigRefreshModePerformance = "配置读取模式：性能优先（内存）";
+
+        public const string ConfigRefreshModeCompatibility = "配置读取模式：兼容模式（手动刷新读磁盘）";
+
         public const string TabLocalDirtySuffix = " ●";
 
         public const string SaveToToolPendingMarker = " ●";

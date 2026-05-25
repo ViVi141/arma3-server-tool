@@ -4,6 +4,7 @@ using System.Threading;
 using System.Windows.Forms;
 using Arma3ServerTools.Application.Logging;
 using Arma3ServerTools.Application.Services;
+using Arma3ServerTools.Core.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Arma3ServerTools.App.WinForms.Main
@@ -13,7 +14,7 @@ namespace Arma3ServerTools.App.WinForms.Main
         private const int PollIntervalMs = 3000;
 
         private readonly IServerProcessService processService;
-        private readonly Func<IReadOnlyList<string>> getServerUuids;
+        private readonly Func<IReadOnlyList<ArmaServerConfig>> getServerConfigs;
         private readonly Action<IReadOnlyList<ServerStatePollResult>> onResultsReady;
         private readonly Control invokeTarget;
         private readonly ILogger logger;
@@ -24,7 +25,7 @@ namespace Arma3ServerTools.App.WinForms.Main
         public ServerStatePollWorker(
             IServerProcessService processService,
             Control invokeTarget,
-            Func<IReadOnlyList<string>> getServerUuids,
+            Func<IReadOnlyList<ArmaServerConfig>> getServerConfigs,
             Action<IReadOnlyList<ServerStatePollResult>> onResultsReady)
         {
             if (processService == null)
@@ -37,9 +38,9 @@ namespace Arma3ServerTools.App.WinForms.Main
                 throw new ArgumentNullException(nameof(invokeTarget));
             }
 
-            if (getServerUuids == null)
+            if (getServerConfigs == null)
             {
-                throw new ArgumentNullException(nameof(getServerUuids));
+                throw new ArgumentNullException(nameof(getServerConfigs));
             }
 
             if (onResultsReady == null)
@@ -49,7 +50,7 @@ namespace Arma3ServerTools.App.WinForms.Main
 
             this.processService = processService;
             this.invokeTarget = invokeTarget;
-            this.getServerUuids = getServerUuids;
+            this.getServerConfigs = getServerConfigs;
             this.onResultsReady = onResultsReady;
             logger = AppLogging.CreateLogger("ServerStatePollWorker");
             timer = new System.Threading.Timer(OnTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
@@ -96,23 +97,28 @@ namespace Arma3ServerTools.App.WinForms.Main
 
             try
             {
-                IReadOnlyList<string> uuids = getServerUuids();
-                if (uuids == null || uuids.Count == 0)
+                IReadOnlyList<ArmaServerConfig> configs = getServerConfigs();
+                if (configs == null || configs.Count == 0)
                 {
                     return;
                 }
 
-                var results = new List<ServerStatePollResult>(uuids.Count);
-                for (int i = 0; i < uuids.Count; i++)
+                var results = new List<ServerStatePollResult>(configs.Count);
+                for (int i = 0; i < configs.Count; i++)
                 {
-                    string uuid = uuids[i];
-                    if (string.IsNullOrEmpty(uuid))
+                    ArmaServerConfig config = configs[i];
+                    if (config == null || string.IsNullOrEmpty(config.ServerUUID))
                     {
                         continue;
                     }
 
-                    ServerRunState runState = processService.SyncState(uuid);
-                    results.Add(new ServerStatePollResult(uuid, runState));
+                    int pidBefore = config.ServerTaskManagement.ProcessById;
+                    ServerRunState runState = processService.SyncState(config);
+                    bool persistedBySyncState =
+                        pidBefore > 0
+                        && runState == ServerRunState.Stopped
+                        && config.ServerTaskManagement.ProcessById == 0;
+                    results.Add(new ServerStatePollResult(config.ServerUUID, runState, persistedBySyncState));
                 }
 
                 if (disposed || invokeTarget.IsDisposed)

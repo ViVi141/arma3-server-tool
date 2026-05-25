@@ -13,6 +13,7 @@ using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Application.Sync;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
+using Microsoft.Extensions.Logging;
 using AntButton = AntdUI.Button;
 using AntDropdown = AntdUI.Dropdown;
 using AntInput = AntdUI.Input;
@@ -53,7 +54,7 @@ namespace Arma3ServerTools.App.WinForms
         private readonly ServerConfigSnapshotTracker configSnapshots = new ServerConfigSnapshotTracker();
         private readonly SplitContainer split;
         private readonly List<ServerGridRow> serverRows = new List<ServerGridRow>();
-        private volatile string[] pollServerUuids = Array.Empty<string>();
+        private volatile ArmaServerConfig[] pollServerConfigs = Array.Empty<ArmaServerConfig>();
         private string serverSearchFilter = string.Empty;
         private ServerListSortMode serverListSortMode = ServerListSortMode.Name;
         private readonly ServerStatePollWorker statePollWorker;
@@ -187,26 +188,33 @@ namespace Arma3ServerTools.App.WinForms
             statePollWorker = new ServerStatePollWorker(
                 services.ProcessService,
                 this,
-                GetPollServerUuidsSnapshot,
+                GetPollServerConfigsSnapshot,
                 ApplyPollResults);
 
             trayController.AttachToForm(this);
         }
 
-        private IReadOnlyList<string> GetPollServerUuidsSnapshot()
+        private IReadOnlyList<ArmaServerConfig> GetPollServerConfigsSnapshot()
         {
-            return pollServerUuids;
+            return pollServerConfigs;
         }
 
-        private void RefreshPollServerUuidSnapshot()
+        private void RefreshPollConfigSnapshot()
         {
-            string[] uuids = new string[serverRows.Count];
+            ArmaServerConfig[] configs = new ArmaServerConfig[serverRows.Count];
             for (int i = 0; i < serverRows.Count; i++)
             {
-                uuids[i] = serverRows[i].ServerUuid;
+                string serverUuid = serverRows[i].ServerUuid;
+                ArmaServerConfig config;
+                if (!string.IsNullOrEmpty(serverUuid)
+                    && services.LoadedConfigs.TryGetValue(serverUuid, out config)
+                    && config != null)
+                {
+                    configs[i] = config;
+                }
             }
 
-            pollServerUuids = uuids;
+            pollServerConfigs = configs;
         }
 
         private static int ActionBarHeight
@@ -300,6 +308,8 @@ namespace Arma3ServerTools.App.WinForms
                 new AntdUI.SelectItem("copy", "复制为新建..."),
                 new AntdUI.SelectItem("delete", "删除"),
                 new AntdUI.SelectItem("refresh", "刷新列表"),
+                new AntdUI.SelectItem("modePerf", "配置读取模式：性能优先（推荐）"),
+                new AntdUI.SelectItem("modeCompat", "配置读取模式：兼容（手动刷新读磁盘）"),
                 new AntdUI.SelectItem("sep1", "-"),
                 new AntdUI.SelectItem("openConfig", "打开配置目录"),
                 new AntdUI.SelectItem("openServerConfig", "打开服务器配置目录"),
@@ -326,7 +336,15 @@ namespace Arma3ServerTools.App.WinForms
                 }
                 else if (id == "refresh")
                 {
-                    ReloadServers();
+                    ReloadServers(AppUiSettings.Instance.AllowExternalConfigRefresh);
+                }
+                else if (id == "modePerf")
+                {
+                    SetConfigRefreshMode(false);
+                }
+                else if (id == "modeCompat")
+                {
+                    SetConfigRefreshMode(true);
                 }
                 else if (id == "openConfig")
                 {
@@ -826,13 +844,32 @@ namespace Arma3ServerTools.App.WinForms
             ConfigurePageHeaderIcon();
             EnsureConfigDirectory();
             AppUiSettings.LoadFrom(services.Paths.ConfigDirectory);
+            UpdateConfigRefreshModeHint();
             settingsHost.ReloadUiSettings();
             WarnIfSteamCmdConfigLoadFailed();
             StartMonitoringHost();
-            ReloadServers();
+            ReloadServers(true);
             statePollWorker.Start();
             UiBackgroundTasks.WarmScheduler(services.SchedulerService);
             UiBackgroundTasks.WarmSteamCmdResolution(services.SteamCmdService);
+        }
+
+        private void SetConfigRefreshMode(bool allowExternalConfigRefresh)
+        {
+            AppUiSettings.Instance.AllowExternalConfigRefresh = allowExternalConfigRefresh;
+            AppUiSettings.Instance.Save(services.Paths.ConfigDirectory);
+            UpdateConfigRefreshModeHint();
+            AntdUiHelper.ShowInfo(
+                this,
+                allowExternalConfigRefresh ? UiLabels.ConfigRefreshModeCompatibility : UiLabels.ConfigRefreshModePerformance,
+                "配置读取模式");
+        }
+
+        private void UpdateConfigRefreshModeHint()
+        {
+            pageHeader.SubText = AppUiSettings.Instance.AllowExternalConfigRefresh
+                ? UiLabels.ConfigRefreshModeCompatibility
+                : UiLabels.ConfigRefreshModePerformance;
         }
 
         private void OnMainFormShown(object sender, EventArgs e)
@@ -884,24 +921,46 @@ namespace Arma3ServerTools.App.WinForms
             }
         }
 
-        private void ReloadServers()
+        private void ReloadServers(bool forceDiskReload)
         {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            int configReadCount = 0;
+            int syncStatePersistCount = 0;
             string previousUuid = services.CurrentServerUuid;
             serverRows.Clear();
-            services.LoadedConfigs.Clear();
             configSnapshots.Clear();
-            IReadOnlyDictionary<string, ArmaServerConfig> configs;
-            try
+            IEnumerable<ArmaServerConfig> configs;
+            string source;
+            if (forceDiskReload)
             {
-                configs = services.ConfigService.LoadAll();
+                IReadOnlyDictionary<string, ArmaServerConfig> loadedFromDisk;
+                try
+                {
+                    loadedFromDisk = services.ConfigService.LoadAll();
+                }
+                catch (Exception ex)
+                {
+                    AntdUiHelper.ShowError(this, "读取配置列表失败: " + ex.Message, "错误");
+                    loadedFromDisk = new Dictionary<string, ArmaServerConfig>();
+                }
+
+                configReadCount = loadedFromDisk.Count;
+                services.LoadedConfigs.Clear();
+                foreach (KeyValuePair<string, ArmaServerConfig> pair in loadedFromDisk)
+                {
+                    services.LoadedConfigs[pair.Key] = pair.Value;
+                }
+
+                configs = services.LoadedConfigs.Values;
+                source = "disk";
             }
-            catch (Exception ex)
+            else
             {
-                AntdUiHelper.ShowError(this, "读取配置列表失败: " + ex.Message, "错误");
-                configs = new Dictionary<string, ArmaServerConfig>();
+                configs = services.LoadedConfigs.Values;
+                source = "memory";
             }
 
-            IEnumerable<ArmaServerConfig> orderedConfigs = configs.Values
+            IEnumerable<ArmaServerConfig> orderedConfigs = configs
                 .Where(config => config != null && !string.IsNullOrEmpty(config.ServerUUID))
                 .OrderBy(config => config.ConfigName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(config => config.ServerUUID, StringComparer.Ordinal);
@@ -920,6 +979,10 @@ namespace Arma3ServerTools.App.WinForms
                         if (runState == ServerRunState.Stopped)
                         {
                             lifecycleCoordinator.TryResetMonitoringOnline(services.LoadedConfigs[config.ServerUUID]);
+                            if (config.ServerTaskManagement.ProcessById == 0)
+                            {
+                                syncStatePersistCount++;
+                            }
                         }
                     }
 
@@ -938,9 +1001,16 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             BindServerTable();
-            RefreshPollServerUuidSnapshot();
+            RefreshPollConfigSnapshot();
             RestoreServerSelection(previousUuid);
             UpdateRightPanelState();
+            services.Logger.LogInformation(
+                "ReloadServers completed in {ElapsedMs} ms (source={Source}, reads={ReadCount}, syncStatePersists={PersistCount}, servers={ServerCount}).",
+                stopwatch.ElapsedMilliseconds,
+                source,
+                configReadCount,
+                syncStatePersistCount,
+                serverRows.Count);
         }
 
         private void UpdateRightPanelState()
@@ -1071,7 +1141,7 @@ namespace Arma3ServerTools.App.WinForms
                 ArmaServerConfig config = services.ConfigService.Create(dialog.ConfigName, dialog.ServerDirectory);
                 services.LoadedConfigs[config.ServerUUID] = config;
                 services.CurrentServerUuid = config.ServerUUID;
-                ReloadServers();
+                ReloadServers(true);
                 SelectServer(config.ServerUUID);
             }
         }
@@ -1115,7 +1185,7 @@ namespace Arma3ServerTools.App.WinForms
                 services.ConfigService.Save(config);
                 services.LoadedConfigs[config.ServerUUID] = config;
                 CapturePersistedSnapshot(config.ServerUUID);
-                ReloadServers();
+                ReloadServers(true);
                 SelectServer(config.ServerUUID);
             }
         }
@@ -1147,7 +1217,7 @@ namespace Arma3ServerTools.App.WinForms
                     dialog.ServerDirectory);
                 services.LoadedConfigs[config.ServerUUID] = config;
                 services.CurrentServerUuid = config.ServerUUID;
-                ReloadServers();
+                ReloadServers(true);
                 SelectServer(config.ServerUUID);
                 AntdUiHelper.ShowInfo(this, "已复制配置，请检查服务器目录与端口设置。", "完成");
             }
@@ -1196,7 +1266,7 @@ namespace Arma3ServerTools.App.WinForms
             services.ConfigService.Delete(config.ServerUUID);
             services.LoadedConfigs.Remove(config.ServerUUID);
             configSnapshots.Remove(config.ServerUUID);
-            ReloadServers();
+            ReloadServers(true);
         }
 
         private void ApplyCurrentSettings()
@@ -1365,7 +1435,7 @@ namespace Arma3ServerTools.App.WinForms
                 ArmaServerConfig config = dialog.CreatedConfig;
                 services.LoadedConfigs[config.ServerUUID] = config;
                 services.CurrentServerUuid = config.ServerUUID;
-                ReloadServers();
+                ReloadServers(true);
                 SelectServer(config.ServerUUID);
                 if (dialog.AppliedConfigToServer)
                 {
@@ -1397,7 +1467,7 @@ namespace Arma3ServerTools.App.WinForms
             }
             else
             {
-                lifecycleCoordinator.SyncProcessStateToCache(config.ServerUUID);
+                lifecycleCoordinator.SyncProcessStateToCache(config);
             }
 
             RefreshSelectedRowState();
@@ -1542,10 +1612,9 @@ namespace Arma3ServerTools.App.WinForms
                     continue;
                 }
 
-                ServerRunState runState = services.ProcessService.SyncState(services.CurrentServerUuid);
-                lifecycleCoordinator.SyncProcessStateToCache(services.CurrentServerUuid);
-                serverRows[i].RunState = runState;
                 ArmaServerConfig config = services.GetCurrentConfig();
+                ServerRunState runState = services.ProcessService.SyncState(config);
+                serverRows[i].RunState = runState;
                 if (config != null)
                 {
                     serverRows[i].SaveTime = config.SaveTime;
@@ -1634,6 +1703,7 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             bool stateChanged = false;
+            int persistedBySyncStateCount = 0;
             for (int r = 0; r < results.Count; r++)
             {
                 ServerStatePollResult result = results[r];
@@ -1652,16 +1722,17 @@ namespace Arma3ServerTools.App.WinForms
                 ServerRunState previousState = row.RunState;
                 if (result.RunState == previousState)
                 {
+                    if (result.PersistedBySyncState)
+                    {
+                        persistedBySyncStateCount++;
+                    }
                     continue;
                 }
 
                 if (previousState == ServerRunState.Running && result.RunState == ServerRunState.Stopped)
                 {
                     ArmaServerConfig config;
-                    if (!services.LoadedConfigs.TryGetValue(row.ServerUuid, out config) || config == null)
-                    {
-                        config = services.ConfigService.Get(row.ServerUuid);
-                    }
+                    services.LoadedConfigs.TryGetValue(row.ServerUuid, out config);
 
                     lifecycleCoordinator.TryResetMonitoringOnline(config);
                     if (!suppressStopNotification)
@@ -1675,13 +1746,14 @@ namespace Arma3ServerTools.App.WinForms
                 }
 
                 row.RunState = result.RunState;
-                if (string.Equals(row.ServerUuid, services.CurrentServerUuid, StringComparison.Ordinal))
+                ArmaServerConfig rowConfig;
+                if (services.LoadedConfigs.TryGetValue(row.ServerUuid, out rowConfig) && rowConfig != null)
                 {
-                    lifecycleCoordinator.SyncProcessStateToCache(row.ServerUuid);
+                    row.SaveTime = rowConfig.SaveTime;
                 }
-                else
+                if (result.PersistedBySyncState)
                 {
-                    lifecycleCoordinator.RefreshCachedConfig(row.ServerUuid);
+                    persistedBySyncStateCount++;
                 }
 
                 stateChanged = true;
@@ -1710,6 +1782,13 @@ namespace Arma3ServerTools.App.WinForms
             if (!string.IsNullOrEmpty(services.CurrentServerUuid))
             {
                 settingsHost.RefreshOverview();
+            }
+
+            if (persistedBySyncStateCount > 0)
+            {
+                services.Logger.LogInformation(
+                    "Server state poll persisted stale PID cleanup for {PersistCount} server(s).",
+                    persistedBySyncStateCount);
             }
         }
 
