@@ -15,6 +15,12 @@ namespace Arma3ServerTools.App.WinForms
 
         public bool ShowAdvancedSettings { get; set; }
 
+        /// <summary>
+        /// true = compatibility mode (manual refresh reads config/*.json from disk),
+        /// false = performance-first mode (runtime uses in-memory loaded configs).
+        /// </summary>
+        public bool AllowExternalConfigRefresh { get; set; }
+
         public static void LoadFrom(string configDirectory)
         {
             instance = LoadInternal(configDirectory);
