@@ -55,9 +55,6 @@ namespace Arma3ServerTools.App.WinForms
                 return OperationResult.Fail("未选择服务器配置。");
             }
 
-            config.SetTime();
-            services.ConfigService.Save(config);
-
             OperationResult result = services.ProcessService.Start(config.ServerUUID);
             if (result.Success && config.ServerTaskManagement.EnableMonitoringService)
             {
