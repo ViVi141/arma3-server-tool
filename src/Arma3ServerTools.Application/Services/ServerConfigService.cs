@@ -42,6 +42,11 @@ namespace Arma3ServerTools.Application.Services
             return repository.List();
         }
 
+        public IReadOnlyDictionary<string, ArmaServerConfig> LoadAll()
+        {
+            return repository.LoadAll();
+        }
+
         public ArmaServerConfig Get(string serverUuid)
         {
             return repository.Get(serverUuid);

@@ -55,10 +55,7 @@ namespace Arma3ServerTools.App.WinForms
                 return OperationResult.Fail("未选择服务器配置。");
             }
 
-            config.SetTime();
-            services.ConfigService.Save(config);
-
-            OperationResult result = services.ProcessService.Start(config.ServerUUID);
+            OperationResult result = services.ProcessService.Start(config);
             if (result.Success && config.ServerTaskManagement.EnableMonitoringService)
             {
                 TryResetMonitoringOnline(config);
@@ -74,7 +71,7 @@ namespace Arma3ServerTools.App.WinForms
                 return OperationResult.Fail("未选择服务器配置。");
             }
 
-            OperationResult result = services.ProcessService.Stop(config.ServerUUID);
+            OperationResult result = services.ProcessService.Stop(config);
             if (result.Success)
             {
                 TryResetMonitoringOnline(config);
@@ -90,7 +87,7 @@ namespace Arma3ServerTools.App.WinForms
                 return new List<PreflightCheckItem>();
             }
 
-            ServerRunState runState = services.ProcessService.GetState(config.ServerUUID);
+            ServerRunState runState = services.ProcessService.GetState(config);
             return services.PreflightChecker.Check(config, runState);
         }
 
@@ -151,16 +148,25 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
-            ArmaServerConfig latest = services.ConfigService.Get(serverUuid);
             ArmaServerConfig existing;
-            if (!services.LoadedConfigs.TryGetValue(serverUuid, out existing) || existing == null)
+            if (services.LoadedConfigs.TryGetValue(serverUuid, out existing) && existing != null)
             {
-                services.LoadedConfigs[serverUuid] = latest;
+                SyncProcessStateToCache(existing);
                 return;
             }
 
-            existing.ServerTaskManagement.ProcessById = latest.ServerTaskManagement.ProcessById;
-            existing.SaveTime = latest.SaveTime;
+            ArmaServerConfig latest = services.ConfigService.Get(serverUuid);
+            services.LoadedConfigs[serverUuid] = latest;
+        }
+
+        public void SyncProcessStateToCache(ArmaServerConfig config)
+        {
+            if (config == null)
+            {
+                return;
+            }
+
+            services.ProcessService.SyncState(config);
         }
     }
 }

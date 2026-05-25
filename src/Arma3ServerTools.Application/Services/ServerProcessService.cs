@@ -27,6 +27,16 @@ namespace Arma3ServerTools.Application.Services
         public OperationResult Start(string serverUuid)
         {
             ArmaServerConfig config = configService.Get(serverUuid);
+            return Start(config);
+        }
+
+        public OperationResult Start(ArmaServerConfig config)
+        {
+            if (config == null)
+            {
+                return OperationResult.Fail("未找到服务器配置。");
+            }
+
             OperationResult writeResult = configWriter.WriteAll(config);
             if (!writeResult.Success)
             {
@@ -60,6 +70,16 @@ namespace Arma3ServerTools.Application.Services
         public OperationResult Stop(string serverUuid)
         {
             ArmaServerConfig config = configService.Get(serverUuid);
+            return Stop(config);
+        }
+
+        public OperationResult Stop(ArmaServerConfig config)
+        {
+            if (config == null)
+            {
+                return OperationResult.Fail("未找到服务器配置。");
+            }
+
             int pid = config.ServerTaskManagement.ProcessById;
             if (pid <= 0)
             {
@@ -82,12 +102,32 @@ namespace Arma3ServerTools.Application.Services
         public ServerRunState GetState(string serverUuid)
         {
             ArmaServerConfig config = configService.Get(serverUuid);
+            return GetState(config);
+        }
+
+        public ServerRunState GetState(ArmaServerConfig config)
+        {
+            if (config == null)
+            {
+                return ServerRunState.Stopped;
+            }
+
             return ResolveState(config, clearStaleProcessId: false);
         }
 
         public ServerRunState SyncState(string serverUuid)
         {
             ArmaServerConfig config = configService.Get(serverUuid);
+            return SyncState(config);
+        }
+
+        public ServerRunState SyncState(ArmaServerConfig config)
+        {
+            if (config == null)
+            {
+                return ServerRunState.Stopped;
+            }
+
             return ResolveState(config, clearStaleProcessId: true);
         }
 

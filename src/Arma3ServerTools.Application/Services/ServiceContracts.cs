@@ -8,6 +8,8 @@ namespace Arma3ServerTools.Application.Services
     {
         IReadOnlyList<ServerListItem> List();
 
+        IReadOnlyDictionary<string, ArmaServerConfig> LoadAll();
+
         ArmaServerConfig Get(string serverUuid);
 
         void Save(ArmaServerConfig config);
@@ -23,11 +25,19 @@ namespace Arma3ServerTools.Application.Services
     {
         OperationResult Start(string serverUuid);
 
+        OperationResult Start(ArmaServerConfig config);
+
         OperationResult Stop(string serverUuid);
+
+        OperationResult Stop(ArmaServerConfig config);
 
         ServerRunState GetState(string serverUuid);
 
+        ServerRunState GetState(ArmaServerConfig config);
+
         ServerRunState SyncState(string serverUuid);
+
+        ServerRunState SyncState(ArmaServerConfig config);
 
         OperationResult StartHeadlessClient(string serverUuid);
 
