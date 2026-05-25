@@ -590,6 +590,11 @@ namespace Arma3ServerTools.App.WinForms
                 return false;
             }
 
+            if (settingsHost.HasLocalEdits())
+            {
+                return true;
+            }
+
             settingsHost.ApplyAll();
             ArmaServerConfig config = services.GetCurrentConfig();
             return configSnapshots.HasChanges(uuid, config);
@@ -885,19 +890,38 @@ namespace Arma3ServerTools.App.WinForms
             serverRows.Clear();
             services.LoadedConfigs.Clear();
             configSnapshots.Clear();
-            foreach (var pair in services.ConfigService.List())
+            IReadOnlyDictionary<string, ArmaServerConfig> configs;
+            try
+            {
+                configs = services.ConfigService.LoadAll();
+            }
+            catch (Exception ex)
+            {
+                AntdUiHelper.ShowError(this, "读取配置列表失败: " + ex.Message, "错误");
+                configs = new Dictionary<string, ArmaServerConfig>();
+            }
+
+            IEnumerable<ArmaServerConfig> orderedConfigs = configs.Values
+                .Where(config => config != null && !string.IsNullOrEmpty(config.ServerUUID))
+                .OrderBy(config => config.ConfigName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(config => config.ServerUUID, StringComparer.Ordinal);
+
+            foreach (ArmaServerConfig config in orderedConfigs)
             {
                 try
                 {
-                    ArmaServerConfig config = services.ConfigService.Get(pair.ServerUuid);
                     services.LoadedConfigs[config.ServerUUID] = config;
                     configSnapshots.Capture(config.ServerUUID, config);
                     int pidBeforeSync = config.ServerTaskManagement.ProcessById;
-                    ServerRunState runState = services.ProcessService.SyncState(config.ServerUUID);
-                    lifecycleCoordinator.RefreshCachedConfig(config.ServerUUID);
-                    if (pidBeforeSync > 0 && runState == ServerRunState.Stopped)
+                    ServerRunState runState = ServerRunState.Stopped;
+                    if (pidBeforeSync > 0)
                     {
-                        lifecycleCoordinator.TryResetMonitoringOnline(services.LoadedConfigs[config.ServerUUID]);
+                        runState = services.ProcessService.SyncState(config.ServerUUID);
+                        if (runState == ServerRunState.Stopped)
+                        {
+                            lifecycleCoordinator.RefreshCachedConfig(config.ServerUUID);
+                            lifecycleCoordinator.TryResetMonitoringOnline(services.LoadedConfigs[config.ServerUUID]);
+                        }
                     }
 
                     serverRows.Add(new ServerGridRow
@@ -910,7 +934,7 @@ namespace Arma3ServerTools.App.WinForms
                 }
                 catch (Exception ex)
                 {
-                    AntdUiHelper.ShowError(this, "读取配置失败 [" + pair.FileName + "]: " + ex.Message, "错误");
+                    AntdUiHelper.ShowError(this, "读取配置失败 [" + config.ServerUUID + "]: " + ex.Message, "错误");
                 }
             }
 
@@ -1561,17 +1585,18 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
-            settingsHost.ApplyAll();
-            ArmaServerConfig current = services.GetCurrentConfig();
-            if (current == null)
+            if (settingsHost.HasLocalEdits())
             {
-                current = config;
+                settingsHost.UpdateSyncIndicators(ConfigSyncState.Unsaved);
+                UpdateStatusBar(config, ConfigSyncState.Unsaved);
+                UpdateActionButtonMarkers(ConfigSyncState.Unsaved);
+                return;
             }
 
             ConfigSyncState state = ConfigSyncStateEvaluator.Evaluate(
                 configSnapshots,
                 config.ServerUUID,
-                current);
+                config);
             settingsHost.UpdateSyncIndicators(state);
             UpdateStatusBar(config, state);
             UpdateActionButtonMarkers(state);

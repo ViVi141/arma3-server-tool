@@ -8,6 +8,8 @@ namespace Arma3ServerTools.Application.Services
     {
         IReadOnlyList<ServerListItem> List();
 
+        IReadOnlyDictionary<string, ArmaServerConfig> LoadAll();
+
         ArmaServerConfig Get(string serverUuid);
 
         void Save(ArmaServerConfig config);
