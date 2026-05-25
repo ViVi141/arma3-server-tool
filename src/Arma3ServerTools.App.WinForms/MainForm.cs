@@ -10,6 +10,7 @@ using Arma3ServerTools.App.WinForms.Controls;
 using Arma3ServerTools.App.WinForms.Dialogs;
 using Arma3ServerTools.App.WinForms.Main;
 using Arma3ServerTools.Application.Services;
+using Arma3ServerTools.Application.Sync;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using AntButton = AntdUI.Button;
@@ -52,9 +53,10 @@ namespace Arma3ServerTools.App.WinForms
         private readonly ServerConfigSnapshotTracker configSnapshots = new ServerConfigSnapshotTracker();
         private readonly SplitContainer split;
         private readonly List<ServerGridRow> serverRows = new List<ServerGridRow>();
+        private volatile string[] pollServerUuids = Array.Empty<string>();
         private string serverSearchFilter = string.Empty;
         private ServerListSortMode serverListSortMode = ServerListSortMode.Name;
-        private readonly System.Windows.Forms.Timer statePollTimer;
+        private readonly ServerStatePollWorker statePollWorker;
         private bool suppressStopNotification;
         private bool suppressTableSelectionEvent;
 
@@ -120,6 +122,7 @@ namespace Arma3ServerTools.App.WinForms
             serverSearchInput = CreateServerSearchInput();
             settingsHost = new ServerSettingsHost(services);
             settingsHost.SyncIndicatorsChanged += OnSettingsSyncIndicatorsChanged;
+            settingsHost.ExternalConfigSaved += OnExternalPanelConfigSaved;
             emptyServerGuidePanel = new EmptyServerGuidePanel();
             emptyServerGuidePanel.FirstServerWizardRequested += OnQuickSetupWizard;
             emptyServerGuidePanel.NewServerRequested += OnNewServer;
@@ -181,11 +184,29 @@ namespace Arma3ServerTools.App.WinForms
             KeyPreview = true;
             KeyDown += OnMainFormKeyDown;
 
-            statePollTimer = new System.Windows.Forms.Timer();
-            statePollTimer.Interval = 3000;
-            statePollTimer.Tick += OnStatePollTimerTick;
+            statePollWorker = new ServerStatePollWorker(
+                services.ProcessService,
+                this,
+                GetPollServerUuidsSnapshot,
+                ApplyPollResults);
 
             trayController.AttachToForm(this);
+        }
+
+        private IReadOnlyList<string> GetPollServerUuidsSnapshot()
+        {
+            return pollServerUuids;
+        }
+
+        private void RefreshPollServerUuidSnapshot()
+        {
+            string[] uuids = new string[serverRows.Count];
+            for (int i = 0; i < serverRows.Count; i++)
+            {
+                uuids[i] = serverRows[i].ServerUuid;
+            }
+
+            pollServerUuids = uuids;
         }
 
         private static int ActionBarHeight
@@ -558,6 +579,7 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             UiBackgroundTasks.ShutdownScheduler(services.SchedulerService);
+            statePollWorker.Stop();
         }
 
         private bool HasUnsavedChanges()
@@ -788,8 +810,7 @@ namespace Arma3ServerTools.App.WinForms
 
         private void OnMainFormClosed(object sender, FormClosedEventArgs e)
         {
-            statePollTimer.Stop();
-            statePollTimer.Dispose();
+            statePollWorker.Dispose();
             trayController.Dispose();
 
             MonitoringHostLauncher.StopStartedHost();
@@ -801,9 +822,10 @@ namespace Arma3ServerTools.App.WinForms
             EnsureConfigDirectory();
             AppUiSettings.LoadFrom(services.Paths.ConfigDirectory);
             settingsHost.ReloadUiSettings();
+            WarnIfSteamCmdConfigLoadFailed();
             StartMonitoringHost();
             ReloadServers();
-            statePollTimer.Start();
+            statePollWorker.Start();
             UiBackgroundTasks.WarmScheduler(services.SchedulerService);
             UiBackgroundTasks.WarmSteamCmdResolution(services.SteamCmdService);
         }
@@ -829,6 +851,16 @@ namespace Arma3ServerTools.App.WinForms
         private void EnsureConfigDirectory()
         {
             Directory.CreateDirectory(services.Paths.ConfigDirectory);
+        }
+
+        private void WarnIfSteamCmdConfigLoadFailed()
+        {
+            services.GetSteamCmdSettings();
+            string warning = services.SteamCmdConfigProvider.LastLoadWarning;
+            if (!string.IsNullOrEmpty(warning))
+            {
+                AntdUiHelper.ShowWarning(this, warning, "SteamCMD 配置");
+            }
         }
 
         private void StartMonitoringHost()
@@ -883,6 +915,7 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             BindServerTable();
+            RefreshPollServerUuidSnapshot();
             RestoreServerSelection(previousUuid);
             UpdateRightPanelState();
         }
@@ -1218,20 +1251,20 @@ namespace Arma3ServerTools.App.WinForms
             OperationResult writeResult = await Task.Run(() => lifecycleCoordinator.WriteConfigFiles(config))
                 .ConfigureAwait(true);
 
-            SyncSchedulerJobs(config);
-            CapturePersistedSnapshot(config.ServerUUID);
-            if (writeResult.Success)
-            {
-                CaptureServerAppliedSnapshot(config.ServerUUID);
-                settingsHost.ClearDirtyMarkers();
-                RefreshConfigSyncIndicators();
-                RefreshSelectedRowState();
-                AntdUiHelper.ShowInfo(this, UiLabels.ApplyToServerSuccess, "成功");
-            }
-            else
+            if (!writeResult.Success)
             {
                 AntdUiHelper.ShowError(this, writeResult.Message, "失败");
+                RefreshConfigSyncIndicators();
+                return;
             }
+
+            SyncSchedulerJobs(config);
+            CapturePersistedSnapshot(config.ServerUUID);
+            CaptureServerAppliedSnapshot(config.ServerUUID);
+            settingsHost.ClearDirtyMarkers();
+            RefreshConfigSyncIndicators();
+            RefreshSelectedRowState();
+            AntdUiHelper.ShowInfo(this, UiLabels.ApplyToServerSuccess, "成功");
         }
 
         private async Task StartServerAsync()
@@ -1507,6 +1540,18 @@ namespace Arma3ServerTools.App.WinForms
             RefreshConfigSyncIndicators();
         }
 
+        private void OnExternalPanelConfigSaved(object sender, EventArgs e)
+        {
+            ArmaServerConfig config = services.GetCurrentConfig();
+            if (config == null)
+            {
+                return;
+            }
+
+            CapturePersistedSnapshot(config.ServerUUID);
+            RefreshConfigSyncIndicators();
+        }
+
         private void RefreshConfigSyncIndicators()
         {
             ArmaServerConfig config = services.GetCurrentConfig();
@@ -1547,27 +1592,32 @@ namespace Arma3ServerTools.App.WinForms
             }
         }
 
-        private void OnStatePollTimerTick(object sender, EventArgs e)
+        private void ApplyPollResults(IReadOnlyList<ServerStatePollResult> results)
         {
-            PollAllServerStates();
-        }
-
-        private void PollAllServerStates()
-        {
-            if (serverRows.Count == 0)
+            if (results == null || results.Count == 0 || serverRows.Count == 0)
             {
                 return;
             }
 
             bool stateChanged = false;
-            for (int i = 0; i < serverRows.Count; i++)
+            for (int r = 0; r < results.Count; r++)
             {
-                ServerGridRow row = serverRows[i];
-                ServerRunState previousState = row.RunState;
-                ServerRunState currentState = services.ProcessService.SyncState(row.ServerUuid);
-                if (currentState != previousState)
+                ServerStatePollResult result = results[r];
+                for (int i = 0; i < serverRows.Count; i++)
                 {
-                    if (previousState == ServerRunState.Running && currentState == ServerRunState.Stopped)
+                    ServerGridRow row = serverRows[i];
+                    if (!string.Equals(row.ServerUuid, result.ServerUuid, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    ServerRunState previousState = row.RunState;
+                    if (result.RunState == previousState)
+                    {
+                        break;
+                    }
+
+                    if (previousState == ServerRunState.Running && result.RunState == ServerRunState.Stopped)
                     {
                         ArmaServerConfig config = services.ConfigService.Get(row.ServerUuid);
                         lifecycleCoordinator.TryResetMonitoringOnline(config);
@@ -1581,7 +1631,7 @@ namespace Arma3ServerTools.App.WinForms
                         }
                     }
 
-                    row.RunState = currentState;
+                    row.RunState = result.RunState;
                     if (string.Equals(row.ServerUuid, services.CurrentServerUuid, StringComparison.Ordinal))
                     {
                         lifecycleCoordinator.SyncProcessStateToCache(row.ServerUuid);
@@ -1592,6 +1642,7 @@ namespace Arma3ServerTools.App.WinForms
                     }
 
                     stateChanged = true;
+                    break;
                 }
             }
 
@@ -1644,8 +1695,8 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             statusServerLabel.Text = "当前服务器: " + config.ConfigName + " (" + config.ServerUUID + ")";
-            statusSaveLabel.Text = ConfigSyncStateEvaluator.GetStatusText(state, config.SaveTime);
-            statusSaveLabel.ForeColor = ConfigSyncStateEvaluator.GetStatusColor(state);
+            statusSaveLabel.Text = ConfigSyncStateUi.GetStatusText(state, config.SaveTime);
+            statusSaveLabel.ForeColor = ConfigSyncStateUi.GetStatusColor(state);
         }
 
         private void ShowServerStoppedNotification(ServerGridRow row, ArmaServerConfig config)

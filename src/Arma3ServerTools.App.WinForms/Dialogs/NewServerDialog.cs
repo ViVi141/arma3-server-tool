@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms.Controls;
+using Arma3ServerTools.Core.Validation;
 using AntButton = AntdUI.Button;
 using AntInput = AntdUI.Input;
 
@@ -32,11 +33,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             SettingsLayoutHelper.AddRow(layout, "服务器目录", dirPanel);
 
             AntButton okButton = AntdUiHelper.CreatePrimaryButton("确定");
-            okButton.Click += delegate
-            {
-                DialogResult = DialogResult.OK;
-                Close();
-            };
+            okButton.Click += OnConfirm;
             AntButton cancelButton = AntdUiHelper.CreateToolbarButton("取消");
             cancelButton.Click += delegate
             {
@@ -48,6 +45,34 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
             Controls.Add(body);
             Controls.Add(CreateButtonBar(okButton, cancelButton));
+        }
+
+        private void OnConfirm(object sender, System.EventArgs e)
+        {
+            if (!TryValidateServerDirectory())
+            {
+                return;
+            }
+
+            DialogResult = DialogResult.OK;
+            Close();
+        }
+
+        private bool TryValidateServerDirectory()
+        {
+            string directory = dirInput.Text.Trim();
+            if (string.IsNullOrEmpty(directory))
+            {
+                return true;
+            }
+
+            if (PathValidation.ContainsChinese(directory))
+            {
+                AntdUiHelper.ShowWarning(this, UiLabels.PathRulesShort, "路径无效");
+                return false;
+            }
+
+            return true;
         }
 
         private void OnBrowseDirectory(object sender, System.EventArgs e)

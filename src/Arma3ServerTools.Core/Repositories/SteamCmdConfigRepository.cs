@@ -16,12 +16,12 @@ namespace Arma3ServerTools.Core.Repositories
             this.paths = paths;
         }
 
-        public SteamcmdEntity Load()
+        public SteamCmdLoadResult Load()
         {
             string filePath = GetFilePath();
             if (!File.Exists(filePath))
             {
-                return new SteamcmdEntity();
+                return SteamCmdLoadResult.MissingFile();
             }
 
             try
@@ -31,7 +31,7 @@ namespace Arma3ServerTools.Core.Repositories
                 SteamcmdEntity entity = JsonSerializer.FromJson<SteamcmdEntity>(json);
                 if (entity == null)
                 {
-                    return new SteamcmdEntity();
+                    return SteamCmdLoadResult.Failed("SteamCMD 配置文件解析结果为空: " + filePath);
                 }
 
                 if (SecretProtector.UsesLegacyFormat(stored))
@@ -39,11 +39,12 @@ namespace Arma3ServerTools.Core.Repositories
                     Save(entity);
                 }
 
-                return entity;
+                return SteamCmdLoadResult.Ok(entity);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return new SteamcmdEntity();
+                return SteamCmdLoadResult.Failed(
+                    "读取 SteamCMD 配置失败，已使用空白配置。文件: " + filePath + "。原因: " + ex.Message);
             }
         }
 

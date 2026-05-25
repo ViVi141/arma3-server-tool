@@ -120,5 +120,10 @@ namespace Arma3ServerTools.Application.Services
         SteamcmdEntity GetSettings();
 
         void SaveSettings(SteamcmdEntity settings);
+
+        /// <summary>
+        /// When the last <see cref="GetSettings"/> had to fall back due to load/decrypt failure.
+        /// </summary>
+        string LastLoadWarning { get; }
     }
 }

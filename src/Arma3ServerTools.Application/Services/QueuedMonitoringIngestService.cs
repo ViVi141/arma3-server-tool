@@ -3,7 +3,9 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Arma3ServerTools.Application.Logging;
 using Arma3ServerTools.Application.Monitoring;
+using Microsoft.Extensions.Logging;
 
 namespace Arma3ServerTools.Application.Services
 {
@@ -13,6 +15,7 @@ namespace Arma3ServerTools.Application.Services
         private readonly BlockingCollection<string> queue;
         private readonly CancellationTokenSource cancellation;
         private readonly Task worker;
+        private readonly ILogger logger;
         private bool disposed;
 
         public QueuedMonitoringIngestService(MonitoringDatabase database)
@@ -20,6 +23,7 @@ namespace Arma3ServerTools.Application.Services
             inner = new MonitoringIngestService(database);
             queue = new BlockingCollection<string>();
             cancellation = new CancellationTokenSource();
+            logger = AppLogging.CreateLogger("QueuedMonitoringIngestService");
             worker = Task.Run(ProcessLoop);
         }
 
@@ -62,13 +66,15 @@ namespace Arma3ServerTools.Application.Services
                     {
                         inner.Ingest(message);
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        logger.LogWarning(ex, "Failed to ingest monitoring message.");
                     }
                 }
             }
-            catch (InvalidOperationException)
+            catch (InvalidOperationException ex)
             {
+                logger.LogDebug(ex, "Monitoring ingest queue completed.");
             }
         }
     }
