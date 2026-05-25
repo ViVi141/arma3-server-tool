@@ -1624,51 +1624,68 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
+            var rowIndexByUuid = new Dictionary<string, int>(serverRows.Count, StringComparer.Ordinal);
+            for (int i = 0; i < serverRows.Count; i++)
+            {
+                string serverUuid = serverRows[i].ServerUuid;
+                if (!string.IsNullOrEmpty(serverUuid) && !rowIndexByUuid.ContainsKey(serverUuid))
+                {
+                    rowIndexByUuid[serverUuid] = i;
+                }
+            }
+
             bool stateChanged = false;
             for (int r = 0; r < results.Count; r++)
             {
                 ServerStatePollResult result = results[r];
-                for (int i = 0; i < serverRows.Count; i++)
+                if (string.IsNullOrEmpty(result.ServerUuid))
                 {
-                    ServerGridRow row = serverRows[i];
-                    if (!string.Equals(row.ServerUuid, result.ServerUuid, StringComparison.Ordinal))
+                    continue;
+                }
+
+                int rowIndex;
+                if (!rowIndexByUuid.TryGetValue(result.ServerUuid, out rowIndex))
+                {
+                    continue;
+                }
+
+                ServerGridRow row = serverRows[rowIndex];
+                ServerRunState previousState = row.RunState;
+                if (result.RunState == previousState)
+                {
+                    continue;
+                }
+
+                if (previousState == ServerRunState.Running && result.RunState == ServerRunState.Stopped)
+                {
+                    ArmaServerConfig config;
+                    if (!services.LoadedConfigs.TryGetValue(row.ServerUuid, out config) || config == null)
                     {
-                        continue;
+                        config = services.ConfigService.Get(row.ServerUuid);
                     }
 
-                    ServerRunState previousState = row.RunState;
-                    if (result.RunState == previousState)
+                    lifecycleCoordinator.TryResetMonitoringOnline(config);
+                    if (!suppressStopNotification)
                     {
-                        break;
-                    }
-
-                    if (previousState == ServerRunState.Running && result.RunState == ServerRunState.Stopped)
-                    {
-                        ArmaServerConfig config = services.ConfigService.Get(row.ServerUuid);
-                        lifecycleCoordinator.TryResetMonitoringOnline(config);
-                        if (!suppressStopNotification)
-                        {
-                            ShowServerStoppedNotification(row, config);
-                        }
-                        else
-                        {
-                            suppressStopNotification = false;
-                        }
-                    }
-
-                    row.RunState = result.RunState;
-                    if (string.Equals(row.ServerUuid, services.CurrentServerUuid, StringComparison.Ordinal))
-                    {
-                        lifecycleCoordinator.SyncProcessStateToCache(row.ServerUuid);
+                        ShowServerStoppedNotification(row, config);
                     }
                     else
                     {
-                        lifecycleCoordinator.RefreshCachedConfig(row.ServerUuid);
+                        suppressStopNotification = false;
                     }
-
-                    stateChanged = true;
-                    break;
                 }
+
+                row.RunState = result.RunState;
+                if (string.Equals(row.ServerUuid, services.CurrentServerUuid, StringComparison.Ordinal))
+                {
+                    lifecycleCoordinator.SyncProcessStateToCache(row.ServerUuid);
+                }
+                else
+                {
+                    lifecycleCoordinator.RefreshCachedConfig(row.ServerUuid);
+                }
+
+                stateChanged = true;
             }
 
             if (stateChanged)
