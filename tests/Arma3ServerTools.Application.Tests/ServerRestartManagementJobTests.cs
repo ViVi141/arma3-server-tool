@@ -113,6 +113,11 @@ namespace Arma3ServerTools.Application.Tests
             return ServerRunState.Stopped;
         }
 
+        public ServerRunState SyncState(ArmaServerConfig config)
+        {
+            return ServerRunState.Stopped;
+        }
+
         public OperationResult StartHeadlessClient(string serverUuid)
         {
             Actions.Add("StartHeadlessClient:" + serverUuid);

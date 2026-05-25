@@ -916,10 +916,9 @@ namespace Arma3ServerTools.App.WinForms
                     ServerRunState runState = ServerRunState.Stopped;
                     if (pidBeforeSync > 0)
                     {
-                        runState = services.ProcessService.SyncState(config.ServerUUID);
+                        runState = services.ProcessService.SyncState(config);
                         if (runState == ServerRunState.Stopped)
                         {
-                            lifecycleCoordinator.RefreshCachedConfig(config.ServerUUID);
                             lifecycleCoordinator.TryResetMonitoringOnline(services.LoadedConfigs[config.ServerUUID]);
                         }
                     }

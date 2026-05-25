@@ -88,6 +88,16 @@ namespace Arma3ServerTools.Application.Services
         public ServerRunState SyncState(string serverUuid)
         {
             ArmaServerConfig config = configService.Get(serverUuid);
+            return SyncState(config);
+        }
+
+        public ServerRunState SyncState(ArmaServerConfig config)
+        {
+            if (config == null)
+            {
+                return ServerRunState.Stopped;
+            }
+
             return ResolveState(config, clearStaleProcessId: true);
         }
 
