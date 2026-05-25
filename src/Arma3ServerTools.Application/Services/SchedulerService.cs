@@ -11,45 +11,84 @@ namespace Arma3ServerTools.Application.Services
     public sealed class SchedulerService : ISchedulerService
     {
         private readonly IServerProcessService processService;
+        private readonly object schedulerLock = new object();
         private IScheduler scheduler;
+        private Task startTask;
 
         public SchedulerService(IServerProcessService processService)
         {
             this.processService = processService;
         }
 
-        public async Task StartAsync()
+        public Task StartAsync()
         {
-            if (scheduler != null)
+            lock (schedulerLock)
             {
-                return;
-            }
+                if (scheduler != null)
+                {
+                    return Task.CompletedTask;
+                }
 
+                if (startTask != null)
+                {
+                    return startTask;
+                }
+
+                startTask = StartSchedulerCoreAsync();
+                return startTask;
+            }
+        }
+
+        private async Task StartSchedulerCoreAsync()
+        {
             ISchedulerFactory factory = new StdSchedulerFactory();
-            scheduler = await factory.GetScheduler().ConfigureAwait(false);
-            await scheduler.Start().ConfigureAwait(false);
+            IScheduler created = await factory.GetScheduler().ConfigureAwait(false);
+            await created.Start().ConfigureAwait(false);
+
+            lock (schedulerLock)
+            {
+                scheduler = created;
+            }
         }
 
         public async Task StopAsync()
         {
-            if (scheduler == null)
+            IScheduler toShutdown;
+            lock (schedulerLock)
+            {
+                toShutdown = scheduler;
+                scheduler = null;
+                startTask = null;
+            }
+
+            if (toShutdown == null)
             {
                 return;
             }
 
-            await scheduler.Shutdown(false).ConfigureAwait(false);
-            scheduler = null;
+            await toShutdown.Shutdown(false).ConfigureAwait(false);
         }
 
         public async Task SyncJobsAsync(string serverUuid, IDictionary<string, CronEntity> crons)
         {
             await StartAsync().ConfigureAwait(false);
 
-            var existingKeys = await scheduler.GetJobKeys(Quartz.Impl.Matchers.GroupMatcher<JobKey>.GroupEquals(serverUuid))
+            IScheduler activeScheduler;
+            lock (schedulerLock)
+            {
+                activeScheduler = scheduler;
+            }
+
+            if (activeScheduler == null)
+            {
+                return;
+            }
+
+            var existingKeys = await activeScheduler.GetJobKeys(Quartz.Impl.Matchers.GroupMatcher<JobKey>.GroupEquals(serverUuid))
                 .ConfigureAwait(false);
             foreach (JobKey jobKey in existingKeys)
             {
-                await scheduler.DeleteJob(jobKey).ConfigureAwait(false);
+                await activeScheduler.DeleteJob(jobKey).ConfigureAwait(false);
             }
 
             if (crons == null)
@@ -83,19 +122,26 @@ namespace Arma3ServerTools.Application.Services
                     .ForJob(job)
                     .Build();
 
-                await scheduler.ScheduleJob(job, trigger).ConfigureAwait(false);
+                await activeScheduler.ScheduleJob(job, trigger).ConfigureAwait(false);
             }
         }
 
         public async Task<string> GetNextFireSummaryAsync(string serverUuid)
         {
             await StartAsync().ConfigureAwait(false);
-            if (scheduler == null)
+
+            IScheduler activeScheduler;
+            lock (schedulerLock)
+            {
+                activeScheduler = scheduler;
+            }
+
+            if (activeScheduler == null)
             {
                 return string.Empty;
             }
 
-            var triggerKeys = await scheduler
+            var triggerKeys = await activeScheduler
                 .GetTriggerKeys(Quartz.Impl.Matchers.GroupMatcher<TriggerKey>.GroupEquals(serverUuid))
                 .ConfigureAwait(false);
             if (triggerKeys == null || triggerKeys.Count == 0)
@@ -106,7 +152,7 @@ namespace Arma3ServerTools.Application.Services
             DateTimeOffset? earliest = null;
             foreach (TriggerKey triggerKey in triggerKeys)
             {
-                ITrigger trigger = await scheduler.GetTrigger(triggerKey).ConfigureAwait(false);
+                ITrigger trigger = await activeScheduler.GetTrigger(triggerKey).ConfigureAwait(false);
                 if (trigger == null)
                 {
                     continue;

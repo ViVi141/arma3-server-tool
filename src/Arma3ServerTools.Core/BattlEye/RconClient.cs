@@ -278,6 +278,11 @@ namespace BytexDigital.BattlEye.Rcon
 
             var response = loginRequest.Response as LoginNetworkResponse;
 
+            if (response == null)
+            {
+                return false;
+            }
+
             if (response.Success)
             {
                 _networkConnection.BeginHeartbeat();

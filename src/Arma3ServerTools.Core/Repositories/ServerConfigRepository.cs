@@ -5,6 +5,7 @@ using System.Linq;
 using Arma3ServerTools.Core.Config;
 using Arma3ServerTools.Core.IO;
 using Arma3ServerTools.Core.Models;
+using Arma3ServerTools.Core.Security;
 
 namespace Arma3ServerTools.Core.Repositories
 {
@@ -14,6 +15,7 @@ namespace Arma3ServerTools.Core.Repositories
     public sealed class ServerConfigRepository
     {
         private readonly IAppPaths paths;
+        private readonly object fileLock = new object();
 
         public ServerConfigRepository(IAppPaths paths)
         {
@@ -22,13 +24,97 @@ namespace Arma3ServerTools.Core.Repositories
 
         public IReadOnlyList<ServerListItem> List()
         {
-            return LoadAll()
-                .Select(pair => ToListItem(pair.Value))
-                .OrderBy(item => item.ConfigName)
-                .ToList();
+            lock (fileLock)
+            {
+                return LoadAll()
+                    .Select(pair => ToListItem(pair.Value))
+                    .OrderBy(item => item.ConfigName)
+                    .ToList();
+            }
         }
 
         public IReadOnlyDictionary<string, ArmaServerConfig> LoadAll()
+        {
+            lock (fileLock)
+            {
+                return LoadAllCore();
+            }
+        }
+
+        public ArmaServerConfig Get(string serverUuid)
+        {
+            lock (fileLock)
+            {
+                if (string.IsNullOrEmpty(serverUuid))
+                {
+                    throw new ConfigException("服务器 UUID 不能为空。");
+                }
+
+                string filePath = GetFilePath(serverUuid);
+                if (!File.Exists(filePath))
+                {
+                    throw new ConfigException("找不到服务器配置: " + serverUuid);
+                }
+
+                return LoadFile(filePath);
+            }
+        }
+
+        public void Save(ArmaServerConfig config)
+        {
+            lock (fileLock)
+            {
+                if (config == null)
+                {
+                    throw new ConfigException("配置不能为空。");
+                }
+
+                if (string.IsNullOrEmpty(config.ServerUUID))
+                {
+                    throw new ConfigException("服务器 UUID 不能为空。");
+                }
+
+                config.SetTime();
+                Directory.CreateDirectory(paths.ConfigDirectory);
+                string filePath = GetFilePath(config.ServerUUID);
+                ServerConfigSecretProtector.ProtectSecrets(config);
+                try
+                {
+                    File.WriteAllText(filePath, JsonSerializer.ToJson(config), GameConfigFormat.Utf8NoBom);
+                }
+                finally
+                {
+                    ServerConfigSecretProtector.UnprotectSecrets(config);
+                }
+            }
+        }
+
+        public void Delete(string serverUuid)
+        {
+            lock (fileLock)
+            {
+                if (string.IsNullOrEmpty(serverUuid))
+                {
+                    throw new ConfigException("服务器 UUID 不能为空。");
+                }
+
+                string filePath = GetFilePath(serverUuid);
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
+        }
+
+        public bool Exists(string serverUuid)
+        {
+            lock (fileLock)
+            {
+                return File.Exists(GetFilePath(serverUuid));
+            }
+        }
+
+        private IReadOnlyDictionary<string, ArmaServerConfig> LoadAllCore()
         {
             var result = new Dictionary<string, ArmaServerConfig>(StringComparer.Ordinal);
             if (!Directory.Exists(paths.ConfigDirectory))
@@ -50,65 +136,18 @@ namespace Arma3ServerTools.Core.Repositories
             return result;
         }
 
-        public ArmaServerConfig Get(string serverUuid)
-        {
-            if (string.IsNullOrEmpty(serverUuid))
-            {
-                throw new ConfigException("服务器 UUID 不能为空。");
-            }
-
-            string filePath = GetFilePath(serverUuid);
-            if (!File.Exists(filePath))
-            {
-                throw new ConfigException("找不到服务器配置: " + serverUuid);
-            }
-
-            return LoadFile(filePath);
-        }
-
-        public void Save(ArmaServerConfig config)
-        {
-            if (config == null)
-            {
-                throw new ConfigException("配置不能为空。");
-            }
-
-            if (string.IsNullOrEmpty(config.ServerUUID))
-            {
-                throw new ConfigException("服务器 UUID 不能为空。");
-            }
-
-            config.SetTime();
-            Directory.CreateDirectory(paths.ConfigDirectory);
-            string filePath = GetFilePath(config.ServerUUID);
-            File.WriteAllText(filePath, JsonSerializer.ToJson(config), GameConfigFormat.Utf8NoBom);
-        }
-
-        public void Delete(string serverUuid)
-        {
-            if (string.IsNullOrEmpty(serverUuid))
-            {
-                throw new ConfigException("服务器 UUID 不能为空。");
-            }
-
-            string filePath = GetFilePath(serverUuid);
-            if (File.Exists(filePath))
-            {
-                File.Delete(filePath);
-            }
-        }
-
-        public bool Exists(string serverUuid)
-        {
-            return File.Exists(GetFilePath(serverUuid));
-        }
-
         private ArmaServerConfig LoadFile(string filePath)
         {
             try
             {
                 string json = File.ReadAllText(filePath, GameConfigFormat.Utf8NoBom);
-                return JsonSerializer.FromJson<ArmaServerConfig>(json);
+                ArmaServerConfig config = JsonSerializer.FromJson<ArmaServerConfig>(json);
+                if (config != null)
+                {
+                    ServerConfigSecretProtector.UnprotectSecrets(config);
+                }
+
+                return config;
             }
             catch (Exception ex)
             {

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
+using Arma3ServerTools.Application.Sync;
 using Arma3ServerTools.Core.Models;
 using AntLabel = AntdUI.Label;
 using AntTabs = AntdUI.Tabs;
@@ -42,6 +43,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
         public ServerOverviewPanel OverviewPanel { get; private set; }
 
         public event EventHandler SyncIndicatorsChanged;
+
+        public event EventHandler ExternalConfigSaved;
 
         public ServerSettingsHost(IAppServices appServices)
         {
@@ -84,13 +87,28 @@ namespace Arma3ServerTools.App.WinForms.Controls
             RegisterTab("日志", new LogSettingsPanel(), true);
             RegisterTab("定时", new CronTasksPanel(appServices), true);
             RegisterTab("统计", new StatisticsManagementPanel(appServices), true);
-            RegisterTab(UiLabels.RemoteControlTab, new RconManagementPanel(appServices), false);
+            RegisterTab(UiLabels.RemoteControlTab, CreateRconPanel(appServices), false);
             RegisterTab("封禁", new BansPanel(appServices), false);
 
             Controls.Add(tabs);
             Controls.Add(topBar);
             Load += OnHostLoad;
             RebuildVisibleTabs();
+        }
+
+        private RconManagementPanel CreateRconPanel(IAppServices services)
+        {
+            var panel = new RconManagementPanel(services);
+            panel.ConfigSaved += OnExternalPanelConfigSaved;
+            return panel;
+        }
+
+        private void OnExternalPanelConfigSaved(object sender, EventArgs e)
+        {
+            if (ExternalConfigSaved != null)
+            {
+                ExternalConfigSaved(this, EventArgs.Empty);
+            }
         }
 
         public void Bind(ArmaServerConfig config)
@@ -134,12 +152,28 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         public void ApplyAll()
         {
-            foreach (IServerSettingsPanel panel in applyPanels)
+            if (currentConfig == null)
             {
-                if (uiSyncedPanels.Contains(panel))
+                return;
+            }
+
+            dirtyTracker.EnterSuppress();
+            try
+            {
+                foreach (IServerSettingsPanel panel in applyPanels)
                 {
+                    if (!uiSyncedPanels.Contains(panel))
+                    {
+                        panel.Bind(currentConfig);
+                        uiSyncedPanels.Add(panel);
+                    }
+
                     panel.ApplyToModel();
                 }
+            }
+            finally
+            {
+                dirtyTracker.ExitSuppress();
             }
         }
 

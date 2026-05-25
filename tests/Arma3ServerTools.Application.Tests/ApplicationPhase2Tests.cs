@@ -500,5 +500,10 @@ namespace Arma3ServerTools.Application.Tests
         public void SaveSettings(SteamcmdEntity entity)
         {
         }
+
+        public string LastLoadWarning
+        {
+            get { return null; }
+        }
     }
 }

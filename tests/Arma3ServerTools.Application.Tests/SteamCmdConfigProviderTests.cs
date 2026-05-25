@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
@@ -43,6 +44,27 @@ namespace Arma3ServerTools.Application.Tests
                 SteamcmdEntity secondRead = provider.GetSettings();
                 Assert.Equal("user-b", secondRead.u);
                 Assert.Equal("pass-b", secondRead.p);
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+
+        [Fact]
+        public void GetSettings_CorruptFile_SetsLastLoadWarning()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3-steamcfg-corrupt");
+            try
+            {
+                var paths = new AppPaths(root);
+                var repository = new SteamCmdConfigRepository(paths);
+                var provider = new SteamCmdConfigProvider(paths, repository);
+                File.WriteAllText(Path.Combine(root, "data.json"), "corrupt-data");
+
+                SteamcmdEntity settings = provider.GetSettings();
+                Assert.NotNull(settings);
+                Assert.False(string.IsNullOrEmpty(provider.LastLoadWarning));
             }
             finally
             {

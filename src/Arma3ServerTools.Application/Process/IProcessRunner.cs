@@ -61,7 +61,9 @@ namespace Arma3ServerTools.Application.ProcessManagement
                     return ProcessStartResult.Fail("进程启动返回 null。");
                 }
 
-                return ProcessStartResult.Ok(process.Id);
+                int processId = process.Id;
+                process.Dispose();
+                return ProcessStartResult.Ok(processId);
             }
             catch (System.Exception ex)
             {

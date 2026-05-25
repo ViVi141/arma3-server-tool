@@ -46,6 +46,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
     internal sealed class RconManagementPanel : UserControl, IServerSettingsPanel
     {
+        public event EventHandler ConfigSaved;
+
         private readonly IAppServices appServices;
         private readonly AntdUI.Button connectButton;
         private readonly AntdUI.Button refreshPlayersButton;
@@ -111,7 +113,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             toolbar.Controls.Add(syncPlayersButton);
             toolbar.Controls.Add(changePasswordButton);
 
-            newRconPasswordInput = SettingsLayoutHelper.CreateInput(true);
+            newRconPasswordInput = SettingsLayoutHelper.CreatePasswordInput();
             newRconPasswordInput.Dock = DockStyle.Top;
             newRconPasswordInput.PlaceholderText = "新 RCon 密码（连接后可用，会同步写入工具配置）";
 
@@ -334,6 +336,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     FindForm(),
                     "RCon 密码已修改并已保存到工具配置；请记得「应用到服务器目录」以更新 BattlEye 配置文件。",
                     "完成");
+                if (ConfigSaved != null)
+                {
+                    ConfigSaved(this, EventArgs.Empty);
+                }
             }
             catch (Exception ex)
             {

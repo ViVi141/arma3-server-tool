@@ -31,6 +31,14 @@ namespace Arma3ServerTools.Core
 
         public const string DefaultRconPasswordPrefix = "a3st";
 
+        public static string GenerateDefaultRconPassword()
+        {
+            byte[] bytes = new byte[4];
+            System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+            int value = System.Math.Abs(System.BitConverter.ToInt32(bytes, 0)) % 100000000;
+            return DefaultRconPasswordPrefix + value.ToString("D8");
+        }
+
         public const string BattlEyeMissionClassPrefix = "A3ST_";
     }
 }

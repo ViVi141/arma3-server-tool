@@ -1,6 +1,8 @@
+using Arma3ServerTools.Application.Logging;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.Core.Repositories;
+using Microsoft.Extensions.Logging;
 
 namespace Arma3ServerTools.Application.Services
 {
@@ -8,16 +10,28 @@ namespace Arma3ServerTools.Application.Services
     {
         private readonly IAppPaths paths;
         private readonly SteamCmdConfigRepository repository;
+        private readonly ILogger logger;
 
         public SteamCmdConfigProvider(IAppPaths paths, SteamCmdConfigRepository repository)
         {
             this.paths = paths;
             this.repository = repository;
+            logger = AppLogging.CreateLogger("SteamCmdConfigProvider");
         }
+
+        public string LastLoadWarning { get; private set; }
 
         public SteamcmdEntity GetSettings()
         {
-            SteamcmdEntity settings = repository.Load();
+            SteamCmdLoadResult result = repository.Load();
+            LastLoadWarning = null;
+            if (!result.Success)
+            {
+                LastLoadWarning = result.ErrorMessage;
+                logger.LogWarning("{Message}", result.ErrorMessage);
+            }
+
+            SteamcmdEntity settings = result.Settings;
             NormalizeSettings(settings);
             return settings;
         }
@@ -30,6 +44,7 @@ namespace Arma3ServerTools.Application.Services
             }
 
             repository.Save(settings);
+            LastLoadWarning = null;
         }
 
         private void NormalizeSettings(SteamcmdEntity settings)

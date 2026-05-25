@@ -95,6 +95,73 @@ namespace Arma3ServerTools.Core.Tests
             }
         }
 
+        [Fact]
+        public void Save_ProtectsSensitiveFieldsOnDisk()
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            string root = CreateTempRoot();
+            try
+            {
+                var paths = new AppPaths(root);
+                var repository = new ServerConfigRepository(paths);
+                ArmaServerConfig config = CreateSampleConfig(root, "secret-server");
+                config.ServerConfig.Password = "plain-server-password";
+                config.ServerConfig.ServerCommandPassword = "plain-command-password";
+                config.ServerConfig.PasswordAdmin = "plain-admin-password";
+                config.BattlEyeConfig.RConPassword = "plain-rcon-password";
+
+                repository.Save(config);
+                string filePath = Path.Combine(root, "config", "secret-server.json");
+                string rawJson = File.ReadAllText(filePath);
+                Assert.DoesNotContain("plain-server-password", rawJson);
+                Assert.DoesNotContain("plain-rcon-password", rawJson);
+                Assert.Contains("A3ST_ENC:", rawJson);
+
+                ArmaServerConfig loaded = repository.Get("secret-server");
+                Assert.Equal("plain-server-password", loaded.ServerConfig.Password);
+                Assert.Equal("plain-command-password", loaded.ServerConfig.ServerCommandPassword);
+                Assert.Equal("plain-admin-password", loaded.ServerConfig.PasswordAdmin);
+                Assert.Equal("plain-rcon-password", loaded.BattlEyeConfig.RConPassword);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        }
+
+        [Fact]
+        public void Load_LegacyPlaintextSecrets_StillReadable()
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            string root = CreateTempRoot();
+            try
+            {
+                var paths = new AppPaths(root);
+                Directory.CreateDirectory(paths.ConfigDirectory);
+                string filePath = Path.Combine(paths.ConfigDirectory, "legacy-server.json");
+                File.WriteAllText(
+                    filePath,
+                    "{\"ServerUUID\":\"legacy-server\",\"ServerConfig\":{\"Password\":\"legacy-plain-password\"},\"BattlEyeConfig\":{\"RConPassword\":\"legacy-rcon\"}}");
+
+                var repository = new ServerConfigRepository(paths);
+                ArmaServerConfig loaded = repository.Get("legacy-server");
+                Assert.Equal("legacy-plain-password", loaded.ServerConfig.Password);
+                Assert.Equal("legacy-rcon", loaded.BattlEyeConfig.RConPassword);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        }
+
         private static ArmaServerConfig CreateSampleConfig(string root, string uuid)
         {
             return new ArmaServerConfig
@@ -372,9 +439,35 @@ namespace Arma3ServerTools.Core.Tests
                 };
 
                 repository.Save(settings);
-                SteamcmdEntity loaded = repository.Load();
-                Assert.Equal("testuser", loaded.u);
-                Assert.Equal(settings.d, loaded.d);
+                SteamCmdLoadResult loaded = repository.Load();
+                Assert.True(loaded.Success);
+                Assert.Equal("testuser", loaded.Settings.u);
+                Assert.Equal(settings.d, loaded.Settings.d);
+            }
+            finally
+            {
+                if (Directory.Exists(root))
+                {
+                    Directory.Delete(root, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void Load_CorruptFile_ReturnsFailureWithMessage()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "a3tool-steam-corrupt-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            try
+            {
+                var repository = new SteamCmdConfigRepository(new AppPaths(root));
+                string filePath = Path.Combine(root, "data.json");
+                File.WriteAllText(filePath, "not-valid-protected-json");
+
+                SteamCmdLoadResult loaded = repository.Load();
+                Assert.False(loaded.Success);
+                Assert.NotNull(loaded.ErrorMessage);
+                Assert.NotNull(loaded.Settings);
             }
             finally
             {

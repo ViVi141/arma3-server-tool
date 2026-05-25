@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using Arma3ServerTools.Core.IO;
 using Arma3ServerTools.Core.Models;
 
-namespace Arma3ServerTools.App.WinForms
+namespace Arma3ServerTools.Application.Sync
 {
-    internal sealed class ServerConfigSnapshotTracker
+    public sealed class ServerConfigSnapshotTracker
     {
         private readonly Dictionary<string, string> persistedSnapshots =
             new Dictionary<string, string>(StringComparer.Ordinal);
