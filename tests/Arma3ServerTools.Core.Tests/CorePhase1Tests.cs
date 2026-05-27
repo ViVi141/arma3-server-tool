@@ -526,6 +526,15 @@ namespace Arma3ServerTools.Core.Tests
         }
 
         [Fact]
+        public void ResolveToolRoot_FromAgentFolder_ReturnsParent()
+        {
+            string toolRoot = @"D:\tools\Arma3ServerTools";
+            string agentRoot = Path.Combine(toolRoot, "agent");
+            Assert.Equal(toolRoot, AppPaths.ResolveToolRoot(agentRoot));
+            Assert.Equal(toolRoot, AppPaths.ResolveToolRoot(agentRoot + Path.DirectorySeparatorChar));
+        }
+
+        [Fact]
         public void ResolveToolRoot_FromToolRoot_ReturnsSamePath()
         {
             string toolRoot = @"D:\tools\Arma3ServerTools";

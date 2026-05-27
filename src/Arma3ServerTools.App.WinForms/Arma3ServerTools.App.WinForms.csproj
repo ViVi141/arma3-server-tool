@@ -20,6 +20,9 @@
     <ProjectReference Include="..\Arma3ServerTools.MonitoringHost\Arma3ServerTools.MonitoringHost.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
+    <ProjectReference Include="..\Arma3ServerTools.Agent.Host\Arma3ServerTools.Agent.Host.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
   </ItemGroup>
 
   <ItemGroup>
@@ -30,6 +33,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="..\..\docs\first-server-guide.md" Link="docs\first-server-guide.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\docs\first-server-guide.txt" Link="docs\first-server-guide.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="..\..\docs\release-README.txt" Link="README.txt">
@@ -81,6 +87,19 @@
     </ItemGroup>
     <MakeDir Directories="$(MonitoringHostDeployDir)" Condition="Exists('$(MonitoringHostOutDir)$(MonitoringHostExeName)')" />
     <Copy SourceFiles="@(MonitoringHostFiles)" DestinationFolder="$(MonitoringHostDeployDir)%(RecursiveDir)" SkipUnchangedFiles="true" Condition="Exists('$(MonitoringHostOutDir)$(MonitoringHostExeName)')" />
+  </Target>
+
+  <Target Name="CopyAgentHost" AfterTargets="Build">
+    <PropertyGroup>
+      <AgentHostOutDir>$(MSBuildProjectDirectory)\..\Arma3ServerTools.Agent.Host\bin\$(Configuration)\net10.0-windows\</AgentHostOutDir>
+      <AgentHostDeployDir>$(OutputPath)agent\</AgentHostDeployDir>
+      <AgentHostExeName>Arma3ServerTools.Agent.Host.exe</AgentHostExeName>
+    </PropertyGroup>
+    <ItemGroup>
+      <AgentHostFiles Include="$(AgentHostOutDir)**\*.*" />
+    </ItemGroup>
+    <MakeDir Directories="$(AgentHostDeployDir)" Condition="Exists('$(AgentHostOutDir)$(AgentHostExeName)')" />
+    <Copy SourceFiles="@(AgentHostFiles)" DestinationFolder="$(AgentHostDeployDir)%(RecursiveDir)" SkipUnchangedFiles="true" Condition="Exists('$(AgentHostOutDir)$(AgentHostExeName)')" />
   </Target>
 
   <Target Name="CopyMonitoringServerDll" AfterTargets="Build">

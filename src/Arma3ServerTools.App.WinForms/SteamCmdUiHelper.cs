@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Arma3ServerTools.App.WinForms.Dialogs;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 
@@ -34,10 +35,7 @@ namespace Arma3ServerTools.App.WinForms
                 return false;
             }
 
-            AntdUiHelper.ShowInfo(owner, "正在下载 SteamCMD，请稍候...", "请稍候");
-
-            check = await steamCmdService
-                .EnsureSteamCmdAvailableAsync(true, CancellationToken.None)
+            check = await SteamCmdProgressDialogForm.RunDownloadAsync(owner, steamCmdService, true)
                 .ConfigureAwait(true);
 
             if (check.Success)
@@ -67,13 +65,7 @@ namespace Arma3ServerTools.App.WinForms
                 return check;
             }
 
-            AntdUiHelper.ShowInfo(
-                owner,
-                "正在下载 SteamCMD 到：" + Environment.NewLine + ResolveExtensionDirectory(paths),
-                "请稍候");
-
-            return await steamCmdService
-                .EnsureSteamCmdAvailableAsync(true, CancellationToken.None)
+            return await SteamCmdProgressDialogForm.RunDownloadAsync(owner, steamCmdService, true)
                 .ConfigureAwait(true);
         }
 

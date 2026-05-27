@@ -77,6 +77,7 @@
 | `src/Arma3ServerTools.Application` | 应用服务层 |
 | `src/Arma3ServerTools.App.WinForms` | 主程序，输出 `Arma3ServerTools.exe` |
 | `src/Arma3ServerTools.MonitoringHost` | 监控 WM_COPYDATA 宿主进程 |
+| `src/Arma3ServerTools.Agent.Host` | 本地自动化 API（随安装包部署到 `agent/`，见 [docs/openclaw-integration.md](docs/openclaw-integration.md)） |
 | `DestinyServerMonitoring/` | 服务端 RVExtension 源码（构建产物见 `ToolConstants.MonitoringExtensionDllFileName`） |
 | `tests/` | 单元测试（Core / Application） |
 
@@ -86,6 +87,9 @@ Release 输出示例：
 src/Arma3ServerTools.App.WinForms/bin/Release/net10.0-windows/
 ├── Arma3ServerTools.exe
 ├── monitoring/Arma3ServerTools.MonitoringHost.exe
+├── agent/Arma3ServerTools.Agent.Host.exe
+├── skills/arma3-server-tools/
+├── scripts/openclaw/a3st-invoke.ps1
 ├── a3st_statistics.db          （运行时生成）
 └── sql/a3st_statistics.sql
 ```
@@ -117,7 +121,16 @@ dotnet test Arma3ServerTools.sln -c Release
 
 ## 发布打包
 
-默认产出 **`artifacts/Arma3ServerTools-Setup.exe`**（Inno Setup 安装包，自包含 .NET 运行时，无需用户预装 Desktop Runtime）。
+默认产出 **`artifacts/Arma3ServerTools-Setup-*.exe`**（Inno Setup 安装包，自包含 .NET 运行时）。**同一安装包**内包含：
+
+| 组件 | 安装路径 | 说明 |
+|------|----------|------|
+| 主程序（本地 GUI） | `{app}\Arma3ServerTools.exe` | 开服管理界面 |
+| Agent | `{app}\agent\Arma3ServerTools.Agent.Host.exe` | OpenClaw / HTTP 自动化 |
+| MonitoringHost | `{app}\monitoring\` | 监控 WM_COPYDATA 宿主 |
+| OpenClaw 辅助 | `{app}\skills\`、`{app}\scripts\openclaw\` | B 机可引用或复制 |
+
+由 `scripts/build-release.ps1` 分别 `publish` 主程序与两个宿主后再打 Inno 包；安装程序开始菜单含 **主程序 + Agent** 快捷方式，可选「登录时自动启动 Agent」。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release
@@ -154,6 +167,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 - **SteamCMD** 首次下载后需联机初始化；若日志出现 `502.3` / `IIS` / `<!DOCTYPE`，说明网络或代理拦截了 Steam CDN，请关闭代理或手动解压完整 SteamCMD 到 `%LocalAppData%\Arma3ServerTools\extension\`
 - 编译前请**关闭正在运行的主程序**，避免 `monitoring/` 下 DLL 被占用
 - 主程序退出时会自动关闭监控宿主进程
+- **OpenClaw / 远程自动化**：安装目录下 `agent\Arma3ServerTools.Agent.Host.exe` 与主程序共用配置；详见 [docs/deployment-ab-openclaw.md](docs/deployment-ab-openclaw.md)
 - 本地 `.vs/`、`bin/`、`obj/` 为构建缓存，无需提交；克隆后执行 `dotnet restore` 即可
 
 ---
@@ -162,7 +176,12 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 
 | 文档 | 内容 |
 |------|------|
+| [docs/openclaw-integration.md](docs/openclaw-integration.md) | **OpenClaw 复用 IM 通道**（`agent` 分支） |
+| [docs/deployment-ab-openclaw.md](docs/deployment-ab-openclaw.md) | **双机部署**（A 开服 / B OpenClaw · QQ 接 B） |
+| [docs/agent-channels.md](docs/agent-channels.md) | Agent 本地 HTTP / 任务 JSON |
+| [docs/agent-capabilities.md](docs/agent-capabilities.md) | **Agent 自动化能力详解**（各 action 行为与限制） |
 | [docs/first-server-guide.md](docs/first-server-guide.md) | 首次开服指南 |
+| [docs/known-issues.md](docs/known-issues.md) | **已知问题**（用户反馈与待修复项） |
 | [docs/refactoring-plan.md](docs/refactoring-plan.md) | 分层改造说明 |
 | [docs/product-roadmap.md](docs/product-roadmap.md) | 实施计划与 backlog |
 | [docs/ux-optimization-backlog.md](docs/ux-optimization-backlog.md) | 用户体验优化任务（v1.1） |

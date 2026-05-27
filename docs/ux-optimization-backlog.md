@@ -1,9 +1,9 @@
 # 用户体验优化任务清单
 
 > 文档版本：1.0  
-> 更新日期：2026-05-23  
+> 更新日期：2026-05-27  
 > 状态：实施中  
-> 关联：[product-roadmap.md](product-roadmap.md) · [first-server-guide.md](first-server-guide.md)
+> 关联：[product-roadmap.md](product-roadmap.md) · [first-server-guide.md](first-server-guide.md) · [known-issues.md](known-issues.md)
 
 面向 **v1.1 用户友好迭代**：降低「保存 / 写入 / 启动」认知成本，改善新手 onboarding 与日常运维闭环。
 
@@ -19,6 +19,7 @@
 | E4 | 仪表盘与多服 | ✅ 3/3 |
 | E5 | 桌面集成与发布 | ⬜ 2/5 |
 | E6 | 长期 Backlog | — |
+| E7 | 用户反馈（2026-05-27） | ✅ 4/4 |
 
 **当前 Sprint：S4 收尾（A-01 / 5-06 发布项待人工执行）**
 
@@ -83,6 +84,19 @@
 
 ---
 
+## E7 — 用户反馈（P1，2026-05-27）
+
+> 详见 [known-issues.md](known-issues.md)
+
+| ID | 任务 | 状态 | 验收标准 |
+|----|------|------|----------|
+| UX-24 | SteamCMD 下载/装服 **进度与状态** | ✅ | `SteamCmdProgressDialogForm` + 下载百分比 |
+| UX-25 | 开服指南 **服务器可读格式** | ✅ | `first-server-guide.txt` + 记事本打开 |
+| UX-26 | 首服向导：仅下载 SteamCMD 后可 **下一步** | ✅ | 步骤 1 不强制装服目录；装服校验在「完成」时 |
+| UX-27 | **SteamCMD / 模组 / 游戏目录** 文案统一 | ✅ | `SteamPathUiHelper`；设置页、向导、开服指南 §3.1 |
+
+---
+
 ## E6 — 长期 Backlog（P3/P4）
 
 | ID | 任务 | 状态 | 说明 |
@@ -135,3 +149,4 @@
 | 1.3 | 2026-05-23 | S3 完成：UX-11～16（监控迁至统计、健康检查、无数据向导、封禁说明、启动警告、RCon 改密） |
 | 1.4 | 2026-05-23 | S4 完成：UX-17～19、21～23（概览 RCon/摘要、托盘、README.txt、冒烟清单） |
 | 1.5 | 2026-05-23 | 移除迁移相关 UI 与文档（UX-20 取消） |
+| 1.6 | 2026-05-27 | 记录用户反馈：UX-24～27（见 known-issues.md） |

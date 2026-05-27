@@ -11,6 +11,7 @@ using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.Core.Validation;
 using AntButton = AntdUI.Button;
 using AntInput = AntdUI.Input;
+using AntLabel = AntdUI.Label;
 namespace Arma3ServerTools.App.WinForms.Dialogs
 {
     internal sealed class SteamCmdConfigForm : AntdDialogForm
@@ -32,16 +33,22 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
             userInput = SettingsLayoutHelper.AddRow(layout, "Steam 账号", SettingsLayoutHelper.CreateInput(true));
             passwordInput = SettingsLayoutHelper.AddRow(layout, "Steam 密码", SettingsLayoutHelper.CreatePasswordInput());
-            workshopRootInput = AddBrowseRow(layout, "Workshop 根目录", BrowseWorkshop_Click);
-            serverInstallInput = AddBrowseRow(layout, "专用服务器目录", BrowseServer_Click);
+            workshopRootInput = AddBrowseRow(
+                layout,
+                SteamPathUiHelper.ProgramDirectoryLabel,
+                BrowseWorkshop_Click);
+            serverInstallInput = AddBrowseRow(
+                layout,
+                SteamPathUiHelper.DedicatedServerDirectoryLabel,
+                BrowseServer_Click);
 
             steamCmdStatusLabel = new AntdUI.Label
             {
                 AutoSizeMode = AntdUI.TAutoSize.None,
-                Height = UiScaleHelper.Scale(48),
+                Height = UiScaleHelper.Scale(72),
                 ForeColor = Color.Gray,
             };
-            SettingsLayoutHelper.AddRow(layout, "SteamCMD 状态", steamCmdStatusLabel, 56);
+            SettingsLayoutHelper.AddRow(layout, SteamPathUiHelper.SteamCmdStatusLabel, steamCmdStatusLabel, 80);
 
             if (current != null)
             {
@@ -84,10 +91,16 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             };
             actionBar.Controls.Add(downloadButton);
 
+            AntLabel hint = AntdUiHelper.CreateHintLabel(
+                UiLabels.PathRulesHint + " " + SteamPathUiHelper.PathsHint,
+                520);
+            hint.Dock = DockStyle.Top;
+
             var body = SettingsLayoutHelper.CreateScrollHost(layout);
-            Controls.Add(body);
             Controls.Add(buttonBar);
             Controls.Add(actionBar);
+            Controls.Add(hint);
+            Controls.Add(body);
         }
 
         public SteamcmdEntity BuildSettings()
@@ -161,44 +174,9 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
         private void RefreshSteamCmdStatus()
         {
-            IAppPaths paths = appServices.Paths;
-            string bundledPath = SteamCmdBootstrapper.GetBundledExecutablePath(paths);
-            bool bundledExists = File.Exists(bundledPath);
-            string workshopRoot = workshopRootInput.Text.Trim();
-            string customPath = string.Empty;
-            bool customExists = false;
-            if (!string.IsNullOrEmpty(workshopRoot))
-            {
-                customPath = Path.Combine(workshopRoot, "steamcmd.exe");
-                customExists = File.Exists(customPath);
-            }
-
-            var status = new System.Text.StringBuilder();
-            status.AppendLine("内置: " + bundledPath);
-            if (bundledExists)
-            {
-                status.Append("  → 已安装");
-            }
-            else
-            {
-                status.Append("  → 未找到");
-            }
-
-            if (!string.IsNullOrEmpty(customPath))
-            {
-                status.AppendLine();
-                status.AppendLine("Workshop 根: " + customPath);
-                if (customExists)
-                {
-                    status.Append("  → 已安装");
-                }
-                else
-                {
-                    status.Append("  → 未找到");
-                }
-            }
-
-            steamCmdStatusLabel.Text = status.ToString().TrimEnd();
+            steamCmdStatusLabel.Text = SteamPathUiHelper.FormatSteamCmdLocationStatus(
+                appServices.Paths,
+                workshopRootInput.Text);
         }
 
         private AntInput AddBrowseRow(TableLayoutPanel layout, string label, EventHandler onBrowseClick)

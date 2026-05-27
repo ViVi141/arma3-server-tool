@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -44,9 +45,17 @@ namespace Arma3ServerTools.Application.Services
                 .GetResult();
         }
 
-        public async Task<OperationResult> EnsureSteamCmdAvailableAsync(
+        public Task<OperationResult> EnsureSteamCmdAvailableAsync(
             bool downloadIfMissing,
             CancellationToken cancellationToken)
+        {
+            return EnsureSteamCmdAvailableAsync(downloadIfMissing, cancellationToken, null);
+        }
+
+        public async Task<OperationResult> EnsureSteamCmdAvailableAsync(
+            bool downloadIfMissing,
+            CancellationToken cancellationToken,
+            IProgress<SteamCmdDownloadProgress> progress)
         {
             string executablePath = ResolveSteamCmdExecutable();
             if (!string.IsNullOrEmpty(executablePath))
@@ -57,7 +66,7 @@ namespace Arma3ServerTools.Application.Services
             if (downloadIfMissing)
             {
                 OperationResult downloadResult = await SteamCmdBootstrapper
-                    .DownloadBundledSteamCmdAsync(paths, cancellationToken)
+                    .DownloadBundledSteamCmdAsync(paths, cancellationToken, progress)
                     .ConfigureAwait(false);
                 if (!downloadResult.Success)
                 {
@@ -81,7 +90,7 @@ namespace Arma3ServerTools.Application.Services
             return OperationResult.Fail(
                 "找不到 steamcmd.exe。" + System.Environment.NewLine
                 + "应放置于: " + bundledPath + System.Environment.NewLine
-                + "或在 SteamCMD 设置的 Workshop 根目录中安装 steamcmd.exe。");
+                + "或在 SteamCMD 设置的「程序目录」中放置 steamcmd.exe，或使用工具内置 extension 目录。");
         }
 
         public OperationResult InstallDedicatedServer(string installDir)
@@ -127,7 +136,8 @@ namespace Arma3ServerTools.Application.Services
             string workshopRoot = SteamCmdPathHelper.NormalizeWorkshopRoot(paths, settings.d);
             if (string.IsNullOrWhiteSpace(workshopRoot))
             {
-                return OperationResult.Fail("Workshop 根目录未配置。请在「工具 → SteamCMD 设置」中填写。");
+                return OperationResult.Fail(
+                    "SteamCMD 程序目录未配置。请在「工具 → SteamCMD 设置」中填写，或点「下载 SteamCMD」使用工具内置目录。");
             }
 
             EnsureWorkshopContentDirectory(workshopRoot);

@@ -1,0 +1,15 @@
+{
+  "http": {
+    "enabled": true,
+    "remoteAccessEnabled": true,
+    "listenHost": "+",
+    "listenPort": 19580,
+    "publicBaseUrl": "https://a3st.example.com",
+    "apiToken": "至少 32 字节随机串，仅保存在 A/B 运维环境，勿提交 git",
+    "allowedCallerIps": []
+  },
+  "inbox": {
+    "enabled": true,
+    "pollSeconds": 5
+  }
+}

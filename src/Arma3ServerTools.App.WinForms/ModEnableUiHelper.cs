@@ -29,7 +29,10 @@ namespace Arma3ServerTools.App.WinForms
 
             if (settings == null || string.IsNullOrEmpty(settings.d))
             {
-                AntdUiHelper.ShowWarning(owner, "请先在 SteamCMD 设置中配置 Workshop 根目录。", "提示");
+                AntdUiHelper.ShowWarning(
+                    owner,
+                    "请先在 SteamCMD 设置中配置 SteamCMD 程序目录，或点「下载 SteamCMD」使用工具内置目录。",
+                    "提示");
                 return false;
             }
 

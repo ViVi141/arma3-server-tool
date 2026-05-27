@@ -36,7 +36,7 @@ namespace Arma3ServerTools.Core
         }
 
         /// <summary>
-        /// When MonitoringHost runs from {ToolRoot}/monitoring/, data files stay under the tool root.
+        /// When a host exe runs from {ToolRoot}/monitoring/ or {ToolRoot}/agent/, user data stays under the tool root.
         /// </summary>
         public static string ResolveToolRoot(string processBase)
         {
@@ -49,7 +49,8 @@ namespace Arma3ServerTools.Core
                 Path.DirectorySeparatorChar,
                 Path.AltDirectorySeparatorChar);
             string folderName = Path.GetFileName(normalized);
-            if (string.Equals(folderName, "monitoring", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(folderName, "monitoring", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(folderName, "agent", StringComparison.OrdinalIgnoreCase))
             {
                 return Path.GetFullPath(Path.Combine(normalized, ".."));
             }
