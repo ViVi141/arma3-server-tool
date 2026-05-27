@@ -42,14 +42,7 @@ namespace Arma3ServerTools.Application.Services
                     ip = player.RemoteEndpoint.Address.ToString();
                 }
 
-                if (repository.CountByGuid(player.Guid) > 0)
-                {
-                    repository.Update(player.Guid, player.Name ?? string.Empty, ip, now);
-                }
-                else
-                {
-                    repository.Insert(player.Guid, player.Name ?? string.Empty, ip, now);
-                }
+                repository.Upsert(player.Guid, player.Name ?? string.Empty, ip, now);
             }
         }
     }

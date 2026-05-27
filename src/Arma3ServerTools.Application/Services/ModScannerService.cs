@@ -9,6 +9,9 @@ namespace Arma3ServerTools.Application.Services
 {
     public sealed class ModScannerService
     {
+        private readonly object metaCacheLock = new object();
+        private readonly Dictionary<string, MetaCacheEntry> metaCache =
+            new Dictionary<string, MetaCacheEntry>(StringComparer.OrdinalIgnoreCase);
         private readonly ModuleScanPathRepository scanPathRepository;
 
         public ModScannerService(ModuleScanPathRepository scanPathRepository)
@@ -62,6 +65,7 @@ namespace Arma3ServerTools.Application.Services
             EnsureDefaultWorkshopPath(steamcmd);
             List<ModuleScanPathEntity> scanPaths = scanPathRepository.Load();
             var directories = new List<string>();
+            var directoryLookup = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (ModuleScanPathEntity scanPath in scanPaths)
             {
                 if (!Directory.Exists(scanPath.ModulePath))
@@ -69,16 +73,24 @@ namespace Arma3ServerTools.Application.Services
                     continue;
                 }
 
-                directories.AddRange(ModFileTools.GetModDirectories(scanPath.ModulePath, scanPath.Prefix));
+                List<string> scanResults = ModFileTools.GetModDirectories(scanPath.ModulePath, scanPath.Prefix);
+                foreach (string directory in scanResults)
+                {
+                    if (directoryLookup.Add(directory))
+                    {
+                        directories.Add(directory);
+                    }
+                }
             }
 
-            if (config != null)
+            Dictionary<string, ModsEntity> savedByPath = BuildSavedModsByPath(config);
+            if (config != null && config.StartupParameters != null && config.StartupParameters.modsEntities != null)
             {
                 foreach (ModsEntity saved in config.StartupParameters.modsEntities)
                 {
                     if (!string.IsNullOrEmpty(saved.ModPath)
                         && Directory.Exists(saved.ModPath)
-                        && !directories.Contains(saved.ModPath))
+                        && directoryLookup.Add(saved.ModPath))
                     {
                         directories.Add(saved.ModPath);
                     }
@@ -89,8 +101,12 @@ namespace Arma3ServerTools.Application.Services
             int scanOrder = 0;
             foreach (string directory in directories)
             {
-                ModsEntity saved = FindSavedMod(config, directory);
-                ModMeta meta = ModFileTools.ReadModMeta(directory);
+                ModsEntity saved;
+                if (!savedByPath.TryGetValue(directory, out saved))
+                {
+                    saved = null;
+                }
+                ModMeta meta = ReadModMetaCached(directory);
                 var row = new ScannedModRow();
                 row.ModPath = directory;
                 row.ModDirName = ModFileTools.GetDirectoryName(directory);
@@ -145,6 +161,7 @@ namespace Arma3ServerTools.Application.Services
                 rows.Add(row);
             }
 
+            CleanupMetaCache(directories);
             return rows;
         }
 
@@ -167,23 +184,125 @@ namespace Arma3ServerTools.Application.Services
             return modPath.IndexOf(@"workshop\content\107410", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
-        private static ModsEntity FindSavedMod(ArmaServerConfig config, string modPath)
+        private static Dictionary<string, ModsEntity> BuildSavedModsByPath(ArmaServerConfig config)
         {
-            if (config == null)
+            var result = new Dictionary<string, ModsEntity>(StringComparer.OrdinalIgnoreCase);
+            if (config == null || config.StartupParameters == null || config.StartupParameters.modsEntities == null)
             {
-                return null;
+                return result;
             }
 
             foreach (ModsEntity mod in config.StartupParameters.modsEntities)
             {
-                if (string.Equals(mod.ModPath, modPath, StringComparison.OrdinalIgnoreCase))
+                if (mod == null || string.IsNullOrEmpty(mod.ModPath))
                 {
-                    return mod;
+                    continue;
+                }
+
+                if (!result.ContainsKey(mod.ModPath))
+                {
+                    result.Add(mod.ModPath, mod);
                 }
             }
 
-            return null;
+            return result;
         }
+
+        private ModMeta ReadModMetaCached(string modPath)
+        {
+            string metaPath = Path.Combine(modPath, "meta.cpp");
+            if (!File.Exists(metaPath))
+            {
+                lock (metaCacheLock)
+                {
+                    if (metaCache.ContainsKey(modPath))
+                    {
+                        metaCache.Remove(modPath);
+                    }
+                }
+
+                return null;
+            }
+
+            long lastWriteTicks = 0;
+            try
+            {
+                lastWriteTicks = File.GetLastWriteTimeUtc(metaPath).Ticks;
+            }
+            catch
+            {
+                return ModFileTools.ReadModMeta(modPath);
+            }
+
+            lock (metaCacheLock)
+            {
+                MetaCacheEntry cached;
+                if (metaCache.TryGetValue(modPath, out cached))
+                {
+                    if (cached.LastWriteTicks == lastWriteTicks)
+                    {
+                        return CloneMeta(cached.Meta);
+                    }
+                }
+            }
+
+            ModMeta readMeta = ModFileTools.ReadModMeta(modPath);
+            lock (metaCacheLock)
+            {
+                metaCache[modPath] = new MetaCacheEntry(lastWriteTicks, CloneMeta(readMeta));
+            }
+
+            return readMeta;
+        }
+
+        private void CleanupMetaCache(List<string> activeDirectories)
+        {
+            var activeSet = new HashSet<string>(activeDirectories, StringComparer.OrdinalIgnoreCase);
+            lock (metaCacheLock)
+            {
+                var staleKeys = new List<string>();
+                foreach (string key in metaCache.Keys)
+                {
+                    if (!activeSet.Contains(key))
+                    {
+                        staleKeys.Add(key);
+                    }
+                }
+
+                foreach (string staleKey in staleKeys)
+                {
+                    metaCache.Remove(staleKey);
+                }
+            }
+        }
+
+        private static ModMeta CloneMeta(ModMeta meta)
+        {
+            if (meta == null)
+            {
+                return null;
+            }
+
+            return new ModMeta
+            {
+                Name = meta.Name,
+                PublishedId = meta.PublishedId,
+                TimeStamp = meta.TimeStamp,
+            };
+        }
+    }
+
+    internal sealed class MetaCacheEntry
+    {
+        public MetaCacheEntry(long lastWriteTicks, ModMeta meta)
+        {
+            LastWriteTicks = lastWriteTicks;
+            Meta = meta;
+        }
+
+        public long LastWriteTicks { get; private set; }
+
+        public ModMeta Meta { get; private set; }
     }
 
     public sealed class ScannedModRow

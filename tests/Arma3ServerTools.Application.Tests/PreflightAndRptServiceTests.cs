@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
@@ -172,5 +173,32 @@ namespace Arma3ServerTools.Application.Tests
                 AutomatedTestWorkspace.DeleteRoot(root);
             }
         }
+
+        [Fact]
+        public void ReadDelta_ReturnsOnlyAppendedText()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3rpt-delta");
+            try
+            {
+                string filePath = Path.Combine(root, "delta.rpt");
+                File.WriteAllText(filePath, "line1" + Environment.NewLine + "line2" + Environment.NewLine, Encoding.UTF8);
+
+                var service = new RptLogService();
+                long position = 0;
+                string first = service.ReadDelta(filePath, ref position);
+                Assert.Contains("line1", first);
+                Assert.Contains("line2", first);
+
+                File.AppendAllText(filePath, "line3" + Environment.NewLine, Encoding.UTF8);
+                string second = service.ReadDelta(filePath, ref position);
+                Assert.Contains("line3", second);
+                Assert.DoesNotContain("line1", second);
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
     }
+
 }

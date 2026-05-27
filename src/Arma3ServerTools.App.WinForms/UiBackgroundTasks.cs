@@ -47,17 +47,39 @@ namespace Arma3ServerTools.App.WinForms
 
         public static void ShutdownScheduler(ISchedulerService schedulerService)
         {
+            if (schedulerService == null)
+            {
+                return;
+            }
+
             try
             {
-                Task shutdownTask = Task.Run(async () =>
+                Task.Run(async () =>
                 {
-                    await schedulerService.StopAsync().ConfigureAwait(false);
+                    try
+                    {
+                        Task stopTask = schedulerService.StopAsync();
+                        Task timeoutTask = Task.Delay(SchedulerShutdownTimeout);
+                        Task completed = await Task.WhenAny(stopTask, timeoutTask).ConfigureAwait(false);
+                        if (completed == timeoutTask)
+                        {
+                            Logger.LogWarning(
+                                "Scheduler shutdown exceeded timeout {TimeoutSeconds}s and will continue in background.",
+                                SchedulerShutdownTimeout.TotalSeconds);
+                            return;
+                        }
+
+                        await stopTask.ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogWarning(ex, "Scheduler shutdown did not complete cleanly.");
+                    }
                 });
-                shutdownTask.Wait(SchedulerShutdownTimeout);
             }
             catch (Exception ex)
             {
-                Logger.LogWarning(ex, "Scheduler shutdown did not complete cleanly.");
+                Logger.LogWarning(ex, "Failed to queue scheduler shutdown task.");
             }
         }
 

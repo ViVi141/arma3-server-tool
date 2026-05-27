@@ -11,11 +11,13 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 {
     internal sealed class RptLogViewerForm : AntdDialogForm
     {
+        private const int MaxContentChars = 200000;
         private readonly RptLogService logService;
         private readonly string filePath;
         private readonly AntLabel pathLabel;
         private readonly TextBox contentBox;
         private readonly System.Windows.Forms.Timer refreshTimer;
+        private long lastReadPosition;
 
         public RptLogViewerForm(string filePath, RptLogService logService)
             : base()
@@ -99,11 +101,26 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             try
             {
                 pathLabel.Text = filePath + "  (更新: " + File.GetLastWriteTime(filePath).ToString("yyyy-MM-dd HH:mm:ss") + ")";
-                contentBox.Text = logService.ReadTail(filePath, 400);
                 if (scrollToEnd)
                 {
+                    contentBox.Text = logService.ReadTail(filePath, 400);
+                    UpdateLastReadPosition();
                     contentBox.SelectionStart = contentBox.TextLength;
                     contentBox.ScrollToCaret();
+                    return;
+                }
+
+                string delta = logService.ReadDelta(filePath, ref lastReadPosition);
+                if (!string.IsNullOrEmpty(delta))
+                {
+                    bool wasAtEnd = contentBox.SelectionStart >= contentBox.TextLength;
+                    contentBox.AppendText(delta);
+                    TrimContentIfNeeded();
+                    if (wasAtEnd)
+                    {
+                        contentBox.SelectionStart = contentBox.TextLength;
+                        contentBox.ScrollToCaret();
+                    }
                 }
             }
             catch (Exception ex)
@@ -130,6 +147,46 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 FileName = directory,
                 UseShellExecute = true,
             });
+        }
+
+        private void UpdateLastReadPosition()
+        {
+            try
+            {
+                using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    lastReadPosition = stream.Length;
+                }
+            }
+            catch
+            {
+                lastReadPosition = 0;
+            }
+        }
+
+        private void TrimContentIfNeeded()
+        {
+            if (contentBox.TextLength <= MaxContentChars)
+            {
+                return;
+            }
+
+            int removeLength = contentBox.TextLength - MaxContentChars;
+            if (removeLength < 0)
+            {
+                removeLength = 0;
+            }
+
+            int firstNewLineIndex = contentBox.Text.IndexOf(Environment.NewLine, removeLength, StringComparison.Ordinal);
+            if (firstNewLineIndex > 0)
+            {
+                removeLength = firstNewLineIndex + Environment.NewLine.Length;
+            }
+
+            if (removeLength > 0 && removeLength < contentBox.TextLength)
+            {
+                contentBox.Text = contentBox.Text.Substring(removeLength);
+            }
         }
     }
 }

@@ -105,8 +105,9 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
             try
             {
-                List<SteamWorkshopModInfo> loaded = await Task.Run(
-                    delegate { return new SteamWorkshopApiService().FetchModDetails(ids); }).ConfigureAwait(true);
+                List<SteamWorkshopModInfo> loaded = await new SteamWorkshopApiService()
+                    .FetchModDetailsAsync(ids, default)
+                    .ConfigureAwait(true);
 
                 if (loaded.Count > 0)
                 {

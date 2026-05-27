@@ -1,5 +1,9 @@
 using System;
+using System.Collections.Concurrent;
 using System.IO;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 namespace Arma3ServerTools.Application.Logging
@@ -7,33 +11,51 @@ namespace Arma3ServerTools.Application.Logging
     internal sealed class FileLoggerProvider : ILoggerProvider
     {
         private readonly string logFilePath;
-        private readonly object writeLock = new object();
+        private readonly BlockingCollection<string> writeQueue;
+        private readonly CancellationTokenSource cancellationTokenSource;
+        private readonly Task writerTask;
+        private int disposed;
 
         public FileLoggerProvider(string logFilePath)
         {
             this.logFilePath = logFilePath;
+            writeQueue = new BlockingCollection<string>(new ConcurrentQueue<string>(), 8192);
+            cancellationTokenSource = new CancellationTokenSource();
+            writerTask = Task.Run(ProcessLogQueue);
         }
 
         public ILogger CreateLogger(string categoryName)
         {
-            return new FileLogger(categoryName, logFilePath, writeLock);
+            return new FileLogger(categoryName, this);
         }
 
         public void Dispose()
         {
+            if (Interlocked.Exchange(ref disposed, 1) != 0)
+            {
+                return;
+            }
+
+            writeQueue.CompleteAdding();
+            if (!writerTask.Wait(TimeSpan.FromSeconds(3)))
+            {
+                cancellationTokenSource.Cancel();
+                writerTask.Wait(TimeSpan.FromSeconds(1));
+            }
+
+            cancellationTokenSource.Dispose();
+            writeQueue.Dispose();
         }
 
         private sealed class FileLogger : ILogger
         {
             private readonly string categoryName;
-            private readonly string logFilePath;
-            private readonly object writeLock;
+            private readonly FileLoggerProvider provider;
 
-            public FileLogger(string categoryName, string logFilePath, object writeLock)
+            public FileLogger(string categoryName, FileLoggerProvider provider)
             {
                 this.categoryName = categoryName;
-                this.logFilePath = logFilePath;
-                this.writeLock = writeLock;
+                this.provider = provider;
             }
 
             public IDisposable BeginScope<TState>(TState state)
@@ -76,10 +98,7 @@ namespace Arma3ServerTools.Application.Logging
                     line += Environment.NewLine + exception;
                 }
 
-                lock (writeLock)
-                {
-                    File.AppendAllText(logFilePath, line + Environment.NewLine);
-                }
+                provider.Enqueue(line + Environment.NewLine);
             }
         }
 
@@ -89,6 +108,73 @@ namespace Arma3ServerTools.Application.Logging
 
             public void Dispose()
             {
+            }
+        }
+
+        private void Enqueue(string line)
+        {
+            if (disposed != 0)
+            {
+                return;
+            }
+
+            if (!writeQueue.TryAdd(line))
+            {
+                // Queue is full, drop this log line to avoid blocking caller threads.
+            }
+        }
+
+        private void ProcessLogQueue()
+        {
+            string directory = Path.GetDirectoryName(logFilePath);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            using (var stream = new FileStream(logFilePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
+            using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
+            {
+                try
+                {
+                    while (!writeQueue.IsCompleted && !cancellationTokenSource.IsCancellationRequested)
+                    {
+                        string line;
+                        if (!writeQueue.TryTake(out line, 500, cancellationTokenSource.Token))
+                        {
+                            writer.Flush();
+                            continue;
+                        }
+
+                        writer.Write(line);
+                        DrainQueue(writer);
+                        writer.Flush();
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                }
+
+                DrainRemaining(writer);
+                writer.Flush();
+            }
+        }
+
+        private void DrainQueue(StreamWriter writer)
+        {
+            string line;
+            while (writeQueue.TryTake(out line))
+            {
+                writer.Write(line);
+            }
+        }
+
+        private void DrainRemaining(StreamWriter writer)
+        {
+            string line;
+            while (writeQueue.TryTake(out line))
+            {
+                writer.Write(line);
             }
         }
     }

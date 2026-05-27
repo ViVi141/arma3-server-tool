@@ -20,7 +20,7 @@ namespace Arma3ServerTools.App.WinForms.Main
         private readonly ILogger logger;
         private readonly System.Threading.Timer timer;
         private int pollInProgress;
-        private bool disposed;
+        private int disposed;
 
         public ServerStatePollWorker(
             IServerProcessService processService,
@@ -58,7 +58,7 @@ namespace Arma3ServerTools.App.WinForms.Main
 
         public void Start()
         {
-            if (disposed)
+            if (IsDisposed())
             {
                 return;
             }
@@ -73,19 +73,18 @@ namespace Arma3ServerTools.App.WinForms.Main
 
         public void Dispose()
         {
-            if (disposed)
+            if (Interlocked.Exchange(ref disposed, 1) != 0)
             {
                 return;
             }
 
-            disposed = true;
             Stop();
             timer.Dispose();
         }
 
         private void OnTimerElapsed(object state)
         {
-            if (disposed || invokeTarget.IsDisposed)
+            if (IsDisposed() || invokeTarget.IsDisposed || !invokeTarget.IsHandleCreated)
             {
                 return;
             }
@@ -121,20 +120,31 @@ namespace Arma3ServerTools.App.WinForms.Main
                     results.Add(new ServerStatePollResult(config.ServerUUID, runState, persistedBySyncState));
                 }
 
-                if (disposed || invokeTarget.IsDisposed)
+                if (IsDisposed() || invokeTarget.IsDisposed || !invokeTarget.IsHandleCreated)
                 {
                     return;
                 }
 
-                invokeTarget.BeginInvoke(new Action(() =>
+                try
                 {
-                    if (disposed || invokeTarget.IsDisposed)
+                    invokeTarget.BeginInvoke(new Action(() =>
                     {
-                        return;
-                    }
+                        if (IsDisposed() || invokeTarget.IsDisposed)
+                        {
+                            return;
+                        }
 
-                    onResultsReady(results);
-                }));
+                        onResultsReady(results);
+                    }));
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Control disposed after checks; safe to skip.
+                }
+                catch (InvalidOperationException)
+                {
+                    // Control is disposing/disposed between checks and BeginInvoke; safe to skip.
+                }
             }
             catch (Exception ex)
             {
@@ -144,6 +154,11 @@ namespace Arma3ServerTools.App.WinForms.Main
             {
                 Interlocked.Exchange(ref pollInProgress, 0);
             }
+        }
+
+        private bool IsDisposed()
+        {
+            return Volatile.Read(ref disposed) != 0;
         }
     }
 }

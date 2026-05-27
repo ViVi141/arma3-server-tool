@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Application.Monitoring;
@@ -79,6 +81,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly System.Collections.Generic.List<StatisticsPlayerStatRow> playerStatRows = new System.Collections.Generic.List<StatisticsPlayerStatRow>();
         private readonly System.Collections.Generic.List<StatisticsObjectStatRow> objectStatRows = new System.Collections.Generic.List<StatisticsObjectStatRow>();
         private readonly System.Collections.Generic.List<StatisticsPlayerDirectoryRow> directoryRows = new System.Collections.Generic.List<StatisticsPlayerDirectoryRow>();
+        private int refreshVersion;
 
         public StatisticsManagementPanel(IAppServices appServices)
         {
@@ -297,18 +300,46 @@ namespace Arma3ServerTools.App.WinForms.Controls
             emptyDataGuideLabel.Visible = boundConfig != null && !hasData;
         }
 
-        private void RefreshAll()
+        private async void RefreshAll()
+        {
+            await RefreshAllAsync().ConfigureAwait(true);
+        }
+
+        private async Task RefreshAllAsync()
         {
             if (boundConfig == null)
             {
                 return;
             }
 
+            int currentVersion = Interlocked.Increment(ref refreshVersion);
+            string targetServerUuid = boundConfig.ServerUUID;
+            summaryLabel.Text = "统计服务器: " + boundConfig.ConfigName + " (" + targetServerUuid + ") - 正在刷新...";
+
             try
             {
-                MonitoringQueryService query = appServices.MonitoringQueryService;
-                List<MonitoringPlayerStatRecord> playerRecords =
-                    query.GetPlayerStats(boundConfig.ServerUUID, 500);
+                StatisticsRefreshResult refreshResult = await Task.Run(
+                    delegate
+                    {
+                        return BuildRefreshResult(targetServerUuid);
+                    }).ConfigureAwait(true);
+
+                if (IsDisposed)
+                {
+                    return;
+                }
+
+                if (currentVersion != refreshVersion)
+                {
+                    return;
+                }
+
+                if (boundConfig == null || !string.Equals(boundConfig.ServerUUID, targetServerUuid, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                List<MonitoringPlayerStatRecord> playerRecords = refreshResult.PlayerRecords;
                 playerStatRows.Clear();
                 foreach (MonitoringPlayerStatRecord row in playerRecords)
                 {
@@ -330,8 +361,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
                 AntdTableHelper.BindList(playerStatsTable, playerStatRows);
 
-                List<MonitoringObjectStatRecord> objectRecords =
-                    query.GetRecentObjectStats(boundConfig.ServerUUID, 200);
+                List<MonitoringObjectStatRecord> objectRecords = refreshResult.ObjectRecords;
                 objectStatRows.Clear();
                 foreach (MonitoringObjectStatRecord row in objectRecords)
                 {
@@ -349,12 +379,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
                 AntdTableHelper.BindList(objectStatsTable, objectStatRows);
 
-                List<MonitoringObjectStatRecord> timelineRecords =
-                    query.GetObjectStatsTimeline(boundConfig.ServerUUID, 500);
+                List<MonitoringObjectStatRecord> timelineRecords = refreshResult.TimelineRecords;
                 chartsPanel.RenderCharts(timelineRecords, playerRecords);
 
                 directoryRows.Clear();
-                foreach (PlayerDB player in appServices.PlayerDirectoryService.LoadAll())
+                foreach (PlayerDB player in refreshResult.DirectoryRecords)
                 {
                     directoryRows.Add(
                         new StatisticsPlayerDirectoryRow
@@ -370,11 +399,34 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
                 bool hasData = playerRecords.Count > 0 || objectRecords.Count > 0;
                 UpdateEmptyDataGuide(hasData);
+                summaryLabel.Text = "统计服务器: " + boundConfig.ConfigName + " (" + targetServerUuid + ")";
             }
             catch (Exception ex)
             {
+                if (currentVersion != refreshVersion)
+                {
+                    return;
+                }
+
                 AntdUiHelper.ShowError(FindForm(), ex.Message, "刷新统计失败");
+                if (boundConfig != null)
+                {
+                    summaryLabel.Text = "统计服务器: " + boundConfig.ConfigName + " (" + boundConfig.ServerUUID + ")";
+                }
             }
+        }
+
+        private StatisticsRefreshResult BuildRefreshResult(string serverUuid)
+        {
+            MonitoringQueryService query = appServices.MonitoringQueryService;
+            var result = new StatisticsRefreshResult
+            {
+                PlayerRecords = query.GetPlayerStats(serverUuid, 500),
+                ObjectRecords = query.GetRecentObjectStats(serverUuid, 200),
+                TimelineRecords = query.GetObjectStatsTimeline(serverUuid, 500),
+                DirectoryRecords = appServices.PlayerDirectoryService.LoadAll(),
+            };
+            return result;
         }
 
         private void OnInitOnline(object sender, EventArgs e)
@@ -520,6 +572,17 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             table.Columns = columns;
             return table;
+        }
+
+        private sealed class StatisticsRefreshResult
+        {
+            public List<MonitoringPlayerStatRecord> PlayerRecords { get; set; } = new List<MonitoringPlayerStatRecord>();
+
+            public List<MonitoringObjectStatRecord> ObjectRecords { get; set; } = new List<MonitoringObjectStatRecord>();
+
+            public List<MonitoringObjectStatRecord> TimelineRecords { get; set; } = new List<MonitoringObjectStatRecord>();
+
+            public IReadOnlyList<PlayerDB> DirectoryRecords { get; set; } = new List<PlayerDB>();
         }
     }
 }

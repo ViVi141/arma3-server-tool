@@ -13,6 +13,7 @@ namespace Arma3ServerTools.Application.Monitoring
     {
         private readonly IAppPaths paths;
         private readonly object syncRoot = new object();
+        private readonly Dictionary<string, int> serverIdCache = new Dictionary<string, int>(StringComparer.Ordinal);
         private SqliteConnection connection;
 
         public MonitoringDatabase(IAppPaths paths)
@@ -38,6 +39,7 @@ namespace Arma3ServerTools.Application.Monitoring
             string dbPath = Path.Combine(paths.UserDataDirectory, ToolConstants.StatisticsDatabaseFileName);
             connection = new SqliteConnection(BuildConnectionString(dbPath));
             connection.Open();
+            EnsurePerformancePragmas();
             EnsureSchema();
         }
 
@@ -46,6 +48,12 @@ namespace Arma3ServerTools.Application.Monitoring
             lock (syncRoot)
             {
                 EnsureInitializedCore();
+                int cachedServerId;
+                if (serverIdCache.TryGetValue(serverName, out cachedServerId))
+                {
+                    return cachedServerId;
+                }
+
                 using (SqliteCommand select = new SqliteCommand(
                     "SELECT id FROM a3_servers WHERE server_name = @name",
                     connection))
@@ -54,16 +62,32 @@ namespace Arma3ServerTools.Application.Monitoring
                     object scalar = select.ExecuteScalar();
                     if (scalar != null && scalar != DBNull.Value)
                     {
-                        return Convert.ToInt32(scalar);
+                        int serverId = Convert.ToInt32(scalar);
+                        serverIdCache[serverName] = serverId;
+                        return serverId;
                     }
                 }
 
-                using (SqliteCommand insert = new SqliteCommand(
-                    "INSERT INTO a3_servers(server_name) VALUES (@name); SELECT last_insert_rowid();",
-                    connection))
+                using (SqliteCommand insert = new SqliteCommand("INSERT OR IGNORE INTO a3_servers(server_name) VALUES (@name)", connection))
                 {
                     insert.Parameters.AddWithValue("@name", serverName);
-                    return Convert.ToInt32(insert.ExecuteScalar());
+                    insert.ExecuteNonQuery();
+                }
+
+                using (SqliteCommand selectAfterInsert = new SqliteCommand(
+                    "SELECT id FROM a3_servers WHERE server_name = @name",
+                    connection))
+                {
+                    selectAfterInsert.Parameters.AddWithValue("@name", serverName);
+                    object scalar = selectAfterInsert.ExecuteScalar();
+                    if (scalar == null || scalar == DBNull.Value)
+                    {
+                        return 0;
+                    }
+
+                    int serverId = Convert.ToInt32(scalar);
+                    serverIdCache[serverName] = serverId;
+                    return serverId;
                 }
             }
         }
@@ -73,41 +97,22 @@ namespace Arma3ServerTools.Application.Monitoring
             lock (syncRoot)
             {
                 EnsureInitializedCore();
-                using (SqliteCommand exists = new SqliteCommand(
-                    "SELECT id FROM a3_player_info WHERE player_id = @playerId",
+                using (SqliteCommand upsert = new SqliteCommand(
+                    "INSERT INTO a3_player_info(server_id, data_key, player_id, player_name, infantry_kills, soft_vehicle_kills, armor_kills, air_kills, deaths, total_score, create_time, online, create_time_timestamp) "
+                    + "VALUES (@serverId, @dataKey, @playerId, @playerName, @infantry, @soft, @armor, @air, @deaths, @score, @createTime, 1, @timestamp) "
+                    + "ON CONFLICT(server_id, player_id) DO UPDATE SET "
+                    + "player_name = excluded.player_name, "
+                    + "infantry_kills = infantry_kills + excluded.infantry_kills, "
+                    + "soft_vehicle_kills = soft_vehicle_kills + excluded.soft_vehicle_kills, "
+                    + "armor_kills = armor_kills + excluded.armor_kills, "
+                    + "air_kills = air_kills + excluded.air_kills, "
+                    + "deaths = deaths + excluded.deaths, "
+                    + "total_score = total_score + excluded.total_score, "
+                    + "online = 1",
                     connection))
                 {
-                    exists.Parameters.AddWithValue("@playerId", args[2]);
-                    object scalar = exists.ExecuteScalar();
-                    if (scalar == null || scalar == DBNull.Value)
-                    {
-                        using (SqliteCommand insert = new SqliteCommand(
-                            "INSERT INTO a3_player_info(server_id, data_key, player_id, player_name, infantry_kills, soft_vehicle_kills, armor_kills, air_kills, deaths, total_score, create_time, online, create_time_timestamp) "
-                            + "VALUES (@serverId, @dataKey, @playerId, @playerName, @infantry, @soft, @armor, @air, @deaths, @score, @createTime, 1, @timestamp)",
-                            connection))
-                        {
-                            AddPlayerParameters(insert, serverId, args);
-                            return insert.ExecuteNonQuery();
-                        }
-                    }
-                }
-
-                using (SqliteCommand update = new SqliteCommand(
-                    "UPDATE a3_player_info SET player_name = @playerName, infantry_kills = infantry_kills + @infantry, "
-                    + "soft_vehicle_kills = soft_vehicle_kills + @soft, armor_kills = armor_kills + @armor, "
-                    + "air_kills = air_kills + @air, deaths = deaths + @deaths, total_score = total_score + @score "
-                    + "WHERE player_id = @playerId",
-                    connection))
-                {
-                    update.Parameters.AddWithValue("@playerName", args[3]);
-                    update.Parameters.AddWithValue("@infantry", args[4]);
-                    update.Parameters.AddWithValue("@soft", args[5]);
-                    update.Parameters.AddWithValue("@armor", args[6]);
-                    update.Parameters.AddWithValue("@air", args[7]);
-                    update.Parameters.AddWithValue("@deaths", args[8]);
-                    update.Parameters.AddWithValue("@score", args[9]);
-                    update.Parameters.AddWithValue("@playerId", args[2]);
-                    return update.ExecuteNonQuery();
+                    AddPlayerParameters(upsert, serverId, args);
+                    return upsert.ExecuteNonQuery();
                 }
             }
         }
@@ -128,11 +133,17 @@ namespace Arma3ServerTools.Application.Monitoring
                     insert.Parameters.AddWithValue("@dataKey", args[0]);
                     for (int i = 2; i <= 16; i++)
                     {
-                        insert.Parameters.AddWithValue("@p" + i, args[i]);
+                        int parsedValue;
+                        if (!int.TryParse(args[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out parsedValue))
+                        {
+                            parsedValue = 0;
+                        }
+
+                        insert.Parameters.AddWithValue("@p" + i, parsedValue);
                     }
 
-                    insert.Parameters.AddWithValue("@fps", (int)double.Parse(args[17], CultureInfo.InvariantCulture));
-                    insert.Parameters.AddWithValue("@fpsMin", (int)double.Parse(args[18], CultureInfo.InvariantCulture));
+                    insert.Parameters.AddWithValue("@fps", ParseDoubleToInt(args[17]));
+                    insert.Parameters.AddWithValue("@fpsMin", ParseDoubleToInt(args[18]));
                     insert.Parameters.AddWithValue("@createTime", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                     insert.Parameters.AddWithValue("@timestamp", GetUnixTimestamp());
                     return insert.ExecuteNonQuery();
@@ -149,7 +160,13 @@ namespace Arma3ServerTools.Application.Monitoring
                     "UPDATE a3_player_info SET online = @online WHERE player_id = @playerId AND server_id = @serverId",
                     connection))
                 {
-                    update.Parameters.AddWithValue("@online", args[3]);
+                    int onlineValue;
+                    if (!int.TryParse(args[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out onlineValue))
+                    {
+                        onlineValue = 0;
+                    }
+
+                    update.Parameters.AddWithValue("@online", onlineValue);
                     update.Parameters.AddWithValue("@playerId", args[2]);
                     update.Parameters.AddWithValue("@serverId", serverId);
                     return update.ExecuteNonQuery();
@@ -313,6 +330,8 @@ namespace Arma3ServerTools.Application.Monitoring
                     connection.Dispose();
                     connection = null;
                 }
+
+                serverIdCache.Clear();
             }
         }
 
@@ -338,20 +357,77 @@ namespace Arma3ServerTools.Application.Monitoring
             SqliteScriptExecutor.ExecuteScript(connection, sql);
         }
 
+        private void EnsurePerformancePragmas()
+        {
+            using (SqliteCommand pragma = new SqliteCommand(
+                "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=3000;",
+                connection))
+            {
+                pragma.ExecuteNonQuery();
+            }
+        }
+
         private static void AddPlayerParameters(SqliteCommand command, int serverId, string[] args)
         {
+            int infantryKills;
+            if (!int.TryParse(args[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out infantryKills))
+            {
+                infantryKills = 0;
+            }
+
+            int softVehicleKills;
+            if (!int.TryParse(args[5], NumberStyles.Integer, CultureInfo.InvariantCulture, out softVehicleKills))
+            {
+                softVehicleKills = 0;
+            }
+
+            int armorKills;
+            if (!int.TryParse(args[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out armorKills))
+            {
+                armorKills = 0;
+            }
+
+            int airKills;
+            if (!int.TryParse(args[7], NumberStyles.Integer, CultureInfo.InvariantCulture, out airKills))
+            {
+                airKills = 0;
+            }
+
+            int deaths;
+            if (!int.TryParse(args[8], NumberStyles.Integer, CultureInfo.InvariantCulture, out deaths))
+            {
+                deaths = 0;
+            }
+
+            int totalScore;
+            if (!int.TryParse(args[9], NumberStyles.Integer, CultureInfo.InvariantCulture, out totalScore))
+            {
+                totalScore = 0;
+            }
+
             command.Parameters.AddWithValue("@serverId", serverId);
             command.Parameters.AddWithValue("@dataKey", args[0]);
             command.Parameters.AddWithValue("@playerId", args[2]);
             command.Parameters.AddWithValue("@playerName", args[3]);
-            command.Parameters.AddWithValue("@infantry", args[4]);
-            command.Parameters.AddWithValue("@soft", args[5]);
-            command.Parameters.AddWithValue("@armor", args[6]);
-            command.Parameters.AddWithValue("@air", args[7]);
-            command.Parameters.AddWithValue("@deaths", args[8]);
-            command.Parameters.AddWithValue("@score", args[9]);
+            command.Parameters.AddWithValue("@infantry", infantryKills);
+            command.Parameters.AddWithValue("@soft", softVehicleKills);
+            command.Parameters.AddWithValue("@armor", armorKills);
+            command.Parameters.AddWithValue("@air", airKills);
+            command.Parameters.AddWithValue("@deaths", deaths);
+            command.Parameters.AddWithValue("@score", totalScore);
             command.Parameters.AddWithValue("@createTime", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             command.Parameters.AddWithValue("@timestamp", GetUnixTimestamp());
+        }
+
+        private static int ParseDoubleToInt(string value)
+        {
+            double parsed;
+            if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out parsed))
+            {
+                return 0;
+            }
+
+            return (int)parsed;
         }
 
         private static string GetUnixTimestamp()

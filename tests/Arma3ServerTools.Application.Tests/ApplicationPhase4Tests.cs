@@ -152,6 +152,44 @@ namespace Arma3ServerTools.Application.Tests
         }
 
         [Fact]
+        public void Scan_DeduplicatesSavedPath_WhenOnlyCaseDiffers()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3mod-dedup-case");
+            try
+            {
+                string workshopRoot = Path.Combine(root, "steam", "steamapps", "workshop", "content", "107410");
+                string modPath = Path.Combine(workshopRoot, "1234567890");
+                AutomatedTestWorkspace.CreateSampleMod(modPath, "Workshop Mod", 1234567890);
+
+                var scanPathRepository = new ModuleScanPathRepository(new AppPaths(root));
+                scanPathRepository.Save(new List<ModuleScanPathEntity>
+                {
+                    new ModuleScanPathEntity(workshopRoot, string.Empty, "test"),
+                });
+
+                var config = new ArmaServerConfig
+                {
+                    StartupParameters = new StartupParameters
+                    {
+                        modsEntities = new List<ModsEntity>
+                        {
+                            new ModsEntity(modPath.ToUpperInvariant(), "1234567890", "Workshop Mod", 1234567890, true, false, false, true),
+                        },
+                    },
+                };
+
+                var scanner = new ModScannerService(scanPathRepository);
+                List<ScannedModRow> rows = scanner.Scan(config, new SteamcmdEntity { d = Path.Combine(root, "steam") });
+
+                Assert.Single(rows);
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+
+        [Fact]
         public void EnsureDefaultWorkshopPath_AddsConfiguredWorkshopDirectory()
         {
             string root = AutomatedTestWorkspace.CreateRoot("a3mod-default-path");

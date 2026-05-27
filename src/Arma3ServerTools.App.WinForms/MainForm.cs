@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms.Controls;
@@ -58,6 +59,7 @@ namespace Arma3ServerTools.App.WinForms
         private string serverSearchFilter = string.Empty;
         private ServerListSortMode serverListSortMode = ServerListSortMode.Name;
         private readonly ServerStatePollWorker statePollWorker;
+        private int refreshSelectedRowVersion;
         private bool suppressStopNotification;
         private bool suppressTableSelectionEvent;
 
@@ -1045,6 +1047,47 @@ namespace Arma3ServerTools.App.WinForms
             }
         }
 
+        private bool ShouldRebindServerTableForStateChanges()
+        {
+            if (serverListSortMode == ServerListSortMode.RunningFirst)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private void RefreshServerTableViewPreserveSelection()
+        {
+            suppressTableSelectionEvent = true;
+            try
+            {
+                int selectedIndex = serverTable.SelectedIndex;
+                serverTable.Refresh();
+                if (selectedIndex > 0)
+                {
+                    serverTable.SelectedIndex = selectedIndex;
+                }
+            }
+            finally
+            {
+                suppressTableSelectionEvent = false;
+            }
+        }
+
+        private void RefreshTableAfterStateChanges()
+        {
+            string selectedServerUuid = services.CurrentServerUuid;
+            if (ShouldRebindServerTableForStateChanges())
+            {
+                BindServerTable();
+                RestoreServerSelection(selectedServerUuid);
+                return;
+            }
+
+            RefreshServerTableViewPreserveSelection();
+        }
+
         private void RestoreServerSelection(string uuid)
         {
             IReadOnlyList<ServerGridRow> visibleRows = GetFilteredServerRows();
@@ -1277,25 +1320,28 @@ namespace Arma3ServerTools.App.WinForms
 
         private void OnSaveConfig(object sender, EventArgs e)
         {
-            RunPrimaryActionAsync(SaveCurrentConfigAsync);
+            RunPrimaryActionAsync("SaveConfig", SaveCurrentConfigAsync);
         }
 
         private void OnWriteCfg(object sender, EventArgs e)
         {
-            RunPrimaryActionAsync(WriteConfigFilesAsync);
+            RunPrimaryActionAsync("WriteConfigFiles", WriteConfigFilesAsync);
         }
 
         private void OnStartServer(object sender, EventArgs e)
         {
-            RunPrimaryActionAsync(StartServerAsync);
+            RunPrimaryActionAsync("StartServer", StartServerAsync);
         }
 
-        private async void RunPrimaryActionAsync(Func<Task> action)
+        private async void RunPrimaryActionAsync(string actionName, Func<Task> action)
         {
             SetPrimaryActionButtonsEnabled(false);
             try
             {
-                await action().ConfigureAwait(true);
+                using (UiPerformanceProbe.BeginScope("MainForm." + actionName, services.CurrentServerUuid))
+                {
+                    await action().ConfigureAwait(true);
+                }
             }
             finally
             {
@@ -1449,7 +1495,7 @@ namespace Arma3ServerTools.App.WinForms
 
         private void OnStopServer(object sender, EventArgs e)
         {
-            RunPrimaryActionAsync(StopServerAsync);
+            RunPrimaryActionAsync("StopServer", StopServerAsync);
         }
 
         private async Task StopServerAsync()
@@ -1481,17 +1527,34 @@ namespace Arma3ServerTools.App.WinForms
                 config,
                 delegate (string message)
                 {
-                    if (IsDisposed)
+                    if (IsDisposed || !IsHandleCreated)
                     {
                         return;
                     }
 
                     if (InvokeRequired)
                     {
-                        BeginInvoke(new Action(delegate
+                        try
                         {
-                            AntdUiHelper.ShowWarning(this, "定时任务同步失败: " + message, "警告");
-                        }));
+                            BeginInvoke(new Action(delegate
+                            {
+                                if (IsDisposed)
+                                {
+                                    return;
+                                }
+
+                                AntdUiHelper.ShowWarning(this, "定时任务同步失败: " + message, "警告");
+                            }));
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                            // Form can be disposed between checks and BeginInvoke during shutdown.
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            // Handle can be destroyed while closing; warning UI is optional.
+                        }
+
                         return;
                     }
 
@@ -1523,7 +1586,7 @@ namespace Arma3ServerTools.App.WinForms
 
         private void OnInstallDedicatedServer(object sender, EventArgs e)
         {
-            RunPrimaryActionAsync(InstallDedicatedServerAsync);
+            RunPrimaryActionAsync("InstallDedicatedServer", InstallDedicatedServerAsync);
         }
 
         private async Task InstallDedicatedServerAsync()
@@ -1599,32 +1662,44 @@ namespace Arma3ServerTools.App.WinForms
             }
         }
 
-        private void RefreshSelectedRowState()
+        private async void RefreshSelectedRowState()
         {
-            if (string.IsNullOrEmpty(services.CurrentServerUuid))
+            string currentServerUuid = services.CurrentServerUuid;
+            if (string.IsNullOrEmpty(currentServerUuid))
             {
                 return;
             }
 
-            for (int i = 0; i < serverRows.Count; i++)
+            ArmaServerConfig currentConfig = services.GetCurrentConfig();
+            if (currentConfig == null)
             {
-                if (serverRows[i].ServerUuid != services.CurrentServerUuid)
-                {
-                    continue;
-                }
-
-                ArmaServerConfig config = services.GetCurrentConfig();
-                ServerRunState runState = services.ProcessService.SyncState(config);
-                serverRows[i].RunState = runState;
-                if (config != null)
-                {
-                    serverRows[i].SaveTime = config.SaveTime;
-                }
-
-                BindServerTable();
-                settingsHost.RefreshOverview();
-                RefreshConfigSyncIndicators();
                 return;
+            }
+
+            using (UiPerformanceProbe.BeginScope("MainForm.RefreshSelectedRowState", currentServerUuid))
+            {
+                int currentVersion = Interlocked.Increment(ref refreshSelectedRowVersion);
+                ServerRunState runState = await Task.Run(() => services.ProcessService.SyncState(currentConfig)).ConfigureAwait(true);
+                if (IsDisposed || currentVersion != refreshSelectedRowVersion)
+                {
+                    return;
+                }
+
+                for (int i = 0; i < serverRows.Count; i++)
+                {
+                    if (serverRows[i].ServerUuid != currentServerUuid)
+                    {
+                        continue;
+                    }
+
+                    serverRows[i].RunState = runState;
+                    serverRows[i].SaveTime = currentConfig.SaveTime;
+
+                    RefreshTableAfterStateChanges();
+                    settingsHost.RefreshOverview();
+                    RefreshConfigSyncIndicators();
+                    return;
+                }
             }
         }
 
@@ -1770,11 +1845,7 @@ namespace Arma3ServerTools.App.WinForms
 
             if (stateChanged)
             {
-                BindServerTable();
-                if (serverTable.SelectedIndex > 0)
-                {
-                    serverTable.SelectedIndex = serverTable.SelectedIndex;
-                }
+                RefreshTableAfterStateChanges();
             }
 
             int runningCount = 0;

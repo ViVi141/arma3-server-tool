@@ -38,7 +38,6 @@ destiny_fnc_getPlayerInfo = {
 };
 
 destiny_fnc_updateOnlineInfo = {
-	call destiny_fnc_getPlayerInfo;
 	"DestinyServerMonitoring" callExtension ["UpdateOnlineInfo", [_this]];
 };
 

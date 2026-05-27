@@ -178,6 +178,100 @@ namespace Arma3ServerTools.Application.Tests
             }
         }
 
+        [Fact]
+        public void Ingest_PlayerInfoDuplicate_UsesUpsertAggregation()
+        {
+            string root = CreateTempRoot();
+            MonitoringDatabase database = null;
+            try
+            {
+                CopySchema(root);
+                database = new MonitoringDatabase(new AppPaths(root));
+                var ingest = new MonitoringIngestService(database);
+                ingest.Ingest("PlayerInfo:server-upsert:77:Tester:1:2:3:4:5:6");
+                ingest.Ingest("PlayerInfo:server-upsert:77:Tester:1:1:1:1:1:1");
+
+                database.EnsureInitialized();
+                var connectionBuilder = new SqliteConnectionStringBuilder
+                {
+                    DataSource = Path.Combine(root, ToolConstants.StatisticsDatabaseFileName),
+                    Pooling = false,
+                };
+                using (SqliteConnection connection = new SqliteConnection(connectionBuilder.ConnectionString))
+                {
+                    connection.Open();
+                    using (SqliteCommand command = new SqliteCommand(
+                        "SELECT COUNT(*), infantry_kills, soft_vehicle_kills, armor_kills, air_kills, deaths, total_score "
+                        + "FROM a3_player_info WHERE player_id = '77'",
+                        connection))
+                    {
+                        using (SqliteDataReader reader = command.ExecuteReader())
+                        {
+                            Assert.True(reader.Read());
+                            Assert.Equal(1L, reader.GetInt64(0));
+                            Assert.Equal(2L, reader.GetInt64(1));
+                            Assert.Equal(3L, reader.GetInt64(2));
+                            Assert.Equal(4L, reader.GetInt64(3));
+                            Assert.Equal(5L, reader.GetInt64(4));
+                            Assert.Equal(6L, reader.GetInt64(5));
+                            Assert.Equal(7L, reader.GetInt64(6));
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                if (database != null)
+                {
+                    database.Dispose();
+                }
+
+                DeleteDirectory(root);
+            }
+        }
+
+        [Fact]
+        public void Ingest_SamePlayerDifferentServer_PersistsSeparatedRows()
+        {
+            string root = CreateTempRoot();
+            MonitoringDatabase database = null;
+            try
+            {
+                CopySchema(root);
+                database = new MonitoringDatabase(new AppPaths(root));
+                var ingest = new MonitoringIngestService(database);
+                ingest.Ingest("PlayerInfo:server-one:11:Tester:1:0:0:0:0:1");
+                ingest.Ingest("PlayerInfo:server-two:11:Tester:2:0:0:0:0:2");
+
+                database.EnsureInitialized();
+                var connectionBuilder = new SqliteConnectionStringBuilder
+                {
+                    DataSource = Path.Combine(root, ToolConstants.StatisticsDatabaseFileName),
+                    Pooling = false,
+                };
+                using (SqliteConnection connection = new SqliteConnection(connectionBuilder.ConnectionString))
+                {
+                    connection.Open();
+                    using (SqliteCommand command = new SqliteCommand(
+                        "SELECT COUNT(*) FROM a3_player_info WHERE player_id = '11'",
+                        connection))
+                    {
+                        long count = (long)command.ExecuteScalar();
+                        Assert.Equal(2, count);
+                    }
+                }
+            }
+            finally
+            {
+                if (database != null)
+                {
+                    database.Dispose();
+                }
+
+                DeleteDirectory(root);
+            }
+        }
+
         private static void CopySchema(string root)
         {
             AutomatedTestWorkspace.CopySqlSchema(root);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -613,15 +614,24 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private async Task LoadPlayersAsync()
         {
+            Stopwatch stopwatch = Stopwatch.StartNew();
             if (!connected)
             {
-                playerRows.Clear();
-                AntdTableHelper.BindList(playersTable, playerRows);
+                bool changed = false;
+                if (playerRows.Count > 0)
+                {
+                    playerRows.Clear();
+                    AntdTableHelper.BindList(playersTable, playerRows);
+                    changed = true;
+                }
+
+                string disconnectedContext = "rows=0;changed=" + changed + ";connected=false";
+                UiPerformanceProbe.LogDuration("Rcon.LoadPlayers", stopwatch.ElapsedMilliseconds, disconnectedContext);
                 return;
             }
 
             IReadOnlyList<Player> players = await appServices.RconService.GetPlayersAsync().ConfigureAwait(true);
-            playerRows.Clear();
+            var newRows = new List<RconPlayerRow>();
             foreach (Player player in players)
             {
                 string ip = string.Empty;
@@ -630,7 +640,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     ip = player.RemoteEndpoint.Address.ToString();
                 }
 
-                playerRows.Add(
+                newRows.Add(
                     new RconPlayerRow
                     {
                         Id = player.Id,
@@ -640,7 +650,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     });
             }
 
-            AntdTableHelper.BindList(playersTable, playerRows);
+            bool tableChanged = UpdatePlayersTable(newRows);
+            string context = "rows=" + newRows.Count + ";changed=" + tableChanged + ";connected=true";
+            UiPerformanceProbe.LogDuration("Rcon.LoadPlayers", stopwatch.ElapsedMilliseconds, context);
         }
 
         private async Task SyncPlayersAsync()
@@ -651,21 +663,30 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             IReadOnlyList<Player> players = await appServices.RconService.GetPlayersAsync().ConfigureAwait(true);
-            appServices.PlayerDirectoryService.SyncPlayers(players);
+            await Task.Run(delegate { appServices.PlayerDirectoryService.SyncPlayers(players); }).ConfigureAwait(true);
             AntdUiHelper.ShowInfo(FindForm(), "已将在线玩家同步到 " + ToolConstants.PlayersDatabaseFileName + "。", "完成");
         }
 
         private async Task LoadBansAsync()
         {
+            Stopwatch stopwatch = Stopwatch.StartNew();
             if (!connected)
             {
-                banRows.Clear();
-                AntdTableHelper.BindList(bansTable, banRows);
+                bool changed = false;
+                if (banRows.Count > 0)
+                {
+                    banRows.Clear();
+                    AntdTableHelper.BindList(bansTable, banRows);
+                    changed = true;
+                }
+
+                string disconnectedContext = "rows=0;changed=" + changed + ";connected=false";
+                UiPerformanceProbe.LogDuration("Rcon.LoadBans", stopwatch.ElapsedMilliseconds, disconnectedContext);
                 return;
             }
 
             IReadOnlyList<PlayerBan> bans = await appServices.RconService.GetBansAsync().ConfigureAwait(true);
-            banRows.Clear();
+            var newRows = new List<RconBanRow>();
             foreach (PlayerBan ban in bans)
             {
                 string guid = ban.Guid ?? string.Empty;
@@ -685,7 +706,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     duration = ban.DurationLeft.ToString();
                 }
 
-                banRows.Add(
+                newRows.Add(
                     new RconBanRow
                     {
                         Id = ban.Id,
@@ -696,7 +717,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     });
             }
 
-            AntdTableHelper.BindList(bansTable, banRows);
+            bool tableChanged = UpdateBansTable(newRows);
+            string context = "rows=" + newRows.Count + ";changed=" + tableChanged + ";connected=true";
+            UiPerformanceProbe.LogDuration("Rcon.LoadBans", stopwatch.ElapsedMilliseconds, context);
         }
 
         private async Task LoadBansCommandAsync()
@@ -713,18 +736,27 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private async Task LoadMissionsAsync()
         {
+            Stopwatch stopwatch = Stopwatch.StartNew();
             if (!connected)
             {
-                missionRows.Clear();
-                AntdTableHelper.BindList(missionsTable, missionRows);
+                bool changed = false;
+                if (missionRows.Count > 0)
+                {
+                    missionRows.Clear();
+                    AntdTableHelper.BindList(missionsTable, missionRows);
+                    changed = true;
+                }
+
+                string disconnectedContext = "rows=0;changed=" + changed + ";connected=false";
+                UiPerformanceProbe.LogDuration("Rcon.LoadMissions", stopwatch.ElapsedMilliseconds, disconnectedContext);
                 return;
             }
 
             IReadOnlyList<Mission> missions = await appServices.RconService.GetMissionsAsync().ConfigureAwait(true);
-            missionRows.Clear();
+            var newRows = new List<RconMissionRow>();
             foreach (Mission mission in missions)
             {
-                missionRows.Add(
+                newRows.Add(
                     new RconMissionRow
                     {
                         Map = mission.Map,
@@ -732,7 +764,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     });
             }
 
-            AntdTableHelper.BindList(missionsTable, missionRows);
+            bool tableChanged = UpdateMissionsTable(newRows);
+            string context = "rows=" + newRows.Count + ";changed=" + tableChanged + ";connected=true";
+            UiPerformanceProbe.LogDuration("Rcon.LoadMissions", stopwatch.ElapsedMilliseconds, context);
         }
 
         private async Task RestartMissionAsync()
@@ -850,6 +884,157 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             table.Columns = columns;
             return table;
+        }
+
+        private bool UpdatePlayersTable(List<RconPlayerRow> newRows)
+        {
+            if (ArePlayerRowsEqual(playerRows, newRows))
+            {
+                return false;
+            }
+
+            playerRows.Clear();
+            for (int i = 0; i < newRows.Count; i++)
+            {
+                playerRows.Add(newRows[i]);
+            }
+
+            AntdTableHelper.BindList(playersTable, playerRows);
+            return true;
+        }
+
+        private bool UpdateBansTable(List<RconBanRow> newRows)
+        {
+            if (AreBanRowsEqual(banRows, newRows))
+            {
+                return false;
+            }
+
+            banRows.Clear();
+            for (int i = 0; i < newRows.Count; i++)
+            {
+                banRows.Add(newRows[i]);
+            }
+
+            AntdTableHelper.BindList(bansTable, banRows);
+            return true;
+        }
+
+        private bool UpdateMissionsTable(List<RconMissionRow> newRows)
+        {
+            if (AreMissionRowsEqual(missionRows, newRows))
+            {
+                return false;
+            }
+
+            missionRows.Clear();
+            for (int i = 0; i < newRows.Count; i++)
+            {
+                missionRows.Add(newRows[i]);
+            }
+
+            AntdTableHelper.BindList(missionsTable, missionRows);
+            return true;
+        }
+
+        private static bool ArePlayerRowsEqual(List<RconPlayerRow> left, List<RconPlayerRow> right)
+        {
+            if (left.Count != right.Count)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < left.Count; i++)
+            {
+                RconPlayerRow leftRow = left[i];
+                RconPlayerRow rightRow = right[i];
+                if (leftRow.Id != rightRow.Id)
+                {
+                    return false;
+                }
+
+                if (!string.Equals(leftRow.Name, rightRow.Name, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                if (!string.Equals(leftRow.Guid, rightRow.Guid, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                if (!string.Equals(leftRow.Ip, rightRow.Ip, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool AreBanRowsEqual(List<RconBanRow> left, List<RconBanRow> right)
+        {
+            if (left.Count != right.Count)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < left.Count; i++)
+            {
+                RconBanRow leftRow = left[i];
+                RconBanRow rightRow = right[i];
+                if (leftRow.Id != rightRow.Id)
+                {
+                    return false;
+                }
+
+                if (!string.Equals(leftRow.Guid, rightRow.Guid, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                if (!string.Equals(leftRow.Ip, rightRow.Ip, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                if (!string.Equals(leftRow.Duration, rightRow.Duration, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                if (!string.Equals(leftRow.Reason, rightRow.Reason, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool AreMissionRowsEqual(List<RconMissionRow> left, List<RconMissionRow> right)
+        {
+            if (left.Count != right.Count)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < left.Count; i++)
+            {
+                RconMissionRow leftRow = left[i];
+                RconMissionRow rightRow = right[i];
+                if (!string.Equals(leftRow.Map, rightRow.Map, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                if (!string.Equals(leftRow.Mission, rightRow.Mission, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 }

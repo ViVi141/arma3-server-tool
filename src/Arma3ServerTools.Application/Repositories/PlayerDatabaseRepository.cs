@@ -76,6 +76,26 @@ namespace Arma3ServerTools.Application.Repositories
             }
         }
 
+        public int Upsert(string guid, string playerName, string ip, string createDate)
+        {
+            EnsureInitialized();
+            using (SqliteCommand command = new SqliteCommand(
+                "INSERT INTO " + ToolConstants.PlayersTableName
+                + " (guid, player_name, ip, create_date) VALUES (@guid, @name, @ip, @date) "
+                + "ON CONFLICT(guid) DO UPDATE SET "
+                + "player_name = excluded.player_name, "
+                + "ip = excluded.ip, "
+                + "create_date = excluded.create_date",
+                connection))
+            {
+                command.Parameters.AddWithValue("@guid", guid);
+                command.Parameters.AddWithValue("@name", playerName);
+                command.Parameters.AddWithValue("@ip", ip);
+                command.Parameters.AddWithValue("@date", createDate);
+                return command.ExecuteNonQuery();
+            }
+        }
+
         public List<PlayerDB> LoadAll()
         {
             EnsureInitialized();
@@ -126,6 +146,13 @@ namespace Arma3ServerTools.Application.Repositories
 
             string sql = File.ReadAllText(schemaPath, new UTF8Encoding(false));
             SqliteScriptExecutor.ExecuteScript(connection, sql);
+            using (SqliteCommand command = new SqliteCommand(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_a3st_players_guid "
+                + "ON " + ToolConstants.PlayersTableName + " (guid)",
+                connection))
+            {
+                command.ExecuteNonQuery();
+            }
         }
     }
 }

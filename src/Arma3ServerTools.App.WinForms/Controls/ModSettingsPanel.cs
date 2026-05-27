@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
@@ -57,6 +59,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private List<ScannedModRow> allRows = new List<ScannedModRow>();
         private ModTableSortMode sortMode = ModTableSortMode.ScanOrder;
         private ModTableVisibilityFilter visibilityFilter = ModTableVisibilityFilter.All;
+        private int scanVersion;
 
         public ModSettingsPanel(IAppServices appServices)
         {
@@ -305,7 +308,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 SyncBikeysForRow(row);
             }
 
-            RefreshTableView();
+            RefreshTableViewIfNeeded();
             return checkedAfterChange;
         }
 
@@ -330,7 +333,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            RefreshTableView();
+            RefreshTableViewIfNeeded();
         }
 
         private bool ApplyDisableScope(ScannedModRow row, ModDisableScope scope)
@@ -398,17 +401,56 @@ namespace Arma3ServerTools.App.WinForms.Controls
             RefreshTableView();
         }
 
-        private void ScanMods()
+        private void RefreshTableViewIfNeeded()
+        {
+            if (visibilityFilter == ModTableVisibilityFilter.All)
+            {
+                modsTable.Refresh();
+                return;
+            }
+
+            RefreshTableView();
+        }
+
+        private async void ScanMods()
         {
             if (boundConfig == null)
             {
                 return;
             }
 
-            allRows = appServices.ModScannerService
-                .Scan(boundConfig, appServices.GetSteamCmdSettings())
-                .ToList();
-            RefreshTableView();
+            int currentVersion = Interlocked.Increment(ref scanVersion);
+            UseWaitCursor = true;
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            try
+            {
+                ArmaServerConfig config = boundConfig;
+                SteamcmdEntity settings = appServices.GetSteamCmdSettings();
+                List<ScannedModRow> scannedRows = await Task.Run(
+                    delegate
+                    {
+                        return appServices.ModScannerService
+                            .Scan(config, settings)
+                            .ToList();
+                    }).ConfigureAwait(true);
+
+                if (currentVersion != scanVersion || IsDisposed)
+                {
+                    return;
+                }
+
+                allRows = scannedRows;
+                RefreshTableView();
+                string context = "rows=" + scannedRows.Count + ";server=" + config.ServerUUID;
+                UiPerformanceProbe.LogDuration("ModSettings.ScanMods", stopwatch.ElapsedMilliseconds, context);
+            }
+            finally
+            {
+                if (currentVersion == scanVersion && !IsDisposed)
+                {
+                    UseWaitCursor = false;
+                }
+            }
         }
 
         private void RefreshTableView()

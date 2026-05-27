@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Arma3ServerTools.Application.Services
 {
@@ -17,6 +19,13 @@ namespace Arma3ServerTools.Application.Services
         };
 
         public List<SteamWorkshopModInfo> FetchModDetails(IEnumerable<ulong> modIds)
+        {
+            return FetchModDetailsAsync(modIds, CancellationToken.None).GetAwaiter().GetResult();
+        }
+
+        public async Task<List<SteamWorkshopModInfo>> FetchModDetailsAsync(
+            IEnumerable<ulong> modIds,
+            CancellationToken cancellationToken)
         {
             var ids = new List<ulong>();
             foreach (ulong modId in modIds)
@@ -34,7 +43,7 @@ namespace Arma3ServerTools.Application.Services
 
             try
             {
-                string responseBody = PostDetailsRequest(ids);
+                string responseBody = await PostDetailsRequestAsync(ids, cancellationToken).ConfigureAwait(false);
                 return ParseModDetails(responseBody, ids);
             }
             catch
@@ -43,7 +52,7 @@ namespace Arma3ServerTools.Application.Services
             }
         }
 
-        private static string PostDetailsRequest(List<ulong> ids)
+        private static async Task<string> PostDetailsRequestAsync(List<ulong> ids, CancellationToken cancellationToken)
         {
             var builder = new StringBuilder();
             builder.Append("itemcount=").Append(ids.Count);
@@ -57,10 +66,12 @@ namespace Arma3ServerTools.Application.Services
                 Encoding.UTF8,
                 "application/x-www-form-urlencoded"))
             {
-                using (HttpResponseMessage response = HttpClient.PostAsync(PublishedFileDetailsUrl, content).GetAwaiter().GetResult())
+                using (HttpResponseMessage response = await HttpClient
+                    .PostAsync(PublishedFileDetailsUrl, content, cancellationToken)
+                    .ConfigureAwait(false))
                 {
                     response.EnsureSuccessStatusCode();
-                    return response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                    return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
                 }
             }
         }

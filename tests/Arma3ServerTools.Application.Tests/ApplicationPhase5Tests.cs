@@ -155,6 +155,17 @@ namespace Arma3ServerTools.Application.Tests
                     service.SyncPlayers(players);
                     service.SyncPlayers(players);
                     Assert.Single(service.LoadAll());
+
+                    players[0] = new BytexDigital.BattlEye.Rcon.Domain.Player(
+                        1,
+                        new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 2302),
+                        50,
+                        "76561198000000001",
+                        "Beta",
+                        true,
+                        false);
+                    service.SyncPlayers(players);
+                    Assert.Equal("Beta", service.LoadAll()[0].Name);
                 }
             }
             finally
