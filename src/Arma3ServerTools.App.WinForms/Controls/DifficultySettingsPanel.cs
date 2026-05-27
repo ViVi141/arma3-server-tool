@@ -42,14 +42,27 @@ namespace Arma3ServerTools.App.WinForms.Controls
         public DifficultySettingsPanel()
         {
             Dock = DockStyle.Fill;
-            var root = SettingsLayoutHelper.CreateSectionsStack();
+            var root = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                BackColor = System.Drawing.Color.White,
+                Padding = new Padding(0),
+                Margin = new Padding(0),
+            };
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             AntLabel hint = AntdUiHelper.CreateHintLabel(
                 "对应服务器 Profile 中的 CustomDifficulty 选项（见 Bohemia Wiki「Difficulty Settings」）。"
                 + " 三态含义因项而异：小队指示器/名称标签/已发现地雷为「从不 / 有限距离 / 始终」；"
                 + "命令/航点/武器信息等为「从不 / 渐隐 / 始终」；第三人为「禁用 / 启用 / 仅载具」。"
                 + " 保存并「应用到服务器目录」后写入 *.Arma3Profile。",
                 720);
-            SettingsLayoutHelper.AddStackSection(root, hint);
+            hint.Dock = DockStyle.Top;
+            hint.Margin = new Padding(0, 0, 0, UiScaleHelper.Scale(6));
+            root.Controls.Add(hint, 0, 0);
 
             var layout = SettingsLayoutHelper.CreateFormLayout(168);
             groupIndicatorsCombo = AddDistanceTriStateCombo(layout, "小队指示器");
@@ -123,7 +136,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 SettingsLayoutHelper.CreateCheckbox("任务中允许多次存档", false));
             skillAiNumeric = SettingsLayoutHelper.AddRow(layout, "AI 技能 (skillAI)", CreateAiNumeric());
             precisionAiNumeric = SettingsLayoutHelper.AddRow(layout, "AI 射击精度 (precisionAI)", CreateAiNumeric());
-            SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateScrollHost(layout));
+
+            Control scrollHost = SettingsLayoutHelper.CreateScrollHost(layout);
+            scrollHost.Dock = DockStyle.Fill;
+            scrollHost.Margin = new Padding(0);
+            root.Controls.Add(scrollHost, 0, 1);
             Controls.Add(root);
         }
 

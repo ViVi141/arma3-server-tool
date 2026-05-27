@@ -6,6 +6,7 @@ using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Application.Sync;
 using Arma3ServerTools.Core.Models;
+using AntDropdown = AntdUI.Dropdown;
 using AntLabel = AntdUI.Label;
 using AntTabs = AntdUI.Tabs;
 
@@ -33,6 +34,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly IAppServices appServices;
         private readonly AntTabs tabs;
         private readonly AntdUI.Checkbox advancedModeCheckBox;
+        private readonly AntDropdown tabJumpDropdown;
         private readonly AntLabel syncLegendLabel;
         private readonly SettingsDirtyTracker dirtyTracker;
         private readonly List<TabDefinition> tabDefinitions = new List<TabDefinition>();
@@ -69,6 +71,15 @@ namespace Arma3ServerTools.App.WinForms.Controls
             advancedModeCheckBox.CheckedChanged += OnAdvancedModeChanged;
             topBar.Controls.Add(advancedModeCheckBox);
 
+            tabJumpDropdown = new AntDropdown
+            {
+                Text = "跳转",
+                Type = AntdUI.TTypeMini.Default,
+                Margin = new Padding(UiScaleHelper.Scale(12), 0, 0, 0),
+            };
+            tabJumpDropdown.ItemClick += OnTabJumpItemClick;
+            topBar.Controls.Add(tabJumpDropdown);
+
             syncLegendLabel = AntdUiHelper.CreateHintLabel(UiLabels.SyncLegendHint, 900);
             syncLegendLabel.Margin = new Padding(UiScaleHelper.Scale(12), 0, 0, 0);
             topBar.Controls.Add(syncLegendLabel);
@@ -79,6 +90,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 Type = AntdUI.TabType.Line,
             };
             tabs.SelectedIndexChanged += OnSettingsTabChanged;
+            tabs.MouseWheel += OnTabsMouseWheel;
 
             RegisterTabLazy("概览", () => new ServerOverviewPanel(appServices), false);
             RegisterTabLazy("基本", () => new BasicSettingsPanel(), false);
@@ -99,6 +111,61 @@ namespace Arma3ServerTools.App.WinForms.Controls
             Controls.Add(topBar);
             Load += OnHostLoad;
             RebuildVisibleTabs();
+        }
+
+        private void OnTabsMouseWheel(object sender, MouseEventArgs e)
+        {
+            if (tabs == null || tabs.Pages == null || tabs.Pages.Count <= 1)
+            {
+                return;
+            }
+
+            if (e == null || e.Delta == 0)
+            {
+                return;
+            }
+
+            int direction;
+            if (e.Delta < 0)
+            {
+                direction = 1;
+            }
+            else
+            {
+                direction = -1;
+            }
+
+            int selected = tabs.SelectedIndex;
+            if (selected < 0)
+            {
+                selected = 0;
+            }
+
+            int next = selected + direction;
+            if (next < 0)
+            {
+                next = 0;
+            }
+            else if (next >= tabs.Pages.Count)
+            {
+                next = tabs.Pages.Count - 1;
+            }
+
+            if (next != selected)
+            {
+                tabs.SelectTab(next);
+            }
+        }
+
+        private void OnTabJumpItemClick(object sender, AntdUI.ObjectNEventArgs e)
+        {
+            string title = Convert.ToString(e.Value);
+            if (string.IsNullOrEmpty(title))
+            {
+                return;
+            }
+
+            SelectTabByTitle(title);
         }
 
         private RconManagementPanel CreateRconPanel(IAppServices services)
@@ -462,6 +529,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 visibleTabDefinitions.Add(definition);
             }
 
+            RebuildTabJumpMenu();
             SelectTabByTitle(lastSelectedTabTitle);
             if (tabs.SelectedIndex < 0 && tabs.Pages.Count > 0)
             {
@@ -471,6 +539,26 @@ namespace Arma3ServerTools.App.WinForms.Controls
             EnsureActiveTabContentMounted();
             RefreshActiveTab(tabs.SelectedIndex);
             RefreshTabTitles();
+        }
+
+        private void RebuildTabJumpMenu()
+        {
+            if (tabJumpDropdown == null)
+            {
+                return;
+            }
+
+            tabJumpDropdown.Items.Clear();
+            for (int i = 0; i < visibleTabDefinitions.Count; i++)
+            {
+                TabDefinition definition = visibleTabDefinitions[i];
+                if (definition == null || string.IsNullOrEmpty(definition.Title))
+                {
+                    continue;
+                }
+
+                tabJumpDropdown.Items.Add(new AntdUI.SelectItem(definition.Title, definition.Title));
+            }
         }
 
         private string GetSelectedTabBaseTitle()

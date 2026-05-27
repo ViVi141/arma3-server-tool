@@ -89,7 +89,7 @@ namespace Arma3ServerTools.App.WinForms
                 MinimizeBox = true,
                 FullBox = false,
                 CancelButton = true,
-                MDI = true,
+                MDI = false,
                 DragMove = true,
                 EnableDoubleClickMaximize = true,
                 DividerShow = true,
