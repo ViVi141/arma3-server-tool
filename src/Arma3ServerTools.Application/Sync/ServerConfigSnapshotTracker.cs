@@ -26,7 +26,7 @@ namespace Arma3ServerTools.Application.Sync
                 return;
             }
 
-            persistedSnapshots[serverUuid] = JsonSerializer.ToJson(config);
+            persistedSnapshots[serverUuid] = SerializeSnapshot(config);
         }
 
         public void CaptureServerApplied(string serverUuid, ArmaServerConfig config)
@@ -36,7 +36,7 @@ namespace Arma3ServerTools.Application.Sync
                 return;
             }
 
-            serverAppliedSnapshots[serverUuid] = JsonSerializer.ToJson(config);
+            serverAppliedSnapshots[serverUuid] = SerializeSnapshot(config);
         }
 
         public void Remove(string serverUuid)
@@ -69,7 +69,7 @@ namespace Arma3ServerTools.Application.Sync
                 return false;
             }
 
-            string current = JsonSerializer.ToJson(configAfterApplyAll);
+            string current = SerializeSnapshot(configAfterApplyAll);
             return !string.Equals(baseline, current, StringComparison.Ordinal);
         }
 
@@ -86,8 +86,32 @@ namespace Arma3ServerTools.Application.Sync
                 return true;
             }
 
-            string current = JsonSerializer.ToJson(configAfterApplyAll);
+            string current = SerializeSnapshot(configAfterApplyAll);
             return !string.Equals(baseline, current, StringComparison.Ordinal);
+        }
+
+        private static string SerializeSnapshot(ArmaServerConfig config)
+        {
+            if (config == null)
+            {
+                return string.Empty;
+            }
+
+            string json = JsonSerializer.ToJson(config);
+            ArmaServerConfig normalized = JsonSerializer.FromJson<ArmaServerConfig>(json);
+            if (normalized == null)
+            {
+                return json;
+            }
+
+            if (normalized.ServerTaskManagement == null)
+            {
+                normalized.ServerTaskManagement = new ServerManagement();
+            }
+
+            // Runtime PID is not a user edit and should not trigger unsaved prompts.
+            normalized.ServerTaskManagement.ProcessById = 0;
+            return JsonSerializer.ToJson(normalized);
         }
     }
 }

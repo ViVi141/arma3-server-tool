@@ -74,6 +74,8 @@ namespace Arma3ServerTools.App.WinForms
             MinimumSize = UiScaleHelper.ScaleSize(900, 600);
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Color.White;
+            FormBorderStyle = FormBorderStyle.Sizable;
+            ControlBox = true;
             MaximizeBox = true;
             MinimizeBox = true;
 
@@ -616,7 +618,6 @@ namespace Arma3ServerTools.App.WinForms
                 return true;
             }
 
-            settingsHost.ApplyAll();
             ArmaServerConfig config = services.GetCurrentConfig();
             return configSnapshots.HasChanges(uuid, config);
         }
