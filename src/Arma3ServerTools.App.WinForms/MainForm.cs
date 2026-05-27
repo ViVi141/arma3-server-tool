@@ -705,7 +705,7 @@ namespace Arma3ServerTools.App.WinForms
                 return false;
             }
 
-            ApplyCurrentSettings();
+            ApplyCurrentSettings(force: true);
             OperationResult saveResult = Task.Run(() => lifecycleCoordinator.SaveConfig(config))
                 .GetAwaiter().GetResult();
             if (!saveResult.Success)
@@ -734,7 +734,7 @@ namespace Arma3ServerTools.App.WinForms
                 return false;
             }
 
-            ApplyCurrentSettings();
+            ApplyCurrentSettings(force: true);
             OperationResult writeResult = Task.Run(() => lifecycleCoordinator.WriteConfigFiles(config))
                 .GetAwaiter().GetResult();
             if (!writeResult.Success)
@@ -1379,9 +1379,9 @@ namespace Arma3ServerTools.App.WinForms
             ReloadServers(true);
         }
 
-        private void ApplyCurrentSettings()
+        private void ApplyCurrentSettings(bool force = false)
         {
-            settingsHost.ApplyAll();
+            settingsHost.ApplyAll(force);
         }
 
         private void OnSaveConfig(object sender, EventArgs e)
@@ -1431,7 +1431,7 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
-            ApplyCurrentSettings();
+            ApplyCurrentSettings(force: true);
             OperationResult saveResult = await Task.Run(() => lifecycleCoordinator.SaveConfig(config)).ConfigureAwait(true);
             if (!saveResult.Success)
             {
@@ -1453,7 +1453,7 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
-            ApplyCurrentSettings();
+            ApplyCurrentSettings(force: true);
             OperationResult writeResult = await Task.Run(() => lifecycleCoordinator.WriteConfigFiles(config))
                 .ConfigureAwait(true);
 
@@ -1481,7 +1481,7 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
-            ApplyCurrentSettings();
+            ApplyCurrentSettings(force: true);
             OperationResult saveResult = await Task.Run(() => lifecycleCoordinator.SaveConfig(config)).ConfigureAwait(true);
             if (!saveResult.Success)
             {
@@ -1489,10 +1489,9 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             SyncSchedulerJobs(config);
-            CapturePersistedSnapshot(config.ServerUUID);
-            settingsHost.ClearDirtyMarkers();
             RefreshConfigSyncIndicators();
 
+            // 快照和脏标记在预检通过+用户确认启动成功后才清除（见 line ~1565）
             IReadOnlyList<PreflightCheckItem> preflightItems = lifecycleCoordinator.BuildPreflightItems(config);
             if (services.PreflightChecker.HasBlockingErrors(preflightItems))
             {
