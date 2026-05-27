@@ -224,10 +224,22 @@ namespace Arma3ServerTools.Application.Automation
 
         public OperationResult StartServer(string serverUuid)
         {
+            // 从服务刷新配置，确保包含最新修改
             ArmaServerConfig config = configService.Get(serverUuid);
             if (config == null)
             {
                 return OperationResult.Fail("未找到服务器: " + serverUuid);
+            }
+
+            // 检查 SteamCMD 是否正在运行
+            var steamCmdService = GetSteamCmdService();
+            if (steamCmdService != null)
+            {
+                SteamCmdStatusSnapshot steamStatus = steamCmdService.GetSteamCmdStatus();
+                if (steamStatus.IsRunning)
+                {
+                    return OperationResult.Fail("SteamCMD 正在运行中，请等待完成或先停止 SteamCMD 再启动服务器。");
+                }
             }
 
             config.SetTime();

@@ -65,7 +65,26 @@ namespace Arma3ServerTools.Application.Services
             }
 
             config.ServerTaskManagement.ProcessById = startResult.ProcessId;
+
+            // 验证进程是否已在运行中
+            if (!processRunner.IsRunning(startResult.ProcessId))
+            {
+                config.ServerTaskManagement.ProcessById = 0;
+                configService.Save(config);
+                return OperationResult.Fail("进程已退出: " + startResult.Message);
+            }
+
             configService.Save(config);
+
+            // 短时等待后二次验证进程存活
+            System.Threading.Thread.Sleep(2000);
+            if (!processRunner.IsRunning(startResult.ProcessId))
+            {
+                config.ServerTaskManagement.ProcessById = 0;
+                configService.Save(config);
+                return OperationResult.Fail("进程启动后2秒内已退出，请检查模板/模组配置。");
+            }
+
             return OperationResult.Ok();
         }
 
