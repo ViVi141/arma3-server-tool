@@ -233,10 +233,9 @@ namespace Arma3ServerTools.Application.Automation
 
             // 检查 SteamCMD 是否正在运行
             SteamCmdStatusSnapshot steamStatus = steamCmdService.GetSteamCmdStatus();
-                if (steamStatus.RunningProcessCount > 0)
-                {
-                    return OperationResult.Fail("SteamCMD 正在运行中，请等待完成或先停止 SteamCMD 再启动服务器。");
-                }
+            if (steamStatus.RunningProcessCount > 0)
+            {
+                return OperationResult.Fail("SteamCMD 正在运行中，请等待完成或先停止 SteamCMD 再启动服务器。");
             }
 
             config.SetTime();

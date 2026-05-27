@@ -42,11 +42,8 @@ jobs:
       - name: Verify formatting
         run: dotnet format Arma3ServerTools.sln --verify-no-changes --no-restore --verbosity diagnostic
 
-      - name: Publish WinForms App
-        run: dotnet publish src/Arma3ServerTools.App.WinForms/ -c Release --self-contained true -o publish/Arma3ServerTools
-
       - name: Publish Agent Host
-        run: dotnet publish src/Arma3ServerTools.Agent.Host/ -c Release --self-contained true -o publish/Agent
+        run: dotnet publish src/Arma3ServerTools.Agent.Host/ -c Release -o publish/Agent
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
