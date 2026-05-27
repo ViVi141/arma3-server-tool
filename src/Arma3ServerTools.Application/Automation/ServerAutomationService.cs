@@ -442,6 +442,15 @@ namespace Arma3ServerTools.Application.Automation
         private static string BuildCapturedFailureMessage(SteamCmdRunResult captured)
         {
             string message = captured.Message;
+            if (captured.RequiresSteamGuard)
+            {
+                message = "SteamCMD 等待 Steam Guard 或登录失败。"
+                    + " 建议：任务 JSON 设置 \"captureSteamCmdOutput\": false 弹出窗口人工验证，"
+                    + "或轮询 GET /api/v1/steamcmd/log。"
+                    + System.Environment.NewLine
+                    + message;
+            }
+
             string tail = captured.TailForDisplay(4000);
             if (!string.IsNullOrWhiteSpace(tail))
             {
@@ -479,11 +488,12 @@ namespace Arma3ServerTools.Application.Automation
                 return result;
             }
 
+            List<AutomationCommand> commands = AutomationCommandCoalescer.Coalesce(task.Commands);
             bool allSuccess = true;
-            for (int i = 0; i < task.Commands.Count; i++)
+            for (int i = 0; i < commands.Count; i++)
             {
-                AutomationCommand command = task.Commands[i];
-                AutomationStepResult step = ExecuteCommand(ref config, command);
+                AutomationCommand command = commands[i];
+                AutomationStepResult step = ExecuteCommand(ref config, command, task);
                 result.Steps.Add(step);
                 if (!step.Success)
                 {
@@ -529,7 +539,10 @@ namespace Arma3ServerTools.Application.Automation
             return string.Equals(action.Trim(), "create_server", StringComparison.OrdinalIgnoreCase);
         }
 
-        private AutomationStepResult ExecuteCommand(ref ArmaServerConfig config, AutomationCommand command)
+        private AutomationStepResult ExecuteCommand(
+            ref ArmaServerConfig config,
+            AutomationCommand command,
+            AutomationTaskDocument task)
         {
             if (command == null || string.IsNullOrWhiteSpace(command.Action))
             {
@@ -541,6 +554,9 @@ namespace Arma3ServerTools.Application.Automation
                 && action != "help"
                 && action != "create_server"
                 && action != "ensure_steamcmd"
+                && action != "stop_steamcmd"
+                && action != "kill_steamcmd"
+                && action != "steamcmd_status"
                 && action != "install_dedicated_server"
                 && action != "first_server_setup")
             {
@@ -600,33 +616,52 @@ namespace Arma3ServerTools.Application.Automation
 
             if (action == "download_mods")
             {
+                bool capture = AutomationSteamCmdOptions.ResolveCaptureOutput(task, command);
+                int timeoutSeconds = AutomationSteamCmdOptions.ResolveTimeoutSeconds(task, command);
                 OperationResult modResult = DownloadWorkshopMods(
                     config.ServerUUID,
                     command.ModIds,
                     command.EnableModsOnServer,
-                    command.CaptureSteamCmdOutput,
-                    command.SteamCmdTimeoutSeconds);
+                    capture,
+                    timeoutSeconds);
                 if (modResult.Success && command.ScanModsAfterDownload)
                 {
                     SteamcmdEntity steam = steamCmdConfigProvider.GetSettings();
                     modScannerService.Scan(config, steam);
                 }
 
-                if (command.CaptureSteamCmdOutput)
+                AutomationStepResult step;
+                if (capture)
                 {
-                    return ToStepWithSteamCmdLog(action, modResult);
+                    step = ToStepWithSteamCmdLog(action, modResult);
+                }
+                else
+                {
+                    step = ToStep(action, modResult);
                 }
 
-                return ToStep(action, modResult);
+                if (command.CoalescedFromCount > 1)
+                {
+                    step.Message = "已将 " + command.CoalescedFromCount
+                        + " 条 download_mods 合并为一次 SteamCMD（共 "
+                        + command.ModIds.Count
+                        + " 个 ID）。"
+                        + System.Environment.NewLine
+                        + step.Message;
+                }
+
+                return step;
             }
 
             if (action == "update_server")
             {
+                bool capture = AutomationSteamCmdOptions.ResolveCaptureOutput(task, command);
+                int timeoutSeconds = AutomationSteamCmdOptions.ResolveTimeoutSeconds(task, command);
                 OperationResult updateResult = UpdateDedicatedServer(
                     config.ServerUUID,
-                    command.CaptureSteamCmdOutput,
-                    command.SteamCmdTimeoutSeconds);
-                if (command.CaptureSteamCmdOutput)
+                    capture,
+                    timeoutSeconds);
+                if (capture)
                 {
                     return ToStepWithSteamCmdLog(action, updateResult);
                 }
@@ -646,7 +681,7 @@ namespace Arma3ServerTools.Application.Automation
                 return OkStep(action, "已保存到工具配置。");
             }
 
-            return ExecuteExtendedCommand(ref config, action, command);
+            return ExecuteExtendedCommand(ref config, action, command, task);
         }
 
         private AutomationStepResult ExecuteRconMission(ArmaServerConfig config, AutomationCommand command)

@@ -265,7 +265,7 @@ C:\Program Files\Arma3 Server Tools\
 在 **管理员 PowerShell** 中（路径按实际安装目录修改）：
 
 ```powershell
-& "C:\Program Files\Arma3 Server Tools\agent\Arma3ServerTools.Agent.Host.exe"
+FF
 ```
 
 首次运行会在 **用户数据目录** 创建 `config/agent/settings.json`（见 [§11 路径](#11-路径与数据目录易踩坑)）。
@@ -276,6 +276,16 @@ C:\Program Files\Arma3 Server Tools\
 - 其中的 `http.apiToken`（首次随机生成）
 
 按 `Ctrl+C` 可先退出，改完配置再常驻运行。
+
+### 4.4 SteamCMD 输出在哪里看？
+
+| 运行方式 | 默认行为 | 如何看到进度 |
+|----------|----------|----------------|
+| **Agent 在前台 PowerShell**（§4.3） | 任务默认**捕获模式**（无独立黑窗） | 下载时 **`[SteamCMD]` 行会打到 Agent 同一窗口**（`settings.json` → `steamCmd.mirrorOutputToConsole`，默认 `true`） |
+| 需要 **Steam Guard 弹窗** | 捕获模式无法点验证码 | 任务 JSON：`"captureSteamCmdOutput": false`，或 `a3st-invoke` 加 **`-SteamCmdWindow`**（A 机弹出黑窗） |
+| **B 机** `a3st-invoke` 调 A | 结果在 JSON，不在 B 的 PS | 加 **`-ShowSteamCmdProgress`**（轮询 `GET /api/v1/steamcmd/log`）或任务 **`async:true`** 后轮询 task |
+
+> 若完全看不到输出：确认 Agent 是**前台**运行（计划任务/无控制台服务不会显示）；或查 `{UserData}/logs/steamcmd/` 与 API `GET /api/v1/steamcmd/log`。
 
 ---
 
@@ -308,7 +318,8 @@ C:\Program Files\Arma3 Server Tools\
     "apiToken": "请替换为长随机串并与 B 机 OpenClaw 环境变量一致",
     "allowedCallerIps": ["192.168.1.20"]
   },
-  "inbox": { "enabled": true, "pollSeconds": 5 }
+  "inbox": { "enabled": true, "pollSeconds": 5 },
+  "steamCmd": { "mirrorOutputToConsole": true }
 }
 ```
 

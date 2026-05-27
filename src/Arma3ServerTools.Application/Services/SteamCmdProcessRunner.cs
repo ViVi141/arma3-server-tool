@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Threading;
 using Arma3ServerTools.Core;
 
 namespace Arma3ServerTools.Application.Services
@@ -30,9 +31,12 @@ namespace Arma3ServerTools.Application.Services
                 logDirectory,
                 "steamcmd_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".log");
             result.LogFilePath = logFilePath;
+            SteamCmdConsoleMirror.WriteStartBanner();
 
             var stdoutBuilder = new StringBuilder();
             var stderrBuilder = new StringBuilder();
+            using (var stdoutDone = new ManualResetEvent(false))
+            using (var stderrDone = new ManualResetEvent(false))
             try
             {
                 var startInfo = new ProcessStartInfo
@@ -52,17 +56,25 @@ namespace Arma3ServerTools.Application.Services
                 {
                     process.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e)
                     {
-                        if (e.Data != null)
+                        if (e.Data == null)
                         {
-                            stdoutBuilder.AppendLine(e.Data);
+                            stdoutDone.Set();
+                            return;
                         }
+
+                        stdoutBuilder.AppendLine(e.Data);
+                        SteamCmdConsoleMirror.WriteLine(e.Data);
                     };
                     process.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs e)
                     {
-                        if (e.Data != null)
+                        if (e.Data == null)
                         {
-                            stderrBuilder.AppendLine(e.Data);
+                            stderrDone.Set();
+                            return;
                         }
+
+                        stderrBuilder.AppendLine(e.Data);
+                        SteamCmdConsoleMirror.WriteLine(e.Data);
                     };
 
                     if (!process.Start())
@@ -92,6 +104,7 @@ namespace Arma3ServerTools.Application.Services
                     }
                     else
                     {
+                        WaitForStreamDrain(stdoutDone, stderrDone);
                         result.ExitCode = process.ExitCode;
                         result.Success = process.ExitCode == 0;
                         if (result.Success)
@@ -114,8 +127,24 @@ namespace Arma3ServerTools.Application.Services
             result.StandardOutput = stdoutBuilder.ToString();
             result.StandardError = stderrBuilder.ToString();
             result.CombinedText = BuildCombinedText(result.StandardOutput, result.StandardError);
+            result.RequiresSteamGuard = SteamCmdRunResult.OutputIndicatesSteamGuard(result.CombinedText);
+            if (result.RequiresSteamGuard && result.Success)
+            {
+                result.Success = false;
+                result.Message = "需要 Steam Guard 或账号验证，请查看输出中的登录提示。"
+                    + " 可将 captureSteamCmdOutput 设为 false 以弹出 SteamCMD 窗口人工确认。";
+            }
+
             WriteLogFile(logFilePath, executablePath, arguments, passwordForRedaction, result);
+            SteamCmdConsoleMirror.WriteEndBanner(result.Message);
             return result;
+        }
+
+        private static void WaitForStreamDrain(ManualResetEvent stdoutDone, ManualResetEvent stderrDone)
+        {
+            const int drainWaitMs = 5000;
+            stdoutDone.WaitOne(drainWaitMs);
+            stderrDone.WaitOne(drainWaitMs);
         }
 
         private static string BuildCombinedText(string stdout, string stderr)

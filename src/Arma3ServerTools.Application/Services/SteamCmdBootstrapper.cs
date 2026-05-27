@@ -214,7 +214,17 @@ namespace Arma3ServerTools.Application.Services
 
         private static OperationResult RunBootstrapUpdate(string extensionDirectory)
         {
+            if (!SteamCmdExecutionGate.TryEnter("SteamCMD 初始化（+quit）", 300000, out string busyMessage))
+            {
+                return OperationResult.Fail(busyMessage);
+            }
+
             string executablePath = Path.Combine(extensionDirectory, "steamcmd.exe");
+            if (SteamCmdExecutionGate.HasRunningSteamCmdProcess())
+            {
+                return OperationResult.Fail(SteamCmdExecutionGate.BuildAlreadyRunningMessage());
+            }
+
             try
             {
                 var startInfo = new ProcessStartInfo
@@ -261,6 +271,10 @@ namespace Arma3ServerTools.Application.Services
             catch (Exception ex)
             {
                 return OperationResult.Fail("SteamCMD 初始化失败: " + ex.Message);
+            }
+            finally
+            {
+                SteamCmdExecutionGate.Exit();
             }
         }
 

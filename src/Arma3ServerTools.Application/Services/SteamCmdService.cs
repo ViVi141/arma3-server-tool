@@ -32,6 +32,16 @@ namespace Arma3ServerTools.Application.Services
             this.processRunner = processRunner;
         }
 
+        public SteamCmdTerminationResult TerminateRunningSteamCmd()
+        {
+            return SteamCmdExecutionGate.TerminateAll();
+        }
+
+        public SteamCmdStatusSnapshot GetSteamCmdStatus()
+        {
+            return SteamCmdExecutionGate.GetStatus();
+        }
+
         public void InvalidateExecutableCache()
         {
             executablePathCached = false;
@@ -353,9 +363,21 @@ namespace Arma3ServerTools.Application.Services
 
         private OperationResult StartSteamCmd(string arguments)
         {
+            if (!SteamCmdExecutionGate.TryEnter("SteamCMD（交互窗口）", 0, out string busyMessage))
+            {
+                return OperationResult.Fail(busyMessage);
+            }
+
+            if (SteamCmdExecutionGate.HasRunningSteamCmdProcess())
+            {
+                SteamCmdExecutionGate.Exit();
+                return OperationResult.Fail(SteamCmdExecutionGate.BuildAlreadyRunningMessage());
+            }
+
             string executablePath = ResolveSteamCmdExecutable();
             if (string.IsNullOrEmpty(executablePath))
             {
+                SteamCmdExecutionGate.Exit();
                 return OperationResult.Fail("找不到 steamcmd.exe。");
             }
 
@@ -366,10 +388,16 @@ namespace Arma3ServerTools.Application.Services
                 workingDirectory);
             if (!result.Success)
             {
+                SteamCmdExecutionGate.Exit();
                 return OperationResult.Fail(result.Message);
             }
 
-            return OperationResult.Ok("SteamCMD 已启动，请在控制台窗口中完成 Steam Guard 验证。");
+            SteamCmdExecutionGate.AttachProcessExitRelease(result.ProcessId);
+            SteamCmdConsoleMirror.WriteLine(
+                "已启动交互式 SteamCMD 窗口（非本 PowerShell；请在弹出窗口中操作）。");
+            return OperationResult.Ok(
+                "SteamCMD 已启动，请在控制台窗口中完成 Steam Guard 验证。"
+                + " 执行期间其他下载/更新请求将排队或提示忙碌。");
         }
 
         private SteamCmdRunResult RunCaptured(string arguments, string password, int timeoutMilliseconds)
@@ -379,18 +407,38 @@ namespace Arma3ServerTools.Application.Services
                 timeoutMilliseconds = 1800000;
             }
 
-            string executablePath = ResolveSteamCmdExecutable();
-            if (string.IsNullOrEmpty(executablePath))
+            int waitForLockMs = timeoutMilliseconds + 60000;
+            if (!SteamCmdExecutionGate.TryEnter("SteamCMD（同步下载）", waitForLockMs, out string busyMessage))
             {
-                return SteamCmdRunResultFromMessage(false, "找不到 steamcmd.exe。");
+                return SteamCmdRunResultFromMessage(false, busyMessage);
             }
 
-            return SteamCmdProcessRunner.RunCaptured(
-                paths,
-                executablePath,
-                arguments,
-                password,
-                timeoutMilliseconds);
+            try
+            {
+                if (SteamCmdExecutionGate.HasRunningSteamCmdProcess())
+                {
+                    return SteamCmdRunResultFromMessage(
+                        false,
+                        SteamCmdExecutionGate.BuildAlreadyRunningMessage());
+                }
+
+                string executablePath = ResolveSteamCmdExecutable();
+                if (string.IsNullOrEmpty(executablePath))
+                {
+                    return SteamCmdRunResultFromMessage(false, "找不到 steamcmd.exe。");
+                }
+
+                return SteamCmdProcessRunner.RunCaptured(
+                    paths,
+                    executablePath,
+                    arguments,
+                    password,
+                    timeoutMilliseconds);
+            }
+            finally
+            {
+                SteamCmdExecutionGate.Exit();
+            }
         }
 
         private static SteamCmdRunResult SteamCmdRunResultFromOperation(OperationResult result)

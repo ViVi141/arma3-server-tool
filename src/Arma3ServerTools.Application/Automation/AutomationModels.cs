@@ -12,6 +12,14 @@ namespace Arma3ServerTools.Application.Automation
 
         public bool Async { get; set; }
 
+        /// <summary>
+        /// 为 null 时：download_mods / import_mods_html 默认捕获 SteamCMD 文本供 AI 查看进度。
+        /// 设为 false 则弹出 SteamCMD 窗口（便于 Steam Guard）。
+        /// </summary>
+        public bool? CaptureSteamCmdOutput { get; set; }
+
+        public int SteamCmdTimeoutSeconds { get; set; } = 3600;
+
         public List<AutomationCommand> Commands { get; set; } = new List<AutomationCommand>();
     }
 
@@ -34,12 +42,14 @@ namespace Arma3ServerTools.Application.Automation
         public bool ScanModsAfterDownload { get; set; } = true;
 
         /// <summary>
-        /// 为 true 时同步运行 SteamCMD 并捕获 stdout/stderr（写入 logs/steamcmd/），适合 Agent 读取文本。
-        /// 需要 Steam Guard 时可能失败，可改用弹窗模式并 GET /api/v1/steamcmd/log 轮询安装目录 logs/。
+        /// 为 true 时同步运行 SteamCMD 并捕获 stdout/stderr。未设置时继承任务级 CaptureSteamCmdOutput（默认捕获）。
         /// </summary>
-        public bool CaptureSteamCmdOutput { get; set; }
+        public bool? CaptureSteamCmdOutput { get; set; }
 
-        public int SteamCmdTimeoutSeconds { get; set; } = 1800;
+        public int SteamCmdTimeoutSeconds { get; set; }
+
+        /// <summary>由 AutomationCommandCoalescer 设置：合并了几条相邻 download_mods。</summary>
+        public int CoalescedFromCount { get; set; }
 
         public bool CopyBikeys { get; set; } = true;
 

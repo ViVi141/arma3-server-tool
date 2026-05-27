@@ -83,9 +83,78 @@ powershell -ExecutionPolicy Bypass -File $script -TaskFile "C:\path\to\task.json
 powershell -ExecutionPolicy Bypass -File "<repo>\scripts\openclaw\a3st-invoke.ps1" -Command status
 ```
 
-## 用户意图 → 任务 JSON
+## 模组 / SteamCMD（必读，避免拆命令）
 
-将用户自然语言转为 `POST /api/v1/task` 的 JSON（或 `-TaskFile`）：
+### 禁止
+
+- **禁止**把多个模组 ID 拆成多条 `download_mods`（例如每个 ID 一条 command）。主机端会多次启动 SteamCMD，极易卡在 Steam Guard。
+- **禁止**在 `import_mods_html` 或上传 HTML 之后再对同一批 ID 发 `download_mods`。
+- **禁止**把 HTML 拆成多次 `import_mods_html`（应一次传完整 HTML）。
+
+### 正确做法
+
+| 场景 | 做法 |
+|------|------|
+| 用户发 HTML 模组页 | **一次** `POST .../files/mod-list-html` 或 task 里 **一条** `import_mods_html`（`htmlContent` 放完整 HTML） |
+| 用户给多个 Workshop ID | **一条** `download_mods`，`modIds` 数组包含全部 ID |
+| 长耗时下载 | `"async": true`，轮询 `GET /api/v1/tasks/{taskId}`，看步骤里的 `steamCmdLog` |
+
+### 默认捕获 SteamCMD 文本
+
+任务 JSON **默认**会捕获 SteamCMD 输出（无需每条都写）。步骤结果含：
+
+- `steamCmdLog` — 尾部控制台文本（可判断是在下载还是卡在 Steam Guard）
+- `steamCmdLogFile` — 完整日志路径
+
+若 `requiresSteamGuard` / 输出含 `Steam Guard`：告知用户到 A 机处理，或重试并设 `"captureSteamCmdOutput": false` 弹出 SteamCMD 窗口。
+
+也可轮询：`GET /api/v1/steamcmd/log?tail=200`
+
+### 示例：HTML 一次导入（推荐）
+
+```json
+{
+  "async": true,
+  "serverUuid": "<uuid>",
+  "commands": [
+    {
+      "action": "import_mods_html",
+      "htmlContent": "<完整 HTML 粘贴于此>",
+      "htmlImportMode": "download_and_enable"
+    }
+  ]
+}
+```
+
+### 示例：多个模组 ID 一次下载
+
+```json
+{
+  "async": true,
+  "serverUuid": "<uuid>",
+  "commands": [
+    {
+      "action": "download_mods",
+      "modIds": [450814997, 463939057, 123456789],
+      "enableModsOnServer": true
+    }
+  ]
+}
+```
+
+主机会自动：**合并**多条 `download_mods`（中间仅有 `status`/`read_logs` 等只读步骤时也会合并）；**去掉** `import_mods_html`（含下载）之后的重复 `download_mods`。仍请尽量只发一条命令。
+
+**全局限制**：A 机任意时刻只能跑 **一个** SteamCMD（工具内互斥）。前一个未结束时后发请求会返回忙碌说明；交互窗口模式需用户关闭 SteamCMD 窗口后才可再次下载。
+
+**卡住时终止 SteamCMD**：
+
+```json
+{ "commands": [{ "action": "stop_steamcmd" }] }
+```
+
+或 `POST /api/v1/steamcmd/stop`（无需 serverUuid）。会结束所有 `steamcmd.exe` 并释放工具锁。查询状态：`GET /api/v1/steamcmd/status` 或 `steamcmd_status`。
+
+## 用户意图 → 任务 JSON
 
 | 用户说法 | commands 建议 |
 |----------|----------------|
@@ -94,13 +163,12 @@ powershell -ExecutionPolicy Bypass -File "<repo>\scripts\openclaw\a3st-invoke.ps
 | 启服 | `[{ "action": "start" }]` |
 | 重启 | `[{ "action": "restart" }]` |
 | 换任务并重启 | `stop` → `switch_mission`（`missionTemplate`）→ `start` |
-| 下载模组 ID | `{ "action": "download_mods", "modIds": [ ... ], "enableModsOnServer": true }` |
+| 下载模组 ID | **一条** `download_mods`，`modIds` 为**全部** ID |
+| HTML 模组列表 | **一条** `import_mods_html` 或 `-UploadModHtml`，不要跟 `download_mods` |
 | 更新专用服务器 | `[{ "action": "update_server" }]` |
 | 只写 cfg | `[{ "action": "write_cfg" }]` |
-| 上传 HTML 模组列表 | `POST .../files/mod-list-html` 或 `-UploadModHtml` |
-| 上传 PBO 任务 | `POST .../files/mission-pbo` 或 `-UploadMissionPbo` |
-| 长耗时操作 | 任务 JSON 加 `"async": true`，再轮询 `/api/v1/tasks/{taskId}` |
-| 看 RPT / 游戏日志 | `-Command rpt` 或 `-Command logs -LogKind battleye`；或 task `read_logs` / `read_rpt` |
+| 长耗时操作 | `"async": true` + 轮询 task |
+| 看 RPT / 日志 | `-Command rpt` / `read_logs` |
 
 多服时在 JSON 中加 `serverName` 或 `serverUuid`。
 
@@ -125,19 +193,34 @@ powershell -ExecutionPolicy Bypass -File "<repo>\scripts\openclaw\a3st-invoke.ps
 
 ## 回复用户
 
-- 执行后把脚本输出的 **最后一行 JSON** 或 `message` 字段用简短中文回复到当前 IM 会话。
-- 失败时说明原因（Steam 未配置、服在运行、路径含中文等），不要泄露 `apiToken`。
-- `download_mods` 可能需人工 Steam Guard，提醒用户看 SteamCMD 窗口。
+- 执行后阅读 **`data.steps[].steamCmdLog`**（`POST /api/v1/task` 同步/异步、`GET /tasks/{id}` 相同结构）、上传 HTML 时的 `data.steamCmdLog`；以 **`data.success`** 判断成败。
+- 失败时说明原因，不要泄露 `apiToken`。
+- 模组下载务必说明是**一次 SteamCMD 处理 N 个模组**，不要让用户以为要逐个点确认。
+
+## 排查清单（AI 自检）
+
+| 症状 | 优先检查 |
+|------|----------|
+| 下载无输出/不知进度 | 是否 `async:true` 且轮询 task；是否看 `steps[].steamCmdLog` |
+| Steam Guard | `captureSteamCmdOutput: false` 或 A 机手动验证；勿重复发 download_mods |
+| 忙碌/卡住 | `GET /api/v1/steamcmd/status` → `stop_steamcmd` 或 `-Command steamcmd-stop` |
+| HTML 只上一半 | **勿**在对话 JSON 里贴整页 HTML；用文件上传 `-UploadModHtml` |
+| 多服失败 | 先 `list` / `GET /servers`，补 `serverUuid` |
+| 在线人数 | 用 `rcon_players`，不是 `status` |
+| 改配置不生效 | `PUT .../config` 后要有 `write_cfg` 或 `restart` |
+
+完整说明见 [docs/ai-agent-pitfalls.md](../docs/ai-agent-pitfalls.md)。
 
 ## 参考
 
-- 双机 / 公网互通：`docs/deployment-ab-openclaw.md`（安装包内见 `{app}\docs\` 若已复制，或 GitHub 仓库）
+- 双机 / 公网：`docs/deployment-ab-openclaw.md`
 - `docs/openclaw-integration.md`
-- 任务字段与 API：`docs/agent-channels.md`
-- **各 action 行为、限制与未覆盖能力**：`docs/agent-capabilities.md`
+- `docs/agent-channels.md`
+- `docs/agent-capabilities.md`
+- `docs/ai-agent-pitfalls.md` — **AI 常见问题审查（维护者）**
 
 ## 安全
 
-- 仅通过 `A3ST_AGENT_URL` 调用 Agent API（跨公网时优先 Tailscale 或 HTTPS，见 `deployment-ab-openclaw.md` §3）。
-- 危险操作（restart、update_server）前用一句话向用户确认（除非用户已明确下令）。
-- 不要把 RCon/Steam 密码写进群聊或发给云端模型。
+- 仅通过 `A3ST_AGENT_URL` 调用 Agent API。
+- 危险操作前向用户确认。
+- 不要把 RCon/Steam 密码写进群聊。

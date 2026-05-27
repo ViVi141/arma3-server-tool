@@ -36,7 +36,7 @@ dotnet run --project src/Arma3ServerTools.Agent.Host/Arma3ServerTools.Agent.Host
 | GET | `/api/v1/health` | `{ success, service, ... }` |
 | GET | `/api/v1/servers` | 裸数组 |
 | GET | `/api/v1/servers/{uuid}/status` | 状态对象 |
-| POST | `/api/v1/task` | `{ Success, Message, Steps, ... }`（同步） |
+| POST | `/api/v1/task` | 同步：`{ success, data: { success, message, steps } }`；异步：202 + `taskId` |
 
 ### 新格式（统一包裹）
 
@@ -60,6 +60,8 @@ dotnet run --project src/Arma3ServerTools.Agent.Host/Arma3ServerTools.Agent.Host
 | GET | `/api/v1/servers/{uuid}/logs` · `.../logs/read` · `.../rpt` |
 | GET | `/api/v1/servers/{uuid}/monitoring/summary` |
 | GET | `/api/v1/steamcmd/log` |
+| GET | `/api/v1/steamcmd/status` |
+| POST | `/api/v1/steamcmd/stop` |
 | POST | `/api/v1/task` + `"async": true` → 202 + `taskId` |
 | GET | `/api/v1/tasks/{taskId}` |
 

@@ -26,6 +26,7 @@
 | [deployment-ab-openclaw.md](deployment-ab-openclaw.md) | **双机**：A 开服 / B OpenClaw / QQ 接 B |
 | [agent-channels.md](agent-channels.md) | Agent HTTP API、任务 JSON、Inbox |
 | [agent-capabilities.md](agent-capabilities.md) | 各 `action` 行为、限制与 REST 能力 |
+| [ai-agent-pitfalls.md](ai-agent-pitfalls.md) | **AI/OpenClaw 常见问题与排查** |
 | [../skills/arma3-server-tools/SKILL.md](../skills/arma3-server-tools/SKILL.md) | 给大模型的操作说明 |
 | [../scripts/openclaw/a3st-invoke.ps1](../scripts/openclaw/a3st-invoke.ps1) | 调用脚本 |
 

@@ -2,16 +2,23 @@ using System.Threading.Tasks;
 using Arma3ServerTools.Application.Automation;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 
 namespace Arma3ServerTools.Agent.Host.Http
 {
     public static class AgentApiResponseWriter
     {
+        private static readonly JsonSerializerSettings CamelCaseSettings = new JsonSerializerSettings
+        {
+            ContractResolver = new CamelCasePropertyNamesContractResolver(),
+            NullValueHandling = NullValueHandling.Ignore,
+        };
+
         public static async Task WriteEnvelopeAsync<T>(HttpContext context, int statusCode, AgentApiEnvelope<T> envelope)
         {
             context.Response.StatusCode = statusCode;
             context.Response.ContentType = "application/json; charset=utf-8";
-            string json = JsonConvert.SerializeObject(envelope);
+            string json = JsonConvert.SerializeObject(envelope, CamelCaseSettings);
             await context.Response.WriteAsync(json).ConfigureAwait(false);
         }
 

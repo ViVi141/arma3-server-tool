@@ -5,6 +5,7 @@ using Arma3ServerTools.Agent.Host.Http;
 using Arma3ServerTools.Agent.Host.Inbox;
 using Arma3ServerTools.Application.DependencyInjection;
 using Arma3ServerTools.Application.Logging;
+using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,6 +21,7 @@ namespace Arma3ServerTools.Agent.Host
             string baseDirectory = AppContext.BaseDirectory;
             var paths = new AppPaths(baseDirectory);
             AgentSettings settings = AgentSettingsLoader.LoadOrCreate(paths);
+            SteamCmdConsoleMirror.Enabled = settings.SteamCmd.MirrorOutputToConsole;
 
             if (!settings.Http.Enabled)
             {
@@ -72,6 +74,12 @@ namespace Arma3ServerTools.Agent.Host
                 settings.Http.RemoteAccessEnabled);
 
             Console.WriteLine("Agent 已启动（Kestrel）。IM 请走 OpenClaw。按 Ctrl+C 退出。");
+            if (settings.SteamCmd.MirrorOutputToConsole)
+            {
+                Console.WriteLine(
+                    "SteamCMD：捕获任务会将进度输出到本窗口（settings.json → steamCmd.mirrorOutputToConsole）。"
+                    + " 需要独立黑窗请任务设 captureSteamCmdOutput:false。");
+            }
             app.Run();
             return 0;
         }

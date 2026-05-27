@@ -34,6 +34,8 @@ namespace Arma3ServerTools.Agent.Host.Http
             endpoints.MapGet("/api/v1/settings/steamcmd", HandleGetSteamCmd);
             endpoints.MapPut("/api/v1/settings/steamcmd", HandlePutSteamCmd);
             endpoints.MapGet("/api/v1/steamcmd/log", HandleSteamCmdLog);
+            endpoints.MapGet("/api/v1/steamcmd/status", HandleSteamCmdStatus);
+            endpoints.MapPost("/api/v1/steamcmd/stop", HandleSteamCmdStop);
             endpoints.MapGet("/api/v1/servers/{uuid}/preflight", HandlePreflight);
             endpoints.MapGet("/api/v1/servers/{uuid}/rpt", HandleRpt);
             endpoints.MapGet("/api/v1/servers/{uuid}/logs", HandleListGameLogs);
@@ -267,6 +269,26 @@ namespace Arma3ServerTools.Agent.Host.Http
                 AgentApiResponseWriter.Ok(context, data));
         }
 
+        private static Task HandleSteamCmdStatus(HttpContext context)
+        {
+            ISteamCmdService steamCmdService = context.RequestServices.GetRequiredService<ISteamCmdService>();
+            SteamCmdStatusSnapshot status = steamCmdService.GetSteamCmdStatus();
+            return AgentApiResponseWriter.WriteEnvelopeAsync(
+                context,
+                StatusCodes.Status200OK,
+                AgentApiResponseWriter.Ok(context, status));
+        }
+
+        private static Task HandleSteamCmdStop(HttpContext context)
+        {
+            ISteamCmdService steamCmdService = context.RequestServices.GetRequiredService<ISteamCmdService>();
+            SteamCmdTerminationResult result = steamCmdService.TerminateRunningSteamCmd();
+            return AgentApiResponseWriter.WriteEnvelopeAsync(
+                context,
+                StatusCodes.Status200OK,
+                AgentApiResponseWriter.Ok(context, result));
+        }
+
         private static async Task HandlePreflight(HttpContext context, string uuid)
         {
             IServerAutomationService automation = context.RequestServices.GetRequiredService<IServerAutomationService>();
@@ -408,7 +430,31 @@ namespace Arma3ServerTools.Agent.Host.Http
             }
 
             string mode = context.Request.Query["mode"];
-            (OperationResult result, ModListHtmlImportResult data) = importService.Import(uuid, html, mode);
+            bool captureSteamCmd = true;
+            if (context.Request.Query.TryGetValue(
+                    "captureSteamCmdOutput",
+                    out Microsoft.Extensions.Primitives.StringValues captureValue)
+                && bool.TryParse(captureValue.ToString(), out bool parsedCapture))
+            {
+                captureSteamCmd = parsedCapture;
+            }
+
+            int timeoutSeconds = 3600;
+            if (context.Request.Query.TryGetValue(
+                    "steamCmdTimeoutSeconds",
+                    out Microsoft.Extensions.Primitives.StringValues timeoutValue)
+                && int.TryParse(timeoutValue.ToString(), out int parsedTimeout)
+                && parsedTimeout > 0)
+            {
+                timeoutSeconds = parsedTimeout;
+            }
+
+            (OperationResult result, ModListHtmlImportResult data) = importService.Import(
+                uuid,
+                html,
+                mode,
+                captureSteamCmd,
+                timeoutSeconds);
             if (!result.Success)
             {
                 await WriteFailEnvelope(context, StatusCodes.Status400BadRequest, "IMPORT_FAILED", result.Message)
@@ -419,7 +465,16 @@ namespace Arma3ServerTools.Agent.Host.Http
             await AgentApiResponseWriter.WriteEnvelopeAsync(
                 context,
                 StatusCodes.Status200OK,
-                AgentApiResponseWriter.Ok(context, new { message = result.Message, import = data })).ConfigureAwait(false);
+                AgentApiResponseWriter.Ok(
+                    context,
+                    new
+                    {
+                        message = result.Message,
+                        import = data,
+                        steamCmdLog = data != null ? data.SteamCmdLog : null,
+                        steamCmdLogFile = data != null ? data.SteamCmdLogFile : null,
+                        requiresSteamGuard = data != null && data.RequiresSteamGuard,
+                    })).ConfigureAwait(false);
         }
 
         private static async Task HandleMissionPbo(HttpContext context, string uuid)
@@ -503,8 +558,17 @@ namespace Arma3ServerTools.Agent.Host.Http
             }
 
             AutomationRunResult result = await automation.ExecuteTaskAsync(task, context.RequestAborted).ConfigureAwait(false);
-            int code = result.Success ? StatusCodes.Status200OK : StatusCodes.Status400BadRequest;
-            await WriteLegacyJson(context, code, result).ConfigureAwait(false);
+            var data = new
+            {
+                success = result.Success,
+                message = result.Message,
+                serverUuid = result.ServerUuid,
+                steps = result.Steps,
+            };
+            await AgentApiResponseWriter.WriteEnvelopeAsync(
+                context,
+                StatusCodes.Status200OK,
+                AgentApiResponseWriter.Ok(context, data)).ConfigureAwait(false);
         }
 
         private static async Task HandleGetTask(HttpContext context, string taskId)

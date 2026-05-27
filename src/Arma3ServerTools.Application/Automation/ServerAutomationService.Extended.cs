@@ -14,12 +14,42 @@ namespace Arma3ServerTools.Application.Automation
         private AutomationStepResult ExecuteExtendedCommand(
             ref ArmaServerConfig config,
             string action,
-            AutomationCommand command)
+            AutomationCommand command,
+            AutomationTaskDocument task)
         {
             if (action == "ensure_steamcmd")
             {
                 OperationResult ensure = steamCmdService.EnsureSteamCmdAvailable(true);
                 return ToStep(action, ensure);
+            }
+
+            if (action == "stop_steamcmd" || action == "kill_steamcmd")
+            {
+                SteamCmdTerminationResult terminated = steamCmdService.TerminateRunningSteamCmd();
+                if (terminated.Success)
+                {
+                    return OkStep(action, terminated.Message);
+                }
+
+                return FailStep(action, terminated.Message);
+            }
+
+            if (action == "steamcmd_status")
+            {
+                SteamCmdStatusSnapshot status = steamCmdService.GetSteamCmdStatus();
+                string summary = "SteamCMD 进程数=" + status.RunningProcessCount
+                    + "，工具占用锁=" + status.IsGateHeld;
+                if (!string.IsNullOrWhiteSpace(status.CurrentOperation))
+                {
+                    summary = summary + "，当前操作=" + status.CurrentOperation;
+                }
+
+                if (status.TrackedProcessId > 0)
+                {
+                    summary = summary + "，跟踪 PID=" + status.TrackedProcessId;
+                }
+
+                return OkStep(action, summary);
             }
 
             if (action == "install_dedicated_server")
@@ -84,7 +114,7 @@ namespace Arma3ServerTools.Application.Automation
 
             if (action == "first_server_setup")
             {
-                return ExecuteFirstServerSetup(ref config, command);
+                return ExecuteFirstServerSetup(ref config, command, task);
             }
 
             if (action == "import_mods_html")
@@ -99,22 +129,55 @@ namespace Arma3ServerTools.Application.Automation
                     return FailStep(action, "htmlContent 为空。");
                 }
 
+                bool capture = AutomationSteamCmdOptions.ResolveCaptureOutput(task, command);
+                int timeoutSeconds = AutomationSteamCmdOptions.ResolveTimeoutSeconds(task, command);
                 (OperationResult result, ModListHtmlImportResult data) = modListHtmlImportService.Import(
                     config.ServerUUID,
                     command.HtmlContent,
-                    command.HtmlImportMode);
+                    command.HtmlImportMode,
+                    capture,
+                    timeoutSeconds);
                 string message = result.Message;
                 if (data != null)
                 {
-                    message += " 解析=" + data.ParsedCount;
+                    message = "HTML 一次导入 " + data.ParsedCount + " 个模组 ID（单次 SteamCMD，勿拆多条 download_mods）。"
+                        + System.Environment.NewLine
+                        + message;
+                    if (data.ModIds != null && data.ModIds.Count > 0)
+                    {
+                        message += " modIds=" + data.ModIds.Count;
+                    }
                 }
 
-                if (result.Success)
+                if (!result.Success)
                 {
-                    return OkStep(action, message);
+                    AutomationStepResult fail = FailStep(action, message);
+                    if (data != null && !string.IsNullOrWhiteSpace(data.SteamCmdLog))
+                    {
+                        fail.SteamCmdLog = TrimSteamCmdLogForStep(data.SteamCmdLog);
+                        fail.SteamCmdLogFile = data.SteamCmdLogFile;
+                    }
+
+                    return fail;
                 }
 
-                return FailStep(action, message);
+                AutomationStepResult ok = OkStep(action, message);
+                if (capture)
+                {
+                    if (data != null && !string.IsNullOrWhiteSpace(data.SteamCmdLog))
+                    {
+                        ok.SteamCmdLog = TrimSteamCmdLogForStep(data.SteamCmdLog);
+                        ok.SteamCmdLogFile = data.SteamCmdLogFile;
+                    }
+                    else
+                    {
+                        AutomationStepResult withLog = ToStepWithSteamCmdLog(action, result);
+                        withLog.Message = ok.Message;
+                        return withLog;
+                    }
+                }
+
+                return ok;
             }
 
             if (action == "scan_mods")
@@ -350,12 +413,16 @@ namespace Arma3ServerTools.Application.Automation
             return FailStep(action, "未知命令: " + action);
         }
 
-        private AutomationStepResult ExecuteFirstServerSetup(ref ArmaServerConfig config, AutomationCommand command)
+        private AutomationStepResult ExecuteFirstServerSetup(
+            ref ArmaServerConfig config,
+            AutomationCommand command,
+            AutomationTaskDocument task)
         {
             AutomationStepResult ensureStep = ExecuteExtendedCommand(
                 ref config,
                 "ensure_steamcmd",
-                new AutomationCommand { Action = "ensure_steamcmd" });
+                new AutomationCommand { Action = "ensure_steamcmd" },
+                task);
             if (!ensureStep.Success)
             {
                 return ensureStep;
@@ -367,7 +434,7 @@ namespace Arma3ServerTools.Application.Automation
                 CreateServerName = command.CreateServerName,
                 CreateServerDir = command.CreateServerDir,
             };
-            AutomationStepResult createStep = ExecuteExtendedCommand(ref config, "create_server", create);
+            AutomationStepResult createStep = ExecuteExtendedCommand(ref config, "create_server", create, task);
             if (!createStep.Success)
             {
                 return createStep;
@@ -376,13 +443,30 @@ namespace Arma3ServerTools.Application.Automation
             AutomationStepResult installStep = ExecuteExtendedCommand(
                 ref config,
                 "install_dedicated_server",
-                new AutomationCommand { Action = "install_dedicated_server" });
+                new AutomationCommand { Action = "install_dedicated_server" },
+                task);
             if (!installStep.Success)
             {
                 return installStep;
             }
 
-            return ExecuteCommand(ref config, new AutomationCommand { Action = "write_cfg" });
+            return ExecuteCommand(ref config, new AutomationCommand { Action = "write_cfg" }, task);
+        }
+
+        private static string TrimSteamCmdLogForStep(string log)
+        {
+            if (string.IsNullOrEmpty(log))
+            {
+                return log;
+            }
+
+            const int maxChars = 12000;
+            if (log.Length <= maxChars)
+            {
+                return log;
+            }
+
+            return log.Substring(log.Length - maxChars);
         }
 
         private AutomationStepResult ExecuteRconStep(

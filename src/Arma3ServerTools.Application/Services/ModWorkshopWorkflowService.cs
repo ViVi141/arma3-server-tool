@@ -34,6 +34,17 @@ namespace Arma3ServerTools.Application.Services
 
         public OperationResult DownloadMods(IList<ulong> modIds, bool ensureSteamCmd)
         {
+            return DownloadMods(modIds, ensureSteamCmd, false, 3600, out _);
+        }
+
+        public OperationResult DownloadMods(
+            IList<ulong> modIds,
+            bool ensureSteamCmd,
+            bool captureSteamCmdOutput,
+            int steamCmdTimeoutSeconds,
+            out SteamCmdRunResult capturedResult)
+        {
+            capturedResult = null;
             if (modIds == null || modIds.Count == 0)
             {
                 return OperationResult.Fail("没有模组 ID。");
@@ -48,7 +59,49 @@ namespace Arma3ServerTools.Application.Services
                 }
             }
 
+            if (captureSteamCmdOutput)
+            {
+                int timeoutMs = steamCmdTimeoutSeconds * 1000;
+                if (timeoutMs < 1000)
+                {
+                    timeoutMs = 3600000;
+                }
+
+                capturedResult = steamCmdService.DownloadWorkshopItemsCaptured(modIds, timeoutMs);
+                if (!capturedResult.Success)
+                {
+                    return OperationResult.Fail(BuildCapturedDownloadMessage(capturedResult, modIds.Count));
+                }
+
+                return OperationResult.Ok(
+                    "SteamCMD 已下载 " + modIds.Count + " 个 Workshop 模组（已捕获输出）。");
+            }
+
             return steamCmdService.DownloadWorkshopItems(modIds);
+        }
+
+        private static string BuildCapturedDownloadMessage(SteamCmdRunResult captured, int modCount)
+        {
+            string message = captured.Message;
+            if (captured.RequiresSteamGuard)
+            {
+                message = "SteamCMD 需要 Steam Guard 验证（共 " + modCount + " 个模组，请勿拆成多次下载）。"
+                    + System.Environment.NewLine
+                    + message;
+            }
+
+            string tail = captured.TailForDisplay(3000);
+            if (!string.IsNullOrWhiteSpace(tail))
+            {
+                message = message + System.Environment.NewLine + System.Environment.NewLine + tail;
+            }
+
+            if (!string.IsNullOrWhiteSpace(captured.LogFilePath))
+            {
+                message = message + System.Environment.NewLine + "完整日志: " + captured.LogFilePath;
+            }
+
+            return message;
         }
 
         public OperationResult EnableHtmlModsOnServer(

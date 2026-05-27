@@ -13,6 +13,12 @@ namespace Arma3ServerTools.Application.Services
         public List<ulong> ModIds { get; set; } = new List<ulong>();
 
         public List<LauncherHtmlModEntry> MissingOnDisk { get; set; } = new List<LauncherHtmlModEntry>();
+
+        public string SteamCmdLog { get; set; }
+
+        public string SteamCmdLogFile { get; set; }
+
+        public bool RequiresSteamGuard { get; set; }
     }
 
     public sealed class ModListHtmlImportService
@@ -38,6 +44,16 @@ namespace Arma3ServerTools.Application.Services
             string serverUuid,
             string html,
             string mode)
+        {
+            return Import(serverUuid, html, mode, false, 3600);
+        }
+
+        public (OperationResult Result, ModListHtmlImportResult Data) Import(
+            string serverUuid,
+            string html,
+            string mode,
+            bool captureSteamCmdOutput,
+            int steamCmdTimeoutSeconds)
         {
             ArmaServerConfig config = configService.Get(serverUuid);
             if (config == null)
@@ -66,10 +82,23 @@ namespace Arma3ServerTools.Application.Services
 
             if (normalizedMode == "download" || normalizedMode == "download_and_enable")
             {
-                OperationResult download = workshopWorkflow.DownloadMods(modIds, true);
+                SteamCmdRunResult captured;
+                OperationResult download = workshopWorkflow.DownloadMods(
+                    modIds,
+                    true,
+                    captureSteamCmdOutput,
+                    steamCmdTimeoutSeconds,
+                    out captured);
                 if (!download.Success)
                 {
                     return (download, data);
+                }
+
+                if (captured != null)
+                {
+                    data.SteamCmdLog = captured.CombinedText;
+                    data.SteamCmdLogFile = captured.LogFilePath;
+                    data.RequiresSteamGuard = captured.RequiresSteamGuard;
                 }
             }
 

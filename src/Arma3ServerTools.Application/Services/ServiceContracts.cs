@@ -128,6 +128,10 @@ namespace Arma3ServerTools.Application.Services
 
         SteamCmdRunResult InstallDedicatedServerCaptured(string installDir, int timeoutMilliseconds);
 
+        SteamCmdTerminationResult TerminateRunningSteamCmd();
+
+        SteamCmdStatusSnapshot GetSteamCmdStatus();
+
         void InvalidateExecutableCache();
     }
 

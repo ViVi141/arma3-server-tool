@@ -118,10 +118,14 @@
 ### 4.8 `download_mods`（Workshop 下载 + 可选挂服）
 
 1. `EnsureSteamCmdAvailable(true)`：必要时尝试拉取捆绑 SteamCMD。  
-2. `DownloadWorkshopItems`：拼 SteamCMD 命令行，**在 A 机弹出/运行 SteamCMD 进程**；可能需 **Steam Guard** 人工确认。  
-3. 若 `enableModsOnServer`：在 Workshop 根下解析路径，用 `ModEnablerService.ApplyHtmlMods` 把指定 ID 写入**当前服**的 `modsEntities` 并标为服模；若 `AutoCopyBikey` 为真则对服模跑 `BikeyService.CopyBikeysForMod`。  
-4. 保存配置。  
-5. 若 `scanModsAfterDownload`：执行 `ModScannerService.Scan`。  
+2. **默认**使用捕获模式：一次 SteamCMD 命令行包含**全部** `modIds`（`+workshop_download_item` 重复），同步捕获 stdout/stderr 到 `steamCmdLog`；可识别 **Steam Guard** 提示。  
+3. 任务里**相邻多条** `download_mods` 会在执行前**自动合并**为一条（避免 AI 拆命令导致多次登录）。  
+4. **全局互斥**：任意时刻仅允许 **一个** SteamCMD 进程（GUI / Agent / 初始化共用）；第二个请求会失败或等待当前任务结束。  
+5. **强制终止**：`stop_steamcmd` / `kill_steamcmd` 或 `POST /api/v1/steamcmd/stop` — 结束所有 `steamcmd.exe` 并释放工具锁（无需指定服务器）。`steamcmd_status` / `GET /api/v1/steamcmd/status` 查询是否仍在跑。  
+6. 若 `captureSteamCmdOutput: false`：弹出 SteamCMD 窗口，便于人工 Steam Guard；窗口关闭前其他 SteamCMD 请求会被拒绝。  
+7. 若 `enableModsOnServer`：在 Workshop 根下解析路径，用 `ModEnablerService.ApplyHtmlMods` 把指定 ID 写入**当前服**的 `modsEntities` 并标为服模；若 `AutoCopyBikey` 为真则对服模跑 `BikeyService.CopyBikeysForMod`。  
+8. 保存配置。  
+9. 若 `scanModsAfterDownload`：执行 `ModScannerService.Scan`。  
 
 **返回信息**会提示已启用数量及仍缺失的 ID（未下载完时目录不存在）。
 
@@ -129,11 +133,11 @@
 
 | 方式 | 说明 |
 |------|------|
-| `captureSteamCmdOutput: true` | 任务 JSON 中在 `download_mods` / `update_server` 命令上设置；同步运行 SteamCMD、重定向 stdout/stderr，写入 `{LogDirectory}/steamcmd/steamcmd_*.log`；步骤结果含 `steamCmdLog`、`steamCmdLogFile`。 |
-| `GET /api/v1/steamcmd/log?tail=300` | 聚合最近一次会话日志 + SteamCMD 安装目录下 `logs/content_log.txt` 等；`source=session` 或 `install` 可只看其一。 |
-| 弹窗模式 + 轮询 | 默认仍弹出 SteamCMD 窗口（便于 Steam Guard）；执行期间可轮询上述 GET 读取安装目录 `logs/`。 |
+| 默认（Agent 任务） | **默认捕获** stdout/stderr；步骤含 `steamCmdLog`、`steamCmdLogFile`；输出含 Steam Guard 时会标记失败并提示。 |
+| `captureSteamCmdOutput: false` | 弹出 SteamCMD 窗口，便于人工 Steam Guard。 |
+| `GET /api/v1/steamcmd/log?tail=300` | 轮询最近一次会话日志 + 安装目录 `logs/`。 |
 
-无头捕获模式下若账号需 Steam Guard，可能无法完成登录；此时请用弹窗模式或事先在 SteamCMD 中完成一次登录。
+无头捕获若卡在 Steam Guard：重试并设 `captureSteamCmdOutput: false`，或先在 A 机 GUI/SteamCMD 窗口完成一次登录。
 
 ### 4.9 `update_server`（更新专用服务器文件）
 
@@ -217,11 +221,14 @@
 - 游戏日志：`GET .../logs`（列表）、`GET .../logs/read`、`GET .../rpt`（等同读最新 RPT）；task：`read_logs`、`read_rpt`
 - 异步：`POST /api/v1/task` + `"async": true`，`GET /api/v1/tasks/{taskId}`
 
+**AI 易踩坑（完整表）**：见 [ai-agent-pitfalls.md](ai-agent-pitfalls.md)。
+
 **仍建议后续迭代**：
 
 | 方向 | 说明 |
 |------|------|
 | JSON Merge **PATCH** 配置 | 当前为 PUT 整份；AI 可 GET→改→PUT |
+| 大 HTML 勿塞进 task JSON | 用 `POST .../mod-list-html` 或 Inbox，避免 IM/模型截断 |
 | 监控 CSV/HTML **导出** REST | Application 有导出服务，未单独挂端点 |
 | RCon 运行时改密 | GUI 有，Agent 未暴露 |
 

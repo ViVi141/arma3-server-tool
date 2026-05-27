@@ -55,12 +55,16 @@ namespace Arma3ServerTools.Application.Automation
             yield return Entry("rcon_mission", "RCon 热加载任务");
             yield return Entry(
                 "download_mods",
-                "SteamCMD 下载 Workshop 模组；captureSteamCmdOutput:true 时同步捕获文本");
-            yield return Entry("import_mods_html", "解析 HTML 模组列表并下载/启用");
+                "一次 SteamCMD 下载全部 modIds（默认捕获 steamCmdLog）；勿拆多条");
+            yield return Entry(
+                "import_mods_html",
+                "一次解析完整 HTML 并下载/启用；勿拆 import 后再 download_mods");
             yield return Entry("update_server", "更新专用服务器文件");
             yield return Entry("save", "仅保存工具 JSON");
             yield return Entry("help", "帮助文本");
             yield return Entry("ensure_steamcmd", "确保 steamcmd 可用");
+            yield return Entry("stop_steamcmd", "强制终止 steamcmd.exe 并释放占用锁（别名 kill_steamcmd）");
+            yield return Entry("steamcmd_status", "查询 SteamCMD 进程与工具锁状态");
             yield return Entry("install_dedicated_server", "安装/更新专用服务器");
             yield return Entry("create_server", "新建服务器配置");
             yield return Entry("preflight", "启动前检查");
@@ -86,7 +90,7 @@ namespace Arma3ServerTools.Application.Automation
             yield return Endpoint("GET", "/api/v1/actions", false);
             yield return Endpoint("GET", "/api/v1/servers", true);
             yield return Endpoint("GET", "/api/v1/servers/{uuid}/status", true);
-            yield return Endpoint("POST", "/api/v1/task", true);
+            yield return Endpoint("POST", "/api/v1/task", false);
             yield return Endpoint("GET", "/api/v1/tasks/{taskId}", false);
             yield return Endpoint("GET", "/api/v1/servers/{uuid}/config", false);
             yield return Endpoint("PUT", "/api/v1/servers/{uuid}/config", false);
@@ -97,6 +101,8 @@ namespace Arma3ServerTools.Application.Automation
             yield return Endpoint("GET", "/api/v1/settings/steamcmd", false);
             yield return Endpoint("PUT", "/api/v1/settings/steamcmd", false);
             yield return Endpoint("GET", "/api/v1/steamcmd/log", false);
+            yield return Endpoint("GET", "/api/v1/steamcmd/status", false);
+            yield return Endpoint("POST", "/api/v1/steamcmd/stop", false);
             yield return Endpoint("GET", "/api/v1/servers/{uuid}/preflight", false);
             yield return Endpoint("GET", "/api/v1/servers/{uuid}/rpt", false);
             yield return Endpoint("GET", "/api/v1/servers/{uuid}/logs", false);

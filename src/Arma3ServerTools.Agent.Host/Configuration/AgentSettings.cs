@@ -12,6 +12,16 @@ namespace Arma3ServerTools.Agent.Host.Configuration
         public AgentInboxSettings Inbox { get; set; } = new AgentInboxSettings();
 
         public AgentFileUploadSettings FileUpload { get; set; } = new AgentFileUploadSettings();
+
+        public AgentSteamCmdSettings SteamCmd { get; set; } = new AgentSteamCmdSettings();
+    }
+
+    public sealed class AgentSteamCmdSettings
+    {
+        /// <summary>
+        /// 捕获模式下将 SteamCMD 行输出写到 Agent 所在控制台（如在 PowerShell 中前台运行 Agent）。
+        /// </summary>
+        public bool MirrorOutputToConsole { get; set; } = true;
     }
 
     public sealed class AgentFileUploadSettings
