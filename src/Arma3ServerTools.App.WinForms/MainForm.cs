@@ -36,6 +36,9 @@ namespace Arma3ServerTools.App.WinForms
         private readonly ServerLifecycleCoordinator lifecycleCoordinator;
         private readonly TrayNotificationController trayController;
         private readonly AntdUI.PageHeader pageHeader;
+        private readonly Button headerMinimizeButton;
+        private readonly Button headerMaximizeButton;
+        private readonly Button headerCloseButton;
         private readonly AntTable serverTable;
         private readonly AntInput serverSearchInput;
         private readonly ServerSettingsHost settingsHost;
@@ -52,6 +55,11 @@ namespace Arma3ServerTools.App.WinForms
         private readonly AntButton copyServerButton;
         private readonly AntButton deleteServerButton;
         private readonly AntdUI.Select serverSortSelect;
+        private readonly FlowLayoutPanel serverListToolbarFlow;
+        private readonly AntButton aboutButton;
+        private readonly AntDropdown toolsMenuButton;
+        private readonly AntDropdown serverMenuButton;
+        private readonly AntLabel serverSortLabel;
         private readonly ServerConfigSnapshotTracker configSnapshots = new ServerConfigSnapshotTracker();
         private readonly SplitContainer split;
         private readonly List<ServerGridRow> serverRows = new List<ServerGridRow>();
@@ -62,6 +70,7 @@ namespace Arma3ServerTools.App.WinForms
         private int refreshSelectedRowVersion;
         private bool suppressStopNotification;
         private bool suppressTableSelectionEvent;
+        private string currentConfigRefreshModeHint = string.Empty;
 
         public MainForm(IAppServices services, ServerLifecycleCoordinator lifecycleCoordinator)
         {
@@ -83,21 +92,27 @@ namespace Arma3ServerTools.App.WinForms
             {
                 Text = UiLabels.AppTitle,
                 SubText = string.Empty,
-                ShowButton = true,
+                ShowButton = false,
                 ShowIcon = false,
-                MaximizeBox = true,
-                MinimizeBox = true,
+                MaximizeBox = false,
+                MinimizeBox = false,
                 FullBox = false,
-                CancelButton = true,
+                CancelButton = false,
                 MDI = false,
                 DragMove = true,
                 EnableDoubleClickMaximize = true,
                 DividerShow = true,
                 UseTitleFont = true,
                 UseTextBold = true,
-                UseLeftMargin = true,
-                CloseSize = UiScaleHelper.Scale(48),
+                UseLeftMargin = false,
+                CloseSize = UiScaleHelper.Scale(34),
             };
+            headerMinimizeButton = CreateHeaderWindowButton("—");
+            headerMaximizeButton = CreateHeaderWindowButton("□");
+            headerCloseButton = CreateHeaderWindowButton("×");
+            headerMinimizeButton.Click += OnHeaderMinimize;
+            headerMaximizeButton.Click += OnHeaderMaximize;
+            headerCloseButton.Click += OnHeaderClose;
 
             startButton = CreateActionButton("启动", AntdUI.TTypeMini.Primary);
             stopButton = CreateActionButton("停止", AntdUI.TTypeMini.Default);
@@ -121,6 +136,11 @@ namespace Arma3ServerTools.App.WinForms
                 Text = string.Empty,
             };
 
+            serverListToolbarFlow = new FlowLayoutPanel();
+            aboutButton = CreateActionButton("关于", AntdUI.TTypeMini.Default);
+            toolsMenuButton = CreateToolsMenuButton();
+            serverMenuButton = CreateServerMenuButton();
+            serverSortLabel = new AntLabel();
             Control actionBar = BuildActionBar();
             Control topChrome = BuildTopChrome(actionBar);
             serverTable = CreateServerTable();
@@ -223,16 +243,37 @@ namespace Arma3ServerTools.App.WinForms
 
         private static int ActionBarHeight
         {
-            get { return UiScaleHelper.Scale(72); }
+            get { return UiScaleHelper.Scale(60); }
         }
 
         private Control BuildTopChrome(Control actionBar)
         {
             int headerHeight = UiScaleHelper.Scale(48);
-            int barHeight = ActionBarHeight;
 
+            var headerButtonsHost = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Right,
+                Width = UiScaleHelper.Scale(132),
+                WrapContents = false,
+                FlowDirection = FlowDirection.LeftToRight,
+                Padding = new Padding(0, UiScaleHelper.Scale(6), UiScaleHelper.Scale(6), UiScaleHelper.Scale(6)),
+                Margin = new Padding(0),
+            };
+            headerButtonsHost.Controls.Add(headerMinimizeButton);
+            headerButtonsHost.Controls.Add(headerMaximizeButton);
+            headerButtonsHost.Controls.Add(headerCloseButton);
+
+            var headerRow = new Panel
+            {
+                Dock = DockStyle.Fill,
+                Height = headerHeight,
+                Padding = new Padding(0),
+                Margin = new Padding(0),
+            };
             pageHeader.Dock = DockStyle.Fill;
             pageHeader.Height = headerHeight;
+            headerRow.Controls.Add(pageHeader);
+            headerRow.Controls.Add(headerButtonsHost);
 
             actionBar.Dock = DockStyle.Fill;
 
@@ -241,13 +282,14 @@ namespace Arma3ServerTools.App.WinForms
                 Dock = DockStyle.Top,
                 ColumnCount = 1,
                 RowCount = 2,
-                Height = headerHeight + barHeight,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Padding = new Padding(0),
                 Margin = new Padding(0),
             };
             chrome.RowStyles.Add(new RowStyle(SizeType.Absolute, headerHeight));
-            chrome.RowStyles.Add(new RowStyle(SizeType.Absolute, barHeight));
-            chrome.Controls.Add(pageHeader, 0, 0);
+            chrome.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            chrome.Controls.Add(headerRow, 0, 0);
             chrome.Controls.Add(actionBar, 0, 1);
             return chrome;
         }
@@ -258,25 +300,19 @@ namespace Arma3ServerTools.App.WinForms
             var panel = new AntdUI.Panel
             {
                 Dock = DockStyle.Fill,
+                AutoSize = true,
                 Padding = new Padding(UiScaleHelper.Scale(12), verticalPadding, UiScaleHelper.Scale(12), verticalPadding),
                 BackColor = Color.FromArgb(245, 247, 250),
-            };
-
-            var rightLayout = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Right,
-                AutoSize = true,
-                WrapContents = false,
-                FlowDirection = FlowDirection.LeftToRight,
-                Padding = new Padding(0),
-                Margin = new Padding(0),
             };
 
             var leftLayout = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 WrapContents = true,
+                AutoScroll = false,
+                FlowDirection = FlowDirection.LeftToRight,
                 Padding = new Padding(0),
                 Margin = new Padding(0),
             };
@@ -285,15 +321,14 @@ namespace Arma3ServerTools.App.WinForms
             leftLayout.Controls.Add(CreateDivider());
             leftLayout.Controls.Add(saveButton);
             leftLayout.Controls.Add(writeCfgButton);
+            leftLayout.Controls.Add(CreateDivider());
 
-            AntButton aboutButton = CreateActionButton("关于", AntdUI.TTypeMini.Default);
             aboutButton.Click += OnAbout;
-            rightLayout.Controls.Add(aboutButton);
-            rightLayout.Controls.Add(CreateToolsMenuButton());
-            rightLayout.Controls.Add(CreateServerMenuButton());
+            leftLayout.Controls.Add(aboutButton);
+            leftLayout.Controls.Add(toolsMenuButton);
+            leftLayout.Controls.Add(serverMenuButton);
 
             panel.Controls.Add(leftLayout);
-            panel.Controls.Add(rightLayout);
             return panel;
         }
 
@@ -421,38 +456,48 @@ namespace Arma3ServerTools.App.WinForms
             };
         }
 
+        private static Button CreateHeaderWindowButton(string text)
+        {
+            return new Button
+            {
+                Text = text,
+                Width = UiScaleHelper.Scale(36),
+                Height = UiScaleHelper.Scale(28),
+                Margin = new Padding(UiScaleHelper.Scale(2), 0, 0, 0),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.White,
+            };
+        }
+
         private Control BuildServerListToolbar()
         {
             int verticalPadding = UiScaleHelper.Scale(6);
             var panel = new Panel
             {
-                AutoSize = true,
                 Dock = DockStyle.Top,
+                AutoSize = true,
                 Padding = new Padding(0, verticalPadding, 0, verticalPadding),
                 Margin = new Padding(0),
             };
 
-            var flow = new FlowLayoutPanel
-            {
-                AutoSize = true,
-                Dock = DockStyle.Fill,
-                WrapContents = true,
-                FlowDirection = FlowDirection.LeftToRight,
-                Padding = new Padding(0),
-                Margin = new Padding(0),
-            };
-            flow.Controls.Add(newServerButton);
-            flow.Controls.Add(renameServerButton);
-            flow.Controls.Add(copyServerButton);
-            flow.Controls.Add(deleteServerButton);
-            flow.Controls.Add(new AntdUI.Label
-            {
-                Text = "排序",
-                AutoSizeMode = AntdUI.TAutoSize.Auto,
-                Padding = new Padding(UiScaleHelper.Scale(8), UiScaleHelper.Scale(10), UiScaleHelper.Scale(4), UiScaleHelper.Scale(10)),
-            });
-            flow.Controls.Add(serverSortSelect);
-            panel.Controls.Add(flow);
+            serverListToolbarFlow.AutoSize = true;
+            serverListToolbarFlow.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            serverListToolbarFlow.Dock = DockStyle.Fill;
+            serverListToolbarFlow.WrapContents = true;
+            serverListToolbarFlow.AutoScroll = false;
+            serverListToolbarFlow.FlowDirection = FlowDirection.LeftToRight;
+            serverListToolbarFlow.Padding = new Padding(0);
+            serverListToolbarFlow.Margin = new Padding(0);
+            serverListToolbarFlow.Controls.Add(newServerButton);
+            serverListToolbarFlow.Controls.Add(renameServerButton);
+            serverListToolbarFlow.Controls.Add(copyServerButton);
+            serverListToolbarFlow.Controls.Add(deleteServerButton);
+            serverSortLabel.Text = "排序";
+            serverSortLabel.AutoSizeMode = AntdUI.TAutoSize.Auto;
+            serverSortLabel.Padding = new Padding(UiScaleHelper.Scale(8), UiScaleHelper.Scale(10), UiScaleHelper.Scale(4), UiScaleHelper.Scale(10));
+            serverListToolbarFlow.Controls.Add(serverSortLabel);
+            serverListToolbarFlow.Controls.Add(serverSortSelect);
+            panel.Controls.Add(serverListToolbarFlow);
             return panel;
         }
 
@@ -566,6 +611,28 @@ namespace Arma3ServerTools.App.WinForms
                 OnSaveConfig(this, EventArgs.Empty);
                 e.Handled = true;
             }
+        }
+
+        private void OnHeaderMinimize(object sender, EventArgs e)
+        {
+            WindowState = FormWindowState.Minimized;
+        }
+
+        private void OnHeaderMaximize(object sender, EventArgs e)
+        {
+            if (WindowState == FormWindowState.Maximized)
+            {
+                WindowState = FormWindowState.Normal;
+            }
+            else
+            {
+                WindowState = FormWindowState.Maximized;
+            }
+        }
+
+        private void OnHeaderClose(object sender, EventArgs e)
+        {
+            Close();
         }
 
         private void OnMainFormClosing(object sender, FormClosingEventArgs e)
@@ -829,6 +896,9 @@ namespace Arma3ServerTools.App.WinForms
                 trayController.MinimizeFormToTray(this);
             }
 
+            UpdateHeaderResponsiveLayout();
+            UpdateActionBarResponsiveLayout();
+
             if (split.Width > 0 && split.Tag == null)
             {
                 SplitContainerHelper.ApplyInitialDistance(split, 0.34, false);
@@ -849,6 +919,7 @@ namespace Arma3ServerTools.App.WinForms
             EnsureConfigDirectory();
             AppUiSettings.LoadFrom(services.Paths.ConfigDirectory);
             UpdateConfigRefreshModeHint();
+            UpdateActionBarResponsiveLayout();
             settingsHost.ReloadUiSettings();
             WarnIfSteamCmdConfigLoadFailed();
             StartMonitoringHost();
@@ -871,9 +942,68 @@ namespace Arma3ServerTools.App.WinForms
 
         private void UpdateConfigRefreshModeHint()
         {
-            pageHeader.SubText = AppUiSettings.Instance.AllowExternalConfigRefresh
-                ? UiLabels.ConfigRefreshModeCompatibility
-                : UiLabels.ConfigRefreshModePerformance;
+            if (AppUiSettings.Instance.AllowExternalConfigRefresh)
+            {
+                currentConfigRefreshModeHint = UiLabels.ConfigRefreshModeCompatibility;
+            }
+            else
+            {
+                currentConfigRefreshModeHint = UiLabels.ConfigRefreshModePerformance;
+            }
+
+            UpdateHeaderResponsiveLayout();
+        }
+
+        private void UpdateHeaderResponsiveLayout()
+        {
+            int hideSubTextWidth = UiScaleHelper.Scale(1500);
+            int shortTitleWidth = UiScaleHelper.Scale(1300);
+            int emptyTitleWidth = UiScaleHelper.Scale(1080);
+
+            int width = ClientSize.Width;
+            if (width < emptyTitleWidth)
+            {
+                pageHeader.SubText = string.Empty;
+                pageHeader.UseLeftMargin = false;
+                pageHeader.Text = string.Empty;
+                pageHeader.CloseSize = UiScaleHelper.Scale(32);
+                return;
+            }
+
+            if (width < shortTitleWidth)
+            {
+                pageHeader.SubText = string.Empty;
+                pageHeader.UseLeftMargin = false;
+                pageHeader.Text = "A3ST";
+                pageHeader.CloseSize = UiScaleHelper.Scale(33);
+                return;
+            }
+
+            if (width < hideSubTextWidth)
+            {
+                pageHeader.SubText = string.Empty;
+                pageHeader.UseLeftMargin = false;
+                pageHeader.Text = UiLabels.AppTitle;
+                pageHeader.CloseSize = UiScaleHelper.Scale(34);
+                return;
+            }
+
+            pageHeader.SubText = currentConfigRefreshModeHint;
+            pageHeader.UseLeftMargin = false;
+            pageHeader.Text = UiLabels.AppTitle;
+            pageHeader.CloseSize = UiScaleHelper.Scale(34);
+        }
+
+        private void UpdateActionBarResponsiveLayout()
+        {
+            aboutButton.Visible = true;
+            toolsMenuButton.Visible = true;
+            serverMenuButton.Visible = true;
+            renameServerButton.Visible = true;
+            copyServerButton.Visible = true;
+            deleteServerButton.Visible = true;
+            serverSortLabel.Visible = true;
+            serverSortSelect.Visible = true;
         }
 
         private void OnMainFormShown(object sender, EventArgs e)
@@ -883,6 +1013,8 @@ namespace Arma3ServerTools.App.WinForms
                 WindowState = FormWindowState.Normal;
             }
 
+            UpdateHeaderResponsiveLayout();
+            UpdateActionBarResponsiveLayout();
             Activate();
             BringToFront();
             Focus();

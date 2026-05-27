@@ -14,6 +14,68 @@ namespace Arma3ServerTools.Core.Config
     /// </summary>
     public sealed class GameConfigWriter
     {
+        private static readonly HashSet<string> ServerCfgManagedKeys = new HashSet<string>(
+            new[]
+            {
+                "hostname",
+                "password",
+                "maxPlayers",
+                "persistent",
+                "skipLobby",
+                "drawingInMap",
+                "statisticsEnabled",
+                "forceRotorLibSimulation",
+                "forcedDifficulty",
+                "motd[]",
+                "motdInterval",
+                "disableVoN",
+                "vonCodecQuality",
+                "vonCodec",
+                "headlessClients[]",
+                "LocalClient[]",
+                "voteThreshold",
+                "votingTimeOut",
+                "roleTimeOut",
+                "briefingTimeOut",
+                "debriefingTimeOut",
+                "lobbyIdleTimeout",
+                "voteMissionPlayers",
+                "BattlEye",
+                "verifySignatures",
+                "kickduplicate",
+                "allowedFilePatching",
+                "filePatchingExceptions[]",
+                "serverCommandPassword",
+                "passwordAdmin",
+                "admins[]",
+                "doubleIdDetected",
+                "onUserConnected",
+                "onUserDisconnected",
+                "onHackedData",
+                "onDifferentData",
+                "onUnsignedData",
+                "onUserKicked",
+                "regularCheck",
+                "allowedLoadFileExtensions[]",
+                "allowedPreprocessFileExtensions[]",
+                "allowedHTMLLoadExtensions[]",
+                "allowedHTMLLoadURIs[]",
+                "upnp",
+                "steamProtocolMaxDataSize",
+                "loopback",
+                "disconnectTimeout",
+                "maxdesync",
+                "maxping",
+                "maxpacketloss",
+                "missionWhitelist[]",
+                "autoSelectMission",
+                "randomMissionOrder",
+                "logFile",
+                "timeStampFormat",
+                "callExtReportLimit",
+            },
+            StringComparer.OrdinalIgnoreCase);
+
         public static readonly UTF8Encoding Utf8NoBom = GameConfigFormat.Utf8NoBom;
 
         public OperationResult WriteAll(ArmaServerConfig config)
@@ -622,7 +684,7 @@ namespace Arma3ServerTools.Core.Config
                 .Append(config.ServerConfig.CallExtReportLimit.ToString())
                 .AppendLine(GameConfigFormat.Semicolon);
 
-            AppendBase64DecodedLine(sb, config.ServerConfig.ServerConfigArgs);
+            AppendServerCfgExtraLines(sb, config.ServerConfig.ServerConfigArgs);
 
             string path = config.ServerDir + @"\" + ToolConstants.ServerConfigFolderName + @"\" + config.ServerUUID + @"\server.cfg";
             try
@@ -897,20 +959,21 @@ namespace Arma3ServerTools.Core.Config
 
         private static void WriteCfgArray(string key, StringBuilder sb, List<string> values)
         {
-            sb.Append(key).AppendLine(GameConfigFormat.LeftSquareBrackets);
-            for (int i = 0; i < values.Count; i++)
+            List<string> normalized = NormalizeArrayValues(values);
+            if (normalized.Count == 0)
             {
-                if (string.IsNullOrEmpty(values[i]))
-                {
-                    continue;
-                }
+                return;
+            }
 
+            sb.Append(key).AppendLine(GameConfigFormat.LeftSquareBrackets);
+            for (int i = 0; i < normalized.Count; i++)
+            {
                 sb.Append(GameConfigFormat.Tab)
                     .Append(GameConfigFormat.DoubleQuotes)
-                    .Append(values[i])
+                    .Append(normalized[i])
                     .Append(GameConfigFormat.DoubleQuotes);
 
-                if (i == values.Count - 1)
+                if (i == normalized.Count - 1)
                 {
                     sb.AppendLine(string.Empty);
                 }
@@ -930,6 +993,105 @@ namespace Arma3ServerTools.Core.Config
             {
                 sb.AppendLine(decoded);
             }
+        }
+
+        private static void AppendServerCfgExtraLines(StringBuilder sb, string base64)
+        {
+            string decoded;
+            if (!GameConfigEncoding.TryDecodeBase64(base64, out decoded))
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(decoded))
+            {
+                return;
+            }
+
+            var appendedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string[] lines = decoded.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                string trimmed = line.Trim();
+                string key;
+                if (TryGetCfgKey(trimmed, out key))
+                {
+                    if (ServerCfgManagedKeys.Contains(key))
+                    {
+                        continue;
+                    }
+
+                    if (!appendedKeys.Add(key))
+                    {
+                        continue;
+                    }
+                }
+
+                sb.AppendLine(trimmed);
+            }
+        }
+
+        private static bool TryGetCfgKey(string line, out string key)
+        {
+            key = string.Empty;
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                return false;
+            }
+
+            if (line.StartsWith("//", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            int split = line.IndexOf('=');
+            if (split <= 0)
+            {
+                return false;
+            }
+
+            key = line.Substring(0, split).Trim();
+            if (string.IsNullOrEmpty(key))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private static List<string> NormalizeArrayValues(List<string> values)
+        {
+            if (values == null || values.Count == 0)
+            {
+                return new List<string>();
+            }
+
+            var normalized = new List<string>(values.Count);
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < values.Count; i++)
+            {
+                string current = values[i];
+                if (string.IsNullOrWhiteSpace(current))
+                {
+                    continue;
+                }
+
+                string trimmed = current.Trim();
+                if (!seen.Add(trimmed))
+                {
+                    continue;
+                }
+
+                normalized.Add(trimmed);
+            }
+
+            return normalized;
         }
     }
 }

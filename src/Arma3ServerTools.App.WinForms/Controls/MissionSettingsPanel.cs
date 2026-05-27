@@ -264,12 +264,20 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            if (boundConfig.MissionParams.ContainsKey(selectedMissionTemplate))
+            string currentText = missionParamsInput.Text;
+            string existingValue;
+            if (boundConfig.MissionParams.TryGetValue(selectedMissionTemplate, out existingValue))
             {
-                boundConfig.MissionParams.Remove(selectedMissionTemplate);
+                if (string.Equals(existingValue, currentText, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                boundConfig.MissionParams[selectedMissionTemplate] = currentText;
+                return;
             }
 
-            boundConfig.MissionParams.Add(selectedMissionTemplate, missionParamsInput.Text);
+            boundConfig.MissionParams.Add(selectedMissionTemplate, currentText);
         }
     }
 }

@@ -321,13 +321,12 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return false;
             }
 
-            if (uiSyncedPanels.Contains(panel))
+            if (dirtyTracker.IsTabLocallyDirty(GetTabTitleForPanel(panel)))
             {
                 return true;
             }
 
-            string tabTitle = GetTabTitleForPanel(panel);
-            if (!string.IsNullOrEmpty(tabTitle) && dirtyTracker.IsTabLocallyDirty(tabTitle))
+            if (panel is IApplyOnlySettingsPanel && uiSyncedPanels.Contains(panel))
             {
                 return true;
             }

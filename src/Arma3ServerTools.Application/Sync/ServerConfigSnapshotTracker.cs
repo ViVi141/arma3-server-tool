@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Arma3ServerTools.Core.IO;
 using Arma3ServerTools.Core.Models;
 
@@ -107,6 +108,13 @@ namespace Arma3ServerTools.Application.Sync
             if (normalized.ServerTaskManagement == null)
             {
                 normalized.ServerTaskManagement = new ServerManagement();
+            }
+
+            if (normalized.MissionParams != null && normalized.MissionParams.Count > 1)
+            {
+                normalized.MissionParams = normalized.MissionParams
+                    .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                    .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
             }
 
             // Runtime PID is not a user edit and should not trigger unsaved prompts.
