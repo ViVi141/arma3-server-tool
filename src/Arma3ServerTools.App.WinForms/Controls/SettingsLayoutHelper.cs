@@ -246,7 +246,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             ApplyFieldWidthStretch(input);
             return input;
         }
-        
+
         /// <summary>
         /// 创建带显示/隐藏切换按钮的密码输入框容器。
         /// 通过 out 参数返回内部 AntInput 引用，供调用方读取 .Text。

@@ -56,7 +56,7 @@ namespace Arma3ServerTools.Core.Models
 
 
         public Dictionary<string, CronEntity> CronEntity { get; set; } = new Dictionary<string, CronEntity>();
-        
+
         public bool EnableHeadlessClient { get; set; } = false;
     }
 
@@ -290,7 +290,7 @@ namespace Arma3ServerTools.Core.Models
 
         //server.cfg 附加参数
         public string ServerConfigArgs { get; set; } = String.Empty;
-        
+
         // Arma 服务器高级选项（性能/日志优化）
         public AdvancedOptions AdvancedOptions { get; set; } = new AdvancedOptions();
 

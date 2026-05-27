@@ -3,8 +3,8 @@ using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Core.Models;
 using AntCheckbox = AntdUI.Checkbox;
-using AntLabel = AntdUI.Label;
 using AntInputNumber = AntdUI.InputNumber;
+using AntLabel = AntdUI.Label;
 
 namespace Arma3ServerTools.App.WinForms.Controls
 {

@@ -440,9 +440,9 @@ namespace Arma3ServerTools.Application.Services
         public string UpdatedTime { get; set; }
 
         public DateTime? UpdatedAt { get; set; }
-        
+
         public bool HasBikeyFile { get; set; }
-        
+
         public string BikeyStatus { get; set; }
     }
 }

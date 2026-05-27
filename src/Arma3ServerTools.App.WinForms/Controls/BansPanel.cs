@@ -103,7 +103,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             Enabled = true;
             OnLoadLocal(this, EventArgs.Empty);
         }
-        
+
         public void BindForApply(ArmaServerConfig config)
         {
             boundConfig = config;
