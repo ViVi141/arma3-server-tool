@@ -177,6 +177,8 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 | [docs/release-v1.1.0.md](docs/release-v1.1.0.md) | v1.1.0 发布清单 |
 | [docs/release-v1.0.0.md](docs/release-v1.0.0.md) | v1.0 发布清单 |
 | [docs/smoke-checklist.md](docs/smoke-checklist.md) | 冒烟验收清单 |
+| [docs/code-review-2026-05-27.md](docs/code-review-2026-05-27.md) | **最新代码审查报告**（v1.4.1） |
+| [docs/code-review-2026-05-24.md](docs/code-review-2026-05-24.md) | 历史代码审查（v1.2.3） |
 | [docs/monitoring-cpp-dll-build.md](docs/monitoring-cpp-dll-build.md) | Monitoring DLL 构建 |
 
 ---
