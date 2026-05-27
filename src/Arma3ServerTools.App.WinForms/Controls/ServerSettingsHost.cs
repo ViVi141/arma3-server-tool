@@ -242,7 +242,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             RefreshTabTitles();
         }
 
-        public void ApplyAll()
+        public void ApplyAll(bool force = false)
         {
             if (currentConfig == null)
             {
@@ -254,7 +254,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 foreach (IServerSettingsPanel panel in applyPanels)
                 {
-                    if (!ShouldApplyPanel(panel))
+                    if (!force && !ShouldApplyPanel(panel))
                     {
                         continue;
                     }
