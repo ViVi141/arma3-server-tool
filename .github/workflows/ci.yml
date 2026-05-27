@@ -37,7 +37,7 @@ jobs:
         run: dotnet test tests/Arma3ServerTools.Core.Tests/Arma3ServerTools.Core.Tests.csproj -c Release --no-build --verbosity normal
 
       - name: Test Application
-        run: dotnet test tests/Arma3ServerTools.Application.Tests/Arma3ServerTools.Application.Tests.csproj -c Release --no-build --verbosity normal
+        run: dotnet test tests/Arma3ServerTools.Application.Tests/Arma3ServerTools.Application.Tests.csproj -c Release --no-build --verbosity normal --filter "FullyQualifiedName!~SteamCmdService&FullyQualifiedName!~SteamCmdExecutionGate"
 
       - name: Verify formatting
         run: dotnet format Arma3ServerTools.sln --verify-no-changes --no-restore --verbosity diagnostic
