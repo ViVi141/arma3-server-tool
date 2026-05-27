@@ -11,129 +11,161 @@ namespace Arma3ServerTools.Application.Services
     public sealed class RconService : IRconService
     {
         private RconClient client;
+        private readonly SemaphoreSlim connectionLock = new SemaphoreSlim(1, 1);
 
         public async Task ConnectAsync(string host, int port, string password, CancellationToken cancellationToken)
         {
-            DisposeClient();
-            client = new RconClient(host, port, password)
+            await connectionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
             {
-                ReconnectOnFailure = false,
-            };
+                DisposeClient();
+                client = new RconClient(host, port, password)
+                {
+                    ReconnectOnFailure = false,
+                };
 
-            bool connectedOnFirstAttempt = await Task.Run(() => client.Connect(), cancellationToken)
-                .ConfigureAwait(false);
-            if (!connectedOnFirstAttempt)
-            {
-                throw new InvalidOperationException("无法连接到 BattlEye RCon。");
+                bool connectedOnFirstAttempt = await Task.Run(() => client.Connect(), cancellationToken)
+                    .ConfigureAwait(false);
+                if (!connectedOnFirstAttempt)
+                {
+                    throw new InvalidOperationException("无法连接到 BattlEye RCon。");
+                }
+
+                bool connected = await client.WaitUntilConnectedAsync(cancellationToken).ConfigureAwait(false);
+                if (!connected)
+                {
+                    throw new TimeoutException("连接 BattlEye RCon 超时。");
+                }
             }
-
-            bool connected = await client.WaitUntilConnectedAsync(cancellationToken).ConfigureAwait(false);
-            if (!connected)
+            finally
             {
-                throw new TimeoutException("连接 BattlEye RCon 超时。");
+                connectionLock.Release();
             }
         }
 
         public async Task<IReadOnlyList<Player>> GetPlayersAsync()
         {
-            EnsureConnected();
-            var request = new GetPlayersRequest();
-            (bool success, List<Player> players) = await client
-                .FetchAsync<List<Player>, GetPlayersRequest>(request, CancellationToken.None)
-                .ConfigureAwait(false);
-
-            if (!success)
+            await connectionLock.WaitAsync().ConfigureAwait(false);
+            try
             {
-                throw new InvalidOperationException("获取玩家列表失败。");
-            }
+                EnsureConnected();
+                var request = new GetPlayersRequest();
+                (bool success, List<Player> players) = await client
+                    .FetchAsync<List<Player>, GetPlayersRequest>(request, CancellationToken.None)
+                    .ConfigureAwait(false);
 
-            return players ?? new List<Player>();
+                if (!success)
+                {
+                    throw new InvalidOperationException("获取玩家列表失败。");
+                }
+
+                return players ?? new List<Player>();
+            }
+            finally
+            {
+                connectionLock.Release();
+            }
         }
 
-        public Task KickAsync(int playerId, string reason)
+        public async Task KickAsync(int playerId, string reason)
         {
-            EnsureConnected();
-            client.Send(new KickCommand(playerId, reason));
-            return Task.CompletedTask;
+            await connectionLock.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                EnsureConnected();
+                client.Send(new KickCommand(playerId, reason));
+            }
+            finally
+            {
+                connectionLock.Release();
+            }
         }
 
         public async Task<IReadOnlyList<PlayerBan>> GetBansAsync()
         {
-            EnsureConnected();
-            var request = new GetBansRequest();
-            (bool success, List<PlayerBan> bans) = await client
-                .FetchAsync<List<PlayerBan>, GetBansRequest>(request, CancellationToken.None)
-                .ConfigureAwait(false);
-
-            if (!success)
+            await connectionLock.WaitAsync().ConfigureAwait(false);
+            try
             {
-                throw new InvalidOperationException("获取封禁列表失败。");
+                EnsureConnected();
+                var request = new GetBansRequest();
+                (bool success, List<PlayerBan> bans) = await client
+                    .FetchAsync<List<PlayerBan>, GetBansRequest>(request, CancellationToken.None)
+                    .ConfigureAwait(false);
+
+                if (!success)
+                {
+                    throw new InvalidOperationException("获取封禁列表失败。");
+                }
+
+                return bans ?? new List<PlayerBan>();
             }
-
-            return bans ?? new List<PlayerBan>();
+            finally
+            {
+                connectionLock.Release();
+            }
         }
 
-        public Task BanGuidAsync(string guid, string reason, TimeSpan duration)
+        public async Task BanGuidAsync(string guid, string reason, TimeSpan duration)
         {
-            EnsureConnected();
-            client.Send(new BanPlayerCommand(guid, reason, duration));
-            return Task.CompletedTask;
+            await connectionLock.WaitAsync().ConfigureAwait(false);
+            try { EnsureConnected(); client.Send(new BanPlayerCommand(guid, reason, duration)); }
+            finally { connectionLock.Release(); }
         }
 
-        public Task BanGuidPermanentAsync(string guid, string reason)
+        public async Task BanGuidPermanentAsync(string guid, string reason)
         {
-            EnsureConnected();
-            client.Send(new BanPlayerCommand(guid, reason));
-            return Task.CompletedTask;
+            await connectionLock.WaitAsync().ConfigureAwait(false);
+            try { EnsureConnected(); client.Send(new BanPlayerCommand(guid, reason)); }
+            finally { connectionLock.Release(); }
         }
 
-        public Task BanOnlinePlayerAsync(string guid, string reason, TimeSpan duration)
+        public async Task BanOnlinePlayerAsync(string guid, string reason, TimeSpan duration)
         {
-            EnsureConnected();
-            client.Send(new BanOnlinePlayerCommand(guid, reason, duration));
-            return Task.CompletedTask;
+            await connectionLock.WaitAsync().ConfigureAwait(false);
+            try { EnsureConnected(); client.Send(new BanOnlinePlayerCommand(guid, reason, duration)); }
+            finally { connectionLock.Release(); }
         }
 
-        public Task BanOnlinePlayerPermanentAsync(string guid, string reason)
+        public async Task BanOnlinePlayerPermanentAsync(string guid, string reason)
         {
-            EnsureConnected();
-            client.Send(new BanOnlinePlayerCommand(guid, reason));
-            return Task.CompletedTask;
+            await connectionLock.WaitAsync().ConfigureAwait(false);
+            try { EnsureConnected(); client.Send(new BanOnlinePlayerCommand(guid, reason)); }
+            finally { connectionLock.Release(); }
         }
 
-        public Task RemoveBanAsync(int banId)
+        public async Task RemoveBanAsync(int banId)
         {
-            EnsureConnected();
-            client.Send(new RemoveBanCommand(banId));
-            return Task.CompletedTask;
+            await connectionLock.WaitAsync().ConfigureAwait(false);
+            try { EnsureConnected(); client.Send(new RemoveBanCommand(banId)); }
+            finally { connectionLock.Release(); }
         }
 
-        public Task LoadBansAsync()
+        public async Task LoadBansAsync()
         {
-            EnsureConnected();
-            client.Send(new LoadBansCommand());
-            return Task.CompletedTask;
+            await connectionLock.WaitAsync().ConfigureAwait(false);
+            try { EnsureConnected(); client.Send(new LoadBansCommand()); }
+            finally { connectionLock.Release(); }
         }
 
-        public Task SaveBansAsync()
+        public async Task SaveBansAsync()
         {
-            EnsureConnected();
-            client.Send(new SaveBansCommand());
-            return Task.CompletedTask;
+            await connectionLock.WaitAsync().ConfigureAwait(false);
+            try { EnsureConnected(); client.Send(new SaveBansCommand()); }
+            finally { connectionLock.Release(); }
         }
 
-        public Task SendMessageAsync(string message)
+        public async Task SendMessageAsync(string message)
         {
-            EnsureConnected();
-            client.Send(new SendMessageCommand(message));
-            return Task.CompletedTask;
+            await connectionLock.WaitAsync().ConfigureAwait(false);
+            try { EnsureConnected(); client.Send(new SendMessageCommand(message)); }
+            finally { connectionLock.Release(); }
         }
 
-        public Task SendMessageToPlayerAsync(int playerId, string message)
+        public async Task SendMessageToPlayerAsync(int playerId, string message)
         {
-            EnsureConnected();
-            client.Send(new SendMessageCommand(playerId, message));
-            return Task.CompletedTask;
+            await connectionLock.WaitAsync().ConfigureAwait(false);
+            try { EnsureConnected(); client.Send(new SendMessageCommand(playerId, message)); }
+            finally { connectionLock.Release(); }
         }
 
         public async Task<IReadOnlyList<Mission>> GetMissionsAsync()
