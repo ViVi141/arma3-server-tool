@@ -38,8 +38,10 @@ namespace Arma3ServerTools.App.WinForms.DependencyInjection
             services.AddSingleton<IServerProcessService, ServerProcessService>();
             services.AddSingleton<ISchedulerService, SchedulerService>();
             services.AddSingleton<ISteamCmdService, SteamCmdService>();
-            services.AddSingleton<ModScannerService>();
             services.AddSingleton<BikeyService>();
+            services.AddSingleton<ModScannerService>(provider => new ModScannerService(
+                provider.GetRequiredService<ModuleScanPathRepository>(),
+                provider.GetRequiredService<BikeyService>()));
             services.AddSingleton<BansService>();
             services.AddSingleton<MonitoringHealthChecker>();
             services.AddSingleton<ServerPreflightChecker>();

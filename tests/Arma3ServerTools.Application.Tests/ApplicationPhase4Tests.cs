@@ -226,7 +226,9 @@ namespace Arma3ServerTools.Application.Tests
                 string serverDir = Path.Combine(root, "server");
                 string modPath = Path.Combine(root, "mods", "@TestMod");
                 Directory.CreateDirectory(Path.Combine(modPath, "keys"));
+                Directory.CreateDirectory(Path.Combine(modPath, "addons"));
                 File.WriteAllText(Path.Combine(modPath, "keys", "author.bikey"), "bikey");
+                File.WriteAllText(Path.Combine(modPath, "addons", "test.pbo.bisign"), "sign");
 
                 var config = new ArmaServerConfig
                 {
@@ -241,6 +243,88 @@ namespace Arma3ServerTools.Application.Tests
                 Assert.True(result.Success, result.Message);
                 List<string> keys = service.ListServerBikeys(serverDir);
                 Assert.NotEmpty(keys);
+                Assert.Contains(keys, path => path.EndsWith("TestMod-author.bikey", StringComparison.OrdinalIgnoreCase));
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+
+        [Fact]
+        public void InspectMod_ReportsCopied_WhenRenamedBikeyExistsOnServer()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3bikey-inspect-renamed");
+            try
+            {
+                string serverDir = Path.Combine(root, "server");
+                string modPath = Path.Combine(root, "mods", "@TestMod");
+                Directory.CreateDirectory(Path.Combine(modPath, "keys"));
+                File.WriteAllText(Path.Combine(modPath, "keys", "author.bikey"), "bikey");
+                File.WriteAllText(Path.Combine(modPath, "data.pbo.bisign"), "sign");
+
+                string keysDir = Path.Combine(serverDir, "Keys");
+                Directory.CreateDirectory(keysDir);
+                File.WriteAllText(Path.Combine(keysDir, "TestMod-author.bikey"), "bikey");
+
+                var service = new BikeyService();
+                ModBikeyInspectionResult inspection = service.InspectMod(modPath, "@TestMod", serverDir);
+
+                Assert.True(inspection.HasBisign);
+                Assert.True(inspection.HasBikeyInMod);
+                Assert.True(inspection.AllCopiedToServer);
+                Assert.Equal("已签名，密钥已复制", inspection.StatusText);
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+
+        [Fact]
+        public void InspectMod_FindsBikey_InLowercaseKeysFolderRecursively()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3bikey-inspect-lowercase");
+            try
+            {
+                string modPath = Path.Combine(root, "mods", "@Workshop");
+                Directory.CreateDirectory(Path.Combine(modPath, "keys"));
+                File.WriteAllText(Path.Combine(modPath, "keys", "author.bikey"), "bikey");
+                File.WriteAllText(Path.Combine(modPath, "addon.pbo.bisign"), "sign");
+
+                var service = new BikeyService();
+                ModBikeyInspectionResult inspection = service.InspectMod(modPath, "@Workshop", null);
+
+                Assert.True(inspection.HasBikeyInMod);
+                Assert.Equal("已签名，密钥未复制", inspection.StatusText);
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+
+        [Fact]
+        public void InspectMod_ReportsCopied_WhenOriginalBikeyFileNameExistsOnServer()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3bikey-inspect-original");
+            try
+            {
+                string serverDir = Path.Combine(root, "server");
+                string modPath = Path.Combine(root, "mods", "@Legacy");
+                Directory.CreateDirectory(Path.Combine(modPath, "keys"));
+                File.WriteAllText(Path.Combine(modPath, "keys", "author.bikey"), "bikey");
+                File.WriteAllText(Path.Combine(modPath, "legacy.pbo.bisign"), "sign");
+
+                string keysDir = Path.Combine(serverDir, "Keys");
+                Directory.CreateDirectory(keysDir);
+                File.WriteAllText(Path.Combine(keysDir, "author.bikey"), "bikey");
+
+                var service = new BikeyService();
+                ModBikeyInspectionResult inspection = service.InspectMod(modPath, "@Legacy", serverDir);
+
+                Assert.True(inspection.AllCopiedToServer);
+                Assert.Equal("已签名，密钥已复制", inspection.StatusText);
             }
             finally
             {
