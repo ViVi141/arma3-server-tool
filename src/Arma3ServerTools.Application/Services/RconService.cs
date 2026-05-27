@@ -170,72 +170,63 @@ namespace Arma3ServerTools.Application.Services
 
         public async Task<IReadOnlyList<Mission>> GetMissionsAsync()
         {
-            EnsureConnected();
-            var request = new GetMissionsRequest();
-            (bool success, IEnumerable<Mission> missions) = await client
-                .FetchAsync<IEnumerable<Mission>, GetMissionsRequest>(request, CancellationToken.None)
-                .ConfigureAwait(false);
-
-            if (!success)
+            await connectionLock.WaitAsync().ConfigureAwait(false);
+            try
             {
-                throw new InvalidOperationException("获取任务列表失败。");
+                EnsureConnected();
+                var request = new GetMissionsRequest();
+                (bool success, IEnumerable<Mission> missions) = await client
+                    .FetchAsync<IEnumerable<Mission>, GetMissionsRequest>(request, CancellationToken.None)
+                    .ConfigureAwait(false);
+                if (!success)
+                    throw new InvalidOperationException("获取任务列表失败。");
+                return missions?.ToList() ?? new List<Mission>();
             }
-
-            var result = new List<Mission>();
-            if (missions != null)
-            {
-                foreach (Mission mission in missions)
-                {
-                    result.Add(mission);
-                }
-            }
-
-            return result;
+            finally { connectionLock.Release(); }
         }
 
         public Task RestartMissionAsync()
         {
-            EnsureConnected();
-            client.Send(new RestartMissionCommand());
-            return Task.CompletedTask;
+            return WithLock(() => { EnsureConnected(); client.Send(new RestartMissionCommand()); });
         }
 
         public Task LoadMissionAsync(string missionName)
         {
-            EnsureConnected();
-            if (string.IsNullOrWhiteSpace(missionName))
+            return WithLock(() =>
             {
-                throw new ArgumentException("任务名称不能为空。", nameof(missionName));
-            }
-
-            client.Send(new LoadMissionCommand(missionName.Trim()));
-            return Task.CompletedTask;
+                EnsureConnected();
+                if (string.IsNullOrWhiteSpace(missionName))
+                    throw new ArgumentException("任务名称不能为空。", nameof(missionName));
+                client.Send(new LoadMissionCommand(missionName.Trim()));
+            });
         }
 
         public Task LockServerAsync()
         {
-            EnsureConnected();
-            client.Send(new LockServerCommand());
-            return Task.CompletedTask;
+            return WithLock(() => { EnsureConnected(); client.Send(new LockServerCommand()); });
         }
 
         public Task UnlockServerAsync()
         {
-            EnsureConnected();
-            client.Send(new UnlockCommand());
-            return Task.CompletedTask;
+            return WithLock(() => { EnsureConnected(); client.Send(new UnlockCommand()); });
         }
 
         public Task ChangeRconPasswordAsync(string newPassword)
         {
-            EnsureConnected();
-            if (string.IsNullOrWhiteSpace(newPassword))
+            return WithLock(() =>
             {
-                throw new ArgumentException("新密码不能为空。", nameof(newPassword));
-            }
+                EnsureConnected();
+                if (string.IsNullOrWhiteSpace(newPassword))
+                    throw new ArgumentException("新密码不能为空。", nameof(newPassword));
+                client.Send(new ChangeRconPasswordCommand(newPassword.Trim()));
+            });
+        }
 
-            client.Send(new ChangeRconPasswordCommand(newPassword.Trim()));
-            return Task.CompletedTask;
+        private async Task WithLock(Action action)
+        {
+            await connectionLock.WaitAsync().ConfigureAwait(false);
+            try { action(); }
+            finally { connectionLock.Release(); }
         }
 
         public void Dispose()
