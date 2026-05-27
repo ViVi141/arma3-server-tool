@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Arma3ServerTools.Core;
+using Arma3ServerTools.Core.IO;
 using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.Core.Repositories;
 

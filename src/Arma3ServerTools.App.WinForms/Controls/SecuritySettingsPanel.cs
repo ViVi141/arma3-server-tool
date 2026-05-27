@@ -6,6 +6,7 @@ using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Core.Models;
 using AntCheckbox = AntdUI.Checkbox;
 using AntInput = AntdUI.Input;
+using AntLabel = AntdUI.Label;
 using AntInputNumber = AntdUI.InputNumber;
 using AntSelect = AntdUI.Select;
 
