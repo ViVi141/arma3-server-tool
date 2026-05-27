@@ -346,6 +346,7 @@ namespace Arma3ServerTools.Application.Tests
                 OperationResult result = service.InstallDedicatedServer(@"D:\arma");
                 Assert.True(result.Success, result.Message);
                 Assert.Contains("233780", runner.LastArguments);
+                Assert.Contains("+login \"user\" \"pass\"", runner.LastArguments);
             }
             finally
             {
@@ -438,6 +439,35 @@ namespace Arma3ServerTools.Application.Tests
                 Assert.Contains("workshop_download_item 107410 111111111", runner.LastArguments);
                 Assert.Contains("workshop_download_item 107410 222222222", runner.LastArguments);
                 Assert.Contains("+quit", runner.LastArguments);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        }
+
+        [Fact]
+        public void DownloadWorkshopItems_WithQuotedCredentials_EscapesArguments()
+        {
+            string root = CreateTempRoot();
+            try
+            {
+                string workshopRoot = Path.Combine(root, "workshop");
+                AutomatedTestWorkspace.CreateCompleteSteamCmdInstall(workshopRoot);
+                var runner = new FakeProcessRunner();
+                var service = new SteamCmdService(
+                    new AppPaths(root),
+                    new InlineSteamCmdConfig(new SteamcmdEntity
+                    {
+                        u = "user name",
+                        p = "pa\"ss\\word",
+                        d = workshopRoot,
+                    }),
+                    runner);
+
+                OperationResult result = service.DownloadWorkshopItems(new ulong[] { 111111111 });
+                Assert.True(result.Success, result.Message);
+                Assert.Contains("+login \"user name\" \"pa\\\"ss\\\\word\"", runner.LastArguments);
             }
             finally
             {

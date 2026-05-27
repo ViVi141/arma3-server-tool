@@ -23,6 +23,7 @@ namespace Arma3ServerTools.MonitoringHost
     {
         public const string WindowTitle = ToolConstants.MonitoringHostWindowTitle;
         private const int WmCopyData = 0x004A;
+        private const int MaxCopyDataLength = 16 * 1024;
 
         private readonly QueuedMonitoringIngestService ingestService;
 
@@ -70,7 +71,7 @@ namespace Arma3ServerTools.MonitoringHost
                 CopyDataStruct data = new CopyDataStruct();
                 Type structType = data.GetType();
                 data = (CopyDataStruct)message.GetLParam(structType);
-                if (!string.IsNullOrEmpty(data.lpData))
+                if (IsTrustedCopyData(data))
                 {
                     ingestService.Ingest(data.lpData);
                 }
@@ -89,6 +90,26 @@ namespace Arma3ServerTools.MonitoringHost
 
             [MarshalAs(UnmanagedType.LPStr)]
             public string lpData;
+        }
+
+        private static bool IsTrustedCopyData(CopyDataStruct data)
+        {
+            if (data.dwData != (IntPtr)ToolConstants.MonitoringCopyDataSignature)
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(data.lpData))
+            {
+                return false;
+            }
+
+            if (data.cbData <= 0 || data.cbData > MaxCopyDataLength)
+            {
+                return false;
+            }
+
+            return true;
         }
     }
 }

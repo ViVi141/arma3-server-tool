@@ -14,6 +14,7 @@ namespace Arma3ServerTools.Core.Repositories
     /// </summary>
     public sealed class ServerConfigRepository
     {
+        private const int MaxServerUuidLength = 128;
         private readonly IAppPaths paths;
         private readonly object fileLock = new object();
 
@@ -50,6 +51,7 @@ namespace Arma3ServerTools.Core.Repositories
                     throw new ConfigException("服务器 UUID 不能为空。");
                 }
 
+                EnsureValidServerUuid(serverUuid);
                 string filePath = GetFilePath(serverUuid);
                 if (!File.Exists(filePath))
                 {
@@ -74,6 +76,7 @@ namespace Arma3ServerTools.Core.Repositories
                     throw new ConfigException("服务器 UUID 不能为空。");
                 }
 
+                EnsureValidServerUuid(config.ServerUUID);
                 config.SetTime();
                 Directory.CreateDirectory(paths.ConfigDirectory);
                 string filePath = GetFilePath(config.ServerUUID);
@@ -98,6 +101,7 @@ namespace Arma3ServerTools.Core.Repositories
                     throw new ConfigException("服务器 UUID 不能为空。");
                 }
 
+                EnsureValidServerUuid(serverUuid);
                 string filePath = GetFilePath(serverUuid);
                 if (File.Exists(filePath))
                 {
@@ -110,6 +114,7 @@ namespace Arma3ServerTools.Core.Repositories
         {
             lock (fileLock)
             {
+                EnsureValidServerUuid(serverUuid);
                 return File.Exists(GetFilePath(serverUuid));
             }
         }
@@ -158,6 +163,52 @@ namespace Arma3ServerTools.Core.Repositories
         private string GetFilePath(string serverUuid)
         {
             return Path.Combine(paths.ConfigDirectory, serverUuid + ".json");
+        }
+
+        private static void EnsureValidServerUuid(string serverUuid)
+        {
+            if (string.IsNullOrEmpty(serverUuid))
+            {
+                throw new ConfigException("服务器 UUID 不能为空。");
+            }
+
+            if (serverUuid.Length > MaxServerUuidLength)
+            {
+                throw new ConfigException("服务器 UUID 格式非法。");
+            }
+
+            for (int i = 0; i < serverUuid.Length; i++)
+            {
+                if (!IsSafeFileTokenChar(serverUuid[i]))
+                {
+                    throw new ConfigException("服务器 UUID 格式非法。");
+                }
+            }
+        }
+
+        private static bool IsSafeFileTokenChar(char value)
+        {
+            if (value >= '0' && value <= '9')
+            {
+                return true;
+            }
+
+            if (value >= 'a' && value <= 'z')
+            {
+                return true;
+            }
+
+            if (value >= 'A' && value <= 'Z')
+            {
+                return true;
+            }
+
+            if (value == '-' || value == '_')
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private static ServerListItem ToListItem(ArmaServerConfig config)

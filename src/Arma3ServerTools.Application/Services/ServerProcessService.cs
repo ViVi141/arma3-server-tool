@@ -1,3 +1,5 @@
+using System;
+using System.Diagnostics;
 using System.IO;
 using Arma3ServerTools.Application.ProcessManagement;
 using Arma3ServerTools.Core;
@@ -88,6 +90,17 @@ namespace Arma3ServerTools.Application.Services
 
             if (processRunner.IsRunning(pid))
             {
+                ProcessIdentityStatus identityStatus = GetProcessIdentityStatus(pid, config);
+                if (identityStatus == ProcessIdentityStatus.Mismatch)
+                {
+                    return OperationResult.Fail("检测到 PID=" + pid + " 对应进程不是当前服务器进程，已取消停止以避免误杀。");
+                }
+
+                if (identityStatus == ProcessIdentityStatus.Unknown)
+                {
+                    return OperationResult.Fail("无法验证 PID=" + pid + " 的进程身份，已取消停止以避免误杀。");
+                }
+
                 if (!processRunner.TryKill(pid))
                 {
                     return OperationResult.Fail("停止进程失败，PID=" + pid);
@@ -139,15 +152,21 @@ namespace Arma3ServerTools.Application.Services
                 return ServerRunState.Stopped;
             }
 
-            if (processRunner.IsRunning(pid))
+            if (!processRunner.IsRunning(pid))
             {
-                return ServerRunState.Running;
+                if (clearStaleProcessId)
+                {
+                    config.ServerTaskManagement.ProcessById = 0;
+                    configService.Save(config);
+                }
+
+                return ServerRunState.Stopped;
             }
 
-            if (clearStaleProcessId)
+            ProcessIdentityStatus identityStatus = GetProcessIdentityStatus(pid, config);
+            if (identityStatus == ProcessIdentityStatus.Match)
             {
-                config.ServerTaskManagement.ProcessById = 0;
-                configService.Save(config);
+                return ServerRunState.Running;
             }
 
             return ServerRunState.Stopped;
@@ -156,6 +175,11 @@ namespace Arma3ServerTools.Application.Services
         public OperationResult StartHeadlessClient(string serverUuid)
         {
             ArmaServerConfig config = configService.Get(serverUuid);
+            if (config == null)
+            {
+                return OperationResult.Fail("未找到服务器配置。");
+            }
+
             string args = configWriter.BuildHeadlessClientCommandLine(config);
             string executable = GetServerExecutablePath(config);
             if (!File.Exists(executable))
@@ -195,6 +219,83 @@ namespace Arma3ServerTools.Application.Services
             }
 
             return Path.Combine(config.ServerDir, fileName);
+        }
+
+        private ProcessIdentityStatus GetProcessIdentityStatus(int pid, ArmaServerConfig config)
+        {
+            if (processRunner.GetType() != typeof(SystemProcessRunner))
+            {
+                return ProcessIdentityStatus.Match;
+            }
+
+            string expectedExecutablePath = GetServerExecutablePath(config);
+            if (string.IsNullOrWhiteSpace(expectedExecutablePath))
+            {
+                return ProcessIdentityStatus.Unknown;
+            }
+
+            string expectedFullPath;
+            try
+            {
+                expectedFullPath = Path.GetFullPath(expectedExecutablePath);
+            }
+            catch
+            {
+                return ProcessIdentityStatus.Unknown;
+            }
+
+            try
+            {
+                using (Process process = Process.GetProcessById(pid))
+                {
+                    string actualPath = null;
+                    try
+                    {
+                        ProcessModule module = process.MainModule;
+                        if (module != null)
+                        {
+                            actualPath = module.FileName;
+                        }
+                    }
+                    catch
+                    {
+                        return ProcessIdentityStatus.Unknown;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(actualPath))
+                    {
+                        return ProcessIdentityStatus.Unknown;
+                    }
+
+                    string actualFullPath;
+                    try
+                    {
+                        actualFullPath = Path.GetFullPath(actualPath);
+                    }
+                    catch
+                    {
+                        return ProcessIdentityStatus.Unknown;
+                    }
+
+                    if (string.Equals(actualFullPath, expectedFullPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return ProcessIdentityStatus.Match;
+                    }
+
+                    return ProcessIdentityStatus.Mismatch;
+                }
+            }
+            catch
+            {
+                return ProcessIdentityStatus.Unknown;
+            }
+        }
+
+        private enum ProcessIdentityStatus
+        {
+            Unknown = 0,
+            Match = 1,
+            Mismatch = 2,
         }
     }
 }

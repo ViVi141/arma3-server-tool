@@ -99,7 +99,7 @@ namespace Arma3ServerTools.Application.Services
             }
 
             string arguments = "+force_install_dir \"" + installDir + "\" "
-                + "+login " + settings.u + " " + settings.p
+                + "+login " + QuoteSteamCmdArgument(settings.u) + " " + QuoteSteamCmdArgument(settings.p)
                 + " +app_update " + Arma3DedicatedAppId + " -beta creatordlc validate";
 
             return StartSteamCmd(arguments);
@@ -158,9 +158,9 @@ namespace Arma3ServerTools.Application.Services
             builder.Append("+force_install_dir \"")
                 .Append(workshopRoot)
                 .Append("\" +login ")
-                .Append(settings.u)
+                .Append(QuoteSteamCmdArgument(settings.u))
                 .Append(' ')
-                .Append(settings.p);
+                .Append(QuoteSteamCmdArgument(settings.p));
 
             var seen = new HashSet<ulong>();
             for (int i = 0; i < modIds.Count; i++)
@@ -194,6 +194,17 @@ namespace Arma3ServerTools.Application.Services
             }
 
             return seen.Count;
+        }
+
+        private static string QuoteSteamCmdArgument(string value)
+        {
+            if (value == null)
+            {
+                return "\"\"";
+            }
+
+            string escaped = value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            return "\"" + escaped + "\"";
         }
 
         private static void EnsureWorkshopContentDirectory(string workshopRoot)

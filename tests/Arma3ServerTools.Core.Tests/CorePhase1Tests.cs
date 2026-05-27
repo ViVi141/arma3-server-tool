@@ -361,6 +361,41 @@ namespace Arma3ServerTools.Core.Tests
         }
 
         [Fact]
+        public void BuildStartCommandLine_FiltersUnsafeExtraArgs()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3flags-safe-filter");
+            try
+            {
+                string serverDir = Path.Combine(root, "server");
+                Directory.CreateDirectory(serverDir);
+                string extraArgsPlain = "-safeFlag=1\r\nunsafeNoDash\r\n-bad|pipe\r\n-good_path=C:\\work\\profile";
+                string extraArgsEncoded = Convert.ToBase64String(Encoding.Default.GetBytes(extraArgsPlain));
+
+                var config = new ArmaServerConfig
+                {
+                    ServerUUID = "safe-filter-test",
+                    ServerDir = serverDir,
+                    StartupParameters = new StartupParameters
+                    {
+                        Port = 2302,
+                        StartConfigArgs = extraArgsEncoded,
+                    },
+                };
+
+                string commandLine = new GameConfigWriter().BuildStartCommandLine(config);
+
+                Assert.Contains("-safeFlag=1", commandLine);
+                Assert.Contains("-good_path=C:\\work\\profile", commandLine);
+                Assert.DoesNotContain("unsafeNoDash", commandLine);
+                Assert.DoesNotContain("-bad|pipe", commandLine);
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+
+        [Fact]
         public void BuildStartCommandLine_AddsMonitoringModWhenMonitorEnabled()
         {
             var config = new ArmaServerConfig

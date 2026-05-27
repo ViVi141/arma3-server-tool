@@ -206,4 +206,44 @@ namespace Arma3ServerTools.Core.Tests
             }
         }
     }
+
+    public class ServerConfigRepositorySafetyTests
+    {
+        [Fact]
+        public void Save_WithUnsafeUuid_ThrowsConfigException()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3cfg-unsafe-save");
+            try
+            {
+                var repository = new ServerConfigRepository(new AppPaths(root));
+                var config = new ArmaServerConfig
+                {
+                    ServerUUID = "..\\..\\evil",
+                    ConfigName = "Unsafe",
+                    ServerDir = Path.Combine(root, "server"),
+                };
+
+                Assert.Throws<ConfigException>(() => repository.Save(config));
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+
+        [Fact]
+        public void Get_WithUnsafeUuid_ThrowsConfigException()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3cfg-unsafe-get");
+            try
+            {
+                var repository = new ServerConfigRepository(new AppPaths(root));
+                Assert.Throws<ConfigException>(() => repository.Get("../outside"));
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+    }
 }

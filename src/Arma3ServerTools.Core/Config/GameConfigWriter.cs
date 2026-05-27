@@ -248,8 +248,51 @@ namespace Arma3ServerTools.Core.Config
                     continue;
                 }
 
+                if (!IsSafeStartupExtraArg(trimmed))
+                {
+                    continue;
+                }
+
                 sb.Append(" ").Append(trimmed);
             }
+        }
+
+        private static bool IsSafeStartupExtraArg(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            if (!value.StartsWith("-", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (value.Length > 256)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                if (char.IsLetterOrDigit(c))
+                {
+                    continue;
+                }
+
+                if (c == '-' || c == '_' || c == '=' || c == ':' || c == '.' || c == '\\'
+                    || c == '/' || c == '+' || c == '@' || c == ' ' || c == '"' || c == ',' || c == '('
+                    || c == ')' || c == '[' || c == ']')
+                {
+                    continue;
+                }
+
+                return false;
+            }
+
+            return true;
         }
 
         internal static string BuildDlcModList(StartupParameters startupParameters)

@@ -73,6 +73,21 @@ namespace Arma3ServerTools.Application.Tests
             await job.Execute(new FakeJobExecutionContext(jobDetail)).ConfigureAwait(true);
         }
 
+        [Fact]
+        public async Task Execute_ProcessServiceThrows_DoesNotBubbleException()
+        {
+            var cron = new CronEntity
+            {
+                TaskId = "task-throw",
+                ServerUUID = "uuid-1",
+                Status = 1,
+                Action = 1,
+            };
+
+            var job = new ServerRestartManagementJob();
+            await job.Execute(CreateContext(cron, new ThrowingProcessService())).ConfigureAwait(true);
+        }
+
         private static IJobExecutionContext CreateContext(CronEntity cron, IServerProcessService processService)
         {
             var jobData = new JobDataMap();
@@ -143,6 +158,59 @@ namespace Arma3ServerTools.Application.Tests
         {
             Actions.Add("DetectRestart:" + serverUuid);
             return OperationResult.Ok();
+        }
+    }
+
+    internal sealed class ThrowingProcessService : IServerProcessService
+    {
+        public OperationResult Start(string serverUuid)
+        {
+            throw new InvalidOperationException("test");
+        }
+
+        public OperationResult Start(ArmaServerConfig config)
+        {
+            return Start(config?.ServerUUID);
+        }
+
+        public OperationResult Stop(string serverUuid)
+        {
+            throw new InvalidOperationException("test");
+        }
+
+        public OperationResult Stop(ArmaServerConfig config)
+        {
+            return Stop(config?.ServerUUID);
+        }
+
+        public ServerRunState GetState(string serverUuid)
+        {
+            return ServerRunState.Stopped;
+        }
+
+        public ServerRunState GetState(ArmaServerConfig config)
+        {
+            return ServerRunState.Stopped;
+        }
+
+        public ServerRunState SyncState(string serverUuid)
+        {
+            return ServerRunState.Stopped;
+        }
+
+        public ServerRunState SyncState(ArmaServerConfig config)
+        {
+            return ServerRunState.Stopped;
+        }
+
+        public OperationResult StartHeadlessClient(string serverUuid)
+        {
+            throw new InvalidOperationException("test");
+        }
+
+        public OperationResult DetectRestart(string serverUuid)
+        {
+            throw new InvalidOperationException("test");
         }
     }
 

@@ -100,6 +100,7 @@ namespace DestinyServerMonitoring
         }
 
         const int WM_COPYDATA = 0x004A;
+        const int MONITORING_COPYDATA_SIGNATURE = 0x41335354;
 
 
         /// <summary> 
@@ -132,7 +133,7 @@ namespace DestinyServerMonitoring
                       byte[] sarr = Encoding.Default.GetBytes(args[0]);
                       int len = sarr.Length;
                       COPYDATASTRUCT cds;
-                      cds.dwData = (IntPtr)100;
+                      cds.dwData = (IntPtr)MONITORING_COPYDATA_SIGNATURE;
                       cds.lpData = args[0];
                       cds.cbData = len + 1;
                       SendMessage(WINDOW_HANDLER, WM_COPYDATA, 0, ref cds);

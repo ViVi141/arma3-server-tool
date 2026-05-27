@@ -29,6 +29,8 @@ namespace Arma3ServerTools.Core
 
         public const string MonitoringHostWindowTitle = "A3-Arma3ServerTools-ProcessCommunicationModule";
 
+        public const int MonitoringCopyDataSignature = 0x41335354;
+
         public const string DefaultRconPasswordPrefix = "a3st";
 
         public static string GenerateDefaultRconPassword()
