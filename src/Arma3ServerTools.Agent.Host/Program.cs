@@ -56,8 +56,16 @@ namespace Arma3ServerTools.Agent.Host
                 ILoggerFactory factory = AppLogging.LoggerFactory;
                 return factory.CreateLogger("Arma3ServerTools.Agent");
             });
+            builder.Services.AddCors(options =>
+            {
+                options.AddDefaultPolicy(policy =>
+                    policy.AllowAnyOrigin()
+                          .AllowAnyHeader()
+                          .AllowAnyMethod());
+            });
 
             WebApplication app = builder.Build();
+            app.UseCors();
             app.UseMiddleware<AgentRequestIdMiddleware>();
             app.UseMiddleware<AgentAuthMiddleware>();
             app.MapAgentApi();
