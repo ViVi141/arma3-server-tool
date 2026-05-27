@@ -265,7 +265,7 @@ C:\Program Files\Arma3 Server Tools\
 在 **管理员 PowerShell** 中（路径按实际安装目录修改）：
 
 ```powershell
-FF
+& "C:\Program Files\Arma3 Server Tools\agent\Arma3ServerTools.Agent.Host.exe"
 ```
 
 首次运行会在 **用户数据目录** 创建 `config/agent/settings.json`（见 [§11 路径](#11-路径与数据目录易踩坑)）。
