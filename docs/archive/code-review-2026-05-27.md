@@ -379,4 +379,10 @@ BEServer_x64.cfg        → RCon 明文（引擎要求）△
 
 ---
 
-*本报告基于 2026-05-27 代码库静态审查与本地 `dotnet test` 结果。修复进度可在 [product-roadmap.md](product-roadmap.md) 与各版本 release 文档中跟踪。*
+## 十一、用户反馈（2026-05-27，已处理）
+
+见 [known-issues.md](known-issues.md)：SteamCMD 进度窗（UX-24）、开服指南 `.txt`（UX-25）、首服向导下一步（UX-26）、路径文案（UX-27）。
+
+---
+
+*本报告基于 2026-05-27 代码库静态审查与本地 `dotnet test` 结果。修复进度可在 [product-roadmap.md](product-roadmap.md)、[known-issues.md](known-issues.md) 与各版本 release 文档中跟踪。*

@@ -71,7 +71,10 @@ namespace Arma3ServerTools.App.WinForms
         {
             if (settings == null || string.IsNullOrEmpty(settings.u) || string.IsNullOrEmpty(settings.d))
             {
-                AntdUiHelper.ShowWarning(owner, "请先配置 SteamCMD 账号和 Workshop 根目录。", "提示");
+                AntdUiHelper.ShowWarning(
+                    owner,
+                    "请先配置 SteamCMD 账号；程序目录可留空（使用工具内置）或填写含 steamcmd.exe 的文件夹。",
+                    "提示");
                 return false;
             }
 
@@ -145,7 +148,8 @@ namespace Arma3ServerTools.App.WinForms
             return AntdUiHelper.Confirm(
                 owner,
                 "注意",
-                "以下模组不在 Workshop 根目录下，继续会在 SteamCMD 目录重新下载一份：\n\n" + builder);
+                "以下模组不在模组下载目录（steamapps\\workshop\\content\\107410）下，"
+                + "继续会在 SteamCMD 程序目录重新下载一份：\n\n" + builder);
         }
 
         private static ModDownloadConfirmForm CreateConfirmDialog(

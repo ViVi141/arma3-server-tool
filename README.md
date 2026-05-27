@@ -77,6 +77,7 @@
 | `src/Arma3ServerTools.Application` | 应用服务层 |
 | `src/Arma3ServerTools.App.WinForms` | 主程序，输出 `Arma3ServerTools.exe` |
 | `src/Arma3ServerTools.MonitoringHost` | 监控 WM_COPYDATA 宿主进程 |
+| `src/Arma3ServerTools.Agent.Host` | 本地自动化 API（随安装包部署到 `agent/`，见 [docs/openclaw-integration.md](docs/openclaw-integration.md)） |
 | `DestinyServerMonitoring/` | 服务端 RVExtension 源码（构建产物见 `ToolConstants.MonitoringExtensionDllFileName`） |
 | `tests/` | 单元测试（Core / Application） |
 
@@ -86,6 +87,9 @@ Release 输出示例：
 src/Arma3ServerTools.App.WinForms/bin/Release/net10.0-windows/
 ├── Arma3ServerTools.exe
 ├── monitoring/Arma3ServerTools.MonitoringHost.exe
+├── agent/Arma3ServerTools.Agent.Host.exe
+├── skills/arma3-server-tools/
+├── scripts/openclaw/a3st-invoke.ps1
 ├── a3st_statistics.db          （运行时生成）
 └── sql/a3st_statistics.sql
 ```
@@ -117,7 +121,16 @@ dotnet test Arma3ServerTools.sln -c Release
 
 ## 发布打包
 
-默认产出 **`artifacts/Arma3ServerTools-Setup.exe`**（Inno Setup 安装包，自包含 .NET 运行时，无需用户预装 Desktop Runtime）。
+默认产出 **`artifacts/Arma3ServerTools-Setup-*.exe`**（Inno Setup 安装包，自包含 .NET 运行时）。**同一安装包**内包含：
+
+| 组件 | 安装路径 | 说明 |
+|------|----------|------|
+| 主程序（本地 GUI） | `{app}\Arma3ServerTools.exe` | 开服管理界面 |
+| Agent | `{app}\agent\Arma3ServerTools.Agent.Host.exe` | OpenClaw / HTTP 自动化 |
+| MonitoringHost | `{app}\monitoring\` | 监控 WM_COPYDATA 宿主 |
+| OpenClaw 辅助 | `{app}\skills\`、`{app}\scripts\openclaw\` | B 机可引用或复制 |
+
+由 `scripts/build-release.ps1` 分别 `publish` 主程序与两个宿主后再打 Inno 包；安装程序开始菜单含 **主程序 + Agent** 快捷方式，可选「登录时自动启动 Agent」。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release
@@ -143,7 +156,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 | `-SkipInstaller` | 仅生成 `artifacts/_publish/` 目录，不编译安装包 |
 | `-Zip` | 额外生成便携 zip（与旧版行为相同） |
 
-详见 **[docs/release-v1.4.1.md](docs/release-v1.4.1.md)**（历史：[v1.4.0](docs/release-v1.4.0.md)、[v1.3.0](docs/release-v1.3.0.md)、[v1.2.3](docs/release-v1.2.3.md)、[v1.2.2](docs/release-v1.2.2.md)、[v1.2.1](docs/release-v1.2.1.md)、[v1.2.0](docs/release-v1.2.0.md)、[v1.1.1](docs/release-v1.1.1.md)、[v1.1.0](docs/release-v1.1.0.md)、[v1.0.0](docs/release-v1.0.0.md)）。
+详见 **[docs/CHANGELOG.md](docs/CHANGELOG.md)**（各版详细清单见 [docs/archive/releases/](docs/archive/releases/)）。
 
 ---
 
@@ -154,32 +167,29 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 - **SteamCMD** 首次下载后需联机初始化；若日志出现 `502.3` / `IIS` / `<!DOCTYPE`，说明网络或代理拦截了 Steam CDN，请关闭代理或手动解压完整 SteamCMD 到 `%LocalAppData%\Arma3ServerTools\extension\`
 - 编译前请**关闭正在运行的主程序**，避免 `monitoring/` 下 DLL 被占用
 - 主程序退出时会自动关闭监控宿主进程
+- **OpenClaw / 远程自动化**：安装目录下 `agent\Arma3ServerTools.Agent.Host.exe` 与主程序共用配置；详见 [docs/deployment-ab-openclaw.md](docs/deployment-ab-openclaw.md)
 - 本地 `.vs/`、`bin/`、`obj/` 为构建缓存，无需提交；克隆后执行 `dotnet restore` 即可
 
 ---
 
 ## 文档
 
+完整索引见 **[docs/README.md](docs/README.md)**。常用：
+
 | 文档 | 内容 |
 |------|------|
 | [docs/first-server-guide.md](docs/first-server-guide.md) | 首次开服指南 |
-| [docs/refactoring-plan.md](docs/refactoring-plan.md) | 分层改造说明 |
-| [docs/product-roadmap.md](docs/product-roadmap.md) | 实施计划与 backlog |
-| [docs/ux-optimization-backlog.md](docs/ux-optimization-backlog.md) | 用户体验优化任务（v1.1） |
-| [docs/release-v1.4.1.md](docs/release-v1.4.1.md) | **v1.4.1 发布清单** |
-| [docs/release-v1.4.0.md](docs/release-v1.4.0.md) | v1.4.0 发布清单 |
-| [docs/release-v1.3.0.md](docs/release-v1.3.0.md) | v1.3.0 发布清单 |
-| [docs/release-v1.2.3.md](docs/release-v1.2.3.md) | v1.2.3 发布清单 |
-| [docs/release-v1.2.2.md](docs/release-v1.2.2.md) | v1.2.2 发布清单 |
-| [docs/release-v1.2.1.md](docs/release-v1.2.1.md) | v1.2.1 发布清单 |
-| [docs/release-v1.2.0.md](docs/release-v1.2.0.md) | v1.2.0 发布清单 |
-| [docs/release-v1.1.1.md](docs/release-v1.1.1.md) | v1.1.1 发布清单 |
-| [docs/release-v1.1.0.md](docs/release-v1.1.0.md) | v1.1.0 发布清单 |
-| [docs/release-v1.0.0.md](docs/release-v1.0.0.md) | v1.0 发布清单 |
-| [docs/smoke-checklist.md](docs/smoke-checklist.md) | 冒烟验收清单 |
-| [docs/code-review-2026-05-27.md](docs/code-review-2026-05-27.md) | **最新代码审查报告**（v1.4.1） |
-| [docs/code-review-2026-05-24.md](docs/code-review-2026-05-24.md) | 历史代码审查（v1.2.3） |
+| [docs/openclaw-integration.md](docs/openclaw-integration.md) | OpenClaw + Agent（QQ 等 IM） |
+| [docs/deployment-ab-openclaw.md](docs/deployment-ab-openclaw.md) | 双机部署（A 开服 / B OpenClaw） |
+| [docs/agent-capabilities.md](docs/agent-capabilities.md) | Agent 能力与各 action 说明 |
+| [docs/agent-channels.md](docs/agent-channels.md) | Agent HTTP / 任务 JSON |
+| [docs/architecture.md](docs/architecture.md) | 项目架构 |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | 版本变更 |
+| [docs/known-issues.md](docs/known-issues.md) | 已知问题 |
+| [docs/smoke-checklist.md](docs/smoke-checklist.md) | 发版冒烟清单 |
 | [docs/monitoring-cpp-dll-build.md](docs/monitoring-cpp-dll-build.md) | Monitoring DLL 构建 |
+
+历史发布说明、改造计划与代码审查见 [docs/archive/](docs/archive/)。
 
 ---
 

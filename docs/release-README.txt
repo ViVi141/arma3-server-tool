@@ -19,12 +19,23 @@ Quick start
 
 Documentation (in docs/ folder)
 --------------------------------
-- first-server-guide.md — step-by-step setup (Chinese)
+- first-server-guide.txt — step-by-step setup (Chinese, open with Notepad)
+- first-server-guide.md — same content (Markdown)
+- README.md — documentation index
+- openclaw-integration.md / deployment-ab-openclaw.md — Agent + OpenClaw
 
 Monitoring (optional)
 ---------------------
 - Requires monitoring-server/DestinyServerMonitoring.dll and mod/@a3st_monitor
 - MonitoringHost runs from monitoring/Arma3ServerTools.MonitoringHost.exe
+
+Automation Agent (OpenClaw / remote control)
+--------------------------------------------
+- Included in the same installer as the main GUI (no separate download)
+- Executable: agent/Arma3ServerTools.Agent.Host.exe
+- Shares server configs with Arma3ServerTools.exe (see docs/deployment-ab-openclaw.md)
+- First run creates config/agent/settings.json under user data
+- Optional: enable "Start Agent on logon" during setup
 
 Support
 -------

@@ -31,12 +31,21 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 
 ## 3. 安装专用服务器（SteamCMD）
 
-1. 打开主程序 → **工具 → SteamCMD 设置**，填写账号与 Workshop 根目录
-2. **服务器 → 安装/更新专用服务器...**，选择安装目录（即后续「服务器目录」）
-3. 若本机无 `steamcmd.exe`，程序可尝试下载；SteamCMD 目录为：
-   - 安装到 `Program Files` 时：`%LocalAppData%\Arma3ServerTools\extension\`
-   - 便携 / 可写目录时：程序目录旁 `extension\`
-   也可 [手动下载 SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD) 并解压到上述目录
+### 3.1 三种路径（不要混用）
+
+| 名称（界面） | 是什么 | 典型路径 |
+|--------------|--------|----------|
+| **工具内置 SteamCMD** | 点「下载 SteamCMD」解压到这里；**留空「程序目录」时用** | `%LocalAppData%\Arma3ServerTools\extension\`（装到 Program Files 时）或 `{程序目录}\extension\` |
+| **SteamCMD 程序目录** | 含 `steamcmd.exe` 的文件夹；可填内置路径或自解压路径 | 同上，或你自选的 `D:\SteamCMD\` |
+| **模组下载目录**（只读） | Workshop 模组 `.pbo` 实际位置，程序自动显示 | `{程序目录}\steamapps\workshop\content\107410\<模组ID>\` |
+| **专用服务器游戏目录** | `arma3server`、任务、`server.cfg` 等 | 如 `D:\Games\Arma3Server\`（**不是**模组目录） |
+
+### 3.2 推荐步骤
+
+1. 打开 **工具 → SteamCMD 设置**，填写 Steam 账号；**SteamCMD 程序目录**可留空（用内置）或指向含 `steamcmd.exe` 的文件夹
+2. 点 **下载 SteamCMD**（装到工具内置 `extension\`）或自行 [手动下载](https://developer.valvesoftware.com/wiki/SteamCMD) 解压
+3. **安装/更新专用服务器** 时选择 **专用服务器游戏目录**（与当前服务器配置的「服务器目录」一致）
+4. 在 **模组** 页下载 Workshop 模组后，到 **模组下载目录** 下会出现对应 ID 文件夹；保存 Steam 设置后会加入扫描路径
 
 > **网络提示：** 若日志出现 `502.3` / `IIS` / `<!DOCTYPE`，说明代理或防火墙拦截了 Steam CDN（`steamcdn-a.akamaihd.net`），请关闭代理或手动解压完整 SteamCMD。
 
@@ -83,7 +92,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 |------|------|
 | 提示中文路径 | 将工具与服务器目录移到纯英文路径 |
 | RCon 连接失败 | 检查 BE 是否启用、端口/密码、防火墙；远程管理时在安全页修改 RCon 地址 |
-| 模组未出现 | 确认 Workshop 扫描路径与 SteamCMD 下载目录一致 |
+| 模组未出现 | 确认「模组」页扫描路径包含 `steamapps\workshop\content\107410`；与 SteamCMD **程序目录** 一致 |
 | 统计无数据 | 勾选「启用统计入库」并确认 MonitoringHost 在运行 |
 
-更多架构说明见 [architecture.md](architecture.md)，完整 backlog 见 [product-roadmap.md](product-roadmap.md)，用户体验优化清单见 [ux-optimization-backlog.md](ux-optimization-backlog.md)。
+更多说明见 [architecture.md](architecture.md)、[README.md](README.md)（文档索引）。通过 QQ 等远程管服见 [openclaw-integration.md](openclaw-integration.md)。

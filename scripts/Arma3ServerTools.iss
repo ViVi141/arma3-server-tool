@@ -75,16 +75,22 @@ Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.i
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "agentautostart"; Description: "登录 Windows 时自动启动 Agent（供 OpenClaw 远程控制，与主程序共用配置）"; GroupDescription: "自动化 Agent"; Flags: unchecked
 
 [Files]
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppIconFile}"; Comment: "{#MyAppDescription}"
+Name: "{group}\Arma3 Server Tools Agent"; Filename: "{app}\agent\Arma3ServerTools.Agent.Host.exe"; IconFilename: "{app}\{#MyAppIconFile}"; Comment: "OpenClaw / HTTP automation API (same config as main app)"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppIconFile}"; Tasks: desktopicon; Comment: "{#MyAppDescription}"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "schtasks"; Parameters: "/Create /F /TN ""Arma3 Server Tools Agent"" /TR ""\""{app}\agent\Arma3ServerTools.Agent.Host.exe\"""" /SC ONLOGON /RL LIMITED"; StatusMsg: "正在注册 Agent 开机登录启动任务..."; Flags: runhidden; Tasks: agentautostart
+
+[UninstallRun]
+Filename: "schtasks"; Parameters: "/Delete /F /TN ""Arma3 Server Tools Agent"""; Flags: runhidden
 
 [Messages]
 english.BeveledLabel=Install path must not contain Chinese characters.

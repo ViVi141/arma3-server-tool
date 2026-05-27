@@ -48,9 +48,17 @@ namespace Arma3ServerTools.Application.Services
             return DownloadBundledSteamCmdAsync(paths, CancellationToken.None).GetAwaiter().GetResult();
         }
 
-        public static async Task<OperationResult> DownloadBundledSteamCmdAsync(
+        public static Task<OperationResult> DownloadBundledSteamCmdAsync(
             IAppPaths paths,
             CancellationToken cancellationToken)
+        {
+            return DownloadBundledSteamCmdAsync(paths, cancellationToken, null);
+        }
+
+        public static async Task<OperationResult> DownloadBundledSteamCmdAsync(
+            IAppPaths paths,
+            CancellationToken cancellationToken,
+            IProgress<SteamCmdDownloadProgress> progress)
         {
             string extensionDir = GetBundledDirectory(paths);
             if (IsInstallationComplete(extensionDir))
@@ -60,6 +68,7 @@ namespace Arma3ServerTools.Application.Services
 
             try
             {
+                Report(progress, "正在准备安装目录…", -1);
                 if (Directory.Exists(extensionDir))
                 {
                     Directory.Delete(extensionDir, true);
@@ -67,11 +76,14 @@ namespace Arma3ServerTools.Application.Services
 
                 Directory.CreateDirectory(extensionDir);
                 string zipPath = Path.Combine(extensionDir, "steamcmd.zip");
-                byte[] zipBytes = await SharedHttpClient
-                    .GetByteArrayAsync(DownloadUrl, cancellationToken)
+                OperationResult downloadResult = await DownloadZipAsync(zipPath, cancellationToken, progress)
                     .ConfigureAwait(false);
-                await File.WriteAllBytesAsync(zipPath, zipBytes, cancellationToken).ConfigureAwait(false);
+                if (!downloadResult.Success)
+                {
+                    return downloadResult;
+                }
 
+                Report(progress, "正在解压 steamcmd.zip…", -1);
                 ExtractZip(zipPath, extensionDir);
                 if (File.Exists(zipPath))
                 {
@@ -84,6 +96,7 @@ namespace Arma3ServerTools.Application.Services
                     return OperationResult.Fail("解压完成但未找到 steamcmd.exe，请检查网络或手动下载。");
                 }
 
+                Report(progress, "正在初始化 SteamCMD（首次运行，可能需要数分钟）…", -1);
                 OperationResult bootstrapResult = RunBootstrapUpdate(extensionDir);
                 if (!bootstrapResult.Success)
                 {
@@ -101,6 +114,7 @@ namespace Arma3ServerTools.Application.Services
                         + "目录: " + extensionDir);
                 }
 
+                Report(progress, "SteamCMD 安装完成", 100);
                 return OperationResult.Ok("SteamCMD 已下载到: " + executablePath);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -109,9 +123,108 @@ namespace Arma3ServerTools.Application.Services
             }
         }
 
+        private static async Task<OperationResult> DownloadZipAsync(
+            string zipPath,
+            CancellationToken cancellationToken,
+            IProgress<SteamCmdDownloadProgress> progress)
+        {
+            Report(progress, "正在连接 Steam CDN…", 0);
+            using (HttpResponseMessage response = await SharedHttpClient
+                .GetAsync(DownloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false))
+            {
+                response.EnsureSuccessStatusCode();
+                long totalBytes = response.Content.Headers.ContentLength ?? -1;
+                using (Stream contentStream = await response.Content.ReadAsStreamAsync(cancellationToken)
+                    .ConfigureAwait(false))
+                using (FileStream fileStream = new FileStream(
+                    zipPath,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: 81920,
+                    useAsync: true))
+                {
+                    byte[] buffer = new byte[81920];
+                    long bytesRead = 0;
+                    while (true)
+                    {
+                        int read = await contentStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken)
+                            .ConfigureAwait(false);
+                        if (read == 0)
+                        {
+                            break;
+                        }
+
+                        await fileStream.WriteAsync(buffer, 0, read, cancellationToken).ConfigureAwait(false);
+                        bytesRead += read;
+                        if (totalBytes > 0)
+                        {
+                            int percent = (int)((bytesRead * 100L) / totalBytes);
+                            if (percent > 99)
+                            {
+                                percent = 99;
+                            }
+
+                            Report(
+                                progress,
+                                "正在下载 steamcmd.zip（" + percent + "%）…",
+                                percent);
+                        }
+                        else
+                        {
+                            Report(
+                                progress,
+                                "正在下载 steamcmd.zip（已下载 "
+                                    + FormatByteSize(bytesRead)
+                                    + "）…",
+                                -1);
+                        }
+                    }
+                }
+            }
+
+            return OperationResult.Ok();
+        }
+
+        private static string FormatByteSize(long bytes)
+        {
+            if (bytes < 1024)
+            {
+                return bytes + " B";
+            }
+
+            if (bytes < 1024 * 1024)
+            {
+                return (bytes / 1024) + " KB";
+            }
+
+            return (bytes / (1024 * 1024)) + " MB";
+        }
+
+        private static void Report(IProgress<SteamCmdDownloadProgress> progress, string stage, int percent)
+        {
+            if (progress == null)
+            {
+                return;
+            }
+
+            progress.Report(new SteamCmdDownloadProgress(stage, percent));
+        }
+
         private static OperationResult RunBootstrapUpdate(string extensionDirectory)
         {
+            if (!SteamCmdExecutionGate.TryEnter("SteamCMD 初始化（+quit）", 300000, out string busyMessage))
+            {
+                return OperationResult.Fail(busyMessage);
+            }
+
             string executablePath = Path.Combine(extensionDirectory, "steamcmd.exe");
+            if (SteamCmdExecutionGate.HasRunningSteamCmdProcess())
+            {
+                return OperationResult.Fail(SteamCmdExecutionGate.BuildAlreadyRunningMessage());
+            }
+
             try
             {
                 var startInfo = new ProcessStartInfo
@@ -158,6 +271,10 @@ namespace Arma3ServerTools.Application.Services
             catch (Exception ex)
             {
                 return OperationResult.Fail("SteamCMD 初始化失败: " + ex.Message);
+            }
+            finally
+            {
+                SteamCmdExecutionGate.Exit();
             }
         }
 

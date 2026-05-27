@@ -192,12 +192,12 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             };
             installPanel.Controls.Add(installDir);
             installPanel.Controls.Add(browseButton);
-            SettingsLayoutHelper.AddRow(layout, "装服目录", installPanel);
+            SettingsLayoutHelper.AddRow(layout, "专用服务器游戏目录", installPanel);
 
             installDedicated = SettingsLayoutHelper.AddRow(
                 layout,
                 "SteamCMD",
-                SettingsLayoutHelper.CreateCheckbox("安装/更新专用服务器到装服目录", true));
+                SettingsLayoutHelper.CreateCheckbox("安装/更新专用服务器到上述游戏目录", true));
 
             AntButton downloadButton = SettingsLayoutHelper.CreateButton(
                 "下载 SteamCMD");
@@ -212,10 +212,12 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
             string extensionDirectory = SteamCmdBootstrapper.GetBundledDirectory(appServices.Paths);
             AntLabel steamCmdPathHint = AntdUiHelper.CreateHintLabel(
-                "SteamCMD 目录：" + extensionDirectory,
+                "工具内置 SteamCMD（点「下载 SteamCMD」）：" + extensionDirectory,
                 520);
             AntLabel hint = AntdUiHelper.CreateHintLabel(
-                "此步可跳过（若已安装专用服务器）。账号用于 SteamCMD 下载；装服目录将作为服务器目录。",
+                "此步可跳过。账号用于 SteamCMD。专用服务器游戏目录 ≠ 模组目录；模组在 SteamCMD 下的 "
+                + @"steamapps\workshop\content\107410\。"
+                + " " + SteamPathUiHelper.PathsHint,
                 520);
 
             var stack = SettingsLayoutHelper.CreateSectionsStack();
@@ -342,7 +344,21 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                     appServices.Paths).ConfigureAwait(true);
                 if (result.Success)
                 {
-                    AntdUiHelper.ShowInfo(this, result.Message, "SteamCMD");
+                    string message = "SteamCMD 已就绪，可点击「下一步」继续配置服务器。";
+                    if (!string.IsNullOrWhiteSpace(result.Message))
+                    {
+                        message = result.Message + Environment.NewLine + Environment.NewLine + message;
+                    }
+
+                    if (installDedicatedCheckBox.Checked
+                        && string.IsNullOrWhiteSpace(installDirInput.Text))
+                    {
+                        message = message + Environment.NewLine
+                            + "若本步暂不安装专用服务器，可取消勾选「安装/更新专用服务器」；"
+                            + "或在装服目录填写路径并在最后一步完成安装。";
+                    }
+
+                    AntdUiHelper.ShowInfo(this, message, "SteamCMD");
                 }
                 else
                 {
@@ -395,24 +411,43 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         private bool ValidatePrepareStep()
         {
             string installDir = installDirInput.Text.Trim();
-            if (installDedicatedCheckBox.Checked)
-            {
-                if (string.IsNullOrEmpty(installDir))
-                {
-                    AntdUiHelper.ShowWarning(this, "请选择装服目录，或取消勾选安装专用服务器。", "提示");
-                    return false;
-                }
-
-                if (string.IsNullOrEmpty(steamUserInput.Text.Trim()))
-                {
-                    AntdUiHelper.ShowWarning(this, "勾选安装专用服务器时需填写 Steam 账号。", "提示");
-                    return false;
-                }
-            }
 
             if (!string.IsNullOrEmpty(installDir) && PathValidation.ContainsChinese(installDir))
             {
                 AntdUiHelper.ShowWarning(this, UiLabels.PathRulesShort, "提示");
+                return false;
+            }
+
+            // 专用服务器安装在「完成」时执行（ApplyPrepareStepAsync），本步仅下载 SteamCMD 也应能进入下一步。
+            return true;
+        }
+
+        private bool ValidatePrepareStepForDedicatedInstall()
+        {
+            if (!installDedicatedCheckBox.Checked)
+            {
+                return true;
+            }
+
+            string installDir = installDirInput.Text.Trim();
+            if (string.IsNullOrEmpty(installDir))
+            {
+                AntdUiHelper.ShowWarning(
+                    this,
+                    "已勾选安装专用服务器，请填写装服目录，或取消勾选后再完成。",
+                    "提示");
+                return false;
+            }
+
+            if (PathValidation.ContainsChinese(installDir))
+            {
+                AntdUiHelper.ShowWarning(this, UiLabels.PathRulesShort, "提示");
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(steamUserInput.Text.Trim()))
+            {
+                AntdUiHelper.ShowWarning(this, "安装专用服务器需填写 Steam 账号。", "提示");
                 return false;
             }
 
@@ -462,6 +497,11 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
             try
             {
+                if (!ValidatePrepareStepForDedicatedInstall())
+                {
+                    return;
+                }
+
                 await ApplyPrepareStepAsync().ConfigureAwait(true);
 
                 ArmaServerConfig config = appServices.ConfigService.Create(name, dir);

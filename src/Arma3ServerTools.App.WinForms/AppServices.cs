@@ -27,6 +27,7 @@ namespace Arma3ServerTools.App.WinForms
             ISchedulerService schedulerService,
             ISteamCmdService steamCmdService,
             ModScannerService modScannerService,
+            ModWorkshopWorkflowService modWorkshopWorkflow,
             BikeyService bikeyService,
             BansService bansService,
             MonitoringDeploymentService monitoringDeploymentService,
@@ -52,6 +53,7 @@ namespace Arma3ServerTools.App.WinForms
             SchedulerService = schedulerService;
             SteamCmdService = steamCmdService;
             ModScannerService = modScannerService;
+            ModWorkshopWorkflow = modWorkshopWorkflow;
             BikeyService = bikeyService;
             BansService = bansService;
             MonitoringDeploymentService = monitoringDeploymentService;
@@ -90,6 +92,8 @@ namespace Arma3ServerTools.App.WinForms
         public ISteamCmdService SteamCmdService { get; }
 
         public ModScannerService ModScannerService { get; }
+
+        public ModWorkshopWorkflowService ModWorkshopWorkflow { get; }
 
         public BikeyService BikeyService { get; }
 

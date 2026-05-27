@@ -1,7 +1,5 @@
 using System;
-using System.Diagnostics;
 using System.Drawing;
-using System.IO;
 using System.Windows.Forms;
 using AntButton = AntdUI.Button;
 using AntLabel = AntdUI.Label;
@@ -80,7 +78,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 }
             };
 
-            AntButton guideButton = AntdUiHelper.CreateToolbarButton("查看首次开服指南");
+            AntButton guideButton = AntdUiHelper.CreateToolbarButton("查看开服指南（记事本）");
             guideButton.Width = UiScaleHelper.Scale(220);
             guideButton.Click += OnOpenGuide;
 
@@ -108,36 +106,12 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            TryOpenFirstServerGuideDocument();
+            FirstServerGuideOpener.OpenGuide(FindForm());
         }
 
         internal static void TryOpenFirstServerGuideDocument()
         {
-            string baseDir = AppContext.BaseDirectory;
-            string[] candidates = new string[]
-            {
-                Path.Combine(baseDir, "docs", "first-server-guide.md"),
-                Path.Combine(baseDir, "first-server-guide.md"),
-            };
-
-            for (int i = 0; i < candidates.Length; i++)
-            {
-                if (File.Exists(candidates[i]))
-                {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = candidates[i],
-                        UseShellExecute = true,
-                    });
-                    return;
-                }
-            }
-
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "https://github.com/ViVi141/arma3-server-tool/blob/main/docs/first-server-guide.md",
-                UseShellExecute = true,
-            });
+            FirstServerGuideOpener.OpenGuide(null);
         }
     }
 }

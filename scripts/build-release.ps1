@@ -234,23 +234,89 @@ else {
 dotnet @PublishArgs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-$MonitoringSourceCandidates = @(
-    (Join-Path $Root "src\Arma3ServerTools.App.WinForms\bin\$Configuration\net10.0-windows\win-x64\monitoring"),
-    (Join-Path $Root "src\Arma3ServerTools.App.WinForms\bin\$Configuration\net10.0-windows\monitoring")
-)
-$MonitoringSource = $null
-foreach ($candidate in $MonitoringSourceCandidates) {
-    if (Test-Path $candidate) {
-        $MonitoringSource = $candidate
-        break
+function Publish-SatelliteHost {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $ProjectRelativePath,
+
+        [Parameter(Mandatory = $true)]
+        [string] $DestinationSubDirectory,
+
+        [Parameter(Mandatory = $true)]
+        [string] $ExpectedExeName
+    )
+
+    $destination = Join-Path $PublishDir $DestinationSubDirectory
+    if (Test-Path $destination) {
+        Remove-Item -Recurse -Force $destination
+    }
+
+    $satellitePublishArgs = @(
+        "publish",
+        $ProjectRelativePath,
+        "-c", $Configuration,
+        "-o", $destination,
+        "--no-restore"
+    )
+
+    if ($SelfContained) {
+        $satellitePublishArgs += @("-r", "win-x64", "--self-contained", "true")
+    }
+    else {
+        $satellitePublishArgs += @("--self-contained", "false")
+    }
+
+    Write-Host "Publishing $ExpectedExeName to $destination ..."
+    dotnet @satellitePublishArgs
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    $expectedExePath = Join-Path $destination $ExpectedExeName
+    if (-not (Test-Path $expectedExePath)) {
+        throw "Expected satellite host was not published: $expectedExePath"
     }
 }
-if ($MonitoringSource) {
-    $MonitoringDest = Join-Path $PublishDir "monitoring"
-    if (Test-Path $MonitoringDest) {
-        Remove-Item -Recurse -Force $MonitoringDest
+
+Publish-SatelliteHost `
+    -ProjectRelativePath "src\Arma3ServerTools.MonitoringHost\Arma3ServerTools.MonitoringHost.csproj" `
+    -DestinationSubDirectory "monitoring" `
+    -ExpectedExeName "Arma3ServerTools.MonitoringHost.exe"
+
+Publish-SatelliteHost `
+    -ProjectRelativePath "src\Arma3ServerTools.Agent.Host\Arma3ServerTools.Agent.Host.csproj" `
+    -DestinationSubDirectory "agent" `
+    -ExpectedExeName "Arma3ServerTools.Agent.Host.exe"
+
+$SkillsSource = Join-Path $Root "skills"
+if (Test-Path $SkillsSource) {
+    $SkillsDest = Join-Path $PublishDir "skills"
+    if (Test-Path $SkillsDest) {
+        Remove-Item -Recurse -Force $SkillsDest
     }
-    Copy-Item -Path $MonitoringSource -Destination $MonitoringDest -Recurse -Force
+    Copy-Item -Path $SkillsSource -Destination $SkillsDest -Recurse -Force
+    $skillMdPath = Join-Path $SkillsDest "arma3-server-tools\SKILL.md"
+    if (-not (Test-Path $skillMdPath)) {
+        throw "OpenClaw skill file was not copied: $skillMdPath"
+    }
+    Write-Host "Bundled OpenClaw skill: $skillMdPath"
+}
+else {
+    throw "Skills directory not found: $SkillsSource"
+}
+
+$guideTxtPath = Join-Path $PublishDir "docs\first-server-guide.txt"
+if (-not (Test-Path $guideTxtPath)) {
+    throw "First-server guide (txt) was not copied to publish output: $guideTxtPath"
+}
+Write-Host "Bundled first-server guide: $guideTxtPath"
+
+$OpenClawScriptSource = Join-Path $Root "scripts\openclaw"
+if (Test-Path $OpenClawScriptSource) {
+    $ScriptsDest = Join-Path $PublishDir "scripts\openclaw"
+    New-Item -ItemType Directory -Path (Split-Path $ScriptsDest -Parent) -Force | Out-Null
+    if (Test-Path $ScriptsDest) {
+        Remove-Item -Recurse -Force $ScriptsDest
+    }
+    Copy-Item -Path $OpenClawScriptSource -Destination $ScriptsDest -Recurse -Force
 }
 
 foreach ($legalFile in @("LICENSE", "NOTICE", "THIRD-PARTY-NOTICES.txt")) {
@@ -258,6 +324,19 @@ foreach ($legalFile in @("LICENSE", "NOTICE", "THIRD-PARTY-NOTICES.txt")) {
     if (Test-Path $sourcePath) {
         Copy-Item -Path $sourcePath -Destination (Join-Path $PublishDir $legalFile) -Force
     }
+}
+
+$MainExePath = Join-Path $PublishDir "Arma3ServerTools.exe"
+$AgentExePath = Join-Path $PublishDir "agent\Arma3ServerTools.Agent.Host.exe"
+$MonitoringExePath = Join-Path $PublishDir "monitoring\Arma3ServerTools.MonitoringHost.exe"
+if (-not (Test-Path $MainExePath)) {
+    throw "Main application was not published: $MainExePath"
+}
+if (-not (Test-Path $AgentExePath)) {
+    throw "Agent host was not published: $AgentExePath"
+}
+if (-not (Test-Path $MonitoringExePath)) {
+    throw "Monitoring host was not published: $MonitoringExePath"
 }
 
 $SetupPath = Join-Path $Root ("artifacts\" + $SetupFileName)
@@ -300,6 +379,13 @@ if ($Zip) {
 
 Write-Host ""
 Write-Host "Publish staging: $PublishDir"
+Write-Host "  Main:       $MainExePath"
+Write-Host "  Agent:      $AgentExePath"
+Write-Host "  Monitoring: $MonitoringExePath"
+$SkillMdPath = Join-Path $PublishDir "skills\arma3-server-tools\SKILL.md"
+if (Test-Path $SkillMdPath) {
+    Write-Host "  Skill:      $SkillMdPath"
+}
 if (Test-Path $SetupPath) {
     Write-Host "Setup installer: $SetupPath"
 }

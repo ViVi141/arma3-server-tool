@@ -113,9 +113,24 @@ namespace Arma3ServerTools.Application.Services
             bool downloadIfMissing,
             System.Threading.CancellationToken cancellationToken);
 
+        System.Threading.Tasks.Task<OperationResult> EnsureSteamCmdAvailableAsync(
+            bool downloadIfMissing,
+            System.Threading.CancellationToken cancellationToken,
+            System.IProgress<SteamCmdDownloadProgress> progress);
+
         OperationResult InstallDedicatedServer(string installDir);
 
         OperationResult DownloadWorkshopItems(System.Collections.Generic.IList<ulong> modIds);
+
+        SteamCmdRunResult DownloadWorkshopItemsCaptured(
+            System.Collections.Generic.IList<ulong> modIds,
+            int timeoutMilliseconds);
+
+        SteamCmdRunResult InstallDedicatedServerCaptured(string installDir, int timeoutMilliseconds);
+
+        SteamCmdTerminationResult TerminateRunningSteamCmd();
+
+        SteamCmdStatusSnapshot GetSteamCmdStatus();
 
         void InvalidateExecutableCache();
     }

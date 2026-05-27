@@ -65,11 +65,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 SettingsLayoutHelper.CreateGroup("当前服务器", BuildCurrentServerSection(out currentServerDirLabel)));
 
             AntLabel hint = AntdUiHelper.CreateHintLabel(
-                UiLabels.PathRulesHint
-                    + " Workshop 根目录通常为 SteamCMD 解压目录（含 steamcmd.exe）。"
-                    + "模组实际位于 steamapps\\workshop\\content\\107410。"
-                    + "保存到工具时会同步写入 Steam 设置并更新模组扫描路径。",
-                640);
+                UiLabels.PathRulesHint + " " + SteamPathUiHelper.PathsHint,
+                720);
             hint.Dock = DockStyle.Top;
 
             Controls.Add(SettingsLayoutHelper.CreateScrollHost(root));
@@ -155,8 +152,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
             out AntLabel steamCmdStatusValue)
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
-            workshopRootBox = AddBrowseRow(layout, "Workshop 根目录", OnBrowseWorkshopRoot);
-            serverInstallBox = AddBrowseRow(layout, "专用服务器目录", OnBrowseServerInstall);
+            workshopRootBox = AddBrowseRow(
+                layout,
+                SteamPathUiHelper.ProgramDirectoryLabel,
+                OnBrowseWorkshopRoot);
+            serverInstallBox = AddBrowseRow(
+                layout,
+                SteamPathUiHelper.DedicatedServerDirectoryLabel,
+                OnBrowseServerInstall);
 
             workshopContentValue = new AntLabel
             {
@@ -164,15 +167,15 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 Height = UiScaleHelper.Scale(40),
                 ForeColor = Color.Gray,
             };
-            SettingsLayoutHelper.AddRow(layout, "Workshop 模组路径", workshopContentValue, 48);
+            SettingsLayoutHelper.AddRow(layout, SteamPathUiHelper.WorkshopModDirectoryLabel, workshopContentValue, 48);
 
             steamCmdStatusValue = new AntLabel
             {
                 AutoSizeMode = AntdUI.TAutoSize.None,
-                Height = UiScaleHelper.Scale(56),
+                Height = UiScaleHelper.Scale(72),
                 ForeColor = Color.Gray,
             };
-            SettingsLayoutHelper.AddRow(layout, "SteamCMD 状态", steamCmdStatusValue, 64);
+            SettingsLayoutHelper.AddRow(layout, SteamPathUiHelper.SteamCmdStatusLabel, steamCmdStatusValue, 80);
             return layout;
         }
 
@@ -212,58 +215,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void RefreshDerivedLabels()
         {
-            string workshopRoot = workshopRootInput.Text.Trim();
-            string workshopContent = GetWorkshopContentPath(workshopRoot);
-            if (string.IsNullOrEmpty(workshopContent))
-            {
-                workshopContentLabel.Text = "（请先填写 Workshop 根目录）";
-            }
-            else if (Directory.Exists(workshopContent))
-            {
-                workshopContentLabel.Text = workshopContent + Environment.NewLine + "（目录已存在，保存后会加入模组扫描路径）";
-            }
-            else
-            {
-                workshopContentLabel.Text = workshopContent + Environment.NewLine + "（目录尚未创建，保存后会尝试创建）";
-            }
-
-            IAppPaths paths = appServices.Paths;
-            string bundledPath = SteamCmdBootstrapper.GetBundledExecutablePath(paths);
-            bool bundledExists = SteamCmdBootstrapper.IsInstallationComplete(
-                SteamCmdBootstrapper.GetBundledDirectory(paths));
-            string customPath = string.Empty;
-            bool customExists = false;
-            if (!string.IsNullOrEmpty(workshopRoot))
-            {
-                customPath = Path.Combine(workshopRoot, "steamcmd.exe");
-                customExists = File.Exists(customPath);
-            }
-
-            var status = new System.Text.StringBuilder();
-            status.AppendLine("内置目录: " + bundledPath);
-            if (bundledExists)
-            {
-                status.AppendLine("  → 已安装");
-            }
-            else
-            {
-                status.AppendLine("  → 未找到，可点击「下载 SteamCMD」");
-            }
-
-            if (!string.IsNullOrEmpty(customPath))
-            {
-                status.AppendLine("Workshop 根目录: " + customPath);
-                if (customExists)
-                {
-                    status.AppendLine("  → 已安装");
-                }
-                else
-                {
-                    status.AppendLine("  → 未找到 steamcmd.exe");
-                }
-            }
-
-            steamCmdStatusLabel.Text = status.ToString().TrimEnd();
+            string programDirectory = workshopRootInput.Text.Trim();
+            workshopContentLabel.Text = SteamPathUiHelper.FormatWorkshopModDirectoryLabel(programDirectory);
+            steamCmdStatusLabel.Text = SteamPathUiHelper.FormatSteamCmdLocationStatus(
+                appServices.Paths,
+                programDirectory);
         }
 
         private void RefreshCurrentServerHint()
@@ -275,7 +231,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             currentServerDirLabel.Text = boundConfig.ServerDir + Environment.NewLine
-                + "安装/更新专用服务器时优先使用此目录。";
+                + "「安装/更新专用服务器」优先写入此游戏目录（不是模组下载目录）。";
         }
 
         private void OnBrowseWorkshopRoot(object sender, EventArgs e)
@@ -346,7 +302,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 AntdUiHelper.ShowWarning(
                     FindForm(),
-                    "请填写专用服务器目录，或在「基本」页设置当前配置的服务器目录。",
+                    "请填写专用服务器游戏目录，或在「基本」页设置当前配置的服务器目录。",
                     "提示");
                 return;
             }
@@ -410,14 +366,5 @@ namespace Arma3ServerTools.App.WinForms.Controls
             return OperationResult.Ok();
         }
 
-        private static string GetWorkshopContentPath(string workshopRoot)
-        {
-            if (string.IsNullOrEmpty(workshopRoot))
-            {
-                return string.Empty;
-            }
-
-            return Path.Combine(workshopRoot, @"steamapps\workshop\content\107410");
-        }
     }
 }

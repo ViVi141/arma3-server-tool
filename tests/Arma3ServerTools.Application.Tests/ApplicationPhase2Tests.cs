@@ -306,6 +306,7 @@ namespace Arma3ServerTools.Application.Tests
         }
     }
 
+    [Collection("SteamCmdGate")]
     public class SteamCmdServiceTests
     {
         [Fact]
