@@ -33,6 +33,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private readonly IAppServices appServices;
         private readonly AntTabs tabs;
+        private readonly FlowLayoutPanel topBar;
         private readonly AntdUI.Checkbox advancedModeCheckBox;
         private readonly AntDropdown tabJumpDropdown;
         private readonly AntLabel syncLegendLabel;
@@ -58,14 +59,17 @@ namespace Arma3ServerTools.App.WinForms.Controls
             this.appServices = appServices;
             dirtyTracker = new SettingsDirtyTracker(OnDirtyTrackerChanged);
             Dock = DockStyle.Fill;
+            Padding = new Padding(0);
             BackColor = System.Drawing.Color.White;
 
-            var topBar = new FlowLayoutPanel
+            var topBarPanel = new FlowLayoutPanel
             {
                 Dock = DockStyle.Top,
                 AutoSize = true,
+                WrapContents = true,
                 Padding = UiScaleHelper.ScalePadding(0, 0, 0, 4),
             };
+            topBar = topBarPanel;
             advancedModeCheckBox = SettingsLayoutHelper.CreateCheckbox("显示高级设置", false);
             advancedModeCheckBox.Checked = AppUiSettings.Instance.ShowAdvancedSettings;
             advancedModeCheckBox.CheckedChanged += OnAdvancedModeChanged;
@@ -80,7 +84,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             tabJumpDropdown.ItemClick += OnTabJumpItemClick;
             topBar.Controls.Add(tabJumpDropdown);
 
-            syncLegendLabel = AntdUiHelper.CreateHintLabel(UiLabels.SyncLegendHint, 900);
+            syncLegendLabel = AntdUiHelper.CreateHintLabel(UiLabels.SyncLegendHint, 640);
             syncLegendLabel.Margin = new Padding(UiScaleHelper.Scale(12), 0, 0, 0);
             topBar.Controls.Add(syncLegendLabel);
 
@@ -88,6 +92,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 Dock = DockStyle.Fill,
                 Type = AntdUI.TabType.Line,
+                Padding = new Padding(0),
             };
             tabs.SelectedIndexChanged += OnSettingsTabChanged;
             tabs.MouseWheel += OnTabsMouseWheel;
@@ -110,7 +115,18 @@ namespace Arma3ServerTools.App.WinForms.Controls
             Controls.Add(tabs);
             Controls.Add(topBar);
             Load += OnHostLoad;
+            Resize += OnHostResize;
             RebuildVisibleTabs();
+        }
+
+        private void OnHostResize(object sender, EventArgs e)
+        {
+            if (ClientSize.Width <= 0)
+            {
+                return;
+            }
+
+            topBar.MaximumSize = new Size(ClientSize.Width, 0);
         }
 
         private void OnTabsMouseWheel(object sender, MouseEventArgs e)
@@ -665,8 +681,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             dirtyTracker.EnterSuppress();
             try
             {
-                dirtyTracker.ClearTab(tabTitle);
                 panel.Bind(currentConfig);
+                dirtyTracker.ClearTab(tabTitle);
             }
             finally
             {

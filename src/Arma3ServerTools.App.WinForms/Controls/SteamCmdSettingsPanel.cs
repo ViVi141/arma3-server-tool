@@ -142,7 +142,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             userBox = SettingsLayoutHelper.AddRow(layout, "Steam 账号", SettingsLayoutHelper.CreateInput(true));
-            FlowLayoutPanel steamPwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput steamPwdInput);
+            Control steamPwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput steamPwdInput);
             passwordBox = steamPwdInput;
             SettingsLayoutHelper.AddRow(layout, "Steam 密码", steamPwdContainer);
             return layout;

@@ -19,6 +19,12 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             public HashSet<AntLabel> DirtyLabels { get; } = new HashSet<AntLabel>();
 
+            public Dictionary<Control, object> FieldBaselines { get; } =
+                new Dictionary<Control, object>();
+
+            public Dictionary<Control, AntLabel> FieldLabels { get; } =
+                new Dictionary<Control, AntLabel>();
+
             public List<EventHandler> Detachers { get; } = new List<EventHandler>();
         }
 
@@ -72,23 +78,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
-            state.HasLocalEdits = false;
-            foreach (AntLabel label in state.DirtyLabels)
-            {
-                if (label != null && !label.IsDisposed)
-                {
-                    label.ForeColor = SettingsLayoutHelper.FormLabelColor;
-                }
-            }
-
-            state.DirtyLabels.Clear();
+            ResetTabBaselines(state);
         }
 
         public void ClearAll()
         {
-            foreach (string tabTitle in new List<string>(tabs.Keys))
+            foreach (KeyValuePair<string, TabDirtyState> pair in tabs)
             {
-                ClearTab(tabTitle);
+                ResetTabBaselines(pair.Value);
             }
         }
 
@@ -178,10 +175,37 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     }
                 }
 
-                if (fieldControl != null)
+                if (fieldControl == null)
+                {
+                    continue;
+                }
+
+                if (IsContainerOnly(fieldControl))
+                {
+                    WireNestedFieldControls(tabTitle, state, fieldControl, rowLabel);
+                }
+                else
                 {
                     WireSingleControl(tabTitle, state, fieldControl, rowLabel);
                 }
+            }
+        }
+
+        private void WireNestedFieldControls(
+            string tabTitle,
+            TabDirtyState state,
+            Control container,
+            AntLabel rowLabel)
+        {
+            foreach (Control child in container.Controls)
+            {
+                if (IsContainerOnly(child))
+                {
+                    WireControlTree(tabTitle, state, child);
+                    continue;
+                }
+
+                WireSingleControl(tabTitle, state, child, rowLabel);
             }
         }
 
@@ -234,9 +258,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
+            RegisterTrackedField(state, input, label);
             EventHandler handler = delegate
             {
-                MarkDirty(tabTitle, state, label);
+                EvaluateFieldDirty(tabTitle, state, input);
             };
             input.TextChanged += handler;
             state.Detachers.Add(
@@ -254,9 +279,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
+            RegisterTrackedField(state, checkbox, label);
             AntdUI.BoolEventHandler handler = delegate
             {
-                MarkDirty(tabTitle, state, label);
+                EvaluateFieldDirty(tabTitle, state, checkbox);
             };
             checkbox.CheckedChanged += handler;
             state.Detachers.Add(
@@ -274,9 +300,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
+            RegisterTrackedField(state, inputNumber, label);
             AntdUI.DecimalEventHandler handler = delegate
             {
-                MarkDirty(tabTitle, state, label);
+                EvaluateFieldDirty(tabTitle, state, inputNumber);
             };
             inputNumber.ValueChanged += handler;
             state.Detachers.Add(
@@ -294,9 +321,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
+            RegisterTrackedField(state, select, label);
             AntdUI.IntEventHandler handler = delegate
             {
-                MarkDirty(tabTitle, state, label);
+                EvaluateFieldDirty(tabTitle, state, select);
             };
             select.SelectedIndexChanged += handler;
             state.Detachers.Add(
@@ -314,9 +342,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
+            RegisterTrackedField(state, textBox, label);
             EventHandler handler = delegate
             {
-                MarkDirty(tabTitle, state, label);
+                EvaluateFieldDirty(tabTitle, state, textBox);
             };
             textBox.TextChanged += handler;
             state.Detachers.Add(
@@ -334,9 +363,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
+            RegisterTrackedField(state, numeric, label);
             EventHandler handler = delegate
             {
-                MarkDirty(tabTitle, state, label);
+                EvaluateFieldDirty(tabTitle, state, numeric);
             };
             numeric.ValueChanged += handler;
             state.Detachers.Add(
@@ -354,9 +384,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
+            RegisterTrackedField(state, checkbox, label);
             EventHandler handler = delegate
             {
-                MarkDirty(tabTitle, state, label);
+                EvaluateFieldDirty(tabTitle, state, checkbox);
             };
             checkbox.CheckedChanged += handler;
             state.Detachers.Add(
@@ -366,26 +397,248 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 });
         }
 
-        private void MarkDirty(string tabTitle, TabDirtyState state, AntLabel label)
+        private static void RegisterTrackedField(TabDirtyState state, Control control, AntLabel label)
+        {
+            if (state.FieldBaselines.ContainsKey(control))
+            {
+                return;
+            }
+
+            state.FieldBaselines[control] = GetControlValue(control);
+            if (label != null)
+            {
+                state.FieldLabels[control] = label;
+            }
+        }
+
+        private void EvaluateFieldDirty(string tabTitle, TabDirtyState state, Control control)
         {
             if (suppressDepth > 0)
             {
                 return;
             }
 
-            state.HasLocalEdits = true;
-            if (label != null && !label.IsDisposed)
+            object baseline;
+            if (!state.FieldBaselines.TryGetValue(control, out baseline))
+            {
+                return;
+            }
+
+            bool isDirty = !ValuesEqual(baseline, GetControlValue(control));
+            AntLabel label;
+            state.FieldLabels.TryGetValue(control, out label);
+            UpdateLabelDirtyState(state, label, isDirty, control);
+            RecomputeTabDirtyState(state);
+            RaiseIndicatorsChanged();
+        }
+
+        private static void UpdateLabelDirtyState(
+            TabDirtyState state,
+            AntLabel label,
+            bool isDirty,
+            Control changedControl)
+        {
+            if (label == null || label.IsDisposed)
+            {
+                return;
+            }
+
+            if (isDirty)
             {
                 if (state.DirtyLabels.Add(label))
                 {
                     label.ForeColor = SettingsLayoutHelper.DirtyFieldLabelColor;
                 }
+
+                return;
             }
 
+            if (IsLabelStillDirtyFromOtherFields(state, label, changedControl))
+            {
+                return;
+            }
+
+            if (state.DirtyLabels.Remove(label))
+            {
+                label.ForeColor = SettingsLayoutHelper.FormLabelColor;
+            }
+        }
+
+        private static bool IsLabelStillDirtyFromOtherFields(
+            TabDirtyState state,
+            AntLabel label,
+            Control excludeControl)
+        {
+            foreach (KeyValuePair<Control, AntLabel> pair in state.FieldLabels)
+            {
+                if (pair.Value != label)
+                {
+                    continue;
+                }
+
+                if (ReferenceEquals(pair.Key, excludeControl))
+                {
+                    continue;
+                }
+
+                if (pair.Key.IsDisposed)
+                {
+                    continue;
+                }
+
+                object baseline;
+                if (!state.FieldBaselines.TryGetValue(pair.Key, out baseline))
+                {
+                    continue;
+                }
+
+                if (!ValuesEqual(baseline, GetControlValue(pair.Key)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static void RecomputeTabDirtyState(TabDirtyState state)
+        {
+            bool anyDirty = false;
+            foreach (KeyValuePair<Control, object> pair in state.FieldBaselines)
+            {
+                if (pair.Key.IsDisposed)
+                {
+                    continue;
+                }
+
+                if (!ValuesEqual(pair.Value, GetControlValue(pair.Key)))
+                {
+                    anyDirty = true;
+                    break;
+                }
+            }
+
+            state.HasLocalEdits = anyDirty;
+        }
+
+        private void ResetTabBaselines(TabDirtyState state)
+        {
+            foreach (Control control in new List<Control>(state.FieldBaselines.Keys))
+            {
+                if (control.IsDisposed)
+                {
+                    state.FieldBaselines.Remove(control);
+                    state.FieldLabels.Remove(control);
+                    continue;
+                }
+
+                state.FieldBaselines[control] = GetControlValue(control);
+            }
+
+            foreach (AntLabel label in state.DirtyLabels)
+            {
+                if (label != null && !label.IsDisposed)
+                {
+                    label.ForeColor = SettingsLayoutHelper.FormLabelColor;
+                }
+            }
+
+            state.DirtyLabels.Clear();
+            state.HasLocalEdits = false;
+        }
+
+        private void RaiseIndicatorsChanged()
+        {
             if (indicatorsChanged != null)
             {
                 indicatorsChanged();
             }
+        }
+
+        private static object GetControlValue(Control control)
+        {
+            var antInput = control as AntdUI.Input;
+            if (antInput != null)
+            {
+                return antInput.Text ?? string.Empty;
+            }
+
+            var antCheckbox = control as AntdUI.Checkbox;
+            if (antCheckbox != null)
+            {
+                return antCheckbox.Checked;
+            }
+
+            var antInputNumber = control as AntdUI.InputNumber;
+            if (antInputNumber != null)
+            {
+                return antInputNumber.Value;
+            }
+
+            var antSelect = control as AntdUI.Select;
+            if (antSelect != null)
+            {
+                return antSelect.SelectedIndex;
+            }
+
+            var textBox = control as TextBox;
+            if (textBox != null)
+            {
+                return textBox.Text ?? string.Empty;
+            }
+
+            var numeric = control as NumericUpDown;
+            if (numeric != null)
+            {
+                return numeric.Value;
+            }
+
+            var checkbox = control as CheckBox;
+            if (checkbox != null)
+            {
+                return checkbox.Checked;
+            }
+
+            return null;
+        }
+
+        private static bool ValuesEqual(object baseline, object current)
+        {
+            if (baseline == null && current == null)
+            {
+                return true;
+            }
+
+            if (baseline == null || current == null)
+            {
+                return false;
+            }
+
+            string baselineText = baseline as string;
+            if (baselineText != null)
+            {
+                string currentText = current as string;
+                if (currentText == null)
+                {
+                    return false;
+                }
+
+                return string.Equals(baselineText, currentText, StringComparison.Ordinal);
+            }
+
+            if (baseline is decimal)
+            {
+                decimal baselineDecimal = (decimal)baseline;
+                if (!(current is decimal))
+                {
+                    return false;
+                }
+
+                decimal currentDecimal = (decimal)current;
+                return baselineDecimal == currentDecimal;
+            }
+
+            return baseline.Equals(current);
         }
     }
 }

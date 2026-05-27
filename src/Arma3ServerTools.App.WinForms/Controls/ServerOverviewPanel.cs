@@ -36,7 +36,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
         public ServerOverviewPanel(IAppServices appServices)
         {
             this.appServices = appServices;
-            AppTheme.ApplyTo(this);
+            Dock = DockStyle.Fill;
+            Padding = new Padding(0);
+            BackColor = Color.White;
 
             var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             statusValueLabel = AddValueRow(layout, "运行状态", "—");
@@ -321,6 +323,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 Text = initialValue,
                 AutoSizeMode = AntdUI.TAutoSize.Auto,
+                Anchor = AnchorStyles.Left | AnchorStyles.Top,
             };
             SettingsLayoutHelper.AddRow(layout, caption, valueLabel);
             return valueLabel;

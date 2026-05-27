@@ -62,21 +62,34 @@ namespace Arma3ServerTools.Application.Services
             }
         }
 
-        public List<ScannedModRow> Scan(ArmaServerConfig config, SteamcmdEntity steamcmd)
+        public ModScanResult Scan(ArmaServerConfig config, SteamcmdEntity steamcmd)
         {
             EnsureDefaultWorkshopPath(steamcmd);
+            var scanResult = new ModScanResult();
             List<ModuleScanPathEntity> scanPaths = scanPathRepository.Load();
             var directories = new List<string>();
             var directoryLookup = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (ModuleScanPathEntity scanPath in scanPaths)
             {
+                if (string.IsNullOrWhiteSpace(scanPath.ModulePath))
+                {
+                    continue;
+                }
+
                 if (!Directory.Exists(scanPath.ModulePath))
                 {
                     continue;
                 }
 
-                List<string> scanResults = ModFileTools.GetModDirectories(scanPath.ModulePath, scanPath.Prefix);
-                foreach (string directory in scanResults)
+                ModDirectoryScanResult pathScan = ModFileTools.GetModDirectories(
+                    scanPath.ModulePath,
+                    scanPath.Prefix);
+                if (pathScan.RootAccessDenied && pathScan.Directories.Count == 0)
+                {
+                    scanResult.InaccessiblePaths.Add(scanPath.ModulePath);
+                }
+
+                foreach (string directory in pathScan.Directories)
                 {
                     if (directoryLookup.Add(directory))
                     {
@@ -166,7 +179,8 @@ namespace Arma3ServerTools.Application.Services
             }
 
             CleanupMetaCache(directories);
-            return rows;
+            scanResult.Rows = rows;
+            return scanResult;
         }
 
         internal static bool IsWorkshopModPath(string modPath, SteamcmdEntity steamcmd)
@@ -198,49 +212,58 @@ namespace Arma3ServerTools.Application.Services
                 return;
             }
 
-            // .bisign 文件 = 模组已签名
-            string[] bisigns = Directory.GetFiles(row.ModPath, "*.bisign", SearchOption.AllDirectories);
-            if (bisigns.Length == 0)
+            try
             {
-                return;
-            }
+                // .bisign 文件 = 模组已签名
+                string[] bisigns = Directory.GetFiles(row.ModPath, "*.bisign", SearchOption.AllDirectories);
+                if (bisigns.Length == 0)
+                {
+                    return;
+                }
 
-            // .bikey 文件 = 模组有密钥
-            string keyDir = Path.Combine(row.ModPath, "Keys");
-            if (!Directory.Exists(keyDir))
-            {
-                keyDir = Path.Combine(row.ModPath, "key");
-            }
+                // .bikey 文件 = 模组有密钥
+                string keyDir = Path.Combine(row.ModPath, "Keys");
+                if (!Directory.Exists(keyDir))
+                {
+                    keyDir = Path.Combine(row.ModPath, "key");
+                }
 
-            string[] bikeys;
-            if (Directory.Exists(keyDir))
-            {
-                bikeys = Directory.GetFiles(keyDir, "*.bikey", SearchOption.AllDirectories);
-            }
-            else
-            {
-                bikeys = Array.Empty<string>();
-            }
+                string[] bikeys;
+                if (Directory.Exists(keyDir))
+                {
+                    bikeys = Directory.GetFiles(keyDir, "*.bikey", SearchOption.AllDirectories);
+                }
+                else
+                {
+                    bikeys = Array.Empty<string>();
+                }
 
-            if (bikeys.Length == 0)
-            {
-                row.BikeyStatus = "已签名，无密钥";
-                return;
+                if (bikeys.Length == 0)
+                {
+                    row.BikeyStatus = "已签名，无密钥";
+                    return;
+                }
+
+                row.HasBikeyFile = true;
+                row.BikeyStatus = "已签名，密钥未复制";
+
+                if (config == null || string.IsNullOrEmpty(config.ServerDir))
+                {
+                    return;
+                }
+
+                string keysDir = Path.Combine(config.ServerDir, "Keys");
+                if (Directory.Exists(keysDir)
+                    && bikeys.All(bikey => File.Exists(Path.Combine(keysDir, Path.GetFileName(bikey)))))
+                {
+                    row.BikeyStatus = "已签名，密钥已复制";
+                }
             }
-
-            row.HasBikeyFile = true;
-            row.BikeyStatus = "已签名，密钥未复制";
-
-            if (config == null || string.IsNullOrEmpty(config.ServerDir))
+            catch (UnauthorizedAccessException)
             {
-                return;
             }
-
-            string keysDir = Path.Combine(config.ServerDir, "Keys");
-            if (Directory.Exists(keysDir)
-                && bikeys.All(bikey => File.Exists(Path.Combine(keysDir, Path.GetFileName(bikey)))))
+            catch (IOException)
             {
-                row.BikeyStatus = "已签名，密钥已复制";
             }
         }
 
@@ -363,6 +386,13 @@ namespace Arma3ServerTools.Application.Services
         public long LastWriteTicks { get; private set; }
 
         public ModMeta Meta { get; private set; }
+    }
+
+    public sealed class ModScanResult
+    {
+        public List<ScannedModRow> Rows { get; set; } = new List<ScannedModRow>();
+
+        public List<string> InaccessiblePaths { get; } = new List<string>();
     }
 
     public sealed class ScannedModRow

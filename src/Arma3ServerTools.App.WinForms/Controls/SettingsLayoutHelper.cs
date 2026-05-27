@@ -59,6 +59,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 ApplyFieldWidthStretch(control);
             }
+            else if (control is TableLayoutPanel)
+            {
+                ApplyFieldWidthStretch(control);
+            }
 
             if (!string.IsNullOrEmpty(label))
             {
@@ -247,15 +251,15 @@ namespace Arma3ServerTools.App.WinForms.Controls
         /// 创建带显示/隐藏切换按钮的密码输入框容器。
         /// 通过 out 参数返回内部 AntInput 引用，供调用方读取 .Text。
         /// </summary>
-        public static FlowLayoutPanel CreatePasswordInputWithToggle(out AntInput passwordInput)
+        public static Control CreatePasswordInputWithToggle(out AntInput passwordInput)
         {
             var input = new AntInput
             {
                 Height = FieldHeight,
                 PasswordChar = '*',
+                Dock = DockStyle.Fill,
+                Margin = Padding.Empty,
             };
-            input.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right;
-            input.Margin = new Padding(0);
             passwordInput = input;
 
             var toggleButton = new AntButton
@@ -265,6 +269,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 AutoSizeMode = AntdUI.TAutoSize.Auto,
                 Margin = new Padding(UiScaleHelper.Scale(4), 0, 0, 0),
                 MinimumSize = new Size(UiScaleHelper.Scale(28), FieldHeight),
+                Anchor = AnchorStyles.Left | AnchorStyles.Top,
             };
             toggleButton.Click += (_, _) =>
             {
@@ -280,7 +285,24 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 }
             };
 
-            return CreateHorizontalGroup(input, toggleButton) as FlowLayoutPanel;
+            var row = new TableLayoutPanel
+            {
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = 2,
+                RowCount = 1,
+                Dock = DockStyle.None,
+                Margin = Padding.Empty,
+                Padding = Padding.Empty,
+                Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right,
+                MinimumSize = new Size(0, FieldHeight),
+            };
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            row.RowStyles.Add(new RowStyle(SizeType.Absolute, FieldHeight));
+            row.Controls.Add(input, 0, 0);
+            row.Controls.Add(toggleButton, 1, 0);
+            return row;
         }
 
         public static AntInput CreateReadOnlyInput(int logicalWidth)

@@ -212,7 +212,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 "服务器目录",
                 SettingsLayoutHelper.CreateInlineFieldRow(serverDirTextBox, browseButton));
             hostNameTextBox = SettingsLayoutHelper.AddRow(layout, "服务器昵称", SettingsLayoutHelper.CreateInput(true));
-            FlowLayoutPanel pwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput pwdInput);
+            Control pwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput pwdInput);
             passwordTextBox = pwdInput;
             SettingsLayoutHelper.AddRow(layout, "服务器密码", pwdContainer);
             maxPlayersNumeric = SettingsLayoutHelper.AddRow(layout, "最大人数", SettingsLayoutHelper.CreateNumeric(2, 200, 10, 120));

@@ -185,13 +185,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private Control BuildBeSection()
         {
             var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
-            FlowLayoutPanel cmdPwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput cmdPwdInput);
+            Control cmdPwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput cmdPwdInput);
             serverCommandPasswordTextBox = cmdPwdInput;
             SettingsLayoutHelper.AddRow(layout, "命令密码", cmdPwdContainer);
-            FlowLayoutPanel admPwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput admPwdInput);
+            Control admPwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput admPwdInput);
             passwordAdminTextBox = admPwdInput;
             SettingsLayoutHelper.AddRow(layout, "管理员密码", admPwdContainer);
-            FlowLayoutPanel rconPwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput rconPwdInput);
+            Control rconPwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput rconPwdInput);
             rconPasswordTextBox = rconPwdInput;
             SettingsLayoutHelper.AddRow(layout, "远程控制密码", rconPwdContainer);
             rconHostTextBox = SettingsLayoutHelper.AddRow(

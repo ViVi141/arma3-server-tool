@@ -5,22 +5,70 @@ using Arma3ServerTools.Core.Models;
 
 namespace Arma3ServerTools.Core.IO
 {
+    public sealed class ModDirectoryScanResult
+    {
+        public List<string> Directories { get; } = new List<string>();
+
+        public bool RootAccessDenied { get; set; }
+    }
+
     public static class ModFileTools
     {
-        public static List<string> GetModDirectories(string path, string prefixFilter)
+        public static ModDirectoryScanResult GetModDirectories(string path, string prefixFilter)
         {
-            var result = new List<string>();
-            if (!Directory.Exists(path))
+            var result = new ModDirectoryScanResult();
+            if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
             {
                 return result;
             }
 
-            string[] directories = Directory.GetDirectories(path);
-            for (int i = 0; i < directories.Length; i++)
+            IEnumerator<string> enumerator = null;
+            try
             {
-                if (string.IsNullOrEmpty(prefixFilter) || directories[i].Contains(prefixFilter))
+                enumerator = Directory.EnumerateDirectories(path).GetEnumerator();
+                while (true)
                 {
-                    result.Add(directories[i]);
+                    bool moved;
+                    try
+                    {
+                        moved = enumerator.MoveNext();
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        result.RootAccessDenied = true;
+                        continue;
+                    }
+                    catch (IOException)
+                    {
+                        result.RootAccessDenied = true;
+                        continue;
+                    }
+
+                    if (!moved)
+                    {
+                        break;
+                    }
+
+                    string directory = enumerator.Current;
+                    if (string.IsNullOrEmpty(prefixFilter) || directory.Contains(prefixFilter))
+                    {
+                        result.Directories.Add(directory);
+                    }
+                }
+            }
+            catch (UnauthorizedAccessException)
+            {
+                result.RootAccessDenied = true;
+            }
+            catch (IOException)
+            {
+                result.RootAccessDenied = true;
+            }
+            finally
+            {
+                if (enumerator != null)
+                {
+                    enumerator.Dispose();
                 }
             }
 

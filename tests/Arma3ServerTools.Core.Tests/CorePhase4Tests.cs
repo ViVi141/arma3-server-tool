@@ -134,8 +134,8 @@ namespace Arma3ServerTools.Core.Tests
                 Directory.CreateDirectory(Path.Combine(modsRoot, "@Alpha"));
                 Directory.CreateDirectory(Path.Combine(modsRoot, "Beta"));
 
-                List<string> all = ModFileTools.GetModDirectories(modsRoot, string.Empty);
-                List<string> filtered = ModFileTools.GetModDirectories(modsRoot, "@Alpha");
+                List<string> all = ModFileTools.GetModDirectories(modsRoot, string.Empty).Directories;
+                List<string> filtered = ModFileTools.GetModDirectories(modsRoot, "@Alpha").Directories;
 
                 Assert.Equal(2, all.Count);
                 Assert.Single(filtered);

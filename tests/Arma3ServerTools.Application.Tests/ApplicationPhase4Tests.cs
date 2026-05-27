@@ -98,7 +98,7 @@ namespace Arma3ServerTools.Application.Tests
                 };
 
                 var scanner = new ModScannerService(scanPathRepository);
-                List<ScannedModRow> rows = scanner.Scan(config, new SteamcmdEntity());
+                List<ScannedModRow> rows = scanner.Scan(config, new SteamcmdEntity()).Rows;
 
                 Assert.Single(rows);
                 Assert.Equal(1234567890, rows[0].ModId);
@@ -140,7 +140,7 @@ namespace Arma3ServerTools.Application.Tests
                 };
 
                 var scanner = new ModScannerService(scanPathRepository);
-                List<ScannedModRow> rows = scanner.Scan(config, new SteamcmdEntity { d = Path.Combine(root, "steam") });
+                List<ScannedModRow> rows = scanner.Scan(config, new SteamcmdEntity { d = Path.Combine(root, "steam") }).Rows;
 
                 Assert.Single(rows);
                 Assert.False(rows[0].InputLocalMod);
@@ -179,7 +179,7 @@ namespace Arma3ServerTools.Application.Tests
                 };
 
                 var scanner = new ModScannerService(scanPathRepository);
-                List<ScannedModRow> rows = scanner.Scan(config, new SteamcmdEntity { d = Path.Combine(root, "steam") });
+                List<ScannedModRow> rows = scanner.Scan(config, new SteamcmdEntity { d = Path.Combine(root, "steam") }).Rows;
 
                 Assert.Single(rows);
             }

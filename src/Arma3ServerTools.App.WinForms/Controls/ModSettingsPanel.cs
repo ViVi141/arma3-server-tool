@@ -435,12 +435,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 ArmaServerConfig config = boundConfig;
                 SteamcmdEntity settings = appServices.GetSteamCmdSettings();
-                List<ScannedModRow> scannedRows = await Task.Run(
+                ModScanResult scanResult = await Task.Run(
                     delegate
                     {
-                        return appServices.ModScannerService
-                            .Scan(config, settings)
-                            .ToList();
+                        return appServices.ModScannerService.Scan(config, settings);
                     }).ConfigureAwait(true);
 
                 if (currentVersion != scanVersion || IsDisposed)
@@ -448,10 +446,34 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     return;
                 }
 
-                allRows = scannedRows;
+                allRows = scanResult.Rows;
                 RefreshTableView();
-                string context = "rows=" + scannedRows.Count + ";server=" + config.ServerUUID;
+                if (scanResult.InaccessiblePaths.Count > 0)
+                {
+                    var message = new System.Text.StringBuilder();
+                    message.AppendLine("以下扫描路径因权限不足无法访问，已跳过：");
+                    for (int i = 0; i < scanResult.InaccessiblePaths.Count; i++)
+                    {
+                        message.AppendLine(scanResult.InaccessiblePaths[i]);
+                    }
+
+                    message.AppendLine();
+                    message.Append("请检查模组扫描路径，避免使用系统受保护目录。");
+                    AntdUiHelper.ShowWarning(FindForm(), message.ToString(), "模组扫描");
+                }
+
+                string context = "rows=" + scanResult.Rows.Count + ";server=" + config.ServerUUID;
                 UiPerformanceProbe.LogDuration("ModSettings.ScanMods", stopwatch.ElapsedMilliseconds, context);
+            }
+            catch (Exception ex)
+            {
+                if (currentVersion == scanVersion && !IsDisposed)
+                {
+                    AntdUiHelper.ShowError(
+                        FindForm(),
+                        "扫描模组时发生错误：" + ex.Message,
+                        "模组扫描");
+                }
             }
             finally
             {

@@ -115,7 +115,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             toolbar.Controls.Add(syncPlayersButton);
             toolbar.Controls.Add(changePasswordButton);
 
-            FlowLayoutPanel rconPwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput rconPwdInput);
+            Control rconPwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput rconPwdInput);
             newRconPasswordInput = rconPwdInput;
             rconPwdContainer.Dock = DockStyle.Top;
             newRconPasswordInput.PlaceholderText = "新 RCon 密码（连接后可用，会同步写入工具配置）";
