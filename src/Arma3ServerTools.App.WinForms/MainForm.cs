@@ -224,10 +224,11 @@ namespace Arma3ServerTools.App.WinForms
 
         private Control BuildTopChrome(Control actionBar)
         {
-            int headerHeight = UiScaleHelper.Scale(40);
+            int headerHeight = UiScaleHelper.Scale(48);
             int barHeight = ActionBarHeight;
 
             pageHeader.Dock = DockStyle.Fill;
+            pageHeader.Height = headerHeight;
 
             actionBar.Dock = DockStyle.Fill;
 
