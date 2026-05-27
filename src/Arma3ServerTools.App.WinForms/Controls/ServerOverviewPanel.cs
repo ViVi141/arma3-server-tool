@@ -30,6 +30,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly IAppServices appServices;
         private ArmaServerConfig boundConfig;
         private int refreshGeneration;
+        private DateTime lastOnlineProbeUtc = DateTime.MinValue;
+        private static readonly TimeSpan OnlineProbeInterval = TimeSpan.FromSeconds(15);
 
         public ServerOverviewPanel(IAppServices appServices)
         {
@@ -103,6 +105,29 @@ namespace Arma3ServerTools.App.WinForms.Controls
             int generation = refreshGeneration;
 
             ServerRunState state = appServices.ProcessService.SyncState(boundConfig.ServerUUID);
+            UpdateStatusFields(state, generation, probeOnlineCount: true, scanRpt: true, querySchedule: true);
+        }
+
+        public void RefreshOverviewFromPoll(ServerRunState runState)
+        {
+            if (boundConfig == null)
+            {
+                ClearValues();
+                return;
+            }
+
+            refreshGeneration++;
+            int generation = refreshGeneration;
+            UpdateStatusFields(runState, generation, probeOnlineCount: true, scanRpt: false, querySchedule: false);
+        }
+
+        private void UpdateStatusFields(
+            ServerRunState state,
+            int generation,
+            bool probeOnlineCount,
+            bool scanRpt,
+            bool querySchedule)
+        {
             statusValueLabel.Text = ServerRunStateFormatter.ToDisplay(state);
 
             int pid = boundConfig.ServerTaskManagement.ProcessById;
@@ -117,37 +142,58 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             if (state == ServerRunState.Running)
             {
-                onlineValueLabel.Text = "查询中…";
-                BeginRefreshOnlineCount(generation);
+                if (probeOnlineCount && ShouldProbeOnlineCount())
+                {
+                    onlineValueLabel.Text = "查询中…";
+                    lastOnlineProbeUtc = DateTime.UtcNow;
+                    BeginRefreshOnlineCount(generation);
+                }
             }
             else
             {
                 onlineValueLabel.Text = "—";
             }
 
-            string hostName = boundConfig.ServerConfig.HostName;
-            if (string.IsNullOrWhiteSpace(hostName))
+            if (scanRpt)
             {
-                hostValueLabel.Text = "（未设置）";
-            }
-            else
-            {
-                hostValueLabel.Text = hostName;
+                string hostName = boundConfig.ServerConfig.HostName;
+                if (string.IsNullOrWhiteSpace(hostName))
+                {
+                    hostValueLabel.Text = "（未设置）";
+                }
+                else
+                {
+                    hostValueLabel.Text = hostName;
+                }
+
+                portValueLabel.Text = boundConfig.StartupParameters.Port.ToString();
+                monitoringSummaryLabel.Text = ServerOperationsSummaryBuilder.BuildMonitoringLine(boundConfig);
+
+                string rptPath = appServices.RptLogService.FindLatestRptPath(boundConfig);
+                if (string.IsNullOrEmpty(rptPath))
+                {
+                    rptValueLabel.Text = "未找到";
+                }
+                else
+                {
+                    rptValueLabel.Text = System.IO.Path.GetFileName(rptPath);
+                }
             }
 
-            portValueLabel.Text = boundConfig.StartupParameters.Port.ToString();
-            monitoringSummaryLabel.Text = ServerOperationsSummaryBuilder.BuildMonitoringLine(boundConfig);
-            BeginRefreshScheduleSummary(generation);
+            if (querySchedule)
+            {
+                BeginRefreshScheduleSummary(generation);
+            }
+        }
 
-            string rptPath = appServices.RptLogService.FindLatestRptPath(boundConfig);
-            if (string.IsNullOrEmpty(rptPath))
+        private bool ShouldProbeOnlineCount()
+        {
+            if (lastOnlineProbeUtc == DateTime.MinValue)
             {
-                rptValueLabel.Text = "未找到";
+                return true;
             }
-            else
-            {
-                rptValueLabel.Text = System.IO.Path.GetFileName(rptPath);
-            }
+
+            return DateTime.UtcNow - lastOnlineProbeUtc >= OnlineProbeInterval;
         }
 
         private async void BeginRefreshOnlineCount(int generation)

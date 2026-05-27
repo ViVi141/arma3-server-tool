@@ -55,6 +55,21 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
+            using (SingleInstanceGuard singleInstance = new SingleInstanceGuard())
+            {
+                if (!singleInstance.IsFirstInstance)
+                {
+                    SingleInstanceActivator.TryActivateExistingInstance();
+                    ShowSingleInstanceBlockedMessage();
+                    return;
+                }
+
+                RunApplicationCore(paths);
+            }
+        }
+
+        private static void RunApplicationCore(AppPaths paths)
+        {
             AppLogging.Initialize(paths.LogDirectory);
 
             ServiceProvider serviceProvider = null;
@@ -100,6 +115,19 @@ namespace Arma3ServerTools.App.WinForms
             if (e.ExceptionObject is Exception ex)
             {
                 ShowFatalError(ex);
+            }
+        }
+
+        private static void ShowSingleInstanceBlockedMessage()
+        {
+            string message = UiLabels.SingleInstanceAlreadyRunning;
+            try
+            {
+                AntdUI.Modal.open("程序已在运行", message, AntdUI.TType.Warn);
+            }
+            catch
+            {
+                MessageBox.Show(message, "程序已在运行", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 

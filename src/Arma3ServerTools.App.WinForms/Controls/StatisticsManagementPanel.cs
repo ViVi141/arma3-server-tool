@@ -62,7 +62,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         public string LastSeen { get; set; } = string.Empty;
     }
 
-    internal sealed class StatisticsManagementPanel : UserControl, IServerSettingsPanel
+    internal sealed class StatisticsManagementPanel : UserControl, IApplyOnlySettingsPanel
     {
         private readonly AntTable playerStatsTable;
         private readonly AntTable objectStatsTable;
@@ -225,6 +225,22 @@ namespace Arma3ServerTools.App.WinForms.Controls
             enableMonitoringServiceCheckBox.Checked = config.ServerTaskManagement.EnableMonitoringService;
             summaryLabel.Text = "统计服务器: " + config.ConfigName + " (" + config.ServerUUID + ")";
             RefreshAll();
+        }
+
+        public void BindForApply(ArmaServerConfig config)
+        {
+            boundConfig = config;
+            if (config == null)
+            {
+                Enabled = false;
+                summaryLabel.Text = "未选择服务器";
+                return;
+            }
+
+            Enabled = true;
+            enableMonitorCheckBox.Checked = config.ServerTaskManagement.EnableMonitor;
+            enableMonitoringServiceCheckBox.Checked = config.ServerTaskManagement.EnableMonitoringService;
+            summaryLabel.Text = "统计服务器: " + config.ConfigName + " (" + config.ServerUUID + ")";
         }
 
         public void ApplyToModel()

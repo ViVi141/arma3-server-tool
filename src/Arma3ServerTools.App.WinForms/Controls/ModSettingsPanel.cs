@@ -40,7 +40,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         All = 3,
     }
 
-    internal sealed class ModSettingsPanel : UserControl, IServerSettingsPanel
+    internal sealed class ModSettingsPanel : UserControl, IApplyOnlySettingsPanel
     {
         private readonly AntTable modsTable;
         private readonly AntSelect sortSelect;
@@ -248,6 +248,24 @@ namespace Arma3ServerTools.App.WinForms.Controls
             dlcWsCheckBox.Checked = config.StartupParameters.DLCWS;
             dlcVnCheckBox.Checked = config.StartupParameters.DLCVN;
             ScanMods();
+        }
+
+        public void BindForApply(ArmaServerConfig config)
+        {
+            boundConfig = config;
+            if (config == null)
+            {
+                Enabled = false;
+                return;
+            }
+
+            Enabled = true;
+            autoCopyBikeyCheckBox.Checked = config.AutoCopyBikey;
+            dlcContactCheckBox.Checked = config.StartupParameters.DLCcontact;
+            dlcGmCheckBox.Checked = config.StartupParameters.DLCGM;
+            dlcCslaCheckBox.Checked = config.StartupParameters.DLCCSLA;
+            dlcWsCheckBox.Checked = config.StartupParameters.DLCWS;
+            dlcVnCheckBox.Checked = config.StartupParameters.DLCVN;
         }
 
         public void ApplyToModel()

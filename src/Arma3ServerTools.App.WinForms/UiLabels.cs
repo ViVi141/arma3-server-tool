@@ -17,6 +17,10 @@ namespace Arma3ServerTools.App.WinForms
         public const string PathRulesShort =
             "工具或服务器路径不能包含中文，请改用纯英文路径。";
 
+        public const string SingleInstanceAlreadyRunning =
+            "程序已在运行，不能同时打开多个实例。\r\n"
+            + "已尝试切换到已有窗口；若未看到，请检查任务栏或系统托盘。";
+
         public const string SaveToToolButton = "保存到工具";
         public const string ApplyToServerButton = "应用到服务器目录";
 

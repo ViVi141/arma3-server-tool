@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
+using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Application.Sync;
 using Arma3ServerTools.Core.Models;
 using AntLabel = AntdUI.Label;
@@ -15,6 +16,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private sealed class TabDefinition
         {
             public string Title { get; set; } = string.Empty;
+
+            public Func<Control> ContentFactory { get; set; }
 
             public Control Content { get; set; }
 
@@ -32,7 +35,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly SettingsDirtyTracker dirtyTracker;
         private readonly List<TabDefinition> tabDefinitions = new List<TabDefinition>();
         private readonly List<IServerSettingsPanel> applyPanels = new List<IServerSettingsPanel>();
-        private readonly List<Control> tabContents = new List<Control>();
+        private readonly List<TabDefinition> visibleTabDefinitions = new List<TabDefinition>();
         private readonly HashSet<int> layoutReadyTabs = new HashSet<int>();
         private readonly HashSet<IServerSettingsPanel> uiSyncedPanels = new HashSet<IServerSettingsPanel>();
         private string lastSelectedTabTitle = "概览";
@@ -75,20 +78,20 @@ namespace Arma3ServerTools.App.WinForms.Controls
             };
             tabs.SelectedIndexChanged += OnSettingsTabChanged;
 
-            OverviewPanel = RegisterTab("概览", new ServerOverviewPanel(appServices), false);
-            RegisterTab("基本", new BasicSettingsPanel(), false);
-            RegisterTab("SteamCMD", new SteamCmdSettingsPanel(appServices), true);
-            RegisterTab("网络", new NetworkSettingsPanel(), true, true);
-            RegisterTab("安全", new SecuritySettingsPanel(), true);
-            RegisterTab("性能", new PerformanceSettingsPanel(), true);
-            RegisterTab("模组", new ModSettingsPanel(appServices), false);
-            RegisterTab("任务", new MissionSettingsPanel(), true);
-            RegisterTab("难度", new DifficultySettingsPanel(), true);
-            RegisterTab("日志", new LogSettingsPanel(), true);
-            RegisterTab("定时", new CronTasksPanel(appServices), true);
-            RegisterTab("统计", new StatisticsManagementPanel(appServices), true);
-            RegisterTab(UiLabels.RemoteControlTab, CreateRconPanel(appServices), false);
-            RegisterTab("封禁", new BansPanel(appServices), false);
+            RegisterTabLazy("概览", () => new ServerOverviewPanel(appServices), false);
+            RegisterTabLazy("基本", () => new BasicSettingsPanel(), false);
+            RegisterTabLazy("SteamCMD", () => new SteamCmdSettingsPanel(appServices), true);
+            RegisterTabLazy("网络", () => new NetworkSettingsPanel(), true, true);
+            RegisterTabLazy("安全", () => new SecuritySettingsPanel(), true);
+            RegisterTabLazy("性能", () => new PerformanceSettingsPanel(), true);
+            RegisterTabLazy("模组", () => new ModSettingsPanel(appServices), false);
+            RegisterTabLazy("任务", () => new MissionSettingsPanel(), true);
+            RegisterTabLazy("难度", () => new DifficultySettingsPanel(), true);
+            RegisterTabLazy("日志", () => new LogSettingsPanel(), true);
+            RegisterTabLazy("定时", () => new CronTasksPanel(appServices), true);
+            RegisterTabLazy("统计", () => new StatisticsManagementPanel(appServices), true);
+            RegisterTabLazy(UiLabels.RemoteControlTab, () => CreateRconPanel(appServices), false);
+            RegisterTabLazy("封禁", () => new BansPanel(appServices), false);
 
             Controls.Add(tabs);
             Controls.Add(topBar);
@@ -131,9 +134,12 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 dirtyTracker.EnterSuppress();
                 try
                 {
-                    foreach (IServerSettingsPanel panel in applyPanels)
+                    foreach (TabDefinition definition in tabDefinitions)
                     {
-                        panel.Bind(null);
+                        if (definition.SettingsPanel != null)
+                        {
+                            definition.SettingsPanel.Bind(null);
+                        }
                     }
                 }
                 finally
@@ -145,6 +151,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
+            EnsureActiveTabContentMounted();
             BindActiveTabPanel(forceRefresh: true);
             RefreshActiveTab(tabs.SelectedIndex);
             RefreshTabTitles();
@@ -162,12 +169,12 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 foreach (IServerSettingsPanel panel in applyPanels)
                 {
-                    if (!uiSyncedPanels.Contains(panel))
+                    if (!ShouldApplyPanel(panel))
                     {
-                        panel.Bind(currentConfig);
-                        uiSyncedPanels.Add(panel);
+                        continue;
                     }
 
+                    EnsurePanelReadyForApply(panel);
                     panel.ApplyToModel();
                 }
             }
@@ -182,6 +189,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
             if (OverviewPanel != null)
             {
                 OverviewPanel.RefreshOverview();
+            }
+        }
+
+        public void RefreshOverviewFromPoll(ServerRunState runState)
+        {
+            if (OverviewPanel != null)
+            {
+                OverviewPanel.RefreshOverviewFromPoll(runState);
             }
         }
 
@@ -221,8 +236,61 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void OnDirtyTrackerChanged()
         {
-            RefreshTabTitles();
             RaiseSyncIndicatorsChanged();
+        }
+
+        private bool ShouldApplyPanel(IServerSettingsPanel panel)
+        {
+            if (panel == null)
+            {
+                return false;
+            }
+
+            if (uiSyncedPanels.Contains(panel))
+            {
+                return true;
+            }
+
+            string tabTitle = GetTabTitleForPanel(panel);
+            if (!string.IsNullOrEmpty(tabTitle) && dirtyTracker.IsTabLocallyDirty(tabTitle))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private void EnsurePanelReadyForApply(IServerSettingsPanel panel)
+        {
+            if (uiSyncedPanels.Contains(panel))
+            {
+                return;
+            }
+
+            IApplyOnlySettingsPanel applyOnlyPanel = panel as IApplyOnlySettingsPanel;
+            if (applyOnlyPanel != null)
+            {
+                applyOnlyPanel.BindForApply(currentConfig);
+            }
+            else
+            {
+                panel.Bind(currentConfig);
+            }
+
+            uiSyncedPanels.Add(panel);
+        }
+
+        private string GetTabTitleForPanel(IServerSettingsPanel panel)
+        {
+            foreach (TabDefinition definition in tabDefinitions)
+            {
+                if (ReferenceEquals(definition.SettingsPanel, panel))
+                {
+                    return definition.Title;
+                }
+            }
+
+            return string.Empty;
         }
 
         private void RaiseSyncIndicatorsChanged()
@@ -233,8 +301,35 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
         }
 
-        private T RegisterTab<T>(string title, T control, bool expertOnly, bool applyLast = false) where T : Control
+        private void RegisterTabLazy(string title, Func<Control> contentFactory, bool expertOnly, bool applyLast = false)
         {
+            if (contentFactory == null)
+            {
+                throw new ArgumentNullException(nameof(contentFactory));
+            }
+
+            tabDefinitions.Add(new TabDefinition
+            {
+                Title = title,
+                ContentFactory = contentFactory,
+                ExpertOnly = expertOnly,
+                ApplyLast = applyLast,
+            });
+        }
+
+        private Control EnsureTabContent(TabDefinition definition)
+        {
+            if (definition == null)
+            {
+                return null;
+            }
+
+            if (definition.Content != null)
+            {
+                return definition.Content;
+            }
+
+            Control control = definition.ContentFactory();
             if (control is UserControl userControl)
             {
                 AppTheme.ApplyTo(userControl);
@@ -244,39 +339,70 @@ namespace Arma3ServerTools.App.WinForms.Controls
             control.Dock = DockStyle.Fill;
             control.MinimumSize = new System.Drawing.Size(UiScaleHelper.Scale(320), UiScaleHelper.Scale(240));
 
-            IServerSettingsPanel settingsPanel = control as IServerSettingsPanel;
-            tabDefinitions.Add(new TabDefinition
-            {
-                Title = title,
-                Content = control,
-                SettingsPanel = settingsPanel,
-                ExpertOnly = expertOnly,
-                ApplyLast = applyLast,
-            });
+            definition.Content = control;
+            definition.SettingsPanel = control as IServerSettingsPanel;
+            dirtyTracker.RegisterTab(definition.Title, control);
 
-            dirtyTracker.RegisterTab(title, control);
-
-            if (settingsPanel != null)
+            if (definition.SettingsPanel != null)
             {
-                if (applyLast)
-                {
-                    applyPanels.Remove(settingsPanel);
-                    applyPanels.Add(settingsPanel);
-                }
-                else
-                {
-                    applyPanels.Add(settingsPanel);
-                }
+                RegisterApplyPanel(definition, definition.SettingsPanel);
+            }
+
+            if (string.Equals(definition.Title, "概览", StringComparison.Ordinal))
+            {
+                OverviewPanel = control as ServerOverviewPanel;
             }
 
             return control;
+        }
+
+        private void RegisterApplyPanel(TabDefinition definition, IServerSettingsPanel panel)
+        {
+            if (definition.ApplyLast)
+            {
+                applyPanels.Remove(panel);
+                applyPanels.Add(panel);
+            }
+            else
+            {
+                applyPanels.Add(panel);
+            }
+        }
+
+        private void EnsureActiveTabContentMounted()
+        {
+            int index = tabs.SelectedIndex;
+            if (index < 0 || index >= visibleTabDefinitions.Count)
+            {
+                return;
+            }
+
+            TabDefinition definition = visibleTabDefinitions[index];
+            Control content = EnsureTabContent(definition);
+            MountTabContent(tabs.Pages[index], content);
+        }
+
+        private static void MountTabContent(AntdUI.TabPage page, Control content)
+        {
+            if (page == null || content == null)
+            {
+                return;
+            }
+
+            if (page.Controls.Count == 1 && ReferenceEquals(page.Controls[0], content))
+            {
+                return;
+            }
+
+            page.Controls.Clear();
+            page.Controls.Add(content);
         }
 
         private void RebuildVisibleTabs()
         {
             lastSelectedTabTitle = GetSelectedTabBaseTitle();
             tabs.Pages.Clear();
-            tabContents.Clear();
+            visibleTabDefinitions.Clear();
             layoutReadyTabs.Clear();
 
             bool showAdvanced = advancedModeCheckBox.Checked;
@@ -293,9 +419,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     Text = definition.Title,
                     Dock = DockStyle.Fill,
                 };
-                page.Controls.Add(definition.Content);
                 tabs.Pages.Add(page);
-                tabContents.Add(definition.Content);
+                visibleTabDefinitions.Add(definition);
             }
 
             SelectTabByTitle(lastSelectedTabTitle);
@@ -304,6 +429,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 tabs.SelectTab(0);
             }
 
+            EnsureActiveTabContentMounted();
             RefreshActiveTab(tabs.SelectedIndex);
             RefreshTabTitles();
         }
@@ -311,7 +437,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private string GetSelectedTabBaseTitle()
         {
             int index = tabs.SelectedIndex;
-            if (index < 0 || index >= tabContents.Count)
+            if (index < 0 || index >= visibleTabDefinitions.Count)
             {
                 return StripTabMarker(lastSelectedTabTitle);
             }
@@ -359,12 +485,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 tabs.SelectTab(0);
             }
 
+            EnsureActiveTabContentMounted();
             RefreshActiveTab(tabs.SelectedIndex);
         }
 
         private void OnSettingsTabChanged(object sender, AntdUI.IntEventArgs e)
         {
             lastSelectedTabTitle = GetSelectedTabBaseTitle();
+            EnsureActiveTabContentMounted();
             BindActiveTabPanel(forceRefresh: false);
             RefreshActiveTab(e.Value);
             RefreshTabTitles();
@@ -376,6 +504,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 return;
             }
+
+            EnsureActiveTabContentMounted();
 
             IServerSettingsPanel panel = GetActiveSettingsPanel();
             if (panel == null)
@@ -407,32 +537,29 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private IServerSettingsPanel GetActiveSettingsPanel()
         {
             int index = tabs.SelectedIndex;
-            if (index < 0 || index >= tabContents.Count)
+            if (index < 0 || index >= visibleTabDefinitions.Count)
             {
                 return null;
             }
 
-            return tabContents[index] as IServerSettingsPanel;
+            TabDefinition definition = visibleTabDefinitions[index];
+            if (definition.Content == null)
+            {
+                return null;
+            }
+
+            return definition.SettingsPanel;
         }
 
         private string GetActiveTabBaseTitle()
         {
             int index = tabs.SelectedIndex;
-            if (index < 0 || index >= tabContents.Count)
+            if (index < 0 || index >= visibleTabDefinitions.Count)
             {
                 return string.Empty;
             }
 
-            Control content = tabContents[index];
-            foreach (TabDefinition definition in tabDefinitions)
-            {
-                if (ReferenceEquals(definition.Content, content))
-                {
-                    return definition.Title;
-                }
-            }
-
-            return string.Empty;
+            return visibleTabDefinitions[index].Title;
         }
 
         private void RefreshTabTitles()
@@ -483,21 +610,12 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private string GetBaseTitleForVisibleIndex(int visibleIndex)
         {
-            if (visibleIndex < 0 || visibleIndex >= tabContents.Count)
+            if (visibleIndex < 0 || visibleIndex >= visibleTabDefinitions.Count)
             {
                 return string.Empty;
             }
 
-            Control content = tabContents[visibleIndex];
-            foreach (TabDefinition definition in tabDefinitions)
-            {
-                if (ReferenceEquals(definition.Content, content))
-                {
-                    return definition.Title;
-                }
-            }
-
-            return string.Empty;
+            return visibleTabDefinitions[visibleIndex].Title;
         }
 
         private static string StripTabMarker(string title)
@@ -518,12 +636,18 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void RefreshActiveTab(int index)
         {
-            if (index < 0 || index >= tabContents.Count)
+            if (index < 0 || index >= visibleTabDefinitions.Count)
             {
                 return;
             }
 
-            Control content = tabContents[index];
+            TabDefinition definition = visibleTabDefinitions[index];
+            Control content = definition.Content;
+            if (content == null)
+            {
+                return;
+            }
+
             if (!layoutReadyTabs.Contains(index))
             {
                 content.PerformLayout();

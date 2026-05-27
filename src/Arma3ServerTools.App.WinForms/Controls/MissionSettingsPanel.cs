@@ -21,7 +21,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         public bool Choose { get; set; }
     }
 
-    internal sealed class MissionSettingsPanel : UserControl, IServerSettingsPanel
+    internal sealed class MissionSettingsPanel : UserControl, IApplyOnlySettingsPanel
     {
         private static readonly string[] DifficultyNames = { "新兵", "常规", "老兵", "自定义" };
 
@@ -115,6 +115,22 @@ namespace Arma3ServerTools.App.WinForms.Controls
             autoSelectCheckBox.Checked = config.ServerConfig.AutoSelectMission;
             randomOrderCheckBox.Checked = config.ServerConfig.RandomMissionOrder;
             RefreshMissionGrid();
+        }
+
+        public void BindForApply(ArmaServerConfig config)
+        {
+            boundConfig = config;
+            if (config == null)
+            {
+                Enabled = false;
+                return;
+            }
+
+            Enabled = true;
+            forcedDifficultySelect.SelectedIndex = MissionsTool.ForcedDifficultyEnglishToUiIndex(
+                config.ServerConfig.ForcedDifficulty);
+            autoSelectCheckBox.Checked = config.ServerConfig.AutoSelectMission;
+            randomOrderCheckBox.Checked = config.ServerConfig.RandomMissionOrder;
         }
 
         public void ApplyToModel()

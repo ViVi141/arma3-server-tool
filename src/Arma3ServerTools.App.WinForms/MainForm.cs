@@ -1703,6 +1703,8 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             bool stateChanged = false;
+            bool currentServerStateChanged = false;
+            ServerRunState currentServerPollState = ServerRunState.Stopped;
             int persistedBySyncStateCount = 0;
             for (int r = 0; r < results.Count; r++)
             {
@@ -1727,6 +1729,12 @@ namespace Arma3ServerTools.App.WinForms
                         persistedBySyncStateCount++;
                     }
                     continue;
+                }
+
+                if (string.Equals(result.ServerUuid, services.CurrentServerUuid, StringComparison.Ordinal))
+                {
+                    currentServerStateChanged = true;
+                    currentServerPollState = result.RunState;
                 }
 
                 if (previousState == ServerRunState.Running && result.RunState == ServerRunState.Stopped)
@@ -1779,9 +1787,9 @@ namespace Arma3ServerTools.App.WinForms
 
             trayController.UpdateRunningCount(runningCount);
 
-            if (!string.IsNullOrEmpty(services.CurrentServerUuid))
+            if (currentServerStateChanged && !string.IsNullOrEmpty(services.CurrentServerUuid))
             {
-                settingsHost.RefreshOverview();
+                settingsHost.RefreshOverviewFromPoll(currentServerPollState);
             }
 
             if (persistedBySyncStateCount > 0)
