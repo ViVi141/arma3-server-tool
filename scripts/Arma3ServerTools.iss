@@ -7,6 +7,10 @@
   #define MyAppVersion "1.0.0"
 #endif
 
+#ifndef MyBuildStamp
+  #define MyBuildStamp "local"
+#endif
+
 #ifndef MyAppVersionInfo
   #define MyAppVersionInfo "1.0.0.0"
 #endif
@@ -44,7 +48,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile={#PublishDir}\LICENSE
 OutputDir=..\artifacts
-OutputBaseFilename=Arma3ServerTools-Setup
+OutputBaseFilename=Arma3ServerTools-Setup-{#MyAppVersion}-{#MyBuildStamp}
 SetupIconFile=..\src\Arma3ServerTools.App.WinForms\Assets\1_arma3server_x64.ico
 UninstallDisplayIcon={app}\{#MyAppIconFile}
 UninstallDisplayName={#MyAppName}
