@@ -28,7 +28,8 @@ namespace Arma3ServerTools.Agent.Host.Http
             }
 
             string path = context.Request.Path.Value ?? string.Empty;
-            if (path.Equals("/api/v1/health", System.StringComparison.OrdinalIgnoreCase))
+            if (path.Equals("/api/v1/health", System.StringComparison.OrdinalIgnoreCase) ||
+                path.Equals("/api/v1/actions", System.StringComparison.OrdinalIgnoreCase))
             {
                 await next(context).ConfigureAwait(false);
                 return;
@@ -52,6 +53,7 @@ namespace Arma3ServerTools.Agent.Host.Http
                 return true;
             }
 
+            // 支持 Bearer Token (Authorization: Bearer <token>)
             string header = request.Headers.Authorization;
             if (!string.IsNullOrEmpty(header) && header.StartsWith("Bearer ", System.StringComparison.OrdinalIgnoreCase))
             {
@@ -59,6 +61,14 @@ namespace Arma3ServerTools.Agent.Host.Http
                 return string.Equals(token, settings.Http.ApiToken, System.StringComparison.Ordinal);
             }
 
+            // 支持 X-API-Key Header (X-API-Key: <token>)
+            string apiKey = request.Headers["X-API-Key"];
+            if (!string.IsNullOrEmpty(apiKey))
+            {
+                return string.Equals(apiKey, settings.Http.ApiToken, System.StringComparison.Ordinal);
+            }
+
+            // 支持 query string token (?token=<token>)
             if (request.Query.TryGetValue("token", out Microsoft.Extensions.Primitives.StringValues values))
             {
                 return string.Equals(values.ToString(), settings.Http.ApiToken, System.StringComparison.Ordinal);

@@ -41,3 +41,4 @@ extension/*
 # OS
 Thumbs.db
 Desktop.ini
+.opencode/
