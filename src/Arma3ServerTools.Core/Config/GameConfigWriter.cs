@@ -73,6 +73,8 @@ namespace Arma3ServerTools.Core.Config
                 "logFile",
                 "timeStampFormat",
                 "callExtReportLimit",
+                "armaUnitsTimeout",
+                "LogObjectNotFound",
             },
             StringComparer.OrdinalIgnoreCase);
 
@@ -684,6 +686,30 @@ namespace Arma3ServerTools.Core.Config
                 .Append(config.ServerConfig.CallExtReportLimit.ToString())
                 .AppendLine(GameConfigFormat.Semicolon);
 
+            sb.Append("armaUnitsTimeout=")
+                .Append(config.ServerConfig.ArmaUnitsTimeout.ToString())
+                .AppendLine(GameConfigFormat.Semicolon);
+
+            AdvancedOptions adv = config.ServerConfig.AdvancedOptions;
+            if (adv != null)
+            {
+                sb.AppendLine("class AdvancedOptions");
+                sb.AppendLine("{");
+                sb.Append("    ").Append("LogObjectNotFound=")
+                    .Append(adv.LogObjectNotFound.ToString().ToLower())
+                    .AppendLine(GameConfigFormat.Semicolon);
+                sb.Append("    ").Append("SkipDescriptionParsing=")
+                    .Append(adv.SkipDescriptionParsing.ToString().ToLower())
+                    .AppendLine(GameConfigFormat.Semicolon);
+                sb.Append("    ").Append("ignoreMissionLoadErrors=")
+                    .Append(adv.ignoreMissionLoadErrors.ToString().ToLower())
+                    .AppendLine(GameConfigFormat.Semicolon);
+                sb.Append("    ").Append("queueSizeLogG=")
+                    .Append(adv.queueSizeLogG.ToString())
+                    .AppendLine(GameConfigFormat.Semicolon);
+                sb.AppendLine("};");
+            }
+
             AppendServerCfgExtraLines(sb, config.ServerConfig.ServerConfigArgs);
 
             string path = config.ServerDir + @"\" + ToolConstants.ServerConfigFolderName + @"\" + config.ServerUUID + @"\server.cfg";
@@ -942,7 +968,7 @@ namespace Arma3ServerTools.Core.Config
         {
             try
             {
-                text = Encoding.Default.GetString(Convert.FromBase64String(text));
+                text = Encoding.UTF8.GetString(Convert.FromBase64String(text));
                 text = text.Replace(GameConfigFormat.DoubleQuotes, "'");
             }
             catch

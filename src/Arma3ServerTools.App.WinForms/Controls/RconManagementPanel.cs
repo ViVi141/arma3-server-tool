@@ -45,7 +45,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         public string Mission { get; set; } = string.Empty;
     }
 
-    internal sealed class RconManagementPanel : UserControl, IServerSettingsPanel
+    internal sealed class RconManagementPanel : UserControl, IApplyOnlySettingsPanel
     {
         public event EventHandler ConfigSaved;
 
@@ -114,9 +114,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             toolbar.Controls.Add(syncPlayersButton);
             toolbar.Controls.Add(changePasswordButton);
 
-            newRconPasswordInput = SettingsLayoutHelper.CreatePasswordInput();
-            newRconPasswordInput.Dock = DockStyle.Top;
+            FlowLayoutPanel rconPwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput rconPwdInput);
+            newRconPasswordInput = rconPwdInput;
+            rconPwdContainer.Dock = DockStyle.Top;
             newRconPasswordInput.PlaceholderText = "新 RCon 密码（连接后可用，会同步写入工具配置）";
+            Controls.Add(rconPwdContainer);
 
             statusLabel = new AntLabel
             {
@@ -174,7 +176,6 @@ namespace Arma3ServerTools.App.WinForms.Controls
             AntdUiHelper.AddTabPage(tabs, "BattlEye 封禁", CreateBanPanel());
 
             Controls.Add(tabs);
-            Controls.Add(newRconPasswordInput);
             Controls.Add(kickReasonInput);
             Controls.Add(banDurationBar);
             Controls.Add(statusLabel);
@@ -203,6 +204,20 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private void DisconnectRcon()
         {
             appServices.RconService.Dispose();
+        }
+
+        public void BindForApply(ArmaServerConfig config)
+        {
+            boundConfig = config;
+            connected = false;
+            if (config == null)
+            {
+                Enabled = false;
+                statusLabel.Text = "未选择服务器";
+                return;
+            }
+
+            Enabled = true;
         }
 
         public void ApplyToModel()

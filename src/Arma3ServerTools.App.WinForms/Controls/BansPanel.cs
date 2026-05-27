@@ -21,7 +21,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         public string Reason { get; set; } = string.Empty;
     }
 
-    internal sealed class BansPanel : UserControl, IServerSettingsPanel
+    internal sealed class BansPanel : UserControl, IApplyOnlySettingsPanel
     {
         private readonly AntTable localTable;
         private readonly AntdUI.Button addLocalButton;
@@ -102,6 +102,18 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             Enabled = true;
             OnLoadLocal(this, EventArgs.Empty);
+        }
+        
+        public void BindForApply(ArmaServerConfig config)
+        {
+            boundConfig = config;
+            if (config == null)
+            {
+                Enabled = false;
+                return;
+            }
+
+            Enabled = true;
         }
 
         public void ApplyToModel()

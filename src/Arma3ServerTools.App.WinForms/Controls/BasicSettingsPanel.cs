@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Text;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Core.Models;
@@ -37,6 +36,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private AntSelect vonCodecCombo;
         private AntdStringListEditor headlessEditor;
         private AntdStringListEditor localClientEditor;
+        private AntCheckbox enableHeadlessClientCheckBox;
         private AntInputNumber voteThresholdNumeric;
         private AntInputNumber votingTimeoutNumeric;
         private AntInputNumber roleTimeoutNumeric;
@@ -63,6 +63,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("语音 (VoN)", BuildVoiceRows()));
             SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("无头客户端", BuildHeadlessRows()));
             SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("投票 / 超时", BuildVoteRows()));
+            AntLabel extraArgsHint = AntdUiHelper.CreateHintLabel(
+                "以下附加参数字段保存时会自动进行 Base64 编码。请直接输入原始文本内容，"
+                + "不要粘贴已编码的字符串（否则会被二次编码导致数据损坏）。",
+                640);
+            SettingsLayoutHelper.AddStackSection(root, extraArgsHint);
             SettingsLayoutHelper.AddStackSection(
                 root,
                 SettingsLayoutHelper.CreateGroup(UiLabels.ExtraArgsGroup, BuildExtraArgsRows()));
@@ -100,6 +105,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 SettingsLayoutHelper.Clamp(1, 60, config.ServerConfig.MotdInterval);
             pidFileTextBox.Text = config.StartupParameters.PidFile ?? string.Empty;
             rankingTextBox.Text = config.StartupParameters.Ranking ?? string.Empty;
+            // DisableVoN: 字段名与 UI 标签语义相反 → 值 0=启用(Checked=true)，值 1=禁用(Checked=false)
             disableVonCheckBox.Checked = config.ServerConfig.DisableVoN == 0;
             vonQualityNumeric.Value =
                 SettingsLayoutHelper.Clamp(0, 30, config.ServerConfig.VonCodecQuality);
@@ -107,6 +113,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 SettingsLayoutHelper.Clamp(0, 1, config.ServerConfig.VonCodec);
             headlessEditor.SetItems(config.ServerConfig.HeadlessClients);
             localClientEditor.SetItems(config.ServerConfig.LocalClient);
+            enableHeadlessClientCheckBox.Checked = config.ServerTaskManagement.EnableHeadlessClient;
             voteThresholdNumeric.Value = config.ServerConfig.VoteThreshold;
             votingTimeoutNumeric.Value =
                 SettingsLayoutHelper.Clamp(0, 99999, config.ServerConfig.VotingTimeOut);
@@ -120,10 +127,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 SettingsLayoutHelper.Clamp(0, 99999, config.ServerConfig.LobbyIdleTimeout);
             voteMissionPlayersNumeric.Value =
                 SettingsLayoutHelper.Clamp(0, 99999, config.ServerConfig.VoteMissionPlayers);
-            serverCfgArgsTextBox.Text = DecodeBase64(config.ServerConfig.ServerConfigArgs);
-            basicCfgArgsTextBox.Text = DecodeBase64(config.BasicConfig.BasicConfigArgs);
-            startArgsTextBox.Text = DecodeBase64(config.StartupParameters.StartConfigArgs);
-            profileArgsTextBox.Text = DecodeBase64(config.serverProfile.ServerProfileArgs);
+            serverCfgArgsTextBox.Text = Base64Helper.Decode(config.ServerConfig.ServerConfigArgs);
+            basicCfgArgsTextBox.Text = Base64Helper.Decode(config.BasicConfig.BasicConfigArgs);
+            startArgsTextBox.Text = Base64Helper.Decode(config.StartupParameters.StartConfigArgs);
+            profileArgsTextBox.Text = Base64Helper.Decode(config.serverProfile.ServerProfileArgs);
         }
 
         public void ApplyToModel()
@@ -162,6 +169,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             boundConfig.ServerConfig.MotdInterval = (int)motdIntervalNumeric.Value;
             boundConfig.StartupParameters.PidFile = pidFileTextBox.Text.Trim();
             boundConfig.StartupParameters.Ranking = rankingTextBox.Text.Trim();
+            // DisableVoN: UI 标签"启用 VoN"与字段名"禁用语声"语义相反，勾选→0=启用，未勾选→1=禁用
             if (disableVonCheckBox.Checked)
             {
                 boundConfig.ServerConfig.DisableVoN = 0;
@@ -175,6 +183,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             boundConfig.ServerConfig.VonCodec = vonCodecCombo.SelectedIndex;
             boundConfig.ServerConfig.HeadlessClients = headlessEditor.GetItemsCopy();
             boundConfig.ServerConfig.LocalClient = localClientEditor.GetItemsCopy();
+            boundConfig.ServerTaskManagement.EnableHeadlessClient = enableHeadlessClientCheckBox.Checked;
             boundConfig.ServerConfig.VoteThreshold = (int)voteThresholdNumeric.Value;
             boundConfig.ServerConfig.VotingTimeOut = (int)votingTimeoutNumeric.Value;
             boundConfig.ServerConfig.RoleTimeOut = (int)roleTimeoutNumeric.Value;
@@ -182,15 +191,15 @@ namespace Arma3ServerTools.App.WinForms.Controls
             boundConfig.ServerConfig.DebriefingTimeOut = (int)debriefingTimeoutNumeric.Value;
             boundConfig.ServerConfig.LobbyIdleTimeout = (int)lobbyIdleTimeoutNumeric.Value;
             boundConfig.ServerConfig.VoteMissionPlayers = (int)voteMissionPlayersNumeric.Value;
-            boundConfig.ServerConfig.ServerConfigArgs = EncodeBase64(serverCfgArgsTextBox.Text);
-            boundConfig.BasicConfig.BasicConfigArgs = EncodeBase64(basicCfgArgsTextBox.Text);
-            boundConfig.StartupParameters.StartConfigArgs = EncodeBase64(startArgsTextBox.Text);
-            boundConfig.serverProfile.ServerProfileArgs = EncodeBase64(profileArgsTextBox.Text);
+            boundConfig.ServerConfig.ServerConfigArgs = Base64Helper.Encode(serverCfgArgsTextBox.Text);
+            boundConfig.BasicConfig.BasicConfigArgs = Base64Helper.Encode(basicCfgArgsTextBox.Text);
+            boundConfig.StartupParameters.StartConfigArgs = Base64Helper.Encode(startArgsTextBox.Text);
+            boundConfig.serverProfile.ServerProfileArgs = Base64Helper.Encode(profileArgsTextBox.Text);
         }
 
         private Control BuildBasicRows()
         {
-            var layout = SettingsLayoutHelper.CreateFormLayout(120);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             configNameTextBox = SettingsLayoutHelper.AddRow(
                 layout,
                 "配置名称",
@@ -203,7 +212,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 "服务器目录",
                 SettingsLayoutHelper.CreateInlineFieldRow(serverDirTextBox, browseButton));
             hostNameTextBox = SettingsLayoutHelper.AddRow(layout, "服务器昵称", SettingsLayoutHelper.CreateInput(true));
-            passwordTextBox = SettingsLayoutHelper.AddRow(layout, "服务器密码", SettingsLayoutHelper.CreatePasswordInput());
+            FlowLayoutPanel pwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput pwdInput);
+            passwordTextBox = pwdInput;
+            SettingsLayoutHelper.AddRow(layout, "服务器密码", pwdContainer);
             maxPlayersNumeric = SettingsLayoutHelper.AddRow(layout, "最大人数", SettingsLayoutHelper.CreateNumeric(2, 200, 10, 120));
             portNumeric =
                 SettingsLayoutHelper.AddRow(layout, "端口", SettingsLayoutHelper.CreateNumeric(1024, 65535, 2302, 120));
@@ -243,7 +254,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private Control BuildMotdRows()
         {
-            var layout = SettingsLayoutHelper.CreateFormLayout(120);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             motdTextBox =
                 SettingsLayoutHelper.AddRow(layout, "欢迎语 (MOTD)", SettingsLayoutHelper.CreateMultilineInput(70));
             motdIntervalNumeric =
@@ -255,7 +266,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private Control BuildVoiceRows()
         {
-            var layout = SettingsLayoutHelper.CreateFormLayout(120);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             disableVonCheckBox =
                 SettingsLayoutHelper.AddRow(
                     layout,
@@ -269,11 +280,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private Control BuildHeadlessRows()
         {
-            var layout = SettingsLayoutHelper.CreateFormLayout(120);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
+            enableHeadlessClientCheckBox = SettingsLayoutHelper.AddRow(
+                layout, "自动启动", SettingsLayoutHelper.CreateCheckbox("启动服务器时同时启动无头客户端进程", false));
             headlessEditor = CreateIpv4ListEditor(70, "127.0.0.1");
             localClientEditor = CreateIpv4ListEditor(70, "127.0.0.1");
             SettingsLayoutHelper.AddRow(layout, "无头客户端 IP", headlessEditor, 80);
             SettingsLayoutHelper.AddRow(layout, "本地客户端 IP", localClientEditor, 80);
+
             return layout;
         }
 
@@ -367,33 +381,6 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     serverDirTextBox.Text = dialog.SelectedPath;
                 }
             }
-        }
-
-        private static string DecodeBase64(string value)
-        {
-            if (string.IsNullOrEmpty(value))
-            {
-                return string.Empty;
-            }
-
-            try
-            {
-                return Encoding.Default.GetString(Convert.FromBase64String(value));
-            }
-            catch
-            {
-                return string.Empty;
-            }
-        }
-
-        private static string EncodeBase64(string value)
-        {
-            if (string.IsNullOrEmpty(value))
-            {
-                return string.Empty;
-            }
-
-            return Convert.ToBase64String(Encoding.Default.GetBytes(value));
         }
     }
 }

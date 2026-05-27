@@ -65,7 +65,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             };
             missionTable.SelectIndexChanged += OnMissionTableSelectionChanged;
 
-            var optionsLayout = SettingsLayoutHelper.CreateFormLayout(120);
+            var optionsLayout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             forcedDifficultySelect = SettingsLayoutHelper.AddRow(
                 optionsLayout,
                 "强制任务难度",

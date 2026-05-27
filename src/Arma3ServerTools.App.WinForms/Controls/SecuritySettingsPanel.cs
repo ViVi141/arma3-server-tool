@@ -52,6 +52,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
             SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("基础安全", BuildBasicSecurity()));
             SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("BattlEye / 远程控制", BuildBeSection()));
             SettingsLayoutHelper.AddStackSection(root, SettingsLayoutHelper.CreateGroup("BattlEye 限流 (部分)", BuildBeLimits()));
+            AntLabel scriptHint = AntdUiHelper.CreateHintLabel(
+                "以下脚本事件字段保存时会自动进行 Base64 编码。请直接输入 SQF 脚本代码，"
+                + "不要粘贴已编码的字符串（否则会被二次编码导致数据损坏）。",
+                640);
+            SettingsLayoutHelper.AddStackSection(root, scriptHint);
             SettingsLayoutHelper.AddStackSection(
                 root,
                 SettingsLayoutHelper.CreateGroup(UiLabels.ScriptEventsGroup, BuildScriptSection()));
@@ -73,6 +78,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             Enabled = true;
             battlEyeCheckBox.Checked = config.ServerConfig.BattlEye;
             verifySignaturesCheckBox.Checked = config.ServerConfig.VerifySignatures;
+            // Kickduplicate: 字段名与 UI 标签语义相反 → 值 0=允许(Checked=true)，值 1=踢出(Checked=false)
             kickDuplicateCheckBox.Checked = config.ServerConfig.Kickduplicate == 0;
             filePatchingCheckBox.Checked = config.StartupParameters.FilePatching;
             allowedFilePatchingCombo.SelectedIndex = (int)SettingsLayoutHelper.Clamp(0, 2, config.ServerConfig.AllowedFilePatching);
@@ -90,14 +96,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
             rconPortNumeric.Value = SettingsLayoutHelper.Clamp(1024, 65535, config.BattlEyeConfig.RConPort);
             beMaxPingNumeric.Value = SettingsLayoutHelper.Clamp(50, 2000, config.BattlEyeConfig.MaxPing);
             adminsTextBox.Text = JoinLines(config.ServerConfig.Admins);
-            doubleIdDetectedTextBox.Text = DecodeBase64(config.ServerConfig.DoubleIdDetected);
-            onUserConnectedTextBox.Text = DecodeBase64(config.ServerConfig.onUserConnected);
-            onUserDisconnectedTextBox.Text = DecodeBase64(config.ServerConfig.onUserDisconnected);
-            onUserKickedTextBox.Text = DecodeBase64(config.ServerConfig.onUserKicked);
-            regularCheckTextBox.Text = DecodeBase64(config.ServerConfig.RegularCheck);
-            onHackedDataTextBox.Text = DecodeBase64(config.ServerConfig.onHackedData);
-            onDifferentDataTextBox.Text = DecodeBase64(config.ServerConfig.onDifferentData);
-            onUnsignedDataTextBox.Text = DecodeBase64(config.ServerConfig.onUnsignedData);
+            doubleIdDetectedTextBox.Text = Base64Helper.Decode(config.ServerConfig.DoubleIdDetected);
+            onUserConnectedTextBox.Text = Base64Helper.Decode(config.ServerConfig.onUserConnected);
+            onUserDisconnectedTextBox.Text = Base64Helper.Decode(config.ServerConfig.onUserDisconnected);
+            onUserKickedTextBox.Text = Base64Helper.Decode(config.ServerConfig.onUserKicked);
+            regularCheckTextBox.Text = Base64Helper.Decode(config.ServerConfig.RegularCheck);
+            onHackedDataTextBox.Text = Base64Helper.Decode(config.ServerConfig.onHackedData);
+            onDifferentDataTextBox.Text = Base64Helper.Decode(config.ServerConfig.onDifferentData);
+            onUnsignedDataTextBox.Text = Base64Helper.Decode(config.ServerConfig.onUnsignedData);
             allowedLoadFileTextBox.Text = JoinLines(config.ServerConfig.AllowedLoadFileExtensions);
             allowedPreprocessTextBox.Text = JoinLines(config.ServerConfig.AllowedPreprocessFileExtensions);
             allowedHtmlLoadTextBox.Text = JoinLines(config.ServerConfig.AllowedHTMLLoadExtensions);
@@ -117,6 +123,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             boundConfig.ServerConfig.BattlEye = battlEyeCheckBox.Checked;
             boundConfig.ServerConfig.VerifySignatures = verifySignaturesCheckBox.Checked;
+            // Kickduplicate: UI 标签"允许同一 ID 重复进入"与字段名语义相反，勾选→0=允许，未勾选→1=踢出
             if (kickDuplicateCheckBox.Checked)
             {
                 boundConfig.ServerConfig.Kickduplicate = 0;
@@ -136,14 +143,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
             boundConfig.BattlEyeConfig.RConPort = (int)rconPortNumeric.Value;
             boundConfig.BattlEyeConfig.MaxPing = (int)beMaxPingNumeric.Value;
             boundConfig.ServerConfig.Admins = SplitLines(adminsTextBox.Text);
-            boundConfig.ServerConfig.DoubleIdDetected = EncodeBase64(doubleIdDetectedTextBox.Text);
-            boundConfig.ServerConfig.onUserConnected = EncodeBase64(onUserConnectedTextBox.Text);
-            boundConfig.ServerConfig.onUserDisconnected = EncodeBase64(onUserDisconnectedTextBox.Text);
-            boundConfig.ServerConfig.onUserKicked = EncodeBase64(onUserKickedTextBox.Text);
-            boundConfig.ServerConfig.RegularCheck = EncodeBase64(regularCheckTextBox.Text);
-            boundConfig.ServerConfig.onHackedData = EncodeBase64(onHackedDataTextBox.Text);
-            boundConfig.ServerConfig.onDifferentData = EncodeBase64(onDifferentDataTextBox.Text);
-            boundConfig.ServerConfig.onUnsignedData = EncodeBase64(onUnsignedDataTextBox.Text);
+            boundConfig.ServerConfig.DoubleIdDetected = Base64Helper.Encode(doubleIdDetectedTextBox.Text);
+            boundConfig.ServerConfig.onUserConnected = Base64Helper.Encode(onUserConnectedTextBox.Text);
+            boundConfig.ServerConfig.onUserDisconnected = Base64Helper.Encode(onUserDisconnectedTextBox.Text);
+            boundConfig.ServerConfig.onUserKicked = Base64Helper.Encode(onUserKickedTextBox.Text);
+            boundConfig.ServerConfig.RegularCheck = Base64Helper.Encode(regularCheckTextBox.Text);
+            boundConfig.ServerConfig.onHackedData = Base64Helper.Encode(onHackedDataTextBox.Text);
+            boundConfig.ServerConfig.onDifferentData = Base64Helper.Encode(onDifferentDataTextBox.Text);
+            boundConfig.ServerConfig.onUnsignedData = Base64Helper.Encode(onUnsignedDataTextBox.Text);
             boundConfig.ServerConfig.AllowedLoadFileExtensions = SplitLines(allowedLoadFileTextBox.Text);
             boundConfig.ServerConfig.AllowedPreprocessFileExtensions = SplitLines(allowedPreprocessTextBox.Text);
             boundConfig.ServerConfig.AllowedHTMLLoadExtensions = SplitLines(allowedHtmlLoadTextBox.Text);
@@ -156,7 +163,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private Control BuildBasicSecurity()
         {
-            var layout = SettingsLayoutHelper.CreateFormLayout(160);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             battlEyeCheckBox = SettingsLayoutHelper.AddRow(
                 layout, "BattlEye 反作弊", SettingsLayoutHelper.CreateCheckbox("启用 BattlEye", true));
             verifySignaturesCheckBox = SettingsLayoutHelper.AddRow(
@@ -176,13 +183,16 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private Control BuildBeSection()
         {
-            var layout = SettingsLayoutHelper.CreateFormLayout(160);
-            serverCommandPasswordTextBox = SettingsLayoutHelper.AddRow(
-                layout, "命令密码", SettingsLayoutHelper.CreatePasswordInput());
-            passwordAdminTextBox = SettingsLayoutHelper.AddRow(
-                layout, "管理员密码", SettingsLayoutHelper.CreatePasswordInput());
-            rconPasswordTextBox = SettingsLayoutHelper.AddRow(
-                layout, "远程控制密码", SettingsLayoutHelper.CreatePasswordInput());
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
+            FlowLayoutPanel cmdPwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput cmdPwdInput);
+            serverCommandPasswordTextBox = cmdPwdInput;
+            SettingsLayoutHelper.AddRow(layout, "命令密码", cmdPwdContainer);
+            FlowLayoutPanel admPwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput admPwdInput);
+            passwordAdminTextBox = admPwdInput;
+            SettingsLayoutHelper.AddRow(layout, "管理员密码", admPwdContainer);
+            FlowLayoutPanel rconPwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput rconPwdInput);
+            rconPasswordTextBox = rconPwdInput;
+            SettingsLayoutHelper.AddRow(layout, "远程控制密码", rconPwdContainer);
             rconHostTextBox = SettingsLayoutHelper.AddRow(
                 layout, "远程控制地址", SettingsLayoutHelper.CreateInput(true));
             rconHostTextBox.Text = "127.0.0.1";
@@ -197,7 +207,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private Control BuildBeLimits()
         {
-            var layout = SettingsLayoutHelper.CreateFormLayout(180);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             maxCreateVehicleCount = SettingsLayoutHelper.AddRow(
                 layout, "CreateVehicle 次数上限", SettingsLayoutHelper.CreateNumeric(0, 9999, 0, 120));
             maxCreateVehicleSeconds = SettingsLayoutHelper.AddRow(
@@ -211,7 +221,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private Control BuildScriptSection()
         {
-            var layout = SettingsLayoutHelper.CreateFormLayout(160);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             doubleIdDetectedTextBox = SettingsLayoutHelper.AddRow(
                 layout, "检测到重复 ID", SettingsLayoutHelper.CreateMultilineInput(70));
             onUserConnectedTextBox = SettingsLayoutHelper.AddRow(
@@ -233,7 +243,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private Control BuildWhitelistSection()
         {
-            var layout = SettingsLayoutHelper.CreateFormLayout(180);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             allowedLoadFileTextBox = SettingsLayoutHelper.AddRow(
                 layout, "LoadFile 扩展名", SettingsLayoutHelper.CreateMultilineInput(70));
             allowedPreprocessTextBox = SettingsLayoutHelper.AddRow(
@@ -261,33 +271,6 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 .Select(line => line.Trim())
                 .Where(line => !string.IsNullOrEmpty(line))
                 .ToList();
-        }
-
-        private static string DecodeBase64(string value)
-        {
-            if (string.IsNullOrEmpty(value))
-            {
-                return string.Empty;
-            }
-
-            try
-            {
-                return Encoding.Default.GetString(Convert.FromBase64String(value));
-            }
-            catch
-            {
-                return string.Empty;
-            }
-        }
-
-        private static string EncodeBase64(string value)
-        {
-            if (string.IsNullOrEmpty(value))
-            {
-                return string.Empty;
-            }
-
-            return Convert.ToBase64String(Encoding.Default.GetBytes(value));
         }
     }
 }

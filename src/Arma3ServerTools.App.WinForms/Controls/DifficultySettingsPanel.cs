@@ -64,7 +64,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             hint.Margin = new Padding(0, 0, 0, UiScaleHelper.Scale(6));
             root.Controls.Add(hint, 0, 0);
 
-            var layout = SettingsLayoutHelper.CreateFormLayout(168);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             groupIndicatorsCombo = AddDistanceTriStateCombo(layout, "小队指示器");
             friendlyTagsCombo = AddDistanceTriStateCombo(layout, "友军名称标签");
             enemyTagsCombo = AddDistanceTriStateCombo(layout, "敌军名称标签");
@@ -197,14 +197,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             profile.DetectedMines = detectedMinesCombo.SelectedIndex;
             profile.Commands = commandsCombo.SelectedIndex;
             profile.WayPoints = waypointsCombo.SelectedIndex;
-            if (tacticalPingCheckBox.Checked)
-            {
-                profile.TacticalPing = 1;
-            }
-            else
-            {
-                profile.TacticalPing = 0;
-            }
+            profile.TacticalPing = ToFlag(tacticalPingCheckBox.Checked);
 
             profile.WeaponInfo = weaponInfoCombo.SelectedIndex;
             profile.StanceIndicator = stanceIndicatorCombo.SelectedIndex;

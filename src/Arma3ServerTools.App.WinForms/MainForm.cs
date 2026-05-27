@@ -80,7 +80,7 @@ namespace Arma3ServerTools.App.WinForms
             AppIcon.ApplyTo(this);
             Text = UiLabels.AppTitle;
             ClientSize = UiScaleHelper.ScaleSize(1100, 720);
-            MinimumSize = UiScaleHelper.ScaleSize(900, 600);
+            MinimumSize = UiScaleHelper.ScaleSize(820, 560);
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Color.White;
             FormBorderStyle = FormBorderStyle.Sizable;
@@ -241,9 +241,10 @@ namespace Arma3ServerTools.App.WinForms
             pollServerConfigs = configs;
         }
 
+        /// <summary>操作栏最小高度（逻辑像素），按钮换行时自动增高。</summary>
         private static int ActionBarHeight
         {
-            get { return UiScaleHelper.Scale(60); }
+            get { return UiScaleHelper.Scale(48); }
         }
 
         private Control BuildTopChrome(Control actionBar)
@@ -275,7 +276,17 @@ namespace Arma3ServerTools.App.WinForms
             headerRow.Controls.Add(pageHeader);
             headerRow.Controls.Add(headerButtonsHost);
 
-            actionBar.Dock = DockStyle.Fill;
+            // 使用 Anchor 替代 Dock.Fill，让 actionBar 宽度跟随父容器
+            // 同时 AutoSize=true 确保换行后高度自动增长。Padding 由 BuildActionBar 内部控制。
+            actionBar.Dock = DockStyle.None;
+            actionBar.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right;
+            actionBar.AutoSize = true;
+            actionBar.Margin = new Padding(0);
+            // MinimumSize 确保至少一行高度
+            if (actionBar is Control ctrl)
+            {
+                ctrl.MinimumSize = new Size(0, ActionBarHeight);
+            }
 
             var chrome = new TableLayoutPanel
             {
@@ -299,15 +310,17 @@ namespace Arma3ServerTools.App.WinForms
             int verticalPadding = UiScaleHelper.Scale(10);
             var panel = new AntdUI.Panel
             {
-                Dock = DockStyle.Fill,
+                Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right,
                 AutoSize = true,
-                Padding = new Padding(UiScaleHelper.Scale(12), verticalPadding, UiScaleHelper.Scale(12), verticalPadding),
+                MinimumSize = new Size(0, ActionBarHeight),
+                Padding = new Padding(
+                    UiScaleHelper.Scale(12), verticalPadding, UiScaleHelper.Scale(12), verticalPadding),
                 BackColor = Color.FromArgb(245, 247, 250),
             };
 
             var leftLayout = new FlowLayoutPanel
             {
-                Dock = DockStyle.Fill,
+                Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right,
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 WrapContents = true,
@@ -482,12 +495,13 @@ namespace Arma3ServerTools.App.WinForms
 
             serverListToolbarFlow.AutoSize = true;
             serverListToolbarFlow.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            serverListToolbarFlow.Dock = DockStyle.Fill;
+            serverListToolbarFlow.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right;
             serverListToolbarFlow.WrapContents = true;
             serverListToolbarFlow.AutoScroll = false;
             serverListToolbarFlow.FlowDirection = FlowDirection.LeftToRight;
             serverListToolbarFlow.Padding = new Padding(0);
             serverListToolbarFlow.Margin = new Padding(0);
+            serverListToolbarFlow.MinimumSize = new Size(0, UiScaleHelper.Scale(30));
             serverListToolbarFlow.Controls.Add(newServerButton);
             serverListToolbarFlow.Controls.Add(renameServerButton);
             serverListToolbarFlow.Controls.Add(copyServerButton);
@@ -771,7 +785,8 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             ApplyCurrentSettings();
-            OperationResult saveResult = lifecycleCoordinator.SaveConfig(config);
+            OperationResult saveResult = Task.Run(() => lifecycleCoordinator.SaveConfig(config))
+                .GetAwaiter().GetResult();
             if (!saveResult.Success)
             {
                 return false;
@@ -799,7 +814,8 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             ApplyCurrentSettings();
-            OperationResult writeResult = lifecycleCoordinator.WriteConfigFiles(config);
+            OperationResult writeResult = Task.Run(() => lifecycleCoordinator.WriteConfigFiles(config))
+                .GetAwaiter().GetResult();
             if (!writeResult.Success)
             {
                 AntdUiHelper.ShowError(this, writeResult.Message, "失败");
@@ -1585,6 +1601,15 @@ namespace Arma3ServerTools.App.WinForms
             OperationResult result = await Task.Run(() => lifecycleCoordinator.StartServer(config)).ConfigureAwait(true);
             if (result.Success)
             {
+                if (config.ServerTaskManagement.EnableHeadlessClient)
+                {
+                    string hcUuid = config.ServerUUID;
+                    _ = Task.Run(() =>
+                    {
+                        services.ProcessService.StartHeadlessClient(hcUuid);
+                    });
+                }
+
                 CaptureServerAppliedSnapshot(config.ServerUUID);
                 settingsHost.ClearDirtyMarkers();
                 RefreshConfigSyncIndicators();

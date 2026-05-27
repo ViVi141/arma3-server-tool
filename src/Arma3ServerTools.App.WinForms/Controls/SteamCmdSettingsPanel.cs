@@ -140,9 +140,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private Control BuildAccountSection(out AntInput userBox, out AntInput passwordBox)
         {
-            var layout = SettingsLayoutHelper.CreateFormLayout(120);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             userBox = SettingsLayoutHelper.AddRow(layout, "Steam 账号", SettingsLayoutHelper.CreateInput(true));
-            passwordBox = SettingsLayoutHelper.AddRow(layout, "Steam 密码", SettingsLayoutHelper.CreatePasswordInput());
+            FlowLayoutPanel steamPwdContainer = SettingsLayoutHelper.CreatePasswordInputWithToggle(out AntInput steamPwdInput);
+            passwordBox = steamPwdInput;
+            SettingsLayoutHelper.AddRow(layout, "Steam 密码", steamPwdContainer);
             return layout;
         }
 
@@ -152,7 +154,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             out AntLabel workshopContentValue,
             out AntLabel steamCmdStatusValue)
         {
-            var layout = SettingsLayoutHelper.CreateFormLayout(120);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             workshopRootBox = AddBrowseRow(layout, "Workshop 根目录", OnBrowseWorkshopRoot);
             serverInstallBox = AddBrowseRow(layout, "专用服务器目录", OnBrowseServerInstall);
 
@@ -176,7 +178,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private static Control BuildCurrentServerSection(out AntLabel serverDirValue)
         {
-            var layout = SettingsLayoutHelper.CreateFormLayout(120);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             serverDirValue = new AntLabel
             {
                 AutoSizeMode = AntdUI.TAutoSize.None,

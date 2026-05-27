@@ -110,7 +110,8 @@ namespace Arma3ServerTools.App.WinForms
                 Text = text,
                 AutoSizeMode = AntdUI.TAutoSize.Auto,
                 MaximumSize = new Size(UiScaleHelper.Scale(logicalMaxWidth), 0),
-                ForeColor = Color.Gray,
+                ForeColor = Color.FromArgb(140, 140, 140),
+                Padding = new Padding(0, 0, 0, UiScaleHelper.Scale(6)),
             };
         }
 
@@ -120,13 +121,16 @@ namespace Arma3ServerTools.App.WinForms
             {
                 Text = text,
                 AutoSizeMode = AntdUI.TAutoSize.Auto,
-                ForeColor = Color.FromArgb(38, 38, 38),
-                Font = new Font(AppTheme.UiFont, FontStyle.Bold),
-                Padding = new Padding(0, UiScaleHelper.Scale(4), 0, UiScaleHelper.Scale(8)),
+                ForeColor = Color.FromArgb(24, 24, 24),
+                Font = new Font(AppTheme.UiFont.FontFamily, 10f, FontStyle.Bold),
+                Padding = new Padding(0, 0, 0, UiScaleHelper.Scale(10)),
                 Margin = new Padding(0),
             };
         }
 
+        /// <summary>
+        /// Ant Design 风格的 Card 区块：浅灰背景 + 边框 + 标题 + 内容，区块间 12px 间距。
+        /// </summary>
         public static Control CreateSection(string title, Control content)
         {
             content.Dock = DockStyle.Top;
@@ -146,15 +150,28 @@ namespace Arma3ServerTools.App.WinForms
             layout.Controls.Add(CreateSectionHeader(title), 0, 0);
             layout.Controls.Add(content, 0, 1);
 
-            var panel = new Panel
+            var card = new Panel
             {
                 Dock = DockStyle.Top,
                 AutoSize = true,
-                Padding = new Padding(0, UiScaleHelper.Scale(4), 0, UiScaleHelper.Scale(12)),
-                BackColor = Color.White,
+                Padding = new Padding(
+                    UiScaleHelper.Scale(16),
+                    UiScaleHelper.Scale(10),
+                    UiScaleHelper.Scale(16),
+                    UiScaleHelper.Scale(14)),
+                Margin = new Padding(0, 0, 0, UiScaleHelper.Scale(12)),
+                BackColor = Color.FromArgb(250, 251, 253),
             };
-            panel.Controls.Add(layout);
-            return panel;
+            card.Paint += (_, e) =>
+            {
+                var rc = card.ClientRectangle;
+                rc.Width--;
+                rc.Height--;
+                using var pen = new Pen(Color.FromArgb(229, 231, 237));
+                e.Graphics.DrawRectangle(pen, rc);
+            };
+            card.Controls.Add(layout);
+            return card;
         }
 
         public static AntdUI.Tabs CreateTabsPanel()

@@ -46,7 +46,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             Dock = DockStyle.Fill;
 
-            var rootLayout = SettingsLayoutHelper.CreateFormLayout(160);
+            var rootLayout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             simpleModeRadio = AntdUiHelper.CreateRadio("简易（按上行带宽自动计算）", false);
             professionalModeRadio = AntdUiHelper.CreateRadio("专业（手动调整全部参数）", true);
             Control modePanel = SettingsLayoutHelper.CreateHorizontalGroup(simpleModeRadio, professionalModeRadio);
@@ -192,7 +192,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private Control BuildSimpleModePanel()
         {
-            var layout = SettingsLayoutHelper.CreateFormLayout(160);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             uploadMbpsNumeric =
                 SettingsLayoutHelper.CreateDecimalNumeric(0.1m, 10000m, 30m, 120, 2);
             limitFpsHintLabel = AntdUiHelper.CreateHintLabel(string.Empty, 520);
@@ -219,7 +219,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private Control BuildProfessionalModePanel()
         {
-            var layout = SettingsLayoutHelper.CreateFormLayout(160);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             maxMsgSendNumeric = SettingsLayoutHelper.AddRow(
                 layout,
                 "单帧最大消息数",
@@ -262,7 +262,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private Control BuildCommonPanel()
         {
-            var layout = SettingsLayoutHelper.CreateFormLayout(160);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             steamProtocolNumeric = SettingsLayoutHelper.AddRow(
                 layout,
                 "Steam 协议数据上限",

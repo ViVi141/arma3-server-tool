@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Arma3ServerTools.Core.IO;
+using System.Linq;
+using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.Core.Repositories;
 
@@ -158,6 +159,8 @@ namespace Arma3ServerTools.Application.Services
                     row.ModName = row.ModDirName;
                 }
 
+                DetectBikeyStatus(row, config);
+
                 rows.Add(row);
             }
 
@@ -182,6 +185,62 @@ namespace Arma3ServerTools.Application.Services
             }
 
             return modPath.IndexOf(@"workshop\content\107410", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static void DetectBikeyStatus(ScannedModRow row, ArmaServerConfig config)
+        {
+            row.HasBikeyFile = false;
+            row.BikeyStatus = "未签名";
+
+            if (string.IsNullOrEmpty(row.ModPath) || !Directory.Exists(row.ModPath))
+            {
+                return;
+            }
+
+            // .bisign 文件 = 模组已签名
+            string[] bisigns = Directory.GetFiles(row.ModPath, "*.bisign", SearchOption.AllDirectories);
+            if (bisigns.Length == 0)
+            {
+                return;
+            }
+
+            // .bikey 文件 = 模组有密钥
+            string keyDir = Path.Combine(row.ModPath, "Keys");
+            if (!Directory.Exists(keyDir))
+            {
+                keyDir = Path.Combine(row.ModPath, "key");
+            }
+
+            string[] bikeys;
+            if (Directory.Exists(keyDir))
+            {
+                bikeys = Directory.GetFiles(keyDir, "*.bikey", SearchOption.AllDirectories);
+            }
+            else
+            {
+                bikeys = Array.Empty<string>();
+            }
+
+            if (bikeys.Length == 0)
+            {
+                row.BikeyStatus = "已签名，无密钥";
+                return;
+            }
+
+            row.HasBikeyFile = true;
+            row.BikeyStatus = "已签名，密钥未复制";
+
+            if (config == null || string.IsNullOrEmpty(config.ServerDir))
+            {
+                return;
+            }
+
+            string keysDir = Path.Combine(config.ServerDir, "Keys");
+            if (Directory.Exists(keysDir)
+                && bikeys.All(bikey => File.Exists(Path.Combine(keysDir, Path.GetFileName(bikey)))))
+            {
+                row.BikeyStatus = "已签名，密钥已复制";
+            }
         }
 
         private static Dictionary<string, ModsEntity> BuildSavedModsByPath(ArmaServerConfig config)
@@ -350,5 +409,9 @@ namespace Arma3ServerTools.Application.Services
         public string UpdatedTime { get; set; }
 
         public DateTime? UpdatedAt { get; set; }
+        
+        public bool HasBikeyFile { get; set; }
+        
+        public string BikeyStatus { get; set; }
     }
 }

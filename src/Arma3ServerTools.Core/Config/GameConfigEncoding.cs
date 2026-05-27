@@ -15,7 +15,7 @@ namespace Arma3ServerTools.Core.Config
 
             try
             {
-                decoded = Encoding.Default.GetString(Convert.FromBase64String(value));
+                decoded = Encoding.UTF8.GetString(Convert.FromBase64String(value));
                 return true;
             }
             catch

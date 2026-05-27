@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Reflection;
 
 namespace Arma3ServerTools.App.WinForms
 {
@@ -25,9 +26,19 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
-            using (Graphics graphics = Graphics.FromHwnd(IntPtr.Zero))
+            // 当 ApplicationHighDpiMode 为 PerMonitorV2 时，WinForms 已自动处理 DPI 缩放。
+            // 手动 Scale 会导致双重缩放（控件被放大两次），高 DPI 下 UI 超出屏幕。
+            // 检测方式是读取 .csproj 中 <ApplicationHighDpiMode> 生成的程序集属性。
+            if (IsWinFormsAutoScalingEnabled())
             {
-                scaleFactor = graphics.DpiX / 96f;
+                scaleFactor = 1.0f;
+            }
+            else
+            {
+                using (Graphics graphics = Graphics.FromHwnd(IntPtr.Zero))
+                {
+                    scaleFactor = graphics.DpiX / 96f;
+                }
             }
 
             if (scaleFactor < 1f)
@@ -36,6 +47,29 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             initialized = true;
+        }
+
+        private static bool IsWinFormsAutoScalingEnabled()
+        {
+            // 读取 <ApplicationHighDpiMode> 程序集级属性
+            try
+            {
+                Assembly entryAssembly = Assembly.GetEntryAssembly();
+                if (entryAssembly == null)
+                    return false;
+                object[] attrs = entryAssembly.GetCustomAttributes(true);
+                foreach (object attr in attrs)
+                {
+                    string typeName = attr.GetType().FullName;
+                    if (typeName != null && typeName.Contains("ApplicationHighDpiModeAttribute"))
+                        return true;
+                }
+            }
+            catch
+            {
+            }
+
+            return false;
         }
 
         public static int Scale(int logicalPixels)

@@ -180,8 +180,9 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 new AntdUI.Column("InputLocalModLabel", "本地导入")
                 {
                     ReadOnly = true,
-                    Width = "6%",
+                    Width = "5%",
                 },
+                new AntdUI.Column("BikeyStatus", "签名状态") { ReadOnly = true, Width = "5%" },
                 new AntdUI.Column("ModPath", "路径") { ReadOnly = true, Width = "22%" },
                 new AntdUI.Column("UpdatedTime", "更新时间")
                 {
@@ -191,7 +192,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 },
             };
 
-            var optionsLayout = SettingsLayoutHelper.CreateFormLayout(120);
+            var optionsLayout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             autoCopyBikeyCheckBox = SettingsLayoutHelper.AddRow(
                 optionsLayout,
                 "自动复制密钥",
@@ -216,6 +217,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 optionsLayout,
                 "S.O.G. 资料片",
                 SettingsLayoutHelper.CreateCheckbox("启用 S.O.G. Prairie Fire 资料片", false));
+            AntLabel dlcHint = AntdUiHelper.CreateHintLabel(
+                "提示：DLC 选项仅作为启动命令行参数，不写入 server.cfg。",
+                560);
+            optionsLayout.RowCount++;
+            optionsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            optionsLayout.Controls.Add(dlcHint, 0, optionsLayout.RowCount - 1);
+            optionsLayout.SetColumnSpan(dlcHint, 2);
 
             var split = new SplitContainer
             {

@@ -38,7 +38,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             this.appServices = appServices;
             AppTheme.ApplyTo(this);
 
-            var layout = SettingsLayoutHelper.CreateFormLayout(120);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             statusValueLabel = AddValueRow(layout, "运行状态", "—");
             pidValueLabel = AddValueRow(layout, "进程 PID", "—");
             onlineValueLabel = AddValueRow(layout, "在线人数", "—");

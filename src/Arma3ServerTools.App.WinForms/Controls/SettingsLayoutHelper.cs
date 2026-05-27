@@ -12,6 +12,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
 {
     internal static class SettingsLayoutHelper
     {
+        /// <summary>
+        /// 标准表单标签宽度（逻辑像素），所有设置面板统一使用。
+        /// </summary>
+        public const int DefaultLabelWidth = 160;
+
         public static readonly Color FormLabelColor = Color.FromArgb(38, 38, 38);
 
         public static Color DirtyFieldLabelColor = Color.FromArgb(212, 56, 13);
@@ -236,6 +241,46 @@ namespace Arma3ServerTools.App.WinForms.Controls
             };
             ApplyFieldWidthStretch(input);
             return input;
+        }
+        
+        /// <summary>
+        /// 创建带显示/隐藏切换按钮的密码输入框容器。
+        /// 通过 out 参数返回内部 AntInput 引用，供调用方读取 .Text。
+        /// </summary>
+        public static FlowLayoutPanel CreatePasswordInputWithToggle(out AntInput passwordInput)
+        {
+            var input = new AntInput
+            {
+                Height = FieldHeight,
+                PasswordChar = '*',
+            };
+            input.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right;
+            input.Margin = new Padding(0);
+            passwordInput = input;
+
+            var toggleButton = new AntButton
+            {
+                Text = "👁",
+                Type = AntdUI.TTypeMini.Default,
+                AutoSizeMode = AntdUI.TAutoSize.Auto,
+                Margin = new Padding(UiScaleHelper.Scale(4), 0, 0, 0),
+                MinimumSize = new Size(UiScaleHelper.Scale(28), FieldHeight),
+            };
+            toggleButton.Click += (_, _) =>
+            {
+                if (input.PasswordChar == '*')
+                {
+                    input.PasswordChar = '\0';
+                    toggleButton.Text = "✕";
+                }
+                else
+                {
+                    input.PasswordChar = '*';
+                    toggleButton.Text = "👁";
+                }
+            };
+
+            return CreateHorizontalGroup(input, toggleButton) as FlowLayoutPanel;
         }
 
         public static AntInput CreateReadOnlyInput(int logicalWidth)

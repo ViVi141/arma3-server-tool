@@ -56,6 +56,8 @@ namespace Arma3ServerTools.Core.Models
 
 
         public Dictionary<string, CronEntity> CronEntity { get; set; } = new Dictionary<string, CronEntity>();
+        
+        public bool EnableHeadlessClient { get; set; } = false;
     }
 
 
@@ -288,6 +290,28 @@ namespace Arma3ServerTools.Core.Models
 
         //server.cfg 附加参数
         public string ServerConfigArgs { get; set; } = String.Empty;
+        
+        // Arma 服务器高级选项（性能/日志优化）
+        public AdvancedOptions AdvancedOptions { get; set; } = new AdvancedOptions();
+
+        // Arma Units 超时（秒），默认 10
+        public int ArmaUnitsTimeout { get; set; } = 10;
+    }
+
+    /// <summary>
+    /// server.cfg class AdvancedOptions 块 — 性能与日志优化。
+    /// ref: ViVi141.141的跨界笔记 https://www.vivi141.com
+    /// </summary>
+    public class AdvancedOptions
+    {
+        // 禁用缺失对象日志
+        public bool LogObjectNotFound { get; set; } = false;
+        // 跳过 description.ext 解析
+        public bool SkipDescriptionParsing { get; set; } = false;
+        // 忽略任务加载错误
+        public bool ignoreMissionLoadErrors { get; set; } = true;
+        // 玩家消息队列阈值（字节），超此值 dump 到日志
+        public int queueSizeLogG { get; set; } = 1000000;
     }
 
     //Server Profile 配置

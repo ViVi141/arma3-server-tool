@@ -117,8 +117,9 @@ namespace Arma3ServerTools.Application.Sync
                     .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
             }
 
-            // Runtime PID is not a user edit and should not trigger unsaved prompts.
+            // Runtime fields — not user edits, should not trigger unsaved prompts.
             normalized.ServerTaskManagement.ProcessById = 0;
+            normalized.SaveTime = string.Empty;
             return JsonSerializer.ToJson(normalized);
         }
     }

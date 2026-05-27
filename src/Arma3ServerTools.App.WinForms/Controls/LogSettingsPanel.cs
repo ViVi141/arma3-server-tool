@@ -20,7 +20,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         public LogSettingsPanel()
         {
             Dock = DockStyle.Fill;
-            var layout = SettingsLayoutHelper.CreateFormLayout(160);
+            var layout = SettingsLayoutHelper.CreateFormLayout(SettingsLayoutHelper.DefaultLabelWidth);
             noLogsCheckBox = SettingsLayoutHelper.AddRow(layout, "禁用日志", SettingsLayoutHelper.CreateCheckbox("不写入 RPT 日志 (-noLogs)", false));
             netlogCheckBox = SettingsLayoutHelper.AddRow(layout, "网络日志", SettingsLayoutHelper.CreateCheckbox("记录网络流量 (-netlog)", false));
             logFileTextBox = SettingsLayoutHelper.AddRow(layout, "控制台日志文件", SettingsLayoutHelper.CreateInput(true));
