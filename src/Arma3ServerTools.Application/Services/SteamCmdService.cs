@@ -114,6 +114,27 @@ namespace Arma3ServerTools.Application.Services
             return StartSteamCmd(arguments);
         }
 
+        public SteamCmdRunResult InstallDedicatedServerCaptured(string installDir, int timeoutMilliseconds)
+        {
+            OperationResult validation = EnsureSteamCmdAvailable(false);
+            if (!validation.Success)
+            {
+                return SteamCmdRunResultFromOperation(validation);
+            }
+
+            SteamcmdEntity settings = configProvider.GetSettings();
+            if (settings == null || string.IsNullOrEmpty(settings.u))
+            {
+                return SteamCmdRunResultFromMessage(false, "SteamCMD 账号未配置。");
+            }
+
+            string arguments = "+force_install_dir \"" + installDir + "\" "
+                + "+login " + QuoteSteamCmdArgument(settings.u) + " " + QuoteSteamCmdArgument(settings.p)
+                + " +app_update " + Arma3DedicatedAppId + " -beta creatordlc validate +quit";
+
+            return RunCaptured(arguments, settings.p, timeoutMilliseconds);
+        }
+
         public OperationResult DownloadWorkshopItems(IList<ulong> modIds)
         {
             OperationResult validation = EnsureSteamCmdAvailable(false);
@@ -157,6 +178,38 @@ namespace Arma3ServerTools.Application.Services
                 + Path.Combine(workshopRoot, ModEnablerService.WorkshopContentRelativePath)
                 + System.Environment.NewLine
                 + "请在控制台窗口中完成 Steam Guard 验证，待下载完成后关闭窗口并刷新模组列表。");
+        }
+
+        public SteamCmdRunResult DownloadWorkshopItemsCaptured(IList<ulong> modIds, int timeoutMilliseconds)
+        {
+            OperationResult validation = EnsureSteamCmdAvailable(false);
+            if (!validation.Success)
+            {
+                return SteamCmdRunResultFromOperation(validation);
+            }
+
+            SteamcmdEntity settings = configProvider.GetSettings();
+            if (settings == null || string.IsNullOrEmpty(settings.u))
+            {
+                return SteamCmdRunResultFromMessage(false, "SteamCMD 账号未配置。请在「工具 → SteamCMD 设置」中填写账号。");
+            }
+
+            if (modIds == null || modIds.Count == 0)
+            {
+                return SteamCmdRunResultFromMessage(false, "没有要下载的 Workshop 模组 ID。");
+            }
+
+            string workshopRoot = SteamCmdPathHelper.NormalizeWorkshopRoot(paths, settings.d);
+            if (string.IsNullOrWhiteSpace(workshopRoot))
+            {
+                return SteamCmdRunResultFromMessage(
+                    false,
+                    "SteamCMD 程序目录未配置。请在「工具 → SteamCMD 设置」中填写，或点「下载 SteamCMD」使用工具内置目录。");
+            }
+
+            EnsureWorkshopContentDirectory(workshopRoot);
+            string arguments = BuildWorkshopDownloadArguments(settings, workshopRoot, modIds);
+            return RunCaptured(arguments, settings.p, timeoutMilliseconds);
         }
 
         private static string BuildWorkshopDownloadArguments(
@@ -317,6 +370,47 @@ namespace Arma3ServerTools.Application.Services
             }
 
             return OperationResult.Ok("SteamCMD 已启动，请在控制台窗口中完成 Steam Guard 验证。");
+        }
+
+        private SteamCmdRunResult RunCaptured(string arguments, string password, int timeoutMilliseconds)
+        {
+            if (timeoutMilliseconds < 1000)
+            {
+                timeoutMilliseconds = 1800000;
+            }
+
+            string executablePath = ResolveSteamCmdExecutable();
+            if (string.IsNullOrEmpty(executablePath))
+            {
+                return SteamCmdRunResultFromMessage(false, "找不到 steamcmd.exe。");
+            }
+
+            return SteamCmdProcessRunner.RunCaptured(
+                paths,
+                executablePath,
+                arguments,
+                password,
+                timeoutMilliseconds);
+        }
+
+        private static SteamCmdRunResult SteamCmdRunResultFromOperation(OperationResult result)
+        {
+            if (result == null)
+            {
+                return SteamCmdRunResultFromMessage(false, "无结果。");
+            }
+
+            return SteamCmdRunResultFromMessage(result.Success, result.Message);
+        }
+
+        private static SteamCmdRunResult SteamCmdRunResultFromMessage(bool success, string message)
+        {
+            return new SteamCmdRunResult
+            {
+                Success = success,
+                Message = message,
+                ExitCode = success ? 0 : 1,
+            };
         }
     }
 }

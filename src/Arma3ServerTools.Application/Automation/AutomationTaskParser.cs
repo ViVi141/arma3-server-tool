@@ -177,6 +177,44 @@ namespace Arma3ServerTools.Application.Automation
                 return document;
             }
 
+            if (verb == "logs" || verb == "日志" || verb == "rpt")
+            {
+                var logCommand = new AutomationCommand
+                {
+                    Action = verb == "rpt" ? "read_rpt" : "read_logs",
+                    LogTailLines = 200,
+                };
+                if (parts.Length >= 2)
+                {
+                    string kindToken = parts[1].ToLowerInvariant();
+                    if (kindToken == "be" || kindToken == "battleye")
+                    {
+                        logCommand.LogKind = "battleye";
+                    }
+                    else if (kindToken == "all" || kindToken == "latest")
+                    {
+                        logCommand.LogKind = "all";
+                    }
+                    else if (int.TryParse(parts[1], out int tailFromKind))
+                    {
+                        logCommand.LogTailLines = tailFromKind;
+                    }
+                    else
+                    {
+                        logCommand.LogFileName = parts[1];
+                    }
+                }
+
+                if (parts.Length >= 3 && int.TryParse(parts[2], out int tailLines))
+                {
+                    logCommand.LogTailLines = tailLines;
+                }
+
+                document.Commands.Add(logCommand);
+                ApplyServerSelector(document, parts, 1);
+                return document;
+            }
+
             return null;
         }
 

@@ -110,7 +110,7 @@ sequenceDiagram
 
 A（开服）与 B（OpenClaw）**常常不在同一局域网** 时，仍可按本文部署；关键是选好 **B 如何稳定、安全地连到 A 的 Agent**。
 
-Agent 本身只提供 **HTTP**（`HttpListener`），**不内置 TLS**。公网若需 HTTPS，请在 A 前加 **Caddy / Nginx** 反向代理，或使用带 HTTPS 的隧道产品。
+Agent 使用 **ASP.NET Core Kestrel** 提供 HTTP，**不内置 TLS**。公网若需 HTTPS，请在 A 前加 **Caddy / Nginx** 反向代理，或使用带 HTTPS 的隧道产品。
 
 ### 3.1 方案对比（怎么选）
 
@@ -356,7 +356,7 @@ OpenClaw 一般走 HTTP；Inbox 适合长任务编排或手工丢 JSON。
 
 ### 6.1 URL ACL（`listenHost` 为 `+` 时）
 
-HttpListener 绑定 `http://+:19580/` 需要预留 URL（**管理员 PowerShell**）：
+Kestrel 监听 `http://+:19580/` 时，Windows 上可能需要 URL 预留（**管理员 PowerShell**）：
 
 ```powershell
 netsh http add urlacl url=http://+:19580/ user=Everyone

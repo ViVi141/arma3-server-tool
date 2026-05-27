@@ -1,11 +1,12 @@
 using System;
-using System.Threading;
+using System.Collections.Generic;
 using Arma3ServerTools.Agent.Host.Configuration;
 using Arma3ServerTools.Agent.Host.Http;
 using Arma3ServerTools.Agent.Host.Inbox;
 using Arma3ServerTools.Application.DependencyInjection;
 using Arma3ServerTools.Application.Logging;
 using Arma3ServerTools.Core;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -20,48 +21,58 @@ namespace Arma3ServerTools.Agent.Host
             var paths = new AppPaths(baseDirectory);
             AgentSettings settings = AgentSettingsLoader.LoadOrCreate(paths);
 
-            var services = new ServiceCollection();
-            services.AddArma3ServerToolsApplication(paths);
-            services.AddSingleton(settings);
-            services.AddSingleton<LocalAutomationHttpServer>();
-            services.AddSingleton<AutomationInboxWatcher>();
-            services.AddSingleton<ILogger>(provider =>
+            if (!settings.Http.Enabled)
+            {
+                Console.WriteLine("HTTP API 已在配置中禁用。");
+                return 1;
+            }
+
+            IList<string> listenUrls = AgentHttpEndpointResolver.ResolveListenPrefixes(settings.Http);
+            var urlBuilder = new System.Text.StringBuilder();
+            for (int i = 0; i < listenUrls.Count; i++)
+            {
+                if (urlBuilder.Length > 0)
+                {
+                    urlBuilder.Append(';');
+                }
+
+                urlBuilder.Append(listenUrls[i].TrimEnd('/'));
+            }
+
+            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", urlBuilder.ToString());
+            var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+            {
+                Args = args,
+                ContentRootPath = baseDirectory,
+            });
+
+            builder.Services.AddArma3ServerToolsApplication(paths);
+            builder.Services.AddSingleton(settings);
+            builder.Services.AddSingleton<AutomationInboxWatcher>();
+            builder.Services.AddSingleton<ILogger>(provider =>
             {
                 ILoggerFactory factory = AppLogging.LoggerFactory;
                 return factory.CreateLogger("Arma3ServerTools.Agent");
             });
 
-            ServiceProvider provider = services.BuildServiceProvider();
-            LocalAutomationHttpServer httpServer = provider.GetRequiredService<LocalAutomationHttpServer>();
-            AutomationInboxWatcher inboxWatcher = provider.GetRequiredService<AutomationInboxWatcher>();
-            ILogger logger = provider.GetRequiredService<ILogger>();
+            WebApplication app = builder.Build();
+            app.UseMiddleware<AgentRequestIdMiddleware>();
+            app.UseMiddleware<AgentAuthMiddleware>();
+            app.MapAgentApi();
 
-            logger.LogInformation("Arma3 Server Tools Agent starting (local API only).");
-            logger.LogInformation("Settings: {SettingsPath}", AgentSettingsLoader.GetSettingsPath(paths));
-            if (settings.Http.Enabled)
-            {
-                logger.LogInformation(
-                    "HTTP API public URL: {PublicUrl}, remote={Remote} — see docs/deployment-ab-openclaw.md",
-                    AgentHttpEndpointResolver.ResolvePublicBaseUrl(settings.Http),
-                    settings.Http.RemoteAccessEnabled);
-            }
-
-            httpServer.Start();
+            AutomationInboxWatcher inboxWatcher = app.Services.GetRequiredService<AutomationInboxWatcher>();
+            ILogger logger = app.Services.GetRequiredService<ILogger>();
             inboxWatcher.Start();
 
-            Console.WriteLine("Agent 已启动（仅本地 API）。IM 请走 OpenClaw。按 Ctrl+C 退出。");
-            var exitEvent = new ManualResetEvent(false);
-            Console.CancelKeyPress += delegate(object sender, ConsoleCancelEventArgs e)
-            {
-                e.Cancel = true;
-                exitEvent.Set();
-            };
+            logger.LogInformation("Arma3 Server Tools Agent starting (Kestrel).");
+            logger.LogInformation("Settings: {SettingsPath}", AgentSettingsLoader.GetSettingsPath(paths));
+            logger.LogInformation(
+                "HTTP API public URL: {PublicUrl}, remote={Remote}",
+                AgentHttpEndpointResolver.ResolvePublicBaseUrl(settings.Http),
+                settings.Http.RemoteAccessEnabled);
 
-            exitEvent.WaitOne();
-            httpServer.Dispose();
-            inboxWatcher.Dispose();
-            provider.Dispose();
-            logger.LogInformation("Agent stopped.");
+            Console.WriteLine("Agent 已启动（Kestrel）。IM 请走 OpenClaw。按 Ctrl+C 退出。");
+            app.Run();
             return 0;
         }
     }

@@ -38,6 +38,8 @@ namespace Arma3ServerTools.App.WinForms
 
         ModScannerService ModScannerService { get; }
 
+        ModWorkshopWorkflowService ModWorkshopWorkflow { get; }
+
         BikeyService BikeyService { get; }
 
         BansService BansService { get; }

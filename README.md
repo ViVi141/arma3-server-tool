@@ -156,7 +156,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 | `-SkipInstaller` | 仅生成 `artifacts/_publish/` 目录，不编译安装包 |
 | `-Zip` | 额外生成便携 zip（与旧版行为相同） |
 
-详见 **[docs/release-v1.4.1.md](docs/release-v1.4.1.md)**（历史：[v1.4.0](docs/release-v1.4.0.md)、[v1.3.0](docs/release-v1.3.0.md)、[v1.2.3](docs/release-v1.2.3.md)、[v1.2.2](docs/release-v1.2.2.md)、[v1.2.1](docs/release-v1.2.1.md)、[v1.2.0](docs/release-v1.2.0.md)、[v1.1.1](docs/release-v1.1.1.md)、[v1.1.0](docs/release-v1.1.0.md)、[v1.0.0](docs/release-v1.0.0.md)）。
+详见 **[docs/CHANGELOG.md](docs/CHANGELOG.md)**（各版详细清单见 [docs/archive/releases/](docs/archive/releases/)）。
 
 ---
 
@@ -174,31 +174,22 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 
 ## 文档
 
+完整索引见 **[docs/README.md](docs/README.md)**。常用：
+
 | 文档 | 内容 |
 |------|------|
-| [docs/openclaw-integration.md](docs/openclaw-integration.md) | **OpenClaw 复用 IM 通道**（`agent` 分支） |
-| [docs/deployment-ab-openclaw.md](docs/deployment-ab-openclaw.md) | **双机部署**（A 开服 / B OpenClaw · QQ 接 B） |
-| [docs/agent-channels.md](docs/agent-channels.md) | Agent 本地 HTTP / 任务 JSON |
-| [docs/agent-capabilities.md](docs/agent-capabilities.md) | **Agent 自动化能力详解**（各 action 行为与限制） |
 | [docs/first-server-guide.md](docs/first-server-guide.md) | 首次开服指南 |
-| [docs/known-issues.md](docs/known-issues.md) | **已知问题**（用户反馈与待修复项） |
-| [docs/refactoring-plan.md](docs/refactoring-plan.md) | 分层改造说明 |
-| [docs/product-roadmap.md](docs/product-roadmap.md) | 实施计划与 backlog |
-| [docs/ux-optimization-backlog.md](docs/ux-optimization-backlog.md) | 用户体验优化任务（v1.1） |
-| [docs/release-v1.4.1.md](docs/release-v1.4.1.md) | **v1.4.1 发布清单** |
-| [docs/release-v1.4.0.md](docs/release-v1.4.0.md) | v1.4.0 发布清单 |
-| [docs/release-v1.3.0.md](docs/release-v1.3.0.md) | v1.3.0 发布清单 |
-| [docs/release-v1.2.3.md](docs/release-v1.2.3.md) | v1.2.3 发布清单 |
-| [docs/release-v1.2.2.md](docs/release-v1.2.2.md) | v1.2.2 发布清单 |
-| [docs/release-v1.2.1.md](docs/release-v1.2.1.md) | v1.2.1 发布清单 |
-| [docs/release-v1.2.0.md](docs/release-v1.2.0.md) | v1.2.0 发布清单 |
-| [docs/release-v1.1.1.md](docs/release-v1.1.1.md) | v1.1.1 发布清单 |
-| [docs/release-v1.1.0.md](docs/release-v1.1.0.md) | v1.1.0 发布清单 |
-| [docs/release-v1.0.0.md](docs/release-v1.0.0.md) | v1.0 发布清单 |
-| [docs/smoke-checklist.md](docs/smoke-checklist.md) | 冒烟验收清单 |
-| [docs/code-review-2026-05-27.md](docs/code-review-2026-05-27.md) | **最新代码审查报告**（v1.4.1） |
-| [docs/code-review-2026-05-24.md](docs/code-review-2026-05-24.md) | 历史代码审查（v1.2.3） |
+| [docs/openclaw-integration.md](docs/openclaw-integration.md) | OpenClaw + Agent（QQ 等 IM） |
+| [docs/deployment-ab-openclaw.md](docs/deployment-ab-openclaw.md) | 双机部署（A 开服 / B OpenClaw） |
+| [docs/agent-capabilities.md](docs/agent-capabilities.md) | Agent 能力与各 action 说明 |
+| [docs/agent-channels.md](docs/agent-channels.md) | Agent HTTP / 任务 JSON |
+| [docs/architecture.md](docs/architecture.md) | 项目架构 |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | 版本变更 |
+| [docs/known-issues.md](docs/known-issues.md) | 已知问题 |
+| [docs/smoke-checklist.md](docs/smoke-checklist.md) | 发版冒烟清单 |
 | [docs/monitoring-cpp-dll-build.md](docs/monitoring-cpp-dll-build.md) | Monitoring DLL 构建 |
+
+历史发布说明、改造计划与代码审查见 [docs/archive/](docs/archive/)。
 
 ---
 

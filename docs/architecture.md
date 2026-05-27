@@ -1,81 +1,69 @@
 # Arma3 Server Tools — 架构说明
 
-> 随改造进度更新。详见 [refactoring-plan.md](refactoring-plan.md)。
+> 当前主线：**.NET 10** · WinForms + Application 服务层 · 可选 **Agent.Host**（Kestrel）
 
 ## 解决方案
 
 | 项目 | 路径 | 说明 |
 |------|------|------|
-| **Arma3ServerTools.Core** | `src/Arma3ServerTools.Core/` | 领域层（net10.0-windows），无 UI 依赖 |
-| **Arma3ServerTools.Application** | `src/Arma3ServerTools.Application/` | 应用服务层（net10.0-windows） |
-| **Arma3ServerTools.App.WinForms** | `src/Arma3ServerTools.App.WinForms/` | WinForms 主程序（输出 `Arma3ServerTools.exe`） |
-| **Arma3ServerTools.MonitoringHost** | `src/Arma3ServerTools.MonitoringHost/` | WM_COPYDATA 监控宿主（独立进程） |
-| **Arma3ServerTools.Core.Tests** | `tests/Arma3ServerTools.Core.Tests/` | Core 单元测试 |
-| **Arma3ServerTools.Application.Tests** | `tests/Arma3ServerTools.Application.Tests/` | Application 单元测试 |
+| **Arma3ServerTools.Core** | `src/Arma3ServerTools.Core/` | 领域层（`net10.0-windows`），无 UI |
+| **Arma3ServerTools.Application** | `src/Arma3ServerTools.Application/` | 应用服务（进程、配置、SteamCMD、RCon、自动化等） |
+| **Arma3ServerTools.App.WinForms** | `src/Arma3ServerTools.App.WinForms/` | 主程序 → `Arma3ServerTools.exe` |
+| **Arma3ServerTools.MonitoringHost** | `src/Arma3ServerTools.MonitoringHost/` | WM_COPYDATA 监控宿主 |
+| **Arma3ServerTools.Agent.Host** | `src/Arma3ServerTools.Agent.Host/` | HTTP 自动化 API（`agent/` 随安装包部署） |
+| **\*.Tests** | `tests/` | Core / Application 单元测试 |
 
-旧 DevExpress 工程（`a3/`、`AppUpdate/`）已移除；功能由 `src/` 下新项目承担。
+旧 DevExpress 工程已移除；历史改造说明见 [archive/refactoring-plan.md](archive/refactoring-plan.md)。
 
-## Core 模块
+## Core
 
 ```
 Arma3ServerTools.Core/
-├── BattlEye/              # BattlEye RCon V2（BytexDigital.BattlEye.Rcon）
-├── Models/                # 服务器配置与实体
-├── Config/                # GameConfigWriter
-├── Repositories/          # ServerConfigRepository
-├── IO/JsonSerializer
-└── ...
+├── BattlEye/          # RCon V2 协议与命令
+├── Models/            # ArmaServerConfig 等
+├── Config/            # GameConfigWriter（写 server.cfg 等）
+├── Repositories/      # JSON / SQLite 持久化
+└── ToolConstants.cs   # a3st_* 命名约定
 ```
 
-## Application 模块
+## Application
 
 ```
 Arma3ServerTools.Application/
-├── Services/
-│   ├── ServerConfigService
-│   ├── ServerProcessService
-│   ├── RconService
-│   ├── SchedulerService
-│   ├── SteamCmdService
-│   └── MonitoringIngestService
-├── ProcessManagement/     # IProcessRunner（可注入/mock）
-├── Monitoring/            # MonitoringDatabase（SQLite）
-└── Scheduling/            # ServerRestartManagementJob
+├── Services/          # ServerConfig、Process、SteamCMD、RCon、模组、封禁…
+├── Automation/        # ServerAutomationService、Agent API 目录
+├── Monitoring/        # SQLite 统计入库
+├── ProcessManagement/ # IProcessRunner
+└── DependencyInjection/
 ```
 
-## UI 层（阶段 3）
+WinForms 与 Agent **共用**同一套 Application 服务（通过 `AddArma3ServerToolsApplication` 注册）。
 
-```
-Arma3ServerTools.App.WinForms/     → Arma3ServerTools.exe
-├── MainForm                       # 服务器列表、基本设置、启停
-├── Controls/BasicSettingsPanel
-└── AppServices                    # 组装 Application 服务
+## 运行时进程
 
-Arma3ServerTools.MonitoringHost/   → Arma3ServerTools.MonitoringHost.exe
-└── 窗口标题 `A3-Arma3ServerTools-ProcessCommunicationModule`（供 Monitoring DLL 查找）
-```
-
-主程序启动时会拉起 `MonitoringHost.exe`；构建后两者位于同一输出目录。
-
-阶段 4 起，右侧为 **TabControl** 多页设置：基本、网络、安全、性能、日志、难度、模组、定时、RCon、封禁。
+| 进程 | 说明 |
+|------|------|
+| `Arma3ServerTools.exe` | 主 GUI；启动时拉起 MonitoringHost |
+| `Arma3ServerTools.MonitoringHost.exe` | 固定窗口标题，供 Monitoring DLL 通信 |
+| `Arma3ServerTools.Agent.Host.exe` | 可选；HTTP :19580，与 GUI 勿同时抢同一服启停 |
+| `arma3server_x64.exe` | 由工具配置与启动参数拉起 |
 
 ## 依赖规则
 
-- **Core**：不得引用 WinForms / DevExpress / ASP.NET。
-- **Application**：引用 Core；不得引用 WinForms / DevExpress。
-- **App.WinForms / MonitoringHost**：引用 Application + Core；不得引用 DevExpress。
-- 配置路径由 `IAppPaths` 注入；统计库脚本位于 `{ApplicationBase}/sql/a3st_statistics.sql`。
+- **Core**：不引用 WinForms / ASP.NET。
+- **Application**：只引用 Core。
+- **WinForms / Agent / MonitoringHost**：引用 Application + Core。
+
+用户数据路径由 `IAppPaths` 解析（安装目录可写则用安装目录，否则 `%LocalAppData%\Arma3ServerTools\`）。
 
 ## 测试
 
-```text
+```powershell
 dotnet test Arma3ServerTools.sln -c Release
 ```
 
-## 修订记录
+## 相关文档
 
-| 日期 | 说明 |
-|------|------|
-| 2026-05-22 | 初版：Core 骨架 |
-| 2026-05-22 | 增加 Application 层与 14 项单元测试 |
-| 2026-05-22 | 阶段 4：多设置页 Tab、RCon/封禁/Cron UI |
+- [README.md](README.md) — 文档索引  
+- [agent-capabilities.md](agent-capabilities.md) — Agent 能力  
+- [openclaw-integration.md](openclaw-integration.md) — OpenClaw 集成  

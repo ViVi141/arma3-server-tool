@@ -95,4 +95,4 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 | 模组未出现 | 确认「模组」页扫描路径包含 `steamapps\workshop\content\107410`；与 SteamCMD **程序目录** 一致 |
 | 统计无数据 | 勾选「启用统计入库」并确认 MonitoringHost 在运行 |
 
-更多架构说明见 [architecture.md](architecture.md)，完整 backlog 见 [product-roadmap.md](product-roadmap.md)，用户体验优化清单见 [ux-optimization-backlog.md](ux-optimization-backlog.md)。
+更多说明见 [architecture.md](architecture.md)、[README.md](README.md)（文档索引）。通过 QQ 等远程管服见 [openclaw-integration.md](openclaw-integration.md)。

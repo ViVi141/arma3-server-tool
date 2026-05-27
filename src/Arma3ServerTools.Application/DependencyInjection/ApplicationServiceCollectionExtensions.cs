@@ -41,6 +41,7 @@ namespace Arma3ServerTools.Application.DependencyInjection
             services.AddSingleton<IServerProcessService, ServerProcessService>();
             services.AddSingleton<ISchedulerService, SchedulerService>();
             services.AddSingleton<ISteamCmdService, SteamCmdService>();
+            services.AddSingleton<SteamCmdLogService>();
             services.AddSingleton<BikeyService>();
             services.AddSingleton<ModEnablerService>();
             services.AddSingleton<ModScannerService>(provider => new ModScannerService(
@@ -55,6 +56,12 @@ namespace Arma3ServerTools.Application.DependencyInjection
             services.AddSingleton<PlayerDirectoryService>();
             services.AddSingleton<IRconService, RconService>();
             services.AddSingleton<RconQuickProbe>();
+            services.AddSingleton<IAgentServerAdminService, AgentServerAdminService>();
+            services.AddSingleton<ModWorkshopWorkflowService>();
+            services.AddSingleton<ModListHtmlImportService>();
+            services.AddSingleton<MissionFileDeployService>();
+            services.AddSingleton<AgentSteamSettingsService>();
+            services.AddSingleton<AutomationTaskRunTracker>();
             services.AddSingleton<IServerAutomationService, ServerAutomationService>();
 
             services.AddSingleton<ILogger>(provider =>

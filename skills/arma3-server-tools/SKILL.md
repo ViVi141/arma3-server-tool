@@ -12,6 +12,14 @@ metadata:
 
 你已具备 **QQ / 微信 / Telegram 等通道**（由 OpenClaw Gateway 接入）。本 Skill 只负责调用 **本机** 上的 Arma3 Server Tools Agent API，不要在 Skill 里再实现 OneBot/QQ 协议。
 
+**每次操作前先执行**（避免猜错 action 名）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File $script -Command actions
+```
+
+或 `GET /api/v1/actions`（Bearer Token）。**不存在** `get_config`、`rename`、`list_details` 等 task action；改配置用 `GET/PUT /api/v1/servers/{uuid}/config`。
+
 ## 安装包内路径（官方 Setup 已自带）
 
 与 `Arma3ServerTools.exe` 同次安装（默认 `{app}` = `C:\Program Files\Arma3 Server Tools`）：
@@ -89,6 +97,10 @@ powershell -ExecutionPolicy Bypass -File "<repo>\scripts\openclaw\a3st-invoke.ps
 | 下载模组 ID | `{ "action": "download_mods", "modIds": [ ... ], "enableModsOnServer": true }` |
 | 更新专用服务器 | `[{ "action": "update_server" }]` |
 | 只写 cfg | `[{ "action": "write_cfg" }]` |
+| 上传 HTML 模组列表 | `POST .../files/mod-list-html` 或 `-UploadModHtml` |
+| 上传 PBO 任务 | `POST .../files/mission-pbo` 或 `-UploadMissionPbo` |
+| 长耗时操作 | 任务 JSON 加 `"async": true`，再轮询 `/api/v1/tasks/{taskId}` |
+| 看 RPT / 游戏日志 | `-Command rpt` 或 `-Command logs -LogKind battleye`；或 task `read_logs` / `read_rpt` |
 
 多服时在 JSON 中加 `serverName` 或 `serverUuid`。
 

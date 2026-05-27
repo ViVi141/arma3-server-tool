@@ -122,6 +122,12 @@ namespace Arma3ServerTools.Application.Services
 
         OperationResult DownloadWorkshopItems(System.Collections.Generic.IList<ulong> modIds);
 
+        SteamCmdRunResult DownloadWorkshopItemsCaptured(
+            System.Collections.Generic.IList<ulong> modIds,
+            int timeoutMilliseconds);
+
+        SteamCmdRunResult InstallDedicatedServerCaptured(string installDir, int timeoutMilliseconds);
+
         void InvalidateExecutableCache();
     }
 

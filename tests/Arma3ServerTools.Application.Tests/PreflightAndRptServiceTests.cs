@@ -175,6 +175,65 @@ namespace Arma3ServerTools.Application.Tests
         }
 
         [Fact]
+        public void ListLogFiles_IncludesRptAndBattlEye()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3rpt-list");
+            try
+            {
+                string serverDir = Path.Combine(root, "server");
+                Directory.CreateDirectory(serverDir);
+                string rptPath = Path.Combine(serverDir, "arma.rpt");
+                File.WriteAllText(rptPath, "rpt");
+                string beDir = Path.Combine(serverDir, "BattlEye");
+                Directory.CreateDirectory(beDir);
+                string beLog = Path.Combine(beDir, "server.log");
+                File.WriteAllText(beLog, "be");
+
+                var config = new ArmaServerConfig
+                {
+                    ServerDir = serverDir,
+                    ServerUUID = "uuid-list",
+                };
+
+                var service = new RptLogService();
+                var all = service.ListLogFiles(config, GameLogKinds.All);
+                Assert.True(all.Count >= 2);
+                Assert.Contains(all, entry => entry.Kind == GameLogKinds.Rpt);
+                Assert.Contains(all, entry => entry.Kind == GameLogKinds.BattlEye);
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+
+        [Fact]
+        public void ReadGameLog_RejectsPathTraversalFileName()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3rpt-traversal");
+            try
+            {
+                string serverDir = Path.Combine(root, "server");
+                Directory.CreateDirectory(serverDir);
+                File.WriteAllText(Path.Combine(serverDir, "safe.rpt"), "ok");
+
+                var config = new ArmaServerConfig
+                {
+                    ServerDir = serverDir,
+                    ServerUUID = "uuid-trav",
+                };
+
+                var service = new RptLogService();
+                GameLogReadResult result = service.ReadGameLog(config, GameLogKinds.Rpt, 50, "..\\safe.rpt");
+                Assert.False(result.Found);
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+
+        [Fact]
         public void ReadDelta_ReturnsOnlyAppendedText()
         {
             string root = AutomatedTestWorkspace.CreateRoot("a3rpt-delta");

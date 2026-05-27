@@ -4,9 +4,9 @@ namespace Arma3ServerTools.Application.Automation
     {
         public static string GetText()
         {
-            return "命令: status | stop [服名] | start [服名] | restart [服名] | mission <模板> | "
-                + "mods download <id,id> | update server | write | "
-                + "JSON 任务文件见 docs/agent-channels.md";
+            return "命令: status | stop | start | restart | write_cfg | switch_mission | download_mods | "
+                + "read_logs | read_rpt | ensure_steamcmd | create_server | first_server_setup | import_mods_html | "
+                + "REST: GET /api/v1/actions；日志 GET /api/v1/servers/{uuid}/logs 与 /logs/read";
         }
     }
 }

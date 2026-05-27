@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Arma3ServerTools.Application.Automation
 {
-    public sealed class ServerAutomationService : IServerAutomationService
+    public sealed partial class ServerAutomationService : IServerAutomationService
     {
         private readonly object executionLock = new object();
         private readonly IAppPaths paths;
@@ -22,6 +22,15 @@ namespace Arma3ServerTools.Application.Automation
         private readonly ModScannerService modScannerService;
         private readonly BikeyService bikeyService;
         private readonly IRconService rconService;
+        private readonly IAgentServerAdminService agentAdmin;
+        private readonly ModListHtmlImportService modListHtmlImportService;
+        private readonly ModWorkshopWorkflowService modWorkshopWorkflow;
+        private readonly ServerPreflightChecker preflightChecker;
+        private readonly BansService bansService;
+        private readonly ISchedulerService schedulerService;
+        private readonly AutomationTaskRunTracker taskRunTracker;
+        private readonly SteamCmdLogService steamCmdLogService;
+        private readonly RptLogService rptLogService;
         private readonly ILogger logger;
 
         public ServerAutomationService(
@@ -35,6 +44,15 @@ namespace Arma3ServerTools.Application.Automation
             ModScannerService modScannerService,
             BikeyService bikeyService,
             IRconService rconService,
+            IAgentServerAdminService agentAdmin,
+            ModListHtmlImportService modListHtmlImportService,
+            ModWorkshopWorkflowService modWorkshopWorkflow,
+            ServerPreflightChecker preflightChecker,
+            BansService bansService,
+            ISchedulerService schedulerService,
+            AutomationTaskRunTracker taskRunTracker,
+            SteamCmdLogService steamCmdLogService,
+            RptLogService rptLogService,
             ILogger logger)
         {
             this.paths = paths;
@@ -47,6 +65,15 @@ namespace Arma3ServerTools.Application.Automation
             this.modScannerService = modScannerService;
             this.bikeyService = bikeyService;
             this.rconService = rconService;
+            this.agentAdmin = agentAdmin;
+            this.modListHtmlImportService = modListHtmlImportService;
+            this.modWorkshopWorkflow = modWorkshopWorkflow;
+            this.preflightChecker = preflightChecker;
+            this.bansService = bansService;
+            this.schedulerService = schedulerService;
+            this.taskRunTracker = taskRunTracker;
+            this.steamCmdLogService = steamCmdLogService;
+            this.rptLogService = rptLogService;
             this.logger = logger;
         }
 
@@ -160,6 +187,28 @@ namespace Arma3ServerTools.Application.Automation
                     }
                 },
                 cancellationToken);
+        }
+
+        public string EnqueueTask(AutomationTaskDocument task)
+        {
+            if (task == null)
+            {
+                throw new ArgumentNullException(nameof(task));
+            }
+
+            return taskRunTracker.Submit(
+                () =>
+                {
+                    lock (executionLock)
+                    {
+                        return ExecuteTaskCore(task);
+                    }
+                });
+        }
+
+        public AutomationTaskRunState GetTaskRun(string taskId)
+        {
+            return taskRunTracker.Get(taskId);
         }
 
         public OperationResult StopServer(string serverUuid)
@@ -283,6 +332,16 @@ namespace Arma3ServerTools.Application.Automation
             IList<ulong> modIds,
             bool enableOnServer)
         {
+            return DownloadWorkshopMods(serverUuid, modIds, enableOnServer, false, 1800);
+        }
+
+        public OperationResult DownloadWorkshopMods(
+            string serverUuid,
+            IList<ulong> modIds,
+            bool enableOnServer,
+            bool captureSteamCmdOutput,
+            int steamCmdTimeoutSeconds)
+        {
             ArmaServerConfig config = configService.Get(serverUuid);
             if (config == null)
             {
@@ -293,6 +352,29 @@ namespace Arma3ServerTools.Application.Automation
             if (!ensureResult.Success)
             {
                 return ensureResult;
+            }
+
+            if (captureSteamCmdOutput)
+            {
+                int timeoutMs = steamCmdTimeoutSeconds * 1000;
+                if (timeoutMs < 1000)
+                {
+                    timeoutMs = 1800000;
+                }
+
+                SteamCmdRunResult captured = steamCmdService.DownloadWorkshopItemsCaptured(modIds, timeoutMs);
+                if (!captured.Success)
+                {
+                    return OperationResult.Fail(BuildCapturedFailureMessage(captured));
+                }
+
+                string successMessage = "SteamCMD 模组下载完成（已捕获输出）。";
+                if (!enableOnServer)
+                {
+                    return OperationResult.Ok(successMessage);
+                }
+
+                return EnableModsAfterDownload(config, modIds, successMessage);
             }
 
             OperationResult downloadResult = steamCmdService.DownloadWorkshopItems(modIds);
@@ -311,6 +393,14 @@ namespace Arma3ServerTools.Application.Automation
 
         public OperationResult UpdateDedicatedServer(string serverUuid)
         {
+            return UpdateDedicatedServer(serverUuid, false, 1800);
+        }
+
+        public OperationResult UpdateDedicatedServer(
+            string serverUuid,
+            bool captureSteamCmdOutput,
+            int steamCmdTimeoutSeconds)
+        {
             ArmaServerConfig config = configService.Get(serverUuid);
             if (config == null)
             {
@@ -328,21 +418,60 @@ namespace Arma3ServerTools.Application.Automation
                 return ensureResult;
             }
 
-            return steamCmdService.InstallDedicatedServer(config.ServerDir.Trim());
+            string installDir = config.ServerDir.Trim();
+            if (captureSteamCmdOutput)
+            {
+                int timeoutMs = steamCmdTimeoutSeconds * 1000;
+                if (timeoutMs < 1000)
+                {
+                    timeoutMs = 1800000;
+                }
+
+                SteamCmdRunResult captured = steamCmdService.InstallDedicatedServerCaptured(installDir, timeoutMs);
+                if (!captured.Success)
+                {
+                    return OperationResult.Fail(BuildCapturedFailureMessage(captured));
+                }
+
+                return OperationResult.Ok(captured.Message);
+            }
+
+            return steamCmdService.InstallDedicatedServer(installDir);
+        }
+
+        private static string BuildCapturedFailureMessage(SteamCmdRunResult captured)
+        {
+            string message = captured.Message;
+            string tail = captured.TailForDisplay(4000);
+            if (!string.IsNullOrWhiteSpace(tail))
+            {
+                message = message + System.Environment.NewLine + System.Environment.NewLine + tail;
+            }
+
+            if (!string.IsNullOrWhiteSpace(captured.LogFilePath))
+            {
+                message = message + System.Environment.NewLine + "完整日志: " + captured.LogFilePath;
+            }
+
+            return message;
         }
 
         private AutomationRunResult ExecuteTaskCore(AutomationTaskDocument task)
         {
             var result = new AutomationRunResult();
-            ArmaServerConfig config = ResolveServer(task.ServerUuid, task.ServerName);
-            if (config == null)
+            ArmaServerConfig config = null;
+            if (!TaskStartsWithCreateServer(task))
             {
-                result.Success = false;
-                result.Message = "未找到目标服务器。请设置 serverUuid 或 serverName。";
-                return result;
-            }
+                config = ResolveServer(task.ServerUuid, task.ServerName);
+                if (config == null)
+                {
+                    result.Success = false;
+                    result.Message = "未找到目标服务器。请设置 serverUuid 或 serverName。";
+                    return result;
+                }
 
-            result.ServerUuid = config.ServerUUID;
+                result.ServerUuid = config.ServerUUID;
+            }
             if (task.Commands == null || task.Commands.Count == 0)
             {
                 result.Success = false;
@@ -354,13 +483,18 @@ namespace Arma3ServerTools.Application.Automation
             for (int i = 0; i < task.Commands.Count; i++)
             {
                 AutomationCommand command = task.Commands[i];
-                AutomationStepResult step = ExecuteCommand(config, command);
+                AutomationStepResult step = ExecuteCommand(ref config, command);
                 result.Steps.Add(step);
                 if (!step.Success)
                 {
                     allSuccess = false;
                     result.Message = step.Message;
                     break;
+                }
+
+                if (config != null)
+                {
+                    result.ServerUuid = config.ServerUUID;
                 }
             }
 
@@ -379,7 +513,23 @@ namespace Arma3ServerTools.Application.Automation
             return result;
         }
 
-        private AutomationStepResult ExecuteCommand(ArmaServerConfig config, AutomationCommand command)
+        private static bool TaskStartsWithCreateServer(AutomationTaskDocument task)
+        {
+            if (task.Commands == null || task.Commands.Count == 0)
+            {
+                return false;
+            }
+
+            string action = task.Commands[0].Action;
+            if (string.IsNullOrWhiteSpace(action))
+            {
+                return false;
+            }
+
+            return string.Equals(action.Trim(), "create_server", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private AutomationStepResult ExecuteCommand(ref ArmaServerConfig config, AutomationCommand command)
         {
             if (command == null || string.IsNullOrWhiteSpace(command.Action))
             {
@@ -387,6 +537,16 @@ namespace Arma3ServerTools.Application.Automation
             }
 
             string action = command.Action.Trim().ToLowerInvariant();
+            if (config == null
+                && action != "help"
+                && action != "create_server"
+                && action != "ensure_steamcmd"
+                && action != "install_dedicated_server"
+                && action != "first_server_setup")
+            {
+                return FailStep(action, "未选择服务器。");
+            }
+
             if (action == "help")
             {
                 return OkStep(action, AutomationHelpText.GetText());
@@ -443,11 +603,18 @@ namespace Arma3ServerTools.Application.Automation
                 OperationResult modResult = DownloadWorkshopMods(
                     config.ServerUUID,
                     command.ModIds,
-                    command.EnableModsOnServer);
+                    command.EnableModsOnServer,
+                    command.CaptureSteamCmdOutput,
+                    command.SteamCmdTimeoutSeconds);
                 if (modResult.Success && command.ScanModsAfterDownload)
                 {
                     SteamcmdEntity steam = steamCmdConfigProvider.GetSettings();
                     modScannerService.Scan(config, steam);
+                }
+
+                if (command.CaptureSteamCmdOutput)
+                {
+                    return ToStepWithSteamCmdLog(action, modResult);
                 }
 
                 return ToStep(action, modResult);
@@ -455,17 +622,31 @@ namespace Arma3ServerTools.Application.Automation
 
             if (action == "update_server")
             {
-                return ToStep(action, UpdateDedicatedServer(config.ServerUUID));
+                OperationResult updateResult = UpdateDedicatedServer(
+                    config.ServerUUID,
+                    command.CaptureSteamCmdOutput,
+                    command.SteamCmdTimeoutSeconds);
+                if (command.CaptureSteamCmdOutput)
+                {
+                    return ToStepWithSteamCmdLog(action, updateResult);
+                }
+
+                return ToStep(action, updateResult);
             }
 
             if (action == "save")
             {
+                if (config == null)
+                {
+                    return FailStep(action, "未选择服务器。");
+                }
+
                 config.SetTime();
                 configService.Save(config);
                 return OkStep(action, "已保存到工具配置。");
             }
 
-            return FailStep(action, "未知命令: " + action);
+            return ExecuteExtendedCommand(ref config, action, command);
         }
 
         private AutomationStepResult ExecuteRconMission(ArmaServerConfig config, AutomationCommand command)
@@ -626,6 +807,50 @@ namespace Arma3ServerTools.Application.Automation
             }
 
             return FailStep(action, result.Message);
+        }
+
+        private AutomationStepResult ToStepWithSteamCmdLog(string action, OperationResult result)
+        {
+            AutomationStepResult step = ToStep(action, result);
+            step.SteamCmdLog = steamCmdLogService.ReadAggregatedLog(300);
+            step.SteamCmdLogFile = steamCmdLogService.GetLatestSessionLogFilePath();
+            return step;
+        }
+
+        private static AutomationStepResult ToGameLogStep(string action, GameLogReadResult logResult)
+        {
+            if (logResult == null || !logResult.Found)
+            {
+                string hint = "未找到游戏日志。请确认服务器已运行过且 ServerDir 配置正确。";
+                if (logResult != null && !string.IsNullOrWhiteSpace(logResult.Content))
+                {
+                    hint = logResult.Content;
+                }
+
+                return FailStep(action, hint);
+            }
+
+            string fileName = logResult.Path;
+            int lastSeparator = fileName.LastIndexOf('\\');
+            if (lastSeparator < 0)
+            {
+                lastSeparator = fileName.LastIndexOf('/');
+            }
+
+            if (lastSeparator >= 0 && lastSeparator < fileName.Length - 1)
+            {
+                fileName = fileName.Substring(lastSeparator + 1);
+            }
+
+            return new AutomationStepResult
+            {
+                Action = action,
+                Success = true,
+                Message = "已读取 " + logResult.Kind + " 日志: " + fileName
+                    + "（尾部 " + logResult.TailLines + " 行）",
+                GameLogPath = logResult.Path,
+                GameLogContent = logResult.Content,
+            };
         }
     }
 }

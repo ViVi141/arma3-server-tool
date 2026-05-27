@@ -21,6 +21,8 @@ Documentation (in docs/ folder)
 --------------------------------
 - first-server-guide.txt — step-by-step setup (Chinese, open with Notepad)
 - first-server-guide.md — same content (Markdown)
+- README.md — documentation index
+- openclaw-integration.md / deployment-ab-openclaw.md — Agent + OpenClaw
 
 Monitoring (optional)
 ---------------------

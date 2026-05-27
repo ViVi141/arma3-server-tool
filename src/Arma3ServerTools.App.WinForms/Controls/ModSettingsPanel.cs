@@ -633,7 +633,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 appServices.BikeyService,
                 ScanMods,
                 appServices.SteamCmdService,
-                appServices.Paths);
+                appServices.Paths,
+                appServices.ModWorkshopWorkflow);
         }
 
         private async void OnDownloadSelected(object sender, EventArgs e)

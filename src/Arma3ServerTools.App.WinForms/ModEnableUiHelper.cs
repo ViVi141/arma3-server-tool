@@ -19,7 +19,8 @@ namespace Arma3ServerTools.App.WinForms
             BikeyService bikeyService,
             Action refreshGrid,
             ISteamCmdService steamCmdService = null,
-            IAppPaths appPaths = null)
+            IAppPaths appPaths = null,
+            ModWorkshopWorkflowService modWorkshopWorkflow = null)
         {
             if (config == null)
             {
@@ -42,13 +43,12 @@ namespace Arma3ServerTools.App.WinForms
                 return false;
             }
 
-            var enabler = new ModEnablerService();
             IList<LauncherHtmlModEntry> selectedEntries;
             ModApplyTarget target;
             using (var dialog = new HtmlModEnableForm(
                 htmlEntries,
                 settings.d,
-                enabler,
+                new ModEnablerService(),
                 steamCmdService,
                 appPaths,
                 settings))
@@ -69,22 +69,24 @@ namespace Arma3ServerTools.App.WinForms
                 return false;
             }
 
-            ModEnableApplyResult applyResult = enabler.ApplyHtmlMods(config, settings.d, selectedEntries, target);
-            if (applyResult.AppliedCount == 0)
+            OperationResult applyResult;
+            if (modWorkshopWorkflow != null && target == ModApplyTarget.Server)
             {
-                AntdUiHelper.ShowWarning(
-                    owner,
-                    "没有模组被启用。请确认模组已下载到 Workshop 目录。",
-                    "启用失败");
-                return false;
+                applyResult = modWorkshopWorkflow.EnableHtmlModsOnServer(config, selectedEntries);
+            }
+            else
+            {
+                var enabler = new ModEnablerService();
+                ModEnableApplyResult legacy = enabler.ApplyHtmlMods(config, settings.d, selectedEntries, target);
+                applyResult = legacy.AppliedCount == 0
+                    ? OperationResult.Fail("没有模组被启用。")
+                    : OperationResult.Ok("已启用 " + legacy.AppliedCount + " 个模组。");
             }
 
-            foreach (ModsEntity entity in config.StartupParameters.modsEntities)
+            if (!applyResult.Success)
             {
-                if (entity.LocalMod || entity.ServerMod || entity.HeadlessClientMod)
-                {
-                    bikeyService.CopyBikeysForMod(config, entity);
-                }
+                AntdUiHelper.ShowWarning(owner, applyResult.Message, "启用失败");
+                return false;
             }
 
             if (refreshGrid != null)
@@ -92,20 +94,7 @@ namespace Arma3ServerTools.App.WinForms
                 refreshGrid();
             }
 
-            var message = new StringBuilder();
-            message.AppendLine("已启用 " + applyResult.AppliedCount + " 个模组。");
-            message.AppendLine("应用范围: " + DescribeTarget(target));
-            if (applyResult.MissingOnDisk.Count > 0)
-            {
-                message.AppendLine();
-                message.AppendLine("以下模组未找到本地目录，已跳过:");
-                foreach (LauncherHtmlModEntry missing in applyResult.MissingOnDisk)
-                {
-                    message.AppendLine("- " + missing.DisplayName + " (" + missing.ModId + ")");
-                }
-            }
-
-            AntdUiHelper.ShowInfo(owner, message.ToString(), "启用完成");
+            AntdUiHelper.ShowInfo(owner, applyResult.Message + Environment.NewLine + "应用范围: " + DescribeTarget(target), "启用完成");
             return true;
         }
 

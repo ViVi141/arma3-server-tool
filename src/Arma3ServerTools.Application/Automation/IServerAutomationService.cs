@@ -18,6 +18,10 @@ namespace Arma3ServerTools.Application.Automation
             AutomationTaskDocument task,
             CancellationToken cancellationToken);
 
+        string EnqueueTask(AutomationTaskDocument task);
+
+        AutomationTaskRunState GetTaskRun(string taskId);
+
         Task<AutomationRunResult> ExecuteTaskFileAsync(
             string filePath,
             CancellationToken cancellationToken);
@@ -34,6 +38,18 @@ namespace Arma3ServerTools.Application.Automation
 
         OperationResult DownloadWorkshopMods(string serverUuid, IList<ulong> modIds, bool enableOnServer);
 
+        OperationResult DownloadWorkshopMods(
+            string serverUuid,
+            IList<ulong> modIds,
+            bool enableOnServer,
+            bool captureSteamCmdOutput,
+            int steamCmdTimeoutSeconds);
+
         OperationResult UpdateDedicatedServer(string serverUuid);
+
+        OperationResult UpdateDedicatedServer(
+            string serverUuid,
+            bool captureSteamCmdOutput,
+            int steamCmdTimeoutSeconds);
     }
 }

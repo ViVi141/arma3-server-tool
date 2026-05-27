@@ -1,7 +1,7 @@
 # 英文路径冒烟清单（7-05 / UX v1.1）
 
 > 手动验收参考：在 **不含中文** 的安装路径下完成下列步骤。  
-> 关联：[first-server-guide.md](first-server-guide.md) · [ux-optimization-backlog.md](ux-optimization-backlog.md)
+> 关联：[first-server-guide.md](first-server-guide.md) · [CHANGELOG.md](CHANGELOG.md)
 
 ## 环境准备
 

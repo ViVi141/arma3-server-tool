@@ -10,6 +10,15 @@ namespace Arma3ServerTools.Agent.Host.Configuration
         public AgentHttpSettings Http { get; set; } = new AgentHttpSettings();
 
         public AgentInboxSettings Inbox { get; set; } = new AgentInboxSettings();
+
+        public AgentFileUploadSettings FileUpload { get; set; } = new AgentFileUploadSettings();
+    }
+
+    public sealed class AgentFileUploadSettings
+    {
+        public long MaxPboBytes { get; set; } = 524288000;
+
+        public long MaxHtmlBytes { get; set; } = 5242880;
     }
 
     public sealed class AgentHttpSettings

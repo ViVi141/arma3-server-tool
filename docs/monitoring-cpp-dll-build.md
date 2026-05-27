@@ -1,6 +1,6 @@
 # DestinyServerMonitoring 原生 DLL 构建说明
 
-> 关联任务：P3-05 · [product-roadmap.md](product-roadmap.md)
+> 关联：[architecture.md](architecture.md) · [README.md](README.md)
 
 Arma 3 专用服务器通过 **C++ 扩展 DLL** 将 FPS、在线人数、击杀等数据写入工具目录，由 `Arma3ServerTools.MonitoringHost` 入库 SQLite。  
 本仓库中的 C# 监控宿主与 WinForms 统计页**不依赖**该 DLL 即可编译运行；但若要在游戏内采集数据，仍需构建并部署原生 DLL。

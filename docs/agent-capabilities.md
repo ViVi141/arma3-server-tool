@@ -1,8 +1,7 @@
 # Agent 自动化能力详解
 
-> 分支：`agent`  
 > 执行核心：`Arma3ServerTools.Application.Automation.ServerAutomationService`  
-> 网络入口：`Arma3ServerTools.Agent.Host`（HTTP + 可选 Inbox 文件）  
+> 网络入口：`Arma3ServerTools.Agent.Host`（Kestrel HTTP + 可选 Inbox 文件）  
 > IM（QQ 等）：由 **OpenClaw 部署在 B 机** 接入，见 [deployment-ab-openclaw.md](deployment-ab-openclaw.md)
 
 本文说明 **当前版本实际具备的能力**、**每个动作在磁盘与进程上的效果**、**前置条件与限制**。
@@ -126,10 +125,21 @@
 
 **返回信息**会提示已启用数量及仍缺失的 ID（未下载完时目录不存在）。
 
+**读取 SteamCMD 文本（v1.5+）**
+
+| 方式 | 说明 |
+|------|------|
+| `captureSteamCmdOutput: true` | 任务 JSON 中在 `download_mods` / `update_server` 命令上设置；同步运行 SteamCMD、重定向 stdout/stderr，写入 `{LogDirectory}/steamcmd/steamcmd_*.log`；步骤结果含 `steamCmdLog`、`steamCmdLogFile`。 |
+| `GET /api/v1/steamcmd/log?tail=300` | 聚合最近一次会话日志 + SteamCMD 安装目录下 `logs/content_log.txt` 等；`source=session` 或 `install` 可只看其一。 |
+| 弹窗模式 + 轮询 | 默认仍弹出 SteamCMD 窗口（便于 Steam Guard）；执行期间可轮询上述 GET 读取安装目录 `logs/`。 |
+
+无头捕获模式下若账号需 Steam Guard，可能无法完成登录；此时请用弹窗模式或事先在 SteamCMD 中完成一次登录。
+
 ### 4.9 `update_server`（更新专用服务器文件）
 
 - 使用 SteamCMD 对**当前配置中的 `ServerDir`** 执行 `app_update 233780`（与 GUI「安装/更新专用服务器」同源逻辑）。  
-- 需已在工具内配置 **Steam 账号** 与可用 **steamcmd.exe**。
+- 需已在工具内配置 **Steam 账号** 与可用 **steamcmd.exe**。  
+- 可与 `captureSteamCmdOutput: true` 配合，行为同 `download_mods` 的捕获模式。
 
 ### 4.10 `save`（仅保存工具 JSON）
 
@@ -139,6 +149,32 @@
 ### 4.11 `help`（帮助文本）
 
 - 返回内置简短说明字符串，供脚本或 OpenClaw 展示。
+
+### 4.12 `read_logs` / `read_rpt`（游戏日志与 RPT）
+
+读取 Arma 3 专用服在磁盘上的日志（与 GUI「查看 RPT」同源 `RptLogService`）。
+
+| 字段 / 参数 | 说明 |
+|-------------|------|
+| `logKind` | `rpt`（默认）、`battleye` / `be`、`all` / `latest`（按修改时间取最新一份） |
+| `logTailLines` | 尾部行数，默认 200 |
+| `logFileName` | 可选，仅**文件名**（须为 `ListLogFiles` 中出现的项，禁止 `..`） |
+
+**搜索目录（概要）**
+
+- RPT：`ServerDir`、`a3st_serverconfig/{uuid}/Users/{uuid}/` 等配置档案路径下的 `*.rpt`
+- BattlEye：`ServerDir/BattlEye/`、配置档案下 `BattlEye/` 中的 `*.log` / `*.txt`（排除 `bans.txt`、BEServer*.cfg）
+
+**REST（无需走 task）**
+
+| 端点 | 说明 |
+|------|------|
+| `GET /api/v1/servers/{uuid}/logs?kind=all` | 列出可用日志文件 |
+| `GET /api/v1/servers/{uuid}/logs/read?kind=rpt&tail=300` | 读取尾部内容 |
+| `GET /api/v1/servers/{uuid}/logs/read?file=xxx.rpt&tail=100` | 按文件名读取 |
+| `GET /api/v1/servers/{uuid}/rpt?tail=200` | 兼容旧路径，等同 `kind=rpt` |
+
+任务步骤成功时返回 `gameLogPath`、`gameLogContent`（完整尾部文本，注意勿把敏感行转发到公网 IM）。
 
 ---
 
@@ -167,17 +203,27 @@
 
 ---
 
-## 七、当前未覆盖但可扩展的能力
+## 七、Agent API 概览与待扩展
 
-以下能力在 **WinForms / Application** 里已有，但 **尚未** 暴露为独立 `action`（需要可再加 JSON 命令或专用 API）：
+**已暴露**（见 `GET /api/v1/actions`）：
+
+- 配置：`GET/PUT /api/v1/servers/{uuid}/config`、服务器 CRUD
+- 文件：`POST .../files/mod-list-html`、`POST .../files/mission-pbo`
+- 开服：`ensure_steamcmd`、`install_dedicated_server`、`create_server`、`first_server_setup`、`preflight`
+- RCon：`rcon_players`、`rcon_kick`、`rcon_ban`、`rcon_broadcast`、`rcon_lock`、`rcon_unlock`
+- 模组：`scan_mods`、`enable_mods`、`import_mods_html`
+- 定时/封禁：`sync_cron_jobs`、`local_ban_add`、`local_ban_remove`
+- 监控只读：`GET .../monitoring/summary`
+- 游戏日志：`GET .../logs`（列表）、`GET .../logs/read`、`GET .../rpt`（等同读最新 RPT）；task：`read_logs`、`read_rpt`
+- 异步：`POST /api/v1/task` + `"async": true`，`GET /api/v1/tasks/{taskId}`
+
+**仍建议后续迭代**：
 
 | 方向 | 说明 |
 |------|------|
-| 改端口、难度、模组勾选等**细粒度 JSON 字段** | 需扩展任务 schema 或直接 PATCH 配置 API |
-| **Quartz 定时任务** 增删改 | 有 `ISchedulerService`，未接 Agent |
-| **RCon 踢人、封禁、广播** | 有 `IRconService`，未接 Agent |
-| **SteamCMD 仅下载 steamcmd 本体** | UI 有封装，Agent 未单独暴露 |
-| **监控数据查询 / 导出** | 有 `MonitoringQueryService` 等，未接 Agent |
+| JSON Merge **PATCH** 配置 | 当前为 PUT 整份；AI 可 GET→改→PUT |
+| 监控 CSV/HTML **导出** REST | Application 有导出服务，未单独挂端点 |
+| RCon 运行时改密 | GUI 有，Agent 未暴露 |
 
 ---
 
@@ -185,7 +231,8 @@
 
 | 文档 | 内容 |
 |------|------|
-| [agent-channels.md](agent-channels.md) | HTTP 路径、鉴权、JSON 示例、Inbox |
+| [agent-channels.md](agent-channels.md) | HTTP 路径、鉴权、配置 GET/PUT、Inbox |
+| [README.md](README.md) | 文档索引 |
 | [openclaw-integration.md](openclaw-integration.md) | OpenClaw + Skill 总览 |
 | [deployment-ab-openclaw.md](deployment-ab-openclaw.md) | A 开服 + B OpenClaw + QQ 接 B |
 | [skills/arma3-server-tools/SKILL.md](../skills/arma3-server-tools/SKILL.md) | 给模型的操作说明 |
