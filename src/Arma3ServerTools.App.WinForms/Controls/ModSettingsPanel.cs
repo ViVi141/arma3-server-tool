@@ -76,6 +76,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             AntdUI.Button htmlDownloadButton = SettingsLayoutHelper.CreateButton("从 HTML 下载...");
             AntdUI.Button htmlEnableButton = SettingsLayoutHelper.CreateButton("从 HTML 启用...");
             AntdUI.Button bikeyButton = SettingsLayoutHelper.CreateButton("管理 Bikey");
+            AntdUI.Button copyAllBikeysButton = SettingsLayoutHelper.CreateButton("复制全部 Bikey");
             refreshButton.Click += delegate { ScanMods(); };
             scanPathButton.Click += OnEditScanPaths;
             addLocalButton.Click += OnAddLocalMod;
@@ -84,6 +85,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             htmlDownloadButton.Click += OnImportFromHtmlDownload;
             htmlEnableButton.Click += OnImportFromHtmlEnable;
             bikeyButton.Click += OnManageBikeys;
+            copyAllBikeysButton.Click += OnCopyAllBikeys;
             toolbar.Controls.Add(refreshButton);
             toolbar.Controls.Add(scanPathButton);
             toolbar.Controls.Add(addLocalButton);
@@ -92,6 +94,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             toolbar.Controls.Add(htmlDownloadButton);
             toolbar.Controls.Add(htmlEnableButton);
             toolbar.Controls.Add(bikeyButton);
+            toolbar.Controls.Add(copyAllBikeysButton);
 
             sortSelect = SettingsLayoutHelper.CreateSelect(
                 140,
@@ -197,7 +200,14 @@ namespace Arma3ServerTools.App.WinForms.Controls
             autoCopyBikeyCheckBox = SettingsLayoutHelper.AddRow(
                 optionsLayout,
                 "自动复制密钥",
-                SettingsLayoutHelper.CreateCheckbox("将 bikey 复制到服务器 Keys 目录", true));
+                SettingsLayoutHelper.CreateCheckbox("扫描模组时自动复制 bikey 到服务器 Keys 目录", true));
+            AntLabel bikeyHint = AntdUiHelper.CreateHintLabel(
+                "提示：Keys 目录中多余的 bikey 不影响服务器运行，游戏按实际加载的模组按需使用密钥。",
+                560);
+            optionsLayout.RowCount++;
+            optionsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            optionsLayout.Controls.Add(bikeyHint, 0, optionsLayout.RowCount - 1);
+            optionsLayout.SetColumnSpan(bikeyHint, 2);
             dlcContactCheckBox = SettingsLayoutHelper.AddRow(
                 optionsLayout,
                 "Contact 资料片",
@@ -364,6 +374,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 if (row.ServerMod)
                 {
                     row.ServerMod = false;
+                    SyncBikeysForRow(row);
                     changed = true;
                 }
             }
@@ -373,6 +384,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 if (row.HeadlessClientMod)
                 {
                     row.HeadlessClientMod = false;
+                    SyncBikeysForRow(row);
                     changed = true;
                 }
             }
@@ -448,6 +460,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
                 allRows = scanResult.Rows;
                 RefreshTableView();
+                if (autoCopyBikeyCheckBox.Checked && allRows.Count > 0)
+                {
+                    CopyBikeysForAllRows(manualCopy: false);
+                }
+
                 if (scanResult.InaccessiblePaths.Count > 0)
                 {
                     var message = new System.Text.StringBuilder();
@@ -742,6 +759,113 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 dialog.ShowDialog(FindForm());
             }
+        }
+
+        private void OnCopyAllBikeys(object sender, EventArgs e)
+        {
+            if (boundConfig == null || string.IsNullOrEmpty(boundConfig.ServerDir))
+            {
+                AntdUiHelper.ShowWarning(FindForm(), "请先选择服务器并配置服务器目录。", "提示");
+                return;
+            }
+
+            if (allRows.Count == 0)
+            {
+                AntdUiHelper.ShowInfo(FindForm(), "当前没有已扫描的模组，请先点击「扫描刷新」。", "提示");
+                return;
+            }
+
+            var mods = new List<ModsEntity>(allRows.Count);
+            foreach (ScannedModRow row in allRows)
+            {
+                mods.Add(ToModsEntity(row));
+            }
+
+            BikeyBulkCopyResult result = appServices.BikeyService.CopyBikeysForAllMods(
+                boundConfig,
+                mods,
+                manualCopy: true);
+            RefreshBikeyStatuses();
+
+            var message = new StringBuilder();
+            message.Append("已复制 ");
+            message.Append(result.ModsWithKeys);
+            message.Append(" 个模组的 ");
+            message.Append(result.KeyFileCount);
+            message.Append(" 个 bikey 文件到服务器 Keys 目录。");
+            if (result.SkippedModCount > 0)
+            {
+                message.Append(Environment.NewLine);
+                message.Append("跳过 ");
+                message.Append(result.SkippedModCount);
+                message.Append(" 个无密钥或未签名的模组。");
+            }
+
+            if (result.FailedModCount > 0)
+            {
+                message.Append(Environment.NewLine);
+                message.Append("失败 ");
+                message.Append(result.FailedModCount);
+                message.Append(" 个模组：");
+                for (int i = 0; i < result.Errors.Count; i++)
+                {
+                    message.Append(Environment.NewLine);
+                    message.Append(result.Errors[i]);
+                }
+
+                AntdUiHelper.ShowWarning(FindForm(), message.ToString(), "复制完成");
+                return;
+            }
+
+            if (result.ModsWithKeys == 0)
+            {
+                AntdUiHelper.ShowInfo(
+                    FindForm(),
+                    "未找到可复制的 bikey 文件。请确认模组目录内包含 .bikey 文件。",
+                    "复制完成");
+                return;
+            }
+
+            AntdUiHelper.ShowInfo(FindForm(), message.ToString(), "复制完成");
+        }
+
+        private void CopyBikeysForAllRows(bool manualCopy)
+        {
+            if (boundConfig == null || allRows.Count == 0)
+            {
+                return;
+            }
+
+            var mods = new List<ModsEntity>(allRows.Count);
+            foreach (ScannedModRow row in allRows)
+            {
+                mods.Add(ToModsEntity(row));
+            }
+
+            appServices.BikeyService.CopyBikeysForAllMods(boundConfig, mods, manualCopy);
+            RefreshBikeyStatuses();
+        }
+
+        private void RefreshBikeyStatuses()
+        {
+            if (boundConfig == null)
+            {
+                return;
+            }
+
+            string serverDir = boundConfig.ServerDir;
+            for (int i = 0; i < allRows.Count; i++)
+            {
+                ScannedModRow row = allRows[i];
+                ModBikeyInspectionResult inspection = appServices.BikeyService.InspectMod(
+                    row.ModPath,
+                    row.ModDirName,
+                    serverDir);
+                row.HasBikeyFile = inspection.HasBikeyInMod;
+                row.BikeyStatus = inspection.StatusText;
+            }
+
+            RefreshTableViewIfNeeded();
         }
     }
 }

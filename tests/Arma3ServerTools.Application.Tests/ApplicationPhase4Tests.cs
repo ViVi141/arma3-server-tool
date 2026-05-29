@@ -218,7 +218,7 @@ namespace Arma3ServerTools.Application.Tests
     public class BikeyServiceTests
     {
         [Fact]
-        public void CopyBikeysForMod_CopiesToServerKeysDirectory()
+        public void CopyBikeysForMod_CopiesToServerKeysDirectory_WhenClientModEnabled()
         {
             string root = AutomatedTestWorkspace.CreateRoot("a3bikey");
             try
@@ -244,6 +244,145 @@ namespace Arma3ServerTools.Application.Tests
                 List<string> keys = service.ListServerBikeys(serverDir);
                 Assert.NotEmpty(keys);
                 Assert.Contains(keys, path => path.EndsWith("TestMod-author.bikey", StringComparison.OrdinalIgnoreCase));
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+
+        [Fact]
+        public void CopyBikeysForMod_CopiesToServerKeysDirectory_WhenOnlyServerModEnabled()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3bikey-server-only");
+            try
+            {
+                string serverDir = Path.Combine(root, "server");
+                string modPath = Path.Combine(root, "mods", "@ServerOnly");
+                Directory.CreateDirectory(Path.Combine(modPath, "keys"));
+                Directory.CreateDirectory(Path.Combine(modPath, "addons"));
+                File.WriteAllText(Path.Combine(modPath, "keys", "author.bikey"), "bikey");
+                File.WriteAllText(Path.Combine(modPath, "addons", "test.pbo.bisign"), "sign");
+
+                var config = new ArmaServerConfig
+                {
+                    ServerDir = serverDir,
+                    AutoCopyBikey = true,
+                };
+                var mod = new ModsEntity(modPath, "@ServerOnly", "Server Only", 0, false, true, false, false);
+                var service = new BikeyService();
+
+                OperationResult result = service.CopyBikeysForMod(config, mod);
+
+                Assert.True(result.Success, result.Message);
+                List<string> keys = service.ListServerBikeys(serverDir);
+                Assert.NotEmpty(keys);
+                Assert.Contains(keys, path => path.EndsWith("ServerOnly-author.bikey", StringComparison.OrdinalIgnoreCase));
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+
+        [Fact]
+        public void CopyBikeysForMod_KeepsCopiedBikey_WhenModFullyDisabled()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3bikey-disable");
+            try
+            {
+                string serverDir = Path.Combine(root, "server");
+                string modPath = Path.Combine(root, "mods", "@Disabled");
+                Directory.CreateDirectory(Path.Combine(modPath, "keys"));
+                File.WriteAllText(Path.Combine(modPath, "keys", "author.bikey"), "bikey");
+
+                var config = new ArmaServerConfig
+                {
+                    ServerDir = serverDir,
+                    AutoCopyBikey = true,
+                };
+                var enabledMod = new ModsEntity(modPath, "@Disabled", "Disabled", 0, false, true, false, false);
+                var disabledMod = new ModsEntity(modPath, "@Disabled", "Disabled", 0, false, false, false, false);
+                var service = new BikeyService();
+
+                service.CopyBikeysForMod(config, enabledMod);
+                Assert.NotEmpty(service.ListServerBikeys(serverDir));
+
+                OperationResult result = service.CopyBikeysForMod(config, disabledMod);
+
+                Assert.True(result.Success, result.Message);
+                Assert.NotEmpty(service.ListServerBikeys(serverDir));
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+
+        [Fact]
+        public void CopyBikeysForMod_CopiesEvenWhenAutoCopyDisabled_ForManualCopy()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3bikey-manual");
+            try
+            {
+                string serverDir = Path.Combine(root, "server");
+                string modPath = Path.Combine(root, "mods", "@Manual");
+                Directory.CreateDirectory(Path.Combine(modPath, "keys"));
+                File.WriteAllText(Path.Combine(modPath, "keys", "author.bikey"), "bikey");
+
+                var config = new ArmaServerConfig
+                {
+                    ServerDir = serverDir,
+                    AutoCopyBikey = false,
+                };
+                var mod = new ModsEntity(modPath, "@Manual", "Manual", 0, false, false, false, false);
+                var service = new BikeyService();
+
+                OperationResult result = service.CopyBikeysForMod(config, mod, manualCopy: true);
+
+                Assert.True(result.Success, result.Message);
+                Assert.NotEmpty(service.ListServerBikeys(serverDir));
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
+        }
+
+        [Fact]
+        public void CopyBikeysForAllMods_CopiesFromEveryModWithKeys()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3bikey-bulk");
+            try
+            {
+                string serverDir = Path.Combine(root, "server");
+                string modAPath = Path.Combine(root, "mods", "@ModA");
+                string modBPath = Path.Combine(root, "mods", "@ModB");
+                Directory.CreateDirectory(Path.Combine(modAPath, "keys"));
+                Directory.CreateDirectory(Path.Combine(modBPath, "keys"));
+                File.WriteAllText(Path.Combine(modAPath, "keys", "a.bikey"), "a");
+                File.WriteAllText(Path.Combine(modBPath, "keys", "b.bikey"), "b");
+
+                var config = new ArmaServerConfig
+                {
+                    ServerDir = serverDir,
+                    AutoCopyBikey = false,
+                };
+                var mods = new List<ModsEntity>
+                {
+                    new ModsEntity(modAPath, "@ModA", "Mod A", 0, false, false, false, false),
+                    new ModsEntity(modBPath, "@ModB", "Mod B", 0, false, false, false, false),
+                    new ModsEntity(Path.Combine(root, "mods", "@Empty"), "@Empty", "Empty", 0, false, false, false, false),
+                };
+                Directory.CreateDirectory(Path.Combine(root, "mods", "@Empty"));
+
+                var service = new BikeyService();
+                BikeyBulkCopyResult result = service.CopyBikeysForAllMods(config, mods);
+
+                Assert.Equal(2, result.ModsWithKeys);
+                Assert.Equal(2, result.KeyFileCount);
+                Assert.Equal(1, result.SkippedModCount);
+                Assert.Equal(2, service.ListServerBikeys(serverDir).Count);
             }
             finally
             {

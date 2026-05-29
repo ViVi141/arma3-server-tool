@@ -1,6 +1,6 @@
 # 文档索引
 
-> 当前产品版本：**v1.4.1** · 维护仓库：[ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
+> 当前产品版本：**v1.4.2** · 维护仓库：[ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
 
 本目录仅保留**仍与当前代码一致**的说明。历史发布清单、改造计划、代码审查报告等已移至 [archive/](archive/)。
 

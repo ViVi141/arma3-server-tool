@@ -17,11 +17,29 @@ namespace Arma3ServerTools.Application.Services
         public string StatusText { get; set; } = "未签名";
     }
 
+    public sealed class BikeyBulkCopyResult
+    {
+        public int ModsWithKeys { get; set; }
+
+        public int KeyFileCount { get; set; }
+
+        public int SkippedModCount { get; set; }
+
+        public int FailedModCount { get; set; }
+
+        public List<string> Errors { get; } = new List<string>();
+    }
+
     public sealed class BikeyService
     {
         public OperationResult CopyBikeysForMod(ArmaServerConfig config, ModsEntity mod)
         {
-            if (config == null || mod == null || !config.AutoCopyBikey)
+            return CopyBikeysForMod(config, mod, manualCopy: false);
+        }
+
+        public OperationResult CopyBikeysForMod(ArmaServerConfig config, ModsEntity mod, bool manualCopy)
+        {
+            if (config == null || mod == null || (!config.AutoCopyBikey && !manualCopy))
             {
                 return OperationResult.Ok();
             }
@@ -39,14 +57,7 @@ namespace Arma3ServerTools.Application.Services
                 string targetPath = GetCopiedBikeyPath(keysDirectory, mod.ModDirName, bikey);
                 try
                 {
-                    if (mod.LocalMod)
-                    {
-                        File.Copy(bikey.FullName, targetPath, true);
-                    }
-                    else if (File.Exists(targetPath))
-                    {
-                        File.Delete(targetPath);
-                    }
+                    File.Copy(bikey.FullName, targetPath, true);
                 }
                 catch
                 {
@@ -55,6 +66,52 @@ namespace Arma3ServerTools.Application.Services
             }
 
             return OperationResult.Ok();
+        }
+
+        public BikeyBulkCopyResult CopyBikeysForAllMods(ArmaServerConfig config, IList<ModsEntity> mods)
+        {
+            return CopyBikeysForAllMods(config, mods, manualCopy: true);
+        }
+
+        public BikeyBulkCopyResult CopyBikeysForAllMods(
+            ArmaServerConfig config,
+            IList<ModsEntity> mods,
+            bool manualCopy)
+        {
+            var result = new BikeyBulkCopyResult();
+            if (config == null || mods == null || mods.Count == 0)
+            {
+                return result;
+            }
+
+            for (int i = 0; i < mods.Count; i++)
+            {
+                ModsEntity mod = mods[i];
+                if (mod == null || string.IsNullOrEmpty(mod.ModPath))
+                {
+                    continue;
+                }
+
+                List<FileInfo> bikeys = FindModBikeys(mod.ModPath);
+                if (bikeys.Count == 0)
+                {
+                    result.SkippedModCount++;
+                    continue;
+                }
+
+                OperationResult copyResult = CopyBikeysForMod(config, mod, manualCopy);
+                if (!copyResult.Success)
+                {
+                    result.FailedModCount++;
+                    result.Errors.Add(mod.ModDirName + ": " + copyResult.Message);
+                    continue;
+                }
+
+                result.ModsWithKeys++;
+                result.KeyFileCount += bikeys.Count;
+            }
+
+            return result;
         }
 
         public ModBikeyInspectionResult InspectMod(string modPath, string modDirName, string serverDir)

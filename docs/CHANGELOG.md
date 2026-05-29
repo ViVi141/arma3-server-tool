@@ -2,7 +2,13 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [1.4.1] — 当前
+## [1.4.2] — 当前
+
+- 修复仅启用服务器模组时 bikey 不会自动复制的问题。
+- 新增「复制全部 Bikey」按钮，可手动对当前扫描列表批量复制。
+- bikey 改为只复制不删除；扫描模组时若开启自动复制则同步全部模组；多余密钥不影响服务器运行。
+
+## [1.4.1]
 
 - 修复模组 bikey 签名状态检测与自动复制逻辑不一致（递归查找、复制后文件名判断）。
 - Agent：Kestrel HTTP API、能力发现 `GET /api/v1/actions`、配置 CRUD、文件上传、异步任务、SteamCMD/游戏日志读取等（见 [agent-capabilities.md](agent-capabilities.md)）。
@@ -41,6 +47,6 @@
 打 tag 示例：
 
 ```powershell
-git tag -a v1.4.1 -m "Arma3 Server Tools v1.4.1"
-git push origin v1.4.1
+git tag -a v1.4.2 -m "Arma3 Server Tools v1.4.2"
+git push origin v1.4.2
 ```

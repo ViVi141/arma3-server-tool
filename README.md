@@ -2,7 +2,7 @@
 
 面向 Windows 的 **Arma 3 专用服务器** 图形化管理工具（**Arma3 Server Tools**）。使用 C# / .NET 10 开发，集成 BattlEye RCon、多服配置、SteamCMD、监控统计与定时任务等开服常用能力。
 
-**当前版本：v1.4.1** · **当前维护仓库：** [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
+**当前版本：v1.4.2** · **当前维护仓库：** [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
 
 ---
 
@@ -139,7 +139,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 未指定 `-Version` 时，版本号自动读取 `Directory.Build.props`。也可显式指定：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -Version 1.4.1
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -Version 1.4.2
 ```
 
 首次构建若本机未安装 Inno Setup 6，可加 `-InstallInnoSetup` 自动下载到 `tools/innosetup-6/`：
