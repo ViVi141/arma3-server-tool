@@ -37,91 +37,93 @@ namespace Arma3ServerTools.Application.Services
             var stderrBuilder = new StringBuilder();
             using (var stdoutDone = new ManualResetEvent(false))
             using (var stderrDone = new ManualResetEvent(false))
-            try
             {
-                var startInfo = new ProcessStartInfo
+                try
                 {
-                    FileName = executablePath,
-                    Arguments = arguments,
-                    WorkingDirectory = workingDirectory,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    StandardOutputEncoding = Encoding.UTF8,
-                    StandardErrorEncoding = Encoding.UTF8,
-                };
-
-                using (var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true })
-                {
-                    process.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e)
+                    var startInfo = new ProcessStartInfo
                     {
-                        if (e.Data == null)
-                        {
-                            stdoutDone.Set();
-                            return;
-                        }
-
-                        stdoutBuilder.AppendLine(e.Data);
-                        SteamCmdConsoleMirror.WriteLine(e.Data);
-                    };
-                    process.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs e)
-                    {
-                        if (e.Data == null)
-                        {
-                            stderrDone.Set();
-                            return;
-                        }
-
-                        stderrBuilder.AppendLine(e.Data);
-                        SteamCmdConsoleMirror.WriteLine(e.Data);
+                        FileName = executablePath,
+                        Arguments = arguments,
+                        WorkingDirectory = workingDirectory,
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        StandardOutputEncoding = Encoding.UTF8,
+                        StandardErrorEncoding = Encoding.UTF8,
                     };
 
-                    if (!process.Start())
+                    using (var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true })
                     {
-                        result.Success = false;
-                        result.Message = "无法启动 SteamCMD 进程。";
-                        return result;
-                    }
-
-                    process.BeginOutputReadLine();
-                    process.BeginErrorReadLine();
-
-                    bool exited = process.WaitForExit(timeoutMilliseconds);
-                    if (!exited)
-                    {
-                        try
+                        process.OutputDataReceived += delegate (object sender, DataReceivedEventArgs e)
                         {
-                            process.Kill(entireProcessTree: true);
+                            if (e.Data == null)
+                            {
+                                stdoutDone.Set();
+                                return;
+                            }
+
+                            stdoutBuilder.AppendLine(e.Data);
+                            SteamCmdConsoleMirror.WriteLine(e.Data);
+                        };
+                        process.ErrorDataReceived += delegate (object sender, DataReceivedEventArgs e)
+                        {
+                            if (e.Data == null)
+                            {
+                                stderrDone.Set();
+                                return;
+                            }
+
+                            stderrBuilder.AppendLine(e.Data);
+                            SteamCmdConsoleMirror.WriteLine(e.Data);
+                        };
+
+                        if (!process.Start())
+                        {
+                            result.Success = false;
+                            result.Message = "无法启动 SteamCMD 进程。";
+                            return result;
                         }
-                        catch (Exception)
-                        {
-                        }
 
-                        result.Success = false;
-                        result.ExitCode = -1;
-                        result.Message = "SteamCMD 执行超时（" + (timeoutMilliseconds / 1000) + " 秒）。";
-                    }
-                    else
-                    {
-                        WaitForStreamDrain(stdoutDone, stderrDone);
-                        result.ExitCode = process.ExitCode;
-                        result.Success = process.ExitCode == 0;
-                        if (result.Success)
+                        process.BeginOutputReadLine();
+                        process.BeginErrorReadLine();
+
+                        bool exited = process.WaitForExit(timeoutMilliseconds);
+                        if (!exited)
                         {
-                            result.Message = "SteamCMD 执行完成。";
+                            try
+                            {
+                                process.Kill(entireProcessTree: true);
+                            }
+                            catch (Exception)
+                            {
+                            }
+
+                            result.Success = false;
+                            result.ExitCode = -1;
+                            result.Message = "SteamCMD 执行超时（" + (timeoutMilliseconds / 1000) + " 秒）。";
                         }
                         else
                         {
-                            result.Message = "SteamCMD 退出码: " + process.ExitCode;
+                            WaitForStreamDrain(stdoutDone, stderrDone);
+                            result.ExitCode = process.ExitCode;
+                            result.Success = process.ExitCode == 0;
+                            if (result.Success)
+                            {
+                                result.Message = "SteamCMD 执行完成。";
+                            }
+                            else
+                            {
+                                result.Message = "SteamCMD 退出码: " + process.ExitCode;
+                            }
                         }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                result.Success = false;
-                result.Message = "SteamCMD 执行失败: " + ex.Message;
+                catch (Exception ex)
+                {
+                    result.Success = false;
+                    result.Message = "SteamCMD 执行失败: " + ex.Message;
+                }
             }
 
             result.StandardOutput = stdoutBuilder.ToString();
