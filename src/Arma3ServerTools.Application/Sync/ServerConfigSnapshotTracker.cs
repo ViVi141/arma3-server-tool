@@ -20,6 +20,12 @@ namespace Arma3ServerTools.Application.Sync
             CaptureServerApplied(serverUuid, config);
         }
 
+        public void Capture(string serverUuid, string snapshot)
+        {
+            CapturePersisted(serverUuid, snapshot);
+            CaptureServerApplied(serverUuid, snapshot);
+        }
+
         public void CapturePersisted(string serverUuid, ArmaServerConfig config)
         {
             if (string.IsNullOrEmpty(serverUuid) || config == null)
@@ -27,7 +33,17 @@ namespace Arma3ServerTools.Application.Sync
                 return;
             }
 
-            persistedSnapshots[serverUuid] = SerializeSnapshot(config);
+            persistedSnapshots[serverUuid] = SerializeForCompare(config);
+        }
+
+        public void CapturePersisted(string serverUuid, string snapshot)
+        {
+            if (string.IsNullOrEmpty(serverUuid) || snapshot == null)
+            {
+                return;
+            }
+
+            persistedSnapshots[serverUuid] = snapshot;
         }
 
         public void CaptureServerApplied(string serverUuid, ArmaServerConfig config)
@@ -37,7 +53,17 @@ namespace Arma3ServerTools.Application.Sync
                 return;
             }
 
-            serverAppliedSnapshots[serverUuid] = SerializeSnapshot(config);
+            serverAppliedSnapshots[serverUuid] = SerializeForCompare(config);
+        }
+
+        public void CaptureServerApplied(string serverUuid, string snapshot)
+        {
+            if (string.IsNullOrEmpty(serverUuid) || snapshot == null)
+            {
+                return;
+            }
+
+            serverAppliedSnapshots[serverUuid] = snapshot;
         }
 
         public void Remove(string serverUuid)
@@ -59,7 +85,12 @@ namespace Arma3ServerTools.Application.Sync
 
         public bool HasChanges(string serverUuid, ArmaServerConfig configAfterApplyAll)
         {
-            if (string.IsNullOrEmpty(serverUuid) || configAfterApplyAll == null)
+            return HasChanges(serverUuid, SerializeForCompare(configAfterApplyAll));
+        }
+
+        public bool HasChanges(string serverUuid, string currentSnapshot)
+        {
+            if (string.IsNullOrEmpty(serverUuid) || currentSnapshot == null)
             {
                 return false;
             }
@@ -70,13 +101,17 @@ namespace Arma3ServerTools.Application.Sync
                 return false;
             }
 
-            string current = SerializeSnapshot(configAfterApplyAll);
-            return !string.Equals(baseline, current, StringComparison.Ordinal);
+            return !string.Equals(baseline, currentSnapshot, StringComparison.Ordinal);
         }
 
         public bool HasServerCfgDrift(string serverUuid, ArmaServerConfig configAfterApplyAll)
         {
-            if (string.IsNullOrEmpty(serverUuid) || configAfterApplyAll == null)
+            return HasServerCfgDrift(serverUuid, SerializeForCompare(configAfterApplyAll));
+        }
+
+        public bool HasServerCfgDrift(string serverUuid, string currentSnapshot)
+        {
+            if (string.IsNullOrEmpty(serverUuid) || currentSnapshot == null)
             {
                 return false;
             }
@@ -87,22 +122,27 @@ namespace Arma3ServerTools.Application.Sync
                 return true;
             }
 
-            string current = SerializeSnapshot(configAfterApplyAll);
-            return !string.Equals(baseline, current, StringComparison.Ordinal);
+            return !string.Equals(baseline, currentSnapshot, StringComparison.Ordinal);
         }
 
-        private static string SerializeSnapshot(ArmaServerConfig config)
+        public static string SerializeForCompare(ArmaServerConfig config)
         {
             if (config == null)
             {
                 return string.Empty;
             }
 
-            string json = JsonSerializer.ToJson(config);
+            ArmaServerConfig normalized = CloneForCompare(config);
+            return JsonSerializer.ToCompactJson(normalized);
+        }
+
+        private static ArmaServerConfig CloneForCompare(ArmaServerConfig config)
+        {
+            string json = JsonSerializer.ToCompactJson(config);
             ArmaServerConfig normalized = JsonSerializer.FromJson<ArmaServerConfig>(json);
             if (normalized == null)
             {
-                return json;
+                return config;
             }
 
             if (normalized.ServerTaskManagement == null)
@@ -117,10 +157,9 @@ namespace Arma3ServerTools.Application.Sync
                     .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
             }
 
-            // Runtime fields — not user edits, should not trigger unsaved prompts.
             normalized.ServerTaskManagement.ProcessById = 0;
             normalized.SaveTime = string.Empty;
-            return JsonSerializer.ToJson(normalized);
+            return normalized;
         }
     }
 }

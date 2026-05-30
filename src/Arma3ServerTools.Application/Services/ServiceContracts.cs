@@ -39,6 +39,8 @@ namespace Arma3ServerTools.Application.Services
 
         ServerRunState SyncState(ArmaServerConfig config);
 
+        ServerRunState PeekState(ArmaServerConfig config);
+
         OperationResult StartHeadlessClient(string serverUuid);
 
         OperationResult DetectRestart(string serverUuid);

@@ -163,6 +163,27 @@ namespace Arma3ServerTools.Application.Services
             return ResolveState(config, clearStaleProcessId: true);
         }
 
+        public ServerRunState PeekState(ArmaServerConfig config)
+        {
+            if (config == null)
+            {
+                return ServerRunState.Stopped;
+            }
+
+            int pid = config.ServerTaskManagement.ProcessById;
+            if (pid <= 0)
+            {
+                return ServerRunState.Stopped;
+            }
+
+            if (!processRunner.IsRunning(pid))
+            {
+                return ServerRunState.Stopped;
+            }
+
+            return ServerRunState.Running;
+        }
+
         private ServerRunState ResolveState(ArmaServerConfig config, bool clearStaleProcessId)
         {
             int pid = config.ServerTaskManagement.ProcessById;

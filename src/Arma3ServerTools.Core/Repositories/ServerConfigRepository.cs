@@ -83,7 +83,7 @@ namespace Arma3ServerTools.Core.Repositories
                 ServerConfigSecretProtector.ProtectSecrets(config);
                 try
                 {
-                    File.WriteAllText(filePath, JsonSerializer.ToJson(config), GameConfigFormat.Utf8NoBom);
+                    File.WriteAllText(filePath, JsonSerializer.ToCompactJson(config), GameConfigFormat.Utf8NoBom);
                 }
                 finally
                 {

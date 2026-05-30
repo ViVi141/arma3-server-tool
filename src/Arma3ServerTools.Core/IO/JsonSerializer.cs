@@ -12,6 +12,11 @@ namespace Arma3ServerTools.Core.IO
             return JsonConvert.SerializeObject(obj, Formatting.Indented, Settings);
         }
 
+        public static string ToCompactJson(object obj)
+        {
+            return JsonConvert.SerializeObject(obj, Formatting.None, Settings);
+        }
+
         public static T FromJson<T>(string json)
         {
             return JsonConvert.DeserializeObject<T>(json, Settings);

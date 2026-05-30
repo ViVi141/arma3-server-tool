@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
@@ -96,6 +97,44 @@ namespace Arma3ServerTools.Application.Tests
             string script = MonitoringDeploymentService.BuildInitFunctionsScript(config);
 
             Assert.Contains("destiny_var_enableStatistics = false", script);
+        }
+
+        [Fact]
+        public void DeployIfEnabled_SecondRun_SkipsUnchangedFiles()
+        {
+            string root = AutomatedTestWorkspace.CreateRoot("a3monitor-incremental");
+            try
+            {
+                AutomatedTestWorkspace.CreateBundledMonitoringAssets(root);
+                string serverDir = Path.Combine(root, "server");
+                Directory.CreateDirectory(serverDir);
+                var service = new MonitoringDeploymentService(new AppPaths(root));
+                var config = new ArmaServerConfig
+                {
+                    ServerDir = serverDir,
+                    ServerUUID = "uuid-incremental",
+                    ServerConfig = new ServerConfig { ServerCommandPassword = "cmd-pass" },
+                    ServerTaskManagement = new ServerManagement
+                    {
+                        EnableMonitor = true,
+                        EnableMonitoringService = true,
+                    },
+                };
+
+                Assert.True(service.DeployIfEnabled(config).Success);
+                string dllPath = Path.Combine(serverDir, ToolConstants.MonitoringExtensionDllFileName);
+                DateTime firstWriteUtc = File.GetLastWriteTimeUtc(dllPath);
+
+                System.Threading.Thread.Sleep(50);
+
+                Assert.True(service.DeployIfEnabled(config).Success);
+                DateTime secondWriteUtc = File.GetLastWriteTimeUtc(dllPath);
+                Assert.Equal(firstWriteUtc, secondWriteUtc);
+            }
+            finally
+            {
+                AutomatedTestWorkspace.DeleteRoot(root);
+            }
         }
     }
 }

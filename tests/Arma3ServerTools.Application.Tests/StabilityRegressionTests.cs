@@ -83,6 +83,8 @@ namespace Arma3ServerTools.Application.Tests
 
             public ServerRunState SyncState(ArmaServerConfig config) => ServerRunState.Stopped;
 
+            public ServerRunState PeekState(ArmaServerConfig config) => ServerRunState.Stopped;
+
             public OperationResult StartHeadlessClient(string serverUuid) => OperationResult.Ok();
 
             public OperationResult DetectRestart(string serverUuid) => OperationResult.Ok();

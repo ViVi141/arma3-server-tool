@@ -21,12 +21,13 @@ namespace Arma3ServerTools.Application.Sync
                 return ConfigSyncState.FullySynced;
             }
 
-            if (tracker.HasChanges(serverUuid, configAfterApply))
+            string currentSnapshot = ServerConfigSnapshotTracker.SerializeForCompare(configAfterApply);
+            if (tracker.HasChanges(serverUuid, currentSnapshot))
             {
                 return ConfigSyncState.Unsaved;
             }
 
-            if (tracker.HasServerCfgDrift(serverUuid, configAfterApply))
+            if (tracker.HasServerCfgDrift(serverUuid, currentSnapshot))
             {
                 return ConfigSyncState.SavedToToolOnly;
             }

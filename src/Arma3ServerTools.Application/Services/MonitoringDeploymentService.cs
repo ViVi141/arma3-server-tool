@@ -56,12 +56,12 @@ namespace Arma3ServerTools.Application.Services
                 string targetDllPath = Path.Combine(
                     config.ServerDir,
                     ToolConstants.MonitoringExtensionDllFileName);
-                File.Copy(bundledDllPath, targetDllPath, true);
+                CopyFileIfChanged(bundledDllPath, targetDllPath);
 
                 string targetModPath = Path.Combine(
                     config.ServerDir,
                     ToolConstants.MonitoringServerModToken);
-                CopyDirectory(bundledModPath, targetModPath);
+                CopyDirectoryIfChanged(bundledModPath, targetModPath);
 
                 string initScriptPath = Path.Combine(
                     targetModPath,
@@ -69,10 +69,8 @@ namespace Arma3ServerTools.Application.Services
                     "a3st_monitor",
                     "fn_initFunctions.sqf");
                 Directory.CreateDirectory(Path.GetDirectoryName(initScriptPath));
-                File.WriteAllText(
-                    initScriptPath,
-                    BuildInitFunctionsScript(config),
-                    new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+                string initScriptContent = BuildInitFunctionsScript(config);
+                WriteTextIfChanged(initScriptPath, initScriptContent);
 
                 return OperationResult.Ok();
             }
@@ -131,6 +129,38 @@ namespace Arma3ServerTools.Application.Services
             return builder.ToString();
         }
 
+        internal static void CopyFileIfChanged(string sourcePath, string destinationPath)
+        {
+            if (!File.Exists(sourcePath))
+            {
+                throw new FileNotFoundException(sourcePath);
+            }
+
+            if (File.Exists(destinationPath) && FilesHaveSameContent(sourcePath, destinationPath))
+            {
+                return;
+            }
+
+            File.Copy(sourcePath, destinationPath, true);
+        }
+
+        internal static void WriteTextIfChanged(string destinationPath, string content)
+        {
+            if (File.Exists(destinationPath))
+            {
+                string existing = File.ReadAllText(destinationPath, Encoding.UTF8);
+                if (string.Equals(existing, content, StringComparison.Ordinal))
+                {
+                    return;
+                }
+            }
+
+            File.WriteAllText(
+                destinationPath,
+                content,
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        }
+
         private static string EscapeSqfString(string value)
         {
             if (string.IsNullOrEmpty(value))
@@ -141,7 +171,7 @@ namespace Arma3ServerTools.Application.Services
             return value.Replace("'", "''");
         }
 
-        private static void CopyDirectory(string sourceDirectory, string targetDirectory)
+        private static void CopyDirectoryIfChanged(string sourceDirectory, string targetDirectory)
         {
             if (!Directory.Exists(sourceDirectory))
             {
@@ -156,7 +186,52 @@ namespace Arma3ServerTools.Application.Services
                     Path.AltDirectorySeparatorChar);
                 string destinationPath = Path.Combine(targetDirectory, relativePath);
                 Directory.CreateDirectory(Path.GetDirectoryName(destinationPath));
-                File.Copy(filePath, destinationPath, true);
+                CopyFileIfChanged(filePath, destinationPath);
+            }
+        }
+
+        private static bool FilesHaveSameContent(string leftPath, string rightPath)
+        {
+            FileInfo leftInfo = new FileInfo(leftPath);
+            FileInfo rightInfo = new FileInfo(rightPath);
+            if (leftInfo.Length != rightInfo.Length)
+            {
+                return false;
+            }
+
+            if (leftInfo.LastWriteTimeUtc == rightInfo.LastWriteTimeUtc)
+            {
+                return true;
+            }
+
+            const int bufferSize = 8192;
+            using (FileStream leftStream = File.OpenRead(leftPath))
+            using (FileStream rightStream = File.OpenRead(rightPath))
+            {
+                byte[] leftBuffer = new byte[bufferSize];
+                byte[] rightBuffer = new byte[bufferSize];
+                while (true)
+                {
+                    int leftRead = leftStream.Read(leftBuffer, 0, bufferSize);
+                    int rightRead = rightStream.Read(rightBuffer, 0, bufferSize);
+                    if (leftRead != rightRead)
+                    {
+                        return false;
+                    }
+
+                    if (leftRead == 0)
+                    {
+                        return true;
+                    }
+
+                    for (int i = 0; i < leftRead; i++)
+                    {
+                        if (leftBuffer[i] != rightBuffer[i])
+                        {
+                            return false;
+                        }
+                    }
+                }
             }
         }
     }
