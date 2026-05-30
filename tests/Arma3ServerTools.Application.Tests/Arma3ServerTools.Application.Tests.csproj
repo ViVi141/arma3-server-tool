@@ -30,7 +30,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Arma3ServerTools.Application\Arma3ServerTools.Application.csproj" />
-    <ProjectReference Include="..\..\src\Arma3ServerTools.Core\Arma3ServerTools.Core.csproj" />
     <ProjectReference Include="..\..\src\Arma3ServerTools.App.WinForms\Arma3ServerTools.App.WinForms.csproj" />
   </ItemGroup>
 

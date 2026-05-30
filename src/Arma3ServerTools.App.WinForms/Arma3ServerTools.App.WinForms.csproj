@@ -16,13 +16,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Arma3ServerTools.Application\Arma3ServerTools.Application.csproj" />
-    <ProjectReference Include="..\Arma3ServerTools.Core\Arma3ServerTools.Core.csproj" />
-    <ProjectReference Include="..\Arma3ServerTools.MonitoringHost\Arma3ServerTools.MonitoringHost.csproj">
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-    </ProjectReference>
-    <ProjectReference Include="..\Arma3ServerTools.Agent.Host\Arma3ServerTools.Agent.Host.csproj">
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-    </ProjectReference>
   </ItemGroup>
 
   <ItemGroup>
@@ -70,13 +63,21 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\..\mod\@a3st_monitor\**\*.*">
-      <Link>mod\@a3st_monitor\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    <Content Include="..\..\mod\%40a3st_monitor\**\*.*">
+      <Link>mod\%40a3st_monitor\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
-  <Target Name="CopyMonitoringHost" AfterTargets="Build">
+  <Target Name="BuildMonitoringHost" BeforeTargets="CopyMonitoringHost" Condition="'$(RuntimeIdentifier)' == ''">
+    <MSBuild Projects="..\Arma3ServerTools.MonitoringHost\Arma3ServerTools.MonitoringHost.csproj" Properties="Configuration=$(Configuration)" Targets="Build" />
+  </Target>
+
+  <Target Name="BuildAgentHost" BeforeTargets="CopyAgentHost" Condition="'$(RuntimeIdentifier)' == ''">
+    <MSBuild Projects="..\Arma3ServerTools.Agent.Host\Arma3ServerTools.Agent.Host.csproj" Properties="Configuration=$(Configuration)" Targets="Build" />
+  </Target>
+
+  <Target Name="CopyMonitoringHost" AfterTargets="Build" Condition="'$(RuntimeIdentifier)' == ''">
     <PropertyGroup>
       <MonitoringHostOutDir>$(MSBuildProjectDirectory)\..\Arma3ServerTools.MonitoringHost\bin\$(Configuration)\net10.0-windows\</MonitoringHostOutDir>
       <MonitoringHostDeployDir>$(OutputPath)monitoring\</MonitoringHostDeployDir>
@@ -89,7 +90,7 @@
     <Copy SourceFiles="@(MonitoringHostFiles)" DestinationFolder="$(MonitoringHostDeployDir)%(RecursiveDir)" SkipUnchangedFiles="true" Condition="Exists('$(MonitoringHostOutDir)$(MonitoringHostExeName)')" />
   </Target>
 
-  <Target Name="CopyAgentHost" AfterTargets="Build">
+  <Target Name="CopyAgentHost" AfterTargets="Build" Condition="'$(RuntimeIdentifier)' == ''">
     <PropertyGroup>
       <AgentHostOutDir>$(MSBuildProjectDirectory)\..\Arma3ServerTools.Agent.Host\bin\$(Configuration)\net10.0-windows\</AgentHostOutDir>
       <AgentHostDeployDir>$(OutputPath)agent\</AgentHostDeployDir>

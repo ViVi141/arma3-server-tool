@@ -255,8 +255,7 @@ function Publish-SatelliteHost {
         "publish",
         $ProjectRelativePath,
         "-c", $Configuration,
-        "-o", $destination,
-        "--no-restore"
+        "-o", $destination
     )
 
     if ($SelfContained) {

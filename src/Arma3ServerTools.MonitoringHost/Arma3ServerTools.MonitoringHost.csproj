@@ -3,6 +3,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <RootNamespace>Arma3ServerTools.MonitoringHost</RootNamespace>
     <AssemblyName>Arma3ServerTools.MonitoringHost</AssemblyName>
     <UseWindowsForms>true</UseWindowsForms>
@@ -11,7 +12,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Arma3ServerTools.Application\Arma3ServerTools.Application.csproj" />
-    <ProjectReference Include="..\Arma3ServerTools.Core\Arma3ServerTools.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

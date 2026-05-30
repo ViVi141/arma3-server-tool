@@ -12,5 +12,7 @@
     <AssemblyTitle>Arma3 Server Tools</AssemblyTitle>
     <Description>Arma 3 dedicated server configuration and management tool for Windows.</Description>
     <Copyright>Copyright (C) 2026 ViVi141. Based on original work copyright 2022 destiny studio (Blue, 七龙).</Copyright>
+    <RestoreSolutionDirectory Condition="'$(RestoreSolutionDirectory)' == ''">$(MSBuildThisFileDirectory)</RestoreSolutionDirectory>
+    <RestoreBuildInParallel Condition="'$(RestoreBuildInParallel)' == ''">false</RestoreBuildInParallel>
   </PropertyGroup>
 </Project>
