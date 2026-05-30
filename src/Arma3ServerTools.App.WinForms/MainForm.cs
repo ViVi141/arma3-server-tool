@@ -71,6 +71,16 @@ namespace Arma3ServerTools.App.WinForms
         private bool suppressStopNotification;
         private bool suppressTableSelectionEvent;
         private string currentConfigRefreshModeHint = string.Empty;
+        private int lastReportedRunningCount = -1;
+        private readonly System.Windows.Forms.Timer searchDebounceTimer;
+        private int serverRowsVersion;
+        private List<ServerGridRow> cachedVisibleRows = new List<ServerGridRow>();
+        private string cachedFilter = string.Empty;
+        private ServerListSortMode cachedSortMode;
+        private int cachedServerRowsVersion = -1;
+        private readonly System.Windows.Forms.Timer resizeDebounceTimer;
+        private Dictionary<string, int> pollRowIndexCache = new Dictionary<string, int>(StringComparer.Ordinal);
+        private int pollCacheVersion = -1;
 
         public MainForm(IAppServices services, ServerLifecycleCoordinator lifecycleCoordinator)
         {
@@ -211,6 +221,12 @@ namespace Arma3ServerTools.App.WinForms
                 ApplyPollResults);
 
             trayController.AttachToForm(this);
+
+            searchDebounceTimer = new System.Windows.Forms.Timer { Interval = 200 };
+            searchDebounceTimer.Tick += OnSearchDebounceTimerTick;
+
+            resizeDebounceTimer = new System.Windows.Forms.Timer { Interval = 80 };
+            resizeDebounceTimer.Tick += OnResizeDebounceTimerTick;
         }
 
         private IReadOnlyList<ArmaServerConfig> GetPollServerConfigsSnapshot()
@@ -510,6 +526,13 @@ namespace Arma3ServerTools.App.WinForms
         private void OnServerSearchTextChanged(object sender, EventArgs e)
         {
             serverSearchFilter = serverSearchInput.Text.Trim();
+            searchDebounceTimer.Stop();
+            searchDebounceTimer.Start();
+        }
+
+        private void OnSearchDebounceTimerTick(object sender, EventArgs e)
+        {
+            searchDebounceTimer.Stop();
             string previousUuid = services.CurrentServerUuid;
             BindServerTable();
             RestoreServerSelection(previousUuid);
@@ -517,6 +540,13 @@ namespace Arma3ServerTools.App.WinForms
 
         private IReadOnlyList<ServerGridRow> GetFilteredServerRows()
         {
+            if (cachedFilter == serverSearchFilter
+                && cachedSortMode == serverListSortMode
+                && cachedServerRowsVersion == serverRowsVersion)
+            {
+                return cachedVisibleRows;
+            }
+
             IEnumerable<ServerGridRow> rows = serverRows;
             if (!string.IsNullOrWhiteSpace(serverSearchFilter))
             {
@@ -524,7 +554,11 @@ namespace Arma3ServerTools.App.WinForms
                 rows = rows.Where(row => RowMatchesSearch(row, filter));
             }
 
-            return ApplyServerListSort(rows).ToList();
+            cachedVisibleRows = ApplyServerListSort(rows).ToList();
+            cachedFilter = serverSearchFilter;
+            cachedSortMode = serverListSortMode;
+            cachedServerRowsVersion = serverRowsVersion;
+            return cachedVisibleRows;
         }
 
         private IEnumerable<ServerGridRow> ApplyServerListSort(IEnumerable<ServerGridRow> rows)
@@ -857,6 +891,19 @@ namespace Arma3ServerTools.App.WinForms
             if (WindowState == FormWindowState.Minimized && !trayController.ExitRequestedFlag)
             {
                 trayController.MinimizeFormToTray(this);
+                return;
+            }
+
+            resizeDebounceTimer.Stop();
+            resizeDebounceTimer.Start();
+        }
+
+        private void OnResizeDebounceTimerTick(object sender, EventArgs e)
+        {
+            resizeDebounceTimer.Stop();
+            if (IsDisposed)
+            {
+                return;
             }
 
             UpdateHeaderResponsiveLayout();
@@ -870,6 +917,8 @@ namespace Arma3ServerTools.App.WinForms
 
         private void OnMainFormClosed(object sender, FormClosedEventArgs e)
         {
+            searchDebounceTimer.Dispose();
+            resizeDebounceTimer.Dispose();
             configSyncDebouncer.Dispose();
             statePollWorker.Dispose();
             trayController.Dispose();
@@ -1123,6 +1172,7 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             serverRows.AddRange(bundle.Rows);
+            serverRowsVersion++;
             BindServerTable();
             RefreshPollConfigSnapshot();
             RestoreServerSelection(previousUuid);
@@ -1894,13 +1944,29 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
-            var rowIndexByUuid = new Dictionary<string, int>(serverRows.Count, StringComparer.Ordinal);
+            // Rebuild row index cache only when server rows structure changes.
+            if (pollCacheVersion != serverRowsVersion)
+            {
+                pollRowIndexCache.Clear();
+                for (int i = 0; i < serverRows.Count; i++)
+                {
+                    string serverUuid = serverRows[i].ServerUuid;
+                    if (!string.IsNullOrEmpty(serverUuid) && !pollRowIndexCache.ContainsKey(serverUuid))
+                    {
+                        pollRowIndexCache[serverUuid] = i;
+                    }
+                }
+
+                pollCacheVersion = serverRowsVersion;
+            }
+
+            Dictionary<string, int> rowIndexByUuid = pollRowIndexCache;
+            int runningCount = 0;
             for (int i = 0; i < serverRows.Count; i++)
             {
-                string serverUuid = serverRows[i].ServerUuid;
-                if (!string.IsNullOrEmpty(serverUuid) && !rowIndexByUuid.ContainsKey(serverUuid))
+                if (serverRows[i].RunState == ServerRunState.Running)
                 {
-                    rowIndexByUuid[serverUuid] = i;
+                    runningCount++;
                 }
             }
 
@@ -1931,6 +1997,17 @@ namespace Arma3ServerTools.App.WinForms
                         persistedBySyncStateCount++;
                     }
                     continue;
+                }
+
+                // Adjust running count for state transition.
+                if (previousState == ServerRunState.Running)
+                {
+                    runningCount--;
+                }
+
+                if (result.RunState == ServerRunState.Running)
+                {
+                    runningCount++;
                 }
 
                 if (string.Equals(result.ServerUuid, services.CurrentServerUuid, StringComparison.Ordinal))
@@ -1969,21 +2046,26 @@ namespace Arma3ServerTools.App.WinForms
                 stateChanged = true;
             }
 
+            // Inline RefreshTableAfterStateChanges — reduces call overhead
+            // and avoids redundant GetFilteredServerRows() when only refresh is needed.
             if (stateChanged)
             {
-                RefreshTableAfterStateChanges();
-            }
-
-            int runningCount = 0;
-            for (int i = 0; i < serverRows.Count; i++)
-            {
-                if (serverRows[i].RunState == ServerRunState.Running)
+                if (ShouldRebindServerTableForStateChanges())
                 {
-                    runningCount++;
+                    BindServerTable();
+                    RestoreServerSelection(services.CurrentServerUuid);
+                }
+                else
+                {
+                    serverTable.Refresh();
                 }
             }
 
-            trayController.UpdateRunningCount(runningCount);
+            if (runningCount != lastReportedRunningCount)
+            {
+                lastReportedRunningCount = runningCount;
+                trayController.UpdateRunningCount(runningCount);
+            }
 
             if (currentServerStateChanged && !string.IsNullOrEmpty(services.CurrentServerUuid))
             {

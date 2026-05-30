@@ -153,29 +153,31 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
+            // Build row→label and row→field maps in a single pass (O(n) instead of O(n²)).
+            var labelByRow = new Dictionary<int, AntLabel>();
+            var fieldByRow = new Dictionary<int, Control>();
+            foreach (Control child in layout.Controls)
+            {
+                int childRow = layout.GetRow(child);
+                int childCol = layout.GetColumn(child);
+
+                if (childCol == 0 && child is AntLabel label)
+                {
+                    labelByRow[childRow] = label;
+                }
+                else if (childCol == 1)
+                {
+                    fieldByRow[childRow] = child;
+                }
+            }
+
             for (int row = 0; row < layout.RowCount; row++)
             {
-                AntLabel rowLabel = null;
-                Control fieldControl = null;
-                foreach (Control child in layout.Controls)
-                {
-                    int childRow = layout.GetRow(child);
-                    if (childRow != row)
-                    {
-                        continue;
-                    }
+                AntLabel rowLabel;
+                labelByRow.TryGetValue(row, out rowLabel);
 
-                    if (layout.GetColumn(child) == 0 && child is AntLabel)
-                    {
-                        rowLabel = (AntLabel)child;
-                    }
-                    else if (layout.GetColumn(child) == 1)
-                    {
-                        fieldControl = child;
-                    }
-                }
-
-                if (fieldControl == null)
+                Control fieldControl;
+                if (!fieldByRow.TryGetValue(row, out fieldControl))
                 {
                     continue;
                 }
