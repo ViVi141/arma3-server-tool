@@ -12,11 +12,6 @@ namespace Arma3ServerTools.App.WinForms
                 return Color.FromArgb(212, 56, 13);
             }
 
-            if (state == ConfigSyncState.SavedToToolOnly)
-            {
-                return Color.FromArgb(212, 136, 6);
-            }
-
             return Color.FromArgb(56, 158, 13);
         }
 
@@ -27,12 +22,7 @@ namespace Arma3ServerTools.App.WinForms
                 return UiLabels.StatusUnsavedChanges;
             }
 
-            if (state == ConfigSyncState.SavedToToolOnly)
-            {
-                return UiLabels.StatusServerCfgDrift;
-            }
-
-            return UiLabels.FormatSyncedStatus(saveTime);
+            return UiLabels.FormatSavedStatus(saveTime);
         }
     }
 }

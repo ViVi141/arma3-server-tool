@@ -2,6 +2,8 @@
 
 本文档说明使用 **Arma3ServerTools** 从零配置并启动 Arma 3 专用服务器的推荐步骤。
 
+配置保存与应用流程（v1.5+）见 **[config-workflow.md](config-workflow.md)**。
+
 ## 1. 环境要求
 
 - Windows 10/11，**安装路径与服务器目录均不能包含中文**
@@ -57,9 +59,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
    - **安全**：BattlEye、RCon 密码与端口、**RCon 地址**（默认 127.0.0.1）
    - **任务**：选择 `.pbo` 任务
    - **模组**：勾选「更新」列后点 **下载选中模组**；或 **从剪贴板导入 ID** / **从 HTML 下载**（会弹出 Steam API 确认框）；下载完成后 **扫描刷新** 再勾选启用
-3. **保存到工具** → 可选 **应用到服务器目录**（写入 `server.cfg`、`basic.cfg`、`*.Arma3Profile` 等；也可在点击 **启动** 时自动写入）
-
-> **说明：** 「保存到工具」只更新工具内的 JSON 配置；Arma 3 实际读取的是服务器目录下的 cfg 与 Profile 文件（含 **CustomDifficulty**）。通过本工具 **启动** 时会自动写入这些文件，因此日常改完设置后直接点启动即可；若需在不启动的情况下检查磁盘上的配置，请使用 **应用到服务器目录**。
+3. **保存到工具** → **应用到服务器目录**（见 [config-workflow.md](config-workflow.md)）
 
 ## 5. 监控与统计（可选）
 
@@ -72,8 +72,8 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 
 ## 6. 启动服务器
 
-1. 确认状态栏显示 **已同步**，或接受「启动时将自动写入」提示
-2. 点击 **启动**（会先写入 `server.cfg`、`basic.cfg`、`*.Arma3Profile` 再启动进程）
+1. 确认已 **应用到服务器目录**（启动前检查会验证 `server.cfg` 是否存在）
+2. 点击 **启动**（使用游戏目录中现有 cfg 启动进程；启动前会把当前编辑 **保存到工具**）
 3. 在 **远程控制** 页连接 RCon，管理在线玩家（踢人、封禁、切换任务等）
 
 ## 7. 封禁管理

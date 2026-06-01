@@ -238,8 +238,6 @@ namespace Arma3ServerTools.Application.Automation
                 return OperationResult.Fail("SteamCMD 正在运行中，请等待完成或先停止 SteamCMD 再启动服务器。");
             }
 
-            config.SetTime();
-            configService.Save(config);
             return processService.Start(config);
         }
 
@@ -268,8 +266,6 @@ namespace Arma3ServerTools.Application.Automation
                 return OperationResult.Fail("未找到服务器: " + serverUuid);
             }
 
-            config.SetTime();
-            configService.Save(config);
             return configWriter.WriteAll(config);
         }
 

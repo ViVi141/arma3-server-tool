@@ -85,20 +85,20 @@
 
 ### 4.3 `start`（启服）
 
-1. `config.SetTime()` + `configService.Save`：把**当前内存中的配置**写回 `{uuid}.json`。  
-2. `processService.Start`：内部会 **写全量 cfg**（与 GUI 启动路径一致），再拉起进程。  
+- `processService.Start`：要求游戏目录已存在 `a3st_serverconfig/{uuid}/server.cfg`，**不再**自动 `WriteAll`。  
+- **不**自动 `save` 工具配置包（v1.5+）。
 
-**注意**：自动化不会替你点 WinForms 各 Tab；若你只改过磁盘上的 JSON 而内存未刷新，应先通过 GUI 保存或在任务里组合 `save` / 其他写配置步骤（见 `write_cfg`）。
+**注意**：改配置后须先 `save`（工具包）+ `write_cfg`（游戏 cfg），或 GUI「应用到服务器目录」，再 `start`。自动化不会替你点 WinForms 各 Tab。
 
 ### 4.4 `restart`（重启）
 
-顺序等价：`stop` → `write_cfg`（保存 JSON + 写 cfg）→ `start`。  
-适合「改完配置后要整套生效」的场景。
+顺序等价：`stop` → `write_cfg`（仅写游戏 cfg）→ `start`。  
+若刚通过 `PUT /config` 或 GUI 改了设置，应先 `save` 再 `restart`，否则 `write_cfg` 使用的是磁盘上已保存的配置包。
 
-### 4.5 `write_cfg` / `apply`（仅写服务端文件）
+### 4.5 `write_cfg` / `apply`（仅写游戏目录）
 
-- 保存当前配置 JSON + `GameConfigWriter.WriteAll`（`server.cfg`、`basic.cfg`、profile、BattlEye 等，与工具「应用到服务器」一致）。  
-- **不**启停进程（除非后续步骤另有 `start`/`stop`）。
+- `GameConfigWriter.WriteAll`（`server.cfg`、`basic.cfg`、profile、BattlEye 等；与 GUI「应用到服务器目录」写盘部分一致）。  
+- **不**保存 A3ST 配置包、**不**启停进程（除非后续另有 `start`/`stop`）。
 
 ### 4.6 `switch_mission`（切换任务）
 
@@ -145,10 +145,10 @@
 - 需已在工具内配置 **Steam 账号** 与可用 **steamcmd.exe**。  
 - 可与 `captureSteamCmdOutput: true` 配合，行为同 `download_mods` 的捕获模式。
 
-### 4.10 `save`（仅保存工具 JSON）
+### 4.10 `save`（仅保存 A3ST 配置包）
 
-- 仅 `SetTime` + `configService.Save`，**不写** `server.cfg` 等游戏文件。  
-- 用于编排任务中「先持久化内存改动」的步骤（若未来扩展了改配置的 API）。
+- `SetTime` + `configService.Save` → `config/{uuid}/` 配置包（含 `mods.json` 等），**不写** `server.cfg`。  
+- 改配置后若需启服，通常再接 `write_cfg` 与 `start`。
 
 ### 4.11 `help`（帮助文本）
 

@@ -1,7 +1,7 @@
 # 已知问题与用户反馈记录
 
-> 更新日期：2026-05-27  
-> 关联：[README.md](README.md) · [CHANGELOG.md](CHANGELOG.md)
+> 更新日期：2026-06-01  
+> 关联：[README.md](README.md) · [CHANGELOG.md](CHANGELOG.md) · [config-workflow.md](config-workflow.md)
 
 本文记录用户反馈的问题及处理状态。
 
@@ -34,9 +34,16 @@
 
 ---
 
+## 升级说明（v1.5.0）
+
+- 工具配置由 `config/{uuid}.json` 迁移为 `config/{uuid}/` 配置包；首次 **保存到工具** 即完成迁移。
+- **启动** 不再自动写入游戏 cfg；须先 **应用到服务器目录**。详见 [config-workflow.md](config-workflow.md)。
+
+---
+
 ## 修订记录
 
 | 日期 | 说明 |
 |------|------|
-| 2026-05-27 | ISSUE-01～04 记录；01/02/03/04 均已修复或改进 |
-
+| 2026-06-01 | 增加 v1.5.0 升级说明 |
+| 2026-05-27 | ISSUE-01～04 记录；均已修复或改进 |

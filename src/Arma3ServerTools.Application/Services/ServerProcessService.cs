@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using Arma3ServerTools.Application.ProcessManagement;
 using Arma3ServerTools.Core;
+using Arma3ServerTools.Core.Config;
 using Arma3ServerTools.Core.Models;
 
 namespace Arma3ServerTools.Application.Services
@@ -39,16 +40,10 @@ namespace Arma3ServerTools.Application.Services
                 return OperationResult.Fail("未找到服务器配置。");
             }
 
-            OperationResult writeResult = configWriter.WriteAll(config);
-            if (!writeResult.Success)
+            if (!GameConfigPaths.ServerCfgExists(config))
             {
-                return writeResult;
-            }
-
-            OperationResult deployResult = monitoringDeploymentService.DeployIfEnabled(config);
-            if (!deployResult.Success)
-            {
-                return deployResult;
+                return OperationResult.Fail(
+                    "尚未生成游戏配置文件。请先在工具中点击「应用到服务器目录」，再启动服务器。");
             }
 
             configWriter.BuildStartCommandLine(config);

@@ -1,36 +1,25 @@
-# arma3ServerTools
+# Arma3 Server Tools
 
-#### Description
-开服工具源码
+Windows GUI for **Arma 3 dedicated server** management (.NET 10).
 
-#### Software Architecture
-Software architecture description
+**Current version: v1.5.0** · Maintainer: [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
 
-#### Installation
+For full documentation (Chinese), see **[README.md](README.md)**.
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+## Highlights (v1.5.0)
 
-#### Instructions
+- Per-server **A3ST config package** under `config/{uuid}/` (split JSON; legacy `config/{uuid}.json` auto-migrates).
+- **Save to tool** vs **Apply to server directory** vs **Start** are separate; start does not auto-write `server.cfg`.
+- Large mod lists: faster save/apply via snapshot and scan optimizations.
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+## Build
 
-#### Contribution
+```powershell
+dotnet restore Arma3ServerTools.sln
+dotnet build Arma3ServerTools.sln -c Release
+dotnet test Arma3ServerTools.sln -c Release
+```
 
-1.  Fork the repository
-2.  Create Feat_xxx branch
-3.  Commit your code
-4.  Create Pull Request
+## License
 
-
-#### Gitee Feature
-
-1.  You can use Readme\_XXX.md to support different languages, such as Readme\_en.md, Readme\_zh.md
-2.  Gitee blog [blog.gitee.com](https://blog.gitee.com)
-3.  Explore open source project [https://gitee.com/explore](https://gitee.com/explore)
-4.  The most valuable open source project [GVP](https://gitee.com/gvp)
-5.  The manual of Gitee [https://gitee.com/help](https://gitee.com/help)
-6.  The most popular members  [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+[Apache License 2.0](LICENSE)

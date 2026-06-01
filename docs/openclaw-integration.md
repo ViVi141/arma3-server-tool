@@ -6,7 +6,8 @@
 
 **双机拓扑（A 开服 / B 跑 OpenClaw 且 QQ 接在 B）** 见 **[deployment-ab-openclaw.md](deployment-ab-openclaw.md)**（必读）。A/B **常不在同一局域网** 时，见该文档 **§3**（Tailscale / 反向隧道 / 公网 HTTPS + 强 Token），不要假设 `192.168.x.x` 互通。
 
-**Agent 能做什么、每个动作含义与限制** 见 **[agent-capabilities.md](agent-capabilities.md)**。
+**Agent 能做什么、每个动作含义与限制** 见 **[agent-capabilities.md](agent-capabilities.md)**。  
+**保存 / 写 cfg / 启服**（v1.5+）见 **[config-workflow.md](config-workflow.md)**。
 
 ---
 

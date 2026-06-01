@@ -4,7 +4,7 @@
 
 ---
 
-## 一、已缓解（v1.4.1+ 代码侧）
+## 一、已缓解（v1.4.1+ 代码侧；v1.5.0 配置语义见 [config-workflow.md](config-workflow.md)）
 
 | 问题 | 对策 |
 |------|------|
@@ -51,7 +51,8 @@
 |------|------|-------------|
 | 「多少人在线」不准 | `status` 是配置与进程 PID，**不是**实时人数 | 服在跑时用 `rcon_players` |
 | 「当前什么图」不准 | `activeMissionTemplate` 是 **cfg 任务列表第一项**，非 RCon 实时任务 | 运行中用 RCon；或说明「配置里写的是 xxx」 |
-| 重启后仍旧配置 | 只 `start` 未 `write_cfg`，或改 cfg 未保存 | 改配置用 `PUT .../config` 后 `write_cfg` / `restart` |
+| 重启后仍旧配置 | 只 `start` 未 `write_cfg`；v1.5+ `start` 不写 cfg | `save` → `write_cfg` → `start`，或 `restart` |
+| 启服报无 server.cfg | v1.5+ 启动不自动写盘 | 先 `write_cfg` 或 GUI「应用到服务器目录」 |
 
 ---
 
@@ -84,7 +85,7 @@
 4. 模组 ID 列表 → 单条 download_mods（async）
 5. 轮询 GET /api/v1/tasks/{taskId}，读 steps[].steamCmdLog
 6. 卡住 → GET steamcmd/status → POST steamcmd/stop → 重试或改 captureSteamCmdOutput:false
-7. 需要启服/换图 → stop → switch_mission → write_cfg → start
+7. 需要启服/换图 → save → stop → switch_mission → write_cfg → start
 ```
 
 ---
@@ -103,6 +104,7 @@
 
 ## 相关文档
 
+- [config-workflow.md](config-workflow.md) — 配置包与 save / write_cfg / start
 - [agent-capabilities.md](agent-capabilities.md) — 各 action 行为
 - [agent-channels.md](agent-channels.md) — HTTP 与 JSON
 - [skills/arma3-server-tools/SKILL.md](../skills/arma3-server-tools/SKILL.md) — OpenClaw 必读

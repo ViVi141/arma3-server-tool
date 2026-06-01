@@ -46,7 +46,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private string lastSelectedTabTitle = "概览";
         private ArmaServerConfig currentConfig;
         private string boundServerUuid = string.Empty;
-        private ConfigSyncState currentSyncState = ConfigSyncState.FullySynced;
+        private ConfigSyncState currentSyncState = ConfigSyncState.Saved;
 
         public ServerOverviewPanel OverviewPanel { get; private set; }
 
@@ -737,12 +737,6 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 {
                     displayTitle = baseTitle + UiLabels.TabLocalDirtySuffix;
                 }
-                else if (currentSyncState == ConfigSyncState.SavedToToolOnly
-                    && IsUiSyncedPanelForTitle(baseTitle))
-                {
-                    displayTitle = baseTitle + " ◐";
-                }
-
                 tabs.Pages[i].Text = displayTitle;
             }
         }

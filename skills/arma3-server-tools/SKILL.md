@@ -160,13 +160,14 @@ powershell -ExecutionPolicy Bypass -File "<repo>\scripts\openclaw\a3st-invoke.ps
 |----------|----------------|
 | 查看状态 | `[{ "action": "status" }]` |
 | 停服 | `[{ "action": "stop" }]` |
-| 启服 | `[{ "action": "start" }]` |
-| 重启 | `[{ "action": "restart" }]` |
-| 换任务并重启 | `stop` → `switch_mission`（`missionTemplate`）→ `start` |
+| 启服 | 先确保已 `write_cfg`；再 `[{ "action": "start" }]` |
+| 重启 | `[{ "action": "restart" }]`（`stop` → `write_cfg` → `start`） |
+| 换任务并重启 | `stop` → `switch_mission` → `save` → `write_cfg` → `start` |
 | 下载模组 ID | **一条** `download_mods`，`modIds` 为**全部** ID |
 | HTML 模组列表 | **一条** `import_mods_html` 或 `-UploadModHtml`，不要跟 `download_mods` |
 | 更新专用服务器 | `[{ "action": "update_server" }]` |
-| 只写 cfg | `[{ "action": "write_cfg" }]` |
+| 只保存工具配置 | `[{ "action": "save" }]` |
+| 只写游戏 cfg | `[{ "action": "write_cfg" }]` |
 | 长耗时操作 | `"async": true` + 轮询 task |
 | 看 RPT / 日志 | `-Command rpt` / `read_logs` |
 
@@ -207,7 +208,7 @@ powershell -ExecutionPolicy Bypass -File "<repo>\scripts\openclaw\a3st-invoke.ps
 | HTML 只上一半 | **勿**在对话 JSON 里贴整页 HTML；用文件上传 `-UploadModHtml` |
 | 多服失败 | 先 `list` / `GET /servers`，补 `serverUuid` |
 | 在线人数 | 用 `rcon_players`，不是 `status` |
-| 改配置不生效 | `PUT .../config` 后要有 `write_cfg` 或 `restart` |
+| 改配置不生效 | `PUT .../config` 后 `save` + `write_cfg`，或 `restart`（须已有 server.cfg） |
 
 完整说明见 [docs/ai-agent-pitfalls.md](../docs/ai-agent-pitfalls.md)。
 

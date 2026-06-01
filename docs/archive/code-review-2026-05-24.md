@@ -276,7 +276,7 @@ BEServer_x64.cfg    → RCon 明文（Arma 要求）△
 
 ## 7. 配置一致性（CONSISTENCY_REVIEW 摘要）
 
-**来源：** 仓库根目录 `CONSISTENCY_REVIEW.md`（2026-05-23）
+**来源：** `consistency-review-2026-05.md`（2026-05-23）
 
 | 级别 | 数量 | 代表问题 |
 |------|------|----------|
@@ -395,7 +395,7 @@ BEServer_x64.cfg    → RCon 明文（Arma 要求）△
 | 进程管理 | `src/Arma3ServerTools.Application/Process/IProcessRunner.cs` |
 | 密钥保护 | `src/Arma3ServerTools.Core/Security/SecretProtector.cs` |
 | CI | `.github/workflows/ci.yml` |
-| 一致性审查（历史） | `CONSISTENCY_REVIEW.md` |
+| 一致性审查（历史） | `consistency-review-2026-05.md` |
 
 ---
 

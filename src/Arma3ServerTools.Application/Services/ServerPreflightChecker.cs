@@ -164,17 +164,13 @@ namespace Arma3ServerTools.Application.Services
                 return;
             }
 
-            string serverCfg = Path.Combine(
-                config.ServerDir,
-                ToolConstants.ServerConfigFolderName,
-                config.ServerUUID,
-                "server.cfg");
-            if (File.Exists(serverCfg))
+            string serverCfg = GameConfigPaths.GetServerCfgPath(config);
+            if (!string.IsNullOrEmpty(serverCfg) && File.Exists(serverCfg))
             {
                 items.Add(new PreflightCheckItem
                 {
                     Title = "server.cfg",
-                    Detail = "配置文件已存在。",
+                    Detail = "游戏目录中已有 server.cfg。",
                     IsError = false,
                 });
             }
@@ -183,8 +179,8 @@ namespace Arma3ServerTools.Application.Services
                 items.Add(new PreflightCheckItem
                 {
                     Title = "server.cfg",
-                    Detail = "尚未写入 cfg；启动时会自动写入。",
-                    IsError = false,
+                    Detail = "尚未生成。请先在工具中点击「应用到服务器目录」，再启动。",
+                    IsError = true,
                 });
             }
         }

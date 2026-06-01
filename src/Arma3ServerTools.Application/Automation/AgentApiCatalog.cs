@@ -47,9 +47,9 @@ namespace Arma3ServerTools.Application.Automation
         {
             yield return Entry("status", "查询运行态");
             yield return Entry("stop", "停止进程");
-            yield return Entry("start", "保存并启动");
+            yield return Entry("start", "启动（需游戏目录已有 cfg）");
             yield return Entry("restart", "停服 → 写 cfg → 启服");
-            yield return Entry("write_cfg", "写入 server.cfg 等");
+            yield return Entry("write_cfg", "仅写入游戏目录 cfg（不写工具配置包）");
             yield return Entry("apply", "同 write_cfg");
             yield return Entry("switch_mission", "切换任务列表首项");
             yield return Entry("rcon_mission", "RCon 热加载任务");
@@ -60,7 +60,7 @@ namespace Arma3ServerTools.Application.Automation
                 "import_mods_html",
                 "一次解析完整 HTML 并下载/启用；勿拆 import 后再 download_mods");
             yield return Entry("update_server", "更新专用服务器文件");
-            yield return Entry("save", "仅保存工具 JSON");
+            yield return Entry("save", "仅保存 A3ST 配置包");
             yield return Entry("help", "帮助文本");
             yield return Entry("ensure_steamcmd", "确保 steamcmd 可用");
             yield return Entry("stop_steamcmd", "强制终止 steamcmd.exe 并释放占用锁（别名 kill_steamcmd）");

@@ -53,7 +53,7 @@ namespace Arma3ServerTools.Application.Tests
     public class ServerProcessServiceTests
     {
         [Fact]
-        public void Start_WritesConfigAndStartsProcess()
+        public void Start_WithServerCfg_StartsProcess()
         {
             string root = CreateTempRoot();
             try
@@ -65,6 +65,7 @@ namespace Arma3ServerTools.Application.Tests
                 ArmaServerConfig config = configService.Create("ProcTest", Path.Combine(root, "server"));
                 config.StartupParameters.Port = 2502;
                 configService.Save(config);
+                EnsureServerCfgStub(config);
 
                 var runner = new FakeProcessRunner();
                 var monitoringDeployment = new MonitoringDeploymentService(paths);
@@ -102,6 +103,7 @@ namespace Arma3ServerTools.Application.Tests
                 var configService = new ServerConfigService(repository);
                 ArmaServerConfig config = configService.Create("StalePid", Path.Combine(root, "server"));
                 configService.Save(config);
+                EnsureServerCfgStub(config);
 
                 var runner = new FakeProcessRunner();
                 var monitoringDeployment = new MonitoringDeploymentService(paths);
@@ -140,6 +142,8 @@ namespace Arma3ServerTools.Application.Tests
                 var repository = new ServerConfigRepository(paths);
                 var configService = new ServerConfigService(repository);
                 ArmaServerConfig config = configService.Create("DeadStop", Path.Combine(root, "server"));
+                configService.Save(config);
+                EnsureServerCfgStub(config);
 
                 var runner = new FakeProcessRunner();
                 var monitoringDeployment = new MonitoringDeploymentService(paths);
@@ -172,6 +176,8 @@ namespace Arma3ServerTools.Application.Tests
                 var paths = new AppPaths(root);
                 var configService = new ServerConfigService(new ServerConfigRepository(paths));
                 ArmaServerConfig config = configService.Create("MissingExe", Path.Combine(root, "missing-server"));
+                configService.Save(config);
+                EnsureServerCfgStub(config);
                 var processService = new ServerProcessService(
                     configService,
                     new GameConfigWriterAdapter(),
@@ -231,6 +237,8 @@ namespace Arma3ServerTools.Application.Tests
                 var paths = new AppPaths(root);
                 var configService = new ServerConfigService(new ServerConfigRepository(paths));
                 ArmaServerConfig config = configService.Create("DetectRunning", Path.Combine(root, "server"));
+                configService.Save(config);
+                EnsureServerCfgStub(config);
                 var runner = new FakeProcessRunner();
                 var monitoringDeployment = new MonitoringDeploymentService(paths);
                 var processService = new ServerProcessService(
@@ -263,6 +271,8 @@ namespace Arma3ServerTools.Application.Tests
                 var paths = new AppPaths(root);
                 var configService = new ServerConfigService(new ServerConfigRepository(paths));
                 ArmaServerConfig config = configService.Create("DetectStopped", Path.Combine(root, "server"));
+                configService.Save(config);
+                EnsureServerCfgStub(config);
                 var runner = new FakeProcessRunner();
                 var monitoringDeployment = new MonitoringDeploymentService(paths);
                 var processService = new ServerProcessService(
@@ -286,6 +296,16 @@ namespace Arma3ServerTools.Application.Tests
             string serverDir = Path.Combine(root, "server");
             Directory.CreateDirectory(serverDir);
             File.WriteAllText(Path.Combine(serverDir, "arma3server_x64.exe"), string.Empty);
+        }
+
+        private static void EnsureServerCfgStub(ArmaServerConfig config)
+        {
+            string cfgDir = Path.Combine(
+                config.ServerDir,
+                ToolConstants.ServerConfigFolderName,
+                config.ServerUUID);
+            Directory.CreateDirectory(cfgDir);
+            File.WriteAllText(Path.Combine(cfgDir, "server.cfg"), "// test stub");
         }
 
         private static string CreateTempRoot()

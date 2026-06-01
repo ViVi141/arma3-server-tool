@@ -2,7 +2,7 @@
 
 面向 Windows 的 **Arma 3 专用服务器** 图形化管理工具（**Arma3 Server Tools**）。使用 C# / .NET 10 开发，集成 BattlEye RCon、多服配置、SteamCMD、监控统计与定时任务等开服常用能力。
 
-**当前版本：v1.4.2** · **当前维护仓库：** [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
+**当前版本：v1.5.0** · **当前维护仓库：** [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
 
 ---
 
@@ -46,7 +46,8 @@
 
 | 用途 | 名称 |
 |------|------|
-| 服务器 cfg 目录 | `a3st_serverconfig/` |
+| 工具配置包（每服） | `config/{uuid}/`（`manifest.json`、`mods.json` 等；旧版 `config/{uuid}.json` 自动迁移） |
+| 服务器 cfg 目录 | `a3st_serverconfig/{uuid}/` |
 | 统计库 | `a3st_statistics.db` |
 | 玩家库 | `a3st_players.db` |
 | 监控模组 | `@a3st_monitor` |
@@ -56,7 +57,7 @@
 
 ## 主要功能
 
-- **服务器管理** — 多配置并存；复制、搜索、快速配置向导；启动前检查；RPT 日志；进程异常退出桌面通知
+- **服务器管理** — 多配置并存；A3ST 分片配置包；**保存到工具** 与 **应用到服务器目录** 分离；复制、搜索、快速配置向导；启动前检查；RPT 日志；进程异常退出桌面通知
 - **BattlEye** — 自动写入基础 BE 规则；集成 BattlEye RCon V2（踢人、封禁、任务控制等）
 - **网络与安全** — RCon 密码/端口；基本 / 网络 / 安全 / 性能 / 日志 / 难度等设置页
 - **模组** — 扫描、勾选、更新/下载（选中模组、剪贴板 ID、HTML 批量下载）；Steam API 确认对话框；HTML 导入启用；Bikey 自动复制
@@ -139,7 +140,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 未指定 `-Version` 时，版本号自动读取 `Directory.Build.props`。也可显式指定：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -Version 1.4.2
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuration Release -Version 1.5.0
 ```
 
 首次构建若本机未安装 Inno Setup 6，可加 `-InstallInnoSetup` 自动下载到 `tools/innosetup-6/`：
@@ -160,6 +161,10 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 
 ---
 
+## 配置与启动（v1.5+）
+
+**保存到工具** → **应用到服务器目录** → **启动**（启动不写 cfg）。详见 **[docs/config-workflow.md](docs/config-workflow.md)**。
+
 ## 使用注意
 
 - 安装路径**不能包含中文**（启动时会检测并退出）
@@ -178,6 +183,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Configuratio
 
 | 文档 | 内容 |
 |------|------|
+| [docs/config-workflow.md](docs/config-workflow.md) | 配置包、保存/应用/启动（v1.5+） |
 | [docs/first-server-guide.md](docs/first-server-guide.md) | 首次开服指南 |
 | [docs/openclaw-integration.md](docs/openclaw-integration.md) | OpenClaw + Agent（QQ 等 IM） |
 | [docs/deployment-ab-openclaw.md](docs/deployment-ab-openclaw.md) | 双机部署（A 开服 / B OpenClaw） |

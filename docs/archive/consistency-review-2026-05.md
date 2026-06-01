@@ -1,5 +1,7 @@
 # Arma3 Server Tool - Frontend-Backend Configuration Consistency Review
 
+> **归档说明：** 自仓库根目录迁入 `docs/archive/`（2026-06）。v1.5+ 配置包与保存/应用分离见 [../config-workflow.md](../config-workflow.md)。本报告未针对 v1.4/v1.5 复审。
+
 **Date:** May 23, 2026  
 **Scope:** Analysis of consistency between UI panels and backend configuration models/writers
 

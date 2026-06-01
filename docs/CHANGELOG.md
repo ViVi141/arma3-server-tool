@@ -2,7 +2,16 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [1.4.2] — 当前
+## [1.5.0] — 当前
+
+- **A3ST 配置包**：`config/{uuid}/` 分片存储（`manifest.json`、`mods.json` 等）；旧版 `config/{uuid}.json` 自动迁移。
+- **保存与应用分离**：「保存到工具」只写配置包；「应用到服务器目录」写 `server.cfg` 等；「启动」不再自动写 cfg。
+- **同步状态**：仅「已保存 / 未保存」；不再跟踪游戏目录 cfg 手改漂移。
+- **性能**：大模组列表下保存/应用/刷新加速（快照、扫描、启动参数构建等优化）。
+- **预检**：无 `server.cfg` 时启动被阻断并提示先应用。
+- **Agent**：`save` / `write_cfg` / `start` 语义与 GUI 对齐（见 [config-workflow.md](config-workflow.md)、[agent-capabilities.md](agent-capabilities.md)）。
+
+## [1.4.2]
 
 - 修复仅启用服务器模组时 bikey 不会自动复制的问题。
 - 新增「复制全部 Bikey」按钮，可手动对当前扫描列表批量复制。
@@ -44,9 +53,11 @@
 .\scripts\build-release.ps1
 ```
 
-打 tag 示例：
+打 tag 示例（维护者，需先提交版本与文档变更）：
 
 ```powershell
-git tag -a v1.4.2 -m "Arma3 Server Tools v1.4.2"
-git push origin v1.4.2
+git tag -a v1.5.0 -m "Arma3 Server Tools v1.5.0"
+git push origin v1.5.0
 ```
+
+完整清单见 [archive/releases/release-v1.5.0.md](archive/releases/release-v1.5.0.md)。

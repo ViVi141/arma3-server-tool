@@ -42,5 +42,28 @@ namespace Arma3ServerTools.Core
         }
 
         public const string BattlEyeMissionClassPrefix = "A3ST_";
+
+        /// <summary>Per-server tool config package format (directory under config/).</summary>
+        public const int ToolConfigFormatVersion = 2;
+
+        public const string ToolConfigManifestFileName = "manifest.json";
+
+        public const string ToolConfigServerFileName = "server.json";
+
+        public const string ToolConfigStartupFileName = "startup.json";
+
+        public const string ToolConfigModsFileName = "mods.json";
+
+        public const string ToolConfigBasicFileName = "basic.json";
+
+        public const string ToolConfigProfileFileName = "profile.json";
+
+        public const string ToolConfigBattlEyeFileName = "battleye.json";
+
+        public const string ToolConfigTasksFileName = "tasks.json";
+
+        public const string ToolConfigMissionParamsFileName = "missionparams.json";
+
+        public const string LegacyConfigFileExtension = ".json";
     }
 }

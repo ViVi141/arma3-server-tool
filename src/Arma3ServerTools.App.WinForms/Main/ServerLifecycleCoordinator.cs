@@ -29,15 +29,15 @@ namespace Arma3ServerTools.App.WinForms
             return OperationResult.Ok();
         }
 
-        public OperationResult WriteConfigFiles(ArmaServerConfig config)
+        /// <summary>
+        /// Writes Arma/BattlEye cfg under the server directory only (not the tool config package).
+        /// </summary>
+        public OperationResult ApplyToServerDirectory(ArmaServerConfig config)
         {
             if (config == null)
             {
                 return OperationResult.Fail("未选择服务器配置。");
             }
-
-            config.SetTime();
-            services.ConfigService.Save(config);
 
             OperationResult cfgResult = services.ConfigWriter.WriteAll(config);
             if (!cfgResult.Success)

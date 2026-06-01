@@ -17,12 +17,10 @@ namespace Arma3ServerTools.Application.Tests
                 BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
 
             string unsaved = (string)method.Invoke(null, new object[] { ConfigSyncState.Unsaved, "2026-05-01 12:00" });
-            string savedToToolOnly = (string)method.Invoke(null, new object[] { ConfigSyncState.SavedToToolOnly, "2026-05-01 12:00" });
-            string syncedWithTime = (string)method.Invoke(null, new object[] { ConfigSyncState.FullySynced, "2026-05-01 12:00" });
+            string savedWithTime = (string)method.Invoke(null, new object[] { ConfigSyncState.Saved, "2026-05-01 12:00" });
 
             Assert.Equal("● 未保存到工具", unsaved);
-            Assert.Equal("◐ 已保存到工具 · 未写入游戏目录", savedToToolOnly);
-            Assert.Equal("✓ 工具与游戏目录已同步 · 2026-05-01 12:00", syncedWithTime);
+            Assert.Equal("✓ 已保存到工具 · 2026-05-01 12:00", savedWithTime);
         }
 
         [Fact]
@@ -34,12 +32,10 @@ namespace Arma3ServerTools.Application.Tests
                 BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
 
             System.Drawing.Color unsaved = (System.Drawing.Color)method.Invoke(null, new object[] { ConfigSyncState.Unsaved });
-            System.Drawing.Color savedToToolOnly = (System.Drawing.Color)method.Invoke(null, new object[] { ConfigSyncState.SavedToToolOnly });
-            System.Drawing.Color synced = (System.Drawing.Color)method.Invoke(null, new object[] { ConfigSyncState.FullySynced });
+            System.Drawing.Color saved = (System.Drawing.Color)method.Invoke(null, new object[] { ConfigSyncState.Saved });
 
             Assert.Equal(System.Drawing.Color.FromArgb(212, 56, 13), unsaved);
-            Assert.Equal(System.Drawing.Color.FromArgb(212, 136, 6), savedToToolOnly);
-            Assert.Equal(System.Drawing.Color.FromArgb(56, 158, 13), synced);
+            Assert.Equal(System.Drawing.Color.FromArgb(56, 158, 13), saved);
         }
 
         [Fact]

@@ -24,21 +24,19 @@ namespace Arma3ServerTools.App.WinForms
         public const string SaveToToolButton = "保存到工具";
         public const string ApplyToServerButton = "应用到服务器目录";
 
-        public const string SaveToToolSuccess = "配置已保存到工具（尚未写入游戏目录）。";
+        public const string SaveToToolSuccess = "配置已保存到工具（A3ST 配置包，未写入游戏目录 cfg）。";
 
         public const string ApplyToServerSuccess =
             "已写入 server.cfg、basic.cfg、*.Arma3Profile 与 BattlEye 配置，并部署监控组件（如已启用）。";
 
-        public const string StartServerSuccess = "已写入 server.cfg、basic.cfg、*.Arma3Profile 并启动服务器进程。";
+        public const string StartServerSuccess = "已启动服务器进程（使用游戏目录中现有 cfg）。";
 
         public const string StatusUnsavedChanges = "● 未保存到工具";
 
-        public const string StatusServerCfgDrift = "◐ 已保存到工具 · 未写入游戏目录";
-
-        public const string StatusFullySynced = "✓ 工具与游戏目录已同步";
+        public const string StatusSaved = "✓ 已保存到工具";
 
         public const string SyncLegendHint =
-            "橙色字段 = 已修改未保存；Tab 旁 ● = 该页有未保存修改；状态栏 ◐ = 已存 JSON 但未写 server.cfg。";
+            "橙色字段 = 已修改未保存；Tab 旁 ● = 该页有未保存修改。游戏目录 cfg 仅由「应用到服务器目录」生成，手改 cfg 工具不负责。";
 
         public const string ConfigRefreshModePerformance = "配置读取模式：性能优先（内存）";
 
@@ -56,14 +54,14 @@ namespace Arma3ServerTools.App.WinForms
 
         public const string RemoteControlTab = "远程控制";
 
-        public static string FormatSyncedStatus(string saveTime)
+        public static string FormatSavedStatus(string saveTime)
         {
             if (string.IsNullOrWhiteSpace(saveTime))
             {
-                return StatusFullySynced;
+                return StatusSaved;
             }
 
-            return StatusFullySynced + " · " + saveTime;
+            return StatusSaved + " · " + saveTime;
         }
 
         public static string CmdFlag(string description, string flag)

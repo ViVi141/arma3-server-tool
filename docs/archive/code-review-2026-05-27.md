@@ -191,7 +191,7 @@ UI 仍直接访问 Core 仓储与工具类，例如：
 
 ### 5.4 文档与命名债
 
-- `CONSISTENCY_REVIEW.md` 仍为 2026-05-23 英文版，**未反映 v1.4 AntdUI 与 DPAPI**；其中 Critical「脚本事件处理器无 UI」等问题**仍未在代码中修复**（需单独排期或更新文档状态）。
+- `consistency-review-2026-05.md` 仍为 2026-05-23 英文版，**未反映 v1.4 AntdUI 与 DPAPI**；其中 Critical「脚本事件处理器无 UI」等问题**仍未在代码中修复**（需单独排期或更新文档状态）。
 - `MaxNumbe` 等拼写债仍在模型与 UI 中共存。
 
 ---
@@ -257,7 +257,7 @@ BEServer_x64.cfg        → RCon 明文（引擎要求）△
 
 ## 8. 配置一致性（CONSISTENCY_REVIEW 摘要）
 
-**来源：** 仓库根目录 [CONSISTENCY_REVIEW.md](../CONSISTENCY_REVIEW.md)（2026-05-23，**尚未针对 v1.4 复审**）
+**来源：** [consistency-review-2026-05.md](consistency-review-2026-05.md)（2026-05-23，**尚未针对 v1.4 复审**）
 
 | 级别 | 数量 | 代表问题 | 2026-05-27 状态 |
 |------|------|----------|-----------------|
@@ -374,7 +374,7 @@ BEServer_x64.cfg        → RCon 明文（引擎要求）△
 | 进程启动 | `src/Arma3ServerTools.Application/Process/IProcessRunner.cs` |
 | DI 注册 | `src/Arma3ServerTools.App.WinForms/DependencyInjection/AppServiceCollectionExtensions.cs` |
 | CI | `.github/workflows/ci.yml` |
-| 一致性审查（待更新） | `CONSISTENCY_REVIEW.md` |
+| 一致性审查（待更新） | `consistency-review-2026-05.md` |
 | 上一份审查 | [code-review-2026-05-24.md](code-review-2026-05-24.md) |
 
 ---

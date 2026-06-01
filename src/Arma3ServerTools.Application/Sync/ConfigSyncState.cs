@@ -2,11 +2,13 @@ using Arma3ServerTools.Core.Models;
 
 namespace Arma3ServerTools.Application.Sync
 {
+    /// <summary>
+    /// Tool config sync only. Game directory cfg files are not tracked.
+    /// </summary>
     public enum ConfigSyncState
     {
-        FullySynced = 0,
-        SavedToToolOnly = 1,
-        Unsaved = 2,
+        Saved = 0,
+        Unsaved = 1,
     }
 
     public static class ConfigSyncStateEvaluator
@@ -18,7 +20,7 @@ namespace Arma3ServerTools.Application.Sync
         {
             if (configAfterApply == null || string.IsNullOrEmpty(serverUuid))
             {
-                return ConfigSyncState.FullySynced;
+                return ConfigSyncState.Saved;
             }
 
             string currentSnapshot = ServerConfigSnapshotTracker.SerializeForCompare(configAfterApply);
@@ -32,7 +34,7 @@ namespace Arma3ServerTools.Application.Sync
         {
             if (string.IsNullOrEmpty(serverUuid) || currentSnapshot == null)
             {
-                return ConfigSyncState.FullySynced;
+                return ConfigSyncState.Saved;
             }
 
             if (tracker.HasChanges(serverUuid, currentSnapshot))
@@ -40,12 +42,7 @@ namespace Arma3ServerTools.Application.Sync
                 return ConfigSyncState.Unsaved;
             }
 
-            if (tracker.HasServerCfgDrift(serverUuid, currentSnapshot))
-            {
-                return ConfigSyncState.SavedToToolOnly;
-            }
-
-            return ConfigSyncState.FullySynced;
+            return ConfigSyncState.Saved;
         }
     }
 }

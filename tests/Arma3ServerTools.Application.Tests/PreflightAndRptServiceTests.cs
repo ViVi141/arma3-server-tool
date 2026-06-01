@@ -51,6 +51,7 @@ namespace Arma3ServerTools.Application.Tests
                     StartupParameters = new StartupParameters { Port = AutomatedTestWorkspace.FindAvailableUdpPort() },
                     ServerConfig = new ServerConfig { HostName = "Test Server" },
                 };
+                EnsureServerCfgStub(config);
 
                 var checker = new ServerPreflightChecker(new MonitoringDeploymentService(new Core.AppPaths(root)));
                 var items = checker.Check(config, ServerRunState.Stopped);
@@ -104,6 +105,7 @@ namespace Arma3ServerTools.Application.Tests
                     ServerConfig = new ServerConfig { HostName = "Test Server", BattlEye = true },
                     BattlEyeConfig = new BattlEye { RConPassword = string.Empty },
                 };
+                EnsureServerCfgStub(config);
 
                 var checker = new ServerPreflightChecker(new MonitoringDeploymentService(new Core.AppPaths(root)));
                 var items = checker.Check(config, ServerRunState.Stopped);
@@ -115,6 +117,16 @@ namespace Arma3ServerTools.Application.Tests
             {
                 AutomatedTestWorkspace.DeleteRoot(root);
             }
+        }
+
+        private static void EnsureServerCfgStub(ArmaServerConfig config)
+        {
+            string cfgDir = Path.Combine(
+                config.ServerDir,
+                ToolConstants.ServerConfigFolderName,
+                config.ServerUUID);
+            Directory.CreateDirectory(cfgDir);
+            File.WriteAllText(Path.Combine(cfgDir, "server.cfg"), "// test stub");
         }
     }
 

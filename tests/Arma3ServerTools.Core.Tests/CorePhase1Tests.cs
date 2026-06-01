@@ -43,7 +43,11 @@ namespace Arma3ServerTools.Core.Tests
                 ArmaServerConfig config = CreateSampleConfig(root, "test-server-001");
 
                 repository.Save(config);
-                Assert.True(File.Exists(Path.Combine(root, "config", "test-server-001.json")));
+                Assert.True(File.Exists(Path.Combine(
+                    root,
+                    "config",
+                    "test-server-001",
+                    ToolConstants.ToolConfigManifestFileName)));
 
                 ArmaServerConfig loaded = repository.Get("test-server-001");
                 Assert.Equal("测试服", loaded.ConfigName);
@@ -115,8 +119,12 @@ namespace Arma3ServerTools.Core.Tests
                 config.BattlEyeConfig.RConPassword = "plain-rcon-password";
 
                 repository.Save(config);
-                string filePath = Path.Combine(root, "config", "secret-server.json");
-                string rawJson = File.ReadAllText(filePath);
+                string packageDir = Path.Combine(root, "config", "secret-server");
+                string serverJson = File.ReadAllText(
+                    Path.Combine(packageDir, ToolConstants.ToolConfigServerFileName));
+                string battlEyeJson = File.ReadAllText(
+                    Path.Combine(packageDir, ToolConstants.ToolConfigBattlEyeFileName));
+                string rawJson = serverJson + battlEyeJson;
                 Assert.DoesNotContain("plain-server-password", rawJson);
                 Assert.DoesNotContain("plain-rcon-password", rawJson);
                 Assert.Contains("A3ST_ENC:", rawJson);

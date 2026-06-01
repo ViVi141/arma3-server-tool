@@ -19,9 +19,10 @@ Quick start
 
 Documentation (in docs/ folder)
 --------------------------------
-- first-server-guide.txt — step-by-step setup (Chinese, open with Notepad)
-- first-server-guide.md — same content (Markdown)
 - README.md — documentation index
+- config-workflow.md — save / apply / start (v1.5+)
+- first-server-guide.txt — step-by-step setup (Chinese, Notepad)
+- first-server-guide.md — same content (Markdown)
 - openclaw-integration.md / deployment-ab-openclaw.md — Agent + OpenClaw
 
 Monitoring (optional)

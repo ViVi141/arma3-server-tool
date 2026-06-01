@@ -25,7 +25,7 @@ namespace Arma3ServerTools.Application.Tests
         }
 
         [Fact]
-        public void Evaluate_ReturnsSavedToToolOnly_WhenJsonMatchesButCfgNotApplied()
+        public void Evaluate_ReturnsSaved_WhenPersistedSnapshotMatches()
         {
             var tracker = new ServerConfigSnapshotTracker();
             var config = CreateConfig("server-b");
@@ -36,32 +36,7 @@ namespace Arma3ServerTools.Application.Tests
                 config.ServerUUID,
                 config);
 
-            Assert.Equal(ConfigSyncState.SavedToToolOnly, state);
-        }
-
-        [Fact]
-        public void Evaluate_ReturnsFullySynced_WhenPersistedAndAppliedMatch()
-        {
-            var tracker = new ServerConfigSnapshotTracker();
-            var config = CreateConfig("server-c");
-            tracker.Capture(config.ServerUUID, config);
-
-            ConfigSyncState state = ConfigSyncStateEvaluator.Evaluate(
-                tracker,
-                config.ServerUUID,
-                config);
-
-            Assert.Equal(ConfigSyncState.FullySynced, state);
-        }
-
-        [Fact]
-        public void HasServerCfgDrift_ReturnsTrue_WhenAppliedSnapshotMissing()
-        {
-            var tracker = new ServerConfigSnapshotTracker();
-            var config = CreateConfig("server-d");
-            tracker.CapturePersisted(config.ServerUUID, config);
-
-            Assert.True(tracker.HasServerCfgDrift(config.ServerUUID, config));
+            Assert.Equal(ConfigSyncState.Saved, state);
         }
 
         private static ArmaServerConfig CreateConfig(string serverUuid)
