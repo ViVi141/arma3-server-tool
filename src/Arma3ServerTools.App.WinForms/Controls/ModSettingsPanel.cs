@@ -66,11 +66,18 @@ namespace Arma3ServerTools.App.WinForms.Controls
             this.appServices = appServices;
             AppTheme.ApplyTo(this);
 
-            var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
+            var toolbar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                WrapContents = true,
+                Padding = new Padding(0, 0, 0, UiScaleHelper.Scale(4)),
+            };
 
             // 核心操作按钮
             AntdUI.Button refreshButton = SettingsLayoutHelper.CreateButton("扫描刷新");
             refreshButton.Click += delegate { ScanMods(); };
+            refreshButton.Margin = new Padding(0, 0, UiScaleHelper.Scale(6), UiScaleHelper.Scale(4));
             toolbar.Controls.Add(refreshButton);
 
             // 获取模组下拉菜单
@@ -78,6 +85,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 Text = "获取模组",
                 Type = AntdUI.TTypeMini.Default,
+                Margin = new Padding(0, 0, UiScaleHelper.Scale(6), UiScaleHelper.Scale(4)),
             };
             getModsDropdown.Items.Add(new AntdUI.MenuItem("add_local", "添加本地模组"));
             getModsDropdown.Items.Add(new AntdUI.MenuItem("download", "下载选中模组"));
@@ -92,6 +100,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             {
                 Text = "Bikey 管理",
                 Type = AntdUI.TTypeMini.Default,
+                Margin = new Padding(0, 0, UiScaleHelper.Scale(6), UiScaleHelper.Scale(4)),
             };
             bikeyDropdown.Items.Add(new AntdUI.MenuItem("manage", "管理 Bikey"));
             bikeyDropdown.Items.Add(new AntdUI.MenuItem("copy_all", "复制全部 Bikey"));
@@ -101,6 +110,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             // 设置按钮
             AntdUI.Button scanPathButton = SettingsLayoutHelper.CreateButton("扫描路径...");
             scanPathButton.Click += OnEditScanPaths;
+            scanPathButton.Margin = new Padding(0, 0, UiScaleHelper.Scale(6), UiScaleHelper.Scale(4));
             toolbar.Controls.Add(scanPathButton);
 
             sortSelect = SettingsLayoutHelper.CreateSelect(
@@ -116,33 +126,49 @@ namespace Arma3ServerTools.App.WinForms.Controls
             visibilitySelect.SelectedIndex = 0;
             visibilitySelect.SelectedIndexChanged += OnSortOrFilterChanged;
 
-            var viewBar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
+            var viewBar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                WrapContents = true,
+                Padding = new Padding(0, 0, 0, UiScaleHelper.Scale(4)),
+            };
             viewBar.Controls.Add(new AntdUI.Label
             {
                 Text = "排序",
                 AutoSizeMode = AntdUI.TAutoSize.Auto,
-                Padding = new Padding(0, UiScaleHelper.Scale(8), UiScaleHelper.Scale(6), 0),
+                Padding = new Padding(0, UiScaleHelper.Scale(8), UiScaleHelper.Scale(6), UiScaleHelper.Scale(4)),
             });
             viewBar.Controls.Add(sortSelect);
             viewBar.Controls.Add(new AntdUI.Label
             {
                 Text = "可见性",
                 AutoSizeMode = AntdUI.TAutoSize.Auto,
-                Padding = new Padding(UiScaleHelper.Scale(12), UiScaleHelper.Scale(8), UiScaleHelper.Scale(6), 0),
+                Padding = new Padding(UiScaleHelper.Scale(12), UiScaleHelper.Scale(8), UiScaleHelper.Scale(6), UiScaleHelper.Scale(4)),
             });
             viewBar.Controls.Add(visibilitySelect);
 
-            var disableBar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
+            var disableBar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                WrapContents = true,
+                Padding = new Padding(0, 0, 0, UiScaleHelper.Scale(4)),
+            };
             disableBar.Controls.Add(new AntdUI.Label
             {
                 Text = "全部禁用",
                 AutoSizeMode = AntdUI.TAutoSize.Auto,
-                Padding = new Padding(0, UiScaleHelper.Scale(8), UiScaleHelper.Scale(6), 0),
+                Padding = new Padding(0, UiScaleHelper.Scale(8), UiScaleHelper.Scale(6), UiScaleHelper.Scale(4)),
             });
             AntdUI.Button disableClientButton = SettingsLayoutHelper.CreateButton("客户端");
             AntdUI.Button disableServerButton = SettingsLayoutHelper.CreateButton("服务器");
             AntdUI.Button disableHcButton = SettingsLayoutHelper.CreateButton("无头客户端");
             AntdUI.Button disableAllButton = SettingsLayoutHelper.CreateButton("全部");
+            disableClientButton.Margin = new Padding(0, 0, UiScaleHelper.Scale(6), UiScaleHelper.Scale(4));
+            disableServerButton.Margin = new Padding(0, 0, UiScaleHelper.Scale(6), UiScaleHelper.Scale(4));
+            disableHcButton.Margin = new Padding(0, 0, UiScaleHelper.Scale(6), UiScaleHelper.Scale(4));
+            disableAllButton.Margin = new Padding(0, 0, UiScaleHelper.Scale(6), UiScaleHelper.Scale(4));
             disableClientButton.Click += delegate { DisableMods(ModDisableScope.Client); };
             disableServerButton.Click += delegate { DisableMods(ModDisableScope.Server); };
             disableHcButton.Click += delegate { DisableMods(ModDisableScope.HeadlessClient); };
@@ -169,13 +195,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 new AntdUI.Column("ModDirName", "文件夹名")
                 {
                     ReadOnly = true,
-                    Width = "14%",
+                    Width = "12%",
                     SortOrder = true,
                 },
                 new AntdUI.Column("ModName", "模组名")
                 {
                     ReadOnly = true,
-                    Width = "18%",
+                    Width = "22%",
                     SortOrder = true,
                 },
                 localCol,
@@ -187,7 +213,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     Width = "5%",
                 },
                 new AntdUI.Column("BikeyStatus", "签名状态") { ReadOnly = true, Width = "4%" },
-                new AntdUI.Column("ModPath", "路径") { ReadOnly = true, Width = "27%" },
+                new AntdUI.Column("ModPath", "路径") { ReadOnly = true, Width = "20%" },
                 new AntdUI.Column("UpdatedTime", "更新时间")
                 {
                     ReadOnly = true,

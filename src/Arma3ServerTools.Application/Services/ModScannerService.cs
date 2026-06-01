@@ -275,6 +275,17 @@ namespace Arma3ServerTools.Application.Services
                 return null;
             }
 
+            // 机械硬盘优化：先检查缓存是否未过期，避免不必要的文件时间戳查询
+            lock (metaCacheLock)
+            {
+                MetaCacheEntry cached;
+                if (metaCache.TryGetValue(modPath, out cached) && !cached.IsExpired())
+                {
+                    return CloneMeta(cached.Meta);
+                }
+            }
+
+            // 缓存过期或不存在，需要检查文件时间戳
             long lastWriteTicks = 0;
             try
             {
@@ -292,6 +303,8 @@ namespace Arma3ServerTools.Application.Services
                 {
                     if (cached.LastWriteTicks == lastWriteTicks)
                     {
+                        // 更新缓存时间戳，延长有效期
+                        metaCache[modPath] = new MetaCacheEntry(lastWriteTicks, cached.Meta);
                         return CloneMeta(cached.Meta);
                     }
                 }
@@ -355,15 +368,27 @@ namespace Arma3ServerTools.Application.Services
 
     internal sealed class MetaCacheEntry
     {
+        // 缓存有效期：5分钟（机械硬盘优化）
+        private static readonly long CacheValidityTicks = TimeSpan.FromMinutes(5).Ticks;
+
         public MetaCacheEntry(long lastWriteTicks, ModMeta meta)
         {
             LastWriteTicks = lastWriteTicks;
             Meta = meta;
+            CachedAtTicks = DateTime.UtcNow.Ticks;
         }
 
         public long LastWriteTicks { get; private set; }
 
         public ModMeta Meta { get; private set; }
+
+        public long CachedAtTicks { get; private set; }
+
+        public bool IsExpired()
+        {
+            long elapsedTicks = DateTime.UtcNow.Ticks - CachedAtTicks;
+            return elapsedTicks > CacheValidityTicks;
+        }
     }
 
     public sealed class ModScanResult
