@@ -81,6 +81,8 @@ namespace Arma3ServerTools.App.WinForms
         private readonly System.Windows.Forms.Timer resizeDebounceTimer;
         private Dictionary<string, int> pollRowIndexCache = new Dictionary<string, int>(StringComparer.Ordinal);
         private int pollCacheVersion = -1;
+        private string cachedCompareSnapshot;
+        private string cachedCompareSnapshotUuid;
 
         public MainForm(IAppServices services, ServerLifecycleCoordinator lifecycleCoordinator)
         {
@@ -658,7 +660,40 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             ArmaServerConfig config = services.GetCurrentConfig();
+            string snapshot = TryGetCachedCompareSnapshot(uuid);
+            if (snapshot != null)
+            {
+                return configSnapshots.HasChanges(uuid, snapshot);
+            }
+
             return configSnapshots.HasChanges(uuid, config);
+        }
+
+        private void InvalidateCompareSnapshot()
+        {
+            cachedCompareSnapshot = null;
+            cachedCompareSnapshotUuid = null;
+        }
+
+        private void SetCompareSnapshotCache(string serverUuid, string snapshot)
+        {
+            cachedCompareSnapshotUuid = serverUuid;
+            cachedCompareSnapshot = snapshot;
+        }
+
+        private string TryGetCachedCompareSnapshot(string serverUuid)
+        {
+            if (string.IsNullOrEmpty(serverUuid) || string.IsNullOrEmpty(cachedCompareSnapshot))
+            {
+                return null;
+            }
+
+            if (!string.Equals(cachedCompareSnapshotUuid, serverUuid, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            return cachedCompareSnapshot;
         }
 
         private UnsavedChangesChoice PromptUnsavedChangesIfNeeded()
@@ -765,16 +800,18 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             ApplyCurrentSettings(force: true);
-            string snapshot = ServerConfigSnapshotTracker.SerializeForCompare(config);
-            OperationResult saveResult = Task.Run(() => lifecycleCoordinator.SaveConfig(config))
+            InvalidateCompareSnapshot();
+            PersistConfigWorkResult workResult = Task.Run(
+                () => PersistConfigWork(config, lifecycleCoordinator.SaveConfig))
                 .GetAwaiter().GetResult();
-            if (!saveResult.Success)
+            if (!workResult.Result.Success)
             {
                 return false;
             }
 
             SyncSchedulerJobs(config);
-            CapturePersistedSnapshot(config.ServerUUID, snapshot);
+            SetCompareSnapshotCache(config.ServerUUID, workResult.CompareSnapshot);
+            CapturePersistedSnapshot(config.ServerUUID, workResult.CompareSnapshot);
             settingsHost.ClearDirtyMarkers();
             configSyncDebouncer.Flush();
             RefreshSelectedRowState();
@@ -795,17 +832,19 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             ApplyCurrentSettings(force: true);
-            string snapshot = ServerConfigSnapshotTracker.SerializeForCompare(config);
-            OperationResult writeResult = Task.Run(() => lifecycleCoordinator.WriteConfigFiles(config))
+            InvalidateCompareSnapshot();
+            PersistConfigWorkResult workResult = Task.Run(
+                () => PersistConfigWork(config, lifecycleCoordinator.WriteConfigFiles))
                 .GetAwaiter().GetResult();
-            if (!writeResult.Success)
+            if (!workResult.Result.Success)
             {
-                AntdUiHelper.ShowError(this, writeResult.Message, "失败");
+                AntdUiHelper.ShowError(this, workResult.Result.Message, "失败");
                 return false;
             }
 
             SyncSchedulerJobs(config);
-            CapturePersistedAndAppliedSnapshots(config.ServerUUID, snapshot);
+            SetCompareSnapshotCache(config.ServerUUID, workResult.CompareSnapshot);
+            CapturePersistedAndAppliedSnapshots(config.ServerUUID, workResult.CompareSnapshot);
             settingsHost.ClearDirtyMarkers();
             configSyncDebouncer.Flush();
             RefreshSelectedRowState();
@@ -1315,8 +1354,47 @@ namespace Arma3ServerTools.App.WinForms
         private void ApplySelectedServer(ServerGridRow row)
         {
             services.CurrentServerUuid = row.ServerUuid;
+            InvalidateCompareSnapshot();
             settingsHost.Bind(services.GetCurrentConfig());
             configSyncDebouncer.Flush();
+        }
+
+        private static PersistConfigWorkResult PersistConfigWork(
+            ArmaServerConfig config,
+            Func<ArmaServerConfig, OperationResult> persistAction)
+        {
+            string snapshot = ServerConfigSnapshotTracker.SerializeForCompare(config);
+            OperationResult result = persistAction(config);
+            return new PersistConfigWorkResult(result, snapshot);
+        }
+
+        private ServerRunState ResolveRowRunState(ArmaServerConfig config)
+        {
+            if (config == null)
+            {
+                return ServerRunState.Stopped;
+            }
+
+            ServerRunState peekState = services.ProcessService.PeekState(config);
+            if (peekState == ServerRunState.Stopped && config.ServerTaskManagement.ProcessById > 0)
+            {
+                return services.ProcessService.SyncState(config);
+            }
+
+            return peekState;
+        }
+
+        private sealed class PersistConfigWorkResult
+        {
+            public PersistConfigWorkResult(OperationResult result, string compareSnapshot)
+            {
+                Result = result;
+                CompareSnapshot = compareSnapshot;
+            }
+
+            public OperationResult Result { get; }
+
+            public string CompareSnapshot { get; }
         }
 
         private void OnNewServer(object sender, EventArgs e)
@@ -1529,15 +1607,17 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             ApplyCurrentSettings(force: true);
-            string snapshot = ServerConfigSnapshotTracker.SerializeForCompare(config);
-            OperationResult saveResult = await Task.Run(() => lifecycleCoordinator.SaveConfig(config)).ConfigureAwait(true);
-            if (!saveResult.Success)
+            InvalidateCompareSnapshot();
+            PersistConfigWorkResult workResult = await Task.Run(
+                () => PersistConfigWork(config, lifecycleCoordinator.SaveConfig)).ConfigureAwait(true);
+            if (!workResult.Result.Success)
             {
                 return;
             }
 
             SyncSchedulerJobs(config);
-            CapturePersistedSnapshot(config.ServerUUID, snapshot);
+            SetCompareSnapshotCache(config.ServerUUID, workResult.CompareSnapshot);
+            CapturePersistedSnapshot(config.ServerUUID, workResult.CompareSnapshot);
             settingsHost.ClearDirtyMarkers();
             configSyncDebouncer.Flush();
             AntdUiHelper.ShowInfo(this, UiLabels.SaveToToolSuccess, "成功");
@@ -1552,19 +1632,20 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             ApplyCurrentSettings(force: true);
-            string snapshot = ServerConfigSnapshotTracker.SerializeForCompare(config);
-            OperationResult writeResult = await Task.Run(() => lifecycleCoordinator.WriteConfigFiles(config))
-                .ConfigureAwait(true);
+            InvalidateCompareSnapshot();
+            PersistConfigWorkResult workResult = await Task.Run(
+                () => PersistConfigWork(config, lifecycleCoordinator.WriteConfigFiles)).ConfigureAwait(true);
 
-            if (!writeResult.Success)
+            if (!workResult.Result.Success)
             {
-                AntdUiHelper.ShowError(this, writeResult.Message, "失败");
+                AntdUiHelper.ShowError(this, workResult.Result.Message, "失败");
                 configSyncDebouncer.Flush();
                 return;
             }
 
             SyncSchedulerJobs(config);
-            CapturePersistedAndAppliedSnapshots(config.ServerUUID, snapshot);
+            SetCompareSnapshotCache(config.ServerUUID, workResult.CompareSnapshot);
+            CapturePersistedAndAppliedSnapshots(config.ServerUUID, workResult.CompareSnapshot);
             settingsHost.ClearDirtyMarkers();
             configSyncDebouncer.Flush();
             AntdUiHelper.ShowInfo(this, UiLabels.ApplyToServerSuccess, "成功");
@@ -1850,7 +1931,7 @@ namespace Arma3ServerTools.App.WinForms
             using (UiPerformanceProbe.BeginScope("MainForm.RefreshSelectedRowState", currentServerUuid))
             {
                 int currentVersion = Interlocked.Increment(ref refreshSelectedRowVersion);
-                ServerRunState runState = await Task.Run(() => services.ProcessService.SyncState(currentConfig)).ConfigureAwait(true);
+                ServerRunState runState = await Task.Run(() => ResolveRowRunState(currentConfig)).ConfigureAwait(true);
                 if (IsDisposed || currentVersion != refreshSelectedRowVersion)
                 {
                     return;
@@ -1876,6 +1957,7 @@ namespace Arma3ServerTools.App.WinForms
 
         private void OnSettingsSyncIndicatorsChanged(object sender, EventArgs e)
         {
+            InvalidateCompareSnapshot();
             configSyncDebouncer.Schedule();
         }
 
@@ -1913,10 +1995,23 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
-            ConfigSyncState state = ConfigSyncStateEvaluator.Evaluate(
-                configSnapshots,
-                config.ServerUUID,
-                config);
+            string snapshot = TryGetCachedCompareSnapshot(config.ServerUUID);
+            ConfigSyncState state;
+            if (snapshot != null)
+            {
+                state = ConfigSyncStateEvaluator.Evaluate(
+                    configSnapshots,
+                    config.ServerUUID,
+                    snapshot);
+            }
+            else
+            {
+                state = ConfigSyncStateEvaluator.Evaluate(
+                    configSnapshots,
+                    config.ServerUUID,
+                    config);
+            }
+
             settingsHost.UpdateSyncIndicators(state);
             UpdateStatusBar(config, state);
             UpdateActionButtonMarkers(state);

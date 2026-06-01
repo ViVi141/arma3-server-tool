@@ -126,8 +126,7 @@ namespace Arma3ServerTools.Application.Services
                 }
             }
 
-            config.ServerTaskManagement.ProcessById = 0;
-            configService.Save(config);
+            configService.PatchProcessId(config, 0);
             return OperationResult.Ok();
         }
 
@@ -196,8 +195,7 @@ namespace Arma3ServerTools.Application.Services
             {
                 if (clearStaleProcessId)
                 {
-                    config.ServerTaskManagement.ProcessById = 0;
-                    configService.Save(config);
+                    configService.PatchProcessId(config, 0);
                 }
 
                 return ServerRunState.Stopped;

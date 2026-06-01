@@ -22,6 +22,19 @@ namespace Arma3ServerTools.Application.Sync
             }
 
             string currentSnapshot = ServerConfigSnapshotTracker.SerializeForCompare(configAfterApply);
+            return Evaluate(tracker, serverUuid, currentSnapshot);
+        }
+
+        public static ConfigSyncState Evaluate(
+            ServerConfigSnapshotTracker tracker,
+            string serverUuid,
+            string currentSnapshot)
+        {
+            if (string.IsNullOrEmpty(serverUuid) || currentSnapshot == null)
+            {
+                return ConfigSyncState.FullySynced;
+            }
+
             if (tracker.HasChanges(serverUuid, currentSnapshot))
             {
                 return ConfigSyncState.Unsaved;

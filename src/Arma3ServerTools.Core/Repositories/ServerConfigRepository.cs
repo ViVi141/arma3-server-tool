@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Newtonsoft.Json.Linq;
 using Arma3ServerTools.Core.Config;
 using Arma3ServerTools.Core.IO;
 using Arma3ServerTools.Core.Models;
@@ -116,6 +117,54 @@ namespace Arma3ServerTools.Core.Repositories
             {
                 EnsureValidServerUuid(serverUuid);
                 return File.Exists(GetFilePath(serverUuid));
+            }
+        }
+
+        /// <summary>
+        /// Updates only <c>ServerTaskManagement.ProcessById</c> in the JSON file without a full config rewrite.
+        /// </summary>
+        public bool TryPatchProcessId(string serverUuid, int processId)
+        {
+            lock (fileLock)
+            {
+                if (string.IsNullOrEmpty(serverUuid))
+                {
+                    return false;
+                }
+
+                EnsureValidServerUuid(serverUuid);
+                string filePath = GetFilePath(serverUuid);
+                if (!File.Exists(filePath))
+                {
+                    return false;
+                }
+
+                string json = File.ReadAllText(filePath, GameConfigFormat.Utf8NoBom);
+                JObject root = JObject.Parse(json);
+                JToken management = root["ServerTaskManagement"];
+                if (management == null)
+                {
+                    root["ServerTaskManagement"] = new JObject
+                    {
+                        ["ProcessById"] = processId,
+                    };
+                }
+                else
+                {
+                    JObject managementObject = management as JObject;
+                    if (managementObject == null)
+                    {
+                        return false;
+                    }
+
+                    managementObject["ProcessById"] = processId;
+                }
+
+                File.WriteAllText(
+                    filePath,
+                    root.ToString(Newtonsoft.Json.Formatting.None),
+                    GameConfigFormat.Utf8NoBom);
+                return true;
             }
         }
 

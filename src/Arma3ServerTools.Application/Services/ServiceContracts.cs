@@ -14,6 +14,8 @@ namespace Arma3ServerTools.Application.Services
 
         void Save(ArmaServerConfig config);
 
+        void PatchProcessId(ArmaServerConfig config, int processId);
+
         void Delete(string serverUuid);
 
         ArmaServerConfig Create(string name, string serverDir);

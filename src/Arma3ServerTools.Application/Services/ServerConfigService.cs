@@ -57,6 +57,22 @@ namespace Arma3ServerTools.Application.Services
             repository.Save(config);
         }
 
+        public void PatchProcessId(ArmaServerConfig config, int processId)
+        {
+            if (config == null || string.IsNullOrEmpty(config.ServerUUID))
+            {
+                return;
+            }
+
+            if (config.ServerTaskManagement == null)
+            {
+                config.ServerTaskManagement = new ServerManagement();
+            }
+
+            config.ServerTaskManagement.ProcessById = processId;
+            repository.TryPatchProcessId(config.ServerUUID, processId);
+        }
+
         public void Delete(string serverUuid)
         {
             repository.Delete(serverUuid);

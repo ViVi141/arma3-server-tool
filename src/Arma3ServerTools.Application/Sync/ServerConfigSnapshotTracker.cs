@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using Arma3ServerTools.Core.IO;
 using Arma3ServerTools.Core.Models;
 
 namespace Arma3ServerTools.Application.Sync
@@ -127,39 +125,7 @@ namespace Arma3ServerTools.Application.Sync
 
         public static string SerializeForCompare(ArmaServerConfig config)
         {
-            if (config == null)
-            {
-                return string.Empty;
-            }
-
-            ArmaServerConfig normalized = CloneForCompare(config);
-            return JsonSerializer.ToCompactJson(normalized);
-        }
-
-        private static ArmaServerConfig CloneForCompare(ArmaServerConfig config)
-        {
-            string json = JsonSerializer.ToCompactJson(config);
-            ArmaServerConfig normalized = JsonSerializer.FromJson<ArmaServerConfig>(json);
-            if (normalized == null)
-            {
-                return config;
-            }
-
-            if (normalized.ServerTaskManagement == null)
-            {
-                normalized.ServerTaskManagement = new ServerManagement();
-            }
-
-            if (normalized.MissionParams != null && normalized.MissionParams.Count > 1)
-            {
-                normalized.MissionParams = normalized.MissionParams
-                    .OrderBy(pair => pair.Key, StringComparer.Ordinal)
-                    .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-            }
-
-            normalized.ServerTaskManagement.ProcessById = 0;
-            normalized.SaveTime = string.Empty;
-            return normalized;
+            return ServerConfigCompareSnapshot.Serialize(config);
         }
     }
 }
