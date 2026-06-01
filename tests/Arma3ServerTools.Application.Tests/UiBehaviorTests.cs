@@ -19,8 +19,8 @@ namespace Arma3ServerTools.Application.Tests
             string unsaved = (string)method.Invoke(null, new object[] { ConfigSyncState.Unsaved, "2026-05-01 12:00" });
             string savedWithTime = (string)method.Invoke(null, new object[] { ConfigSyncState.Saved, "2026-05-01 12:00" });
 
-            Assert.Equal("● 未保存到工具", unsaved);
-            Assert.Equal("✓ 已保存到工具 · 2026-05-01 12:00", savedWithTime);
+            Assert.Equal("● 未保存", unsaved);
+            Assert.Equal("✓ 已保存 · 2026-05-01 12:00", savedWithTime);
         }
 
         [Fact]
