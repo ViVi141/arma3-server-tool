@@ -220,11 +220,12 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     Width = "5%",
                     MaxWidth = "100",
                 },
-                new AntdUI.Column("BikeyStatus", "签名状态")
+                new AntdUI.Column("BikeyStatus", "签名")
                 {
                     ReadOnly = true,
-                    Width = "4%",
-                    MaxWidth = "80",
+                    Width = "3%",
+                    MaxWidth = "50",
+                    Align = AntdUI.ColumnAlign.Center,
                 },
                 new AntdUI.Column("ModPath", "路径")
                 {
@@ -932,7 +933,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 row.ScanOrder = scanOrder;
                 scanOrder++;
                 row.HasBikeyFile = false;
-                row.BikeyStatus = "—";
+                row.BikeyStatus = "⚫";
                 allRows.Add(row);
             }
 
@@ -959,7 +960,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                             row.ModDirName,
                             serverDir);
                         row.HasBikeyFile = inspection.HasBikeyInMod;
-                        row.BikeyStatus = inspection.StatusText;
+                        row.BikeyStatus = inspection.StatusIcon;
                     }
                 }).ConfigureAwait(true);
 

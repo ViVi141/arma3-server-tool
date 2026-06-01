@@ -14,7 +14,9 @@ namespace Arma3ServerTools.Application.Services
 
         public bool AllCopiedToServer { get; set; }
 
-        public string StatusText { get; set; } = "未签名";
+        public string StatusText { get; set; } = "🔴 未签名";
+
+        public string StatusIcon { get; set; } = "🔴";
     }
 
     public sealed class BikeyBulkCopyResult
@@ -133,12 +135,14 @@ namespace Arma3ServerTools.Application.Services
                 List<FileInfo> modBikeys = FindModBikeys(modPath);
                 if (modBikeys.Count == 0)
                 {
-                    result.StatusText = "已签名，无密钥";
+                    result.StatusText = "🟡 无密钥";
+                    result.StatusIcon = "🟡";
                     return result;
                 }
 
                 result.HasBikeyInMod = true;
-                result.StatusText = "已签名，密钥未复制";
+                result.StatusText = "🟡 未复制";
+                result.StatusIcon = "🟡";
 
                 if (string.IsNullOrEmpty(serverDir))
                 {
@@ -149,7 +153,8 @@ namespace Arma3ServerTools.Application.Services
                 if (AreAllModBikeysOnServer(keysDirectory, modDirName, modBikeys))
                 {
                     result.AllCopiedToServer = true;
-                    result.StatusText = "已签名，密钥已复制";
+                    result.StatusText = "🟢 已复制";
+                    result.StatusIcon = "🟢";
                 }
             }
             catch (UnauthorizedAccessException)

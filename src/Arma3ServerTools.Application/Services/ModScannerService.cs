@@ -224,7 +224,7 @@ namespace Arma3ServerTools.Application.Services
         private void DetectBikeyStatus(ScannedModRow row, ArmaServerConfig config)
         {
             row.HasBikeyFile = false;
-            row.BikeyStatus = "未签名";
+            row.BikeyStatus = "🔴";
 
             string serverDir = config != null ? config.ServerDir : null;
             ModBikeyInspectionResult inspection = bikeyService.InspectMod(
@@ -232,7 +232,7 @@ namespace Arma3ServerTools.Application.Services
                 row.ModDirName,
                 serverDir);
             row.HasBikeyFile = inspection.HasBikeyInMod;
-            row.BikeyStatus = inspection.StatusText;
+            row.BikeyStatus = inspection.StatusIcon;
         }
 
         private static Dictionary<string, ModsEntity> BuildSavedModsByPath(ArmaServerConfig config)
