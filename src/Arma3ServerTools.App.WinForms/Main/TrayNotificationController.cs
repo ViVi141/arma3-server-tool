@@ -83,7 +83,7 @@ namespace Arma3ServerTools.App.WinForms.Main
             {
                 AppUiSettings.Instance.HasShownTrayMinimizeHint = true;
                 notifyIcon.BalloonTipTitle = UiLabels.AppTitle;
-                notifyIcon.BalloonTipText = "程序已最小化到系统托盘，双击托盘图标可重新打开窗口。";
+                notifyIcon.BalloonTipText = "已最小化到系统托盘（任务栏右下角），双击图标可恢复窗口";
                 notifyIcon.BalloonTipIcon = ToolTipIcon.Info;
                 notifyIcon.ShowBalloonTip(5000);
             }
@@ -112,7 +112,7 @@ namespace Arma3ServerTools.App.WinForms.Main
         public void ShowServerStoppedBalloon(string serverName)
         {
             notifyIcon.BalloonTipTitle = "服务器已停止";
-            notifyIcon.BalloonTipText = serverName + " 进程已退出，请检查 RPT 日志或重新启动。";
+            notifyIcon.BalloonTipText = serverName + " 进程已退出。请检查日志或重新启动。";
             notifyIcon.Visible = true;
             notifyIcon.ShowBalloonTip(5000);
         }
