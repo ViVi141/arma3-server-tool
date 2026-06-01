@@ -2249,14 +2249,14 @@ namespace Arma3ServerTools.App.WinForms
         {
             if (config == null)
             {
-                statusServerLabel.Text = "当前服务器: （未选择）";
+                statusServerLabel.Text = "请选择服务器";
                 statusSaveLabel.Text = string.Empty;
                 statusSaveLabel.ForeColor = Color.FromArgb(38, 38, 38);
                 UpdateActionButtonMarkers(ConfigSyncState.Saved);
                 return;
             }
 
-            statusServerLabel.Text = "当前服务器: " + config.ConfigName + " (" + config.ServerUUID + ")";
+            statusServerLabel.Text = "当前: " + config.ConfigName;
             statusSaveLabel.Text = ConfigSyncStateUi.GetStatusText(state, config.SaveTime);
             statusSaveLabel.ForeColor = ConfigSyncStateUi.GetStatusColor(state);
         }

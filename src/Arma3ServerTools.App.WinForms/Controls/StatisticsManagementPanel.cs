@@ -226,7 +226,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             Enabled = true;
             enableMonitorCheckBox.Checked = config.ServerTaskManagement.EnableMonitor;
             enableMonitoringServiceCheckBox.Checked = config.ServerTaskManagement.EnableMonitoringService;
-            summaryLabel.Text = "统计服务器: " + config.ConfigName + " (" + config.ServerUUID + ")";
+            summaryLabel.Text = "统计: " + config.ConfigName;
             RefreshAll();
         }
 
@@ -243,7 +243,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             Enabled = true;
             enableMonitorCheckBox.Checked = config.ServerTaskManagement.EnableMonitor;
             enableMonitoringServiceCheckBox.Checked = config.ServerTaskManagement.EnableMonitoringService;
-            summaryLabel.Text = "统计服务器: " + config.ConfigName + " (" + config.ServerUUID + ")";
+            summaryLabel.Text = "统计: " + config.ConfigName;
         }
 
         public void ApplyToModel()
@@ -314,7 +314,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             int currentVersion = Interlocked.Increment(ref refreshVersion);
             string targetServerUuid = boundConfig.ServerUUID;
-            summaryLabel.Text = "统计服务器: " + boundConfig.ConfigName + " (" + targetServerUuid + ") - 正在刷新...";
+                summaryLabel.Text = "统计: " + targetServerUuid + " - 正在刷新...";
 
             try
             {
@@ -399,7 +399,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
                 bool hasData = playerRecords.Count > 0 || objectRecords.Count > 0;
                 UpdateEmptyDataGuide(hasData);
-                summaryLabel.Text = "统计服务器: " + boundConfig.ConfigName + " (" + targetServerUuid + ")";
+                summaryLabel.Text = "统计: " + targetServerUuid;
             }
             catch (Exception ex)
             {
@@ -411,7 +411,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 AntdUiHelper.ShowError(FindForm(), ex.Message, "刷新统计失败");
                 if (boundConfig != null)
                 {
-                    summaryLabel.Text = "统计服务器: " + boundConfig.ConfigName + " (" + boundConfig.ServerUUID + ")";
+                    summaryLabel.Text = "统计: " + boundConfig.ConfigName;
                 }
             }
         }
