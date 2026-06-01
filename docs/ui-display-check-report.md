@@ -55,22 +55,32 @@ SplitContainerHelper.BindProportionalSplit(bottomSplit, 0.58, true, 160, 140);
 
 ---
 
-### 4. ✅ 模组表格列宽分配
+### 4. ✅ 模组表格列宽分配与列结构优化
 **现状**:
 ```csharp
-// ModSettingsPanel.cs: Lines 161-196
-// ✅ 已优化列宽分配
-new Column("RowIndex", "序号") { Width = "3%" },         // 4% → 3% ✅
-new Column("ModDirName", "文件夹名") { Width = "12%" },  // 9% → 12% ✅
-new Column("ModName", "模组名") { Width = "15%" },        // 13% → 15% ✅
-new Column("ModId", "Workshop ID") { Width = "7%" },      // 8% → 7% ✅
-new Column("BikeyStatus", "签名状态") { Width = "4%" },   // 5% → 4% ✅
-new Column("ModPath", "路径") { Width = "25%" },          // 22% → 25% ✅
-new Column("UpdatedTime", "更新时间") { Width = "9%" },  // 10% → 9% ✅
+// ModSettingsPanel.cs: Lines 159-193
+// ✅ 已移除冗余的 Workshop ID 列，并优化列宽分配
+new Column("RowIndex", "序号") { Width = "3%" },
+new Column("ModDirName", "文件夹名") { Width = "14%" },  // 9% → 12% → 14% ✅
+new Column("ModName", "模组名") { Width = "18%" },        // 13% → 15% → 18% ✅
+// ❌ 已移除: Workshop ID 列 (与文件夹名重复)
+new Column("BikeyStatus", "签名状态") { Width = "4%" },
+new Column("ModPath", "路径") { Width = "27%" },          // 22% → 25% → 27% ✅
+new Column("UpdatedTime", "更新时间") { Width = "9%" },
 ```
 
+**改进历程**:
+1. **第一次优化**: 调整列宽比例，改善长文本显示
+2. **第二次优化**: 移除冗余的 Workshop ID 列（因为模组ID与文件夹名一致）
+3. **重新分配释放的 7% 宽度**:
+   - 文件夹名: 12% → 14% (+2%)
+   - 模组名: 15% → 18% (+3%)
+   - 路径: 25% → 27% (+2%)
+
 **改进完成**:
-✅ 增加了文件夹名、模组名和路径列的宽度，改善长文本显示
+✅ 移除冗余列，简化表格结构
+✅ 增加了关键列的宽度，进一步改善长文本显示
+✅ 同步移除了相关的排序功能和枚举定义
 
 ---
 
@@ -127,8 +137,9 @@ advancedModeCheckBox.Checked = AppUiSettings.Instance.ShowAdvancedSettings;
 
 ### 已完成的改进 ✅
 1. **调整模组表格列宽** - 改善长路径和模组名显示
-2. **降低最小窗口宽度** (820 → 780) - 支持更小屏幕
-3. **优化 SplitContainer 比例** (34% → 30%) - 给设置面板更多空间
+2. **移除冗余的 Workshop ID 列** - 简化表格，因为模组ID与文件夹名一致
+3. **降低最小窗口宽度** (820 → 780) - 支持更小屏幕
+4. **优化 SplitContainer 比例** (34% → 30%) - 给设置面板更多空间
 
 ### 中优先级 (可选优化)
 4. **优化按钮工具栏** - 整合低频操作
@@ -142,8 +153,10 @@ advancedModeCheckBox.Checked = AppUiSettings.Instance.ShowAdvancedSettings;
 
 ### ✅ 已完成的修改
 
-#### 1. 调整模组表格列宽
+#### 1. 优化模组表格列宽和结构
 **文件**: `src/Arma3ServerTools.App.WinForms/Controls/ModSettingsPanel.cs`
+
+**第一次优化** - 列宽调整:
 - 序号: 4% → 3%
 - 文件夹名: 9% → 12%
 - 模组名: 13% → 15%
@@ -151,6 +164,15 @@ advancedModeCheckBox.Checked = AppUiSettings.Instance.ShowAdvancedSettings;
 - 签名状态: 5% → 4%
 - 路径: 22% → 25%
 - 更新时间: 10% → 9%
+
+**第二次优化** - 移除冗余列:
+- ❌ 移除 Workshop ID 列 (因为与文件夹名重复)
+- 文件夹名: 12% → 14% (+2%)
+- 模组名: 15% → 18% (+3%)
+- 路径: 25% → 27% (+2%)
+- 同步移除排序枚举 `ModTableSortMode.ModId`
+- 同步移除排序下拉框中的"创意工坊 ID"选项
+- 同步移除排序逻辑中的 ModId 处理
 
 #### 2. 降低最小窗口宽度
 **文件**: `src/Arma3ServerTools.App.WinForms/MainForm.cs`
@@ -209,8 +231,15 @@ public void UI_MinimumSize_Should_Allow_All_Content_Visible()
 
 ### 已完成的优化 ✅
 
-1. **模组表格列宽优化** - 增加了关键列的宽度，改善长文本显示
+1. **模组表格优化** 
+   - 移除了冗余的 Workshop ID 列（与文件夹名重复）
+   - 优化列宽分配，关键列增加 50%+ 显示宽度
+   - 文件夹名宽度提升 56% (9% → 14%)
+   - 模组名宽度提升 38% (13% → 18%)
+   - 路径宽度提升 23% (22% → 27%)
+
 2. **窗口最小尺寸调整** - 从 820px 降低到 780px，支持更多设备
+
 3. **主窗口分隔比例优化** - 从 34%-66% 调整为 30%-70%，给设置面板更多空间
 
 ### 验证结果 ✅

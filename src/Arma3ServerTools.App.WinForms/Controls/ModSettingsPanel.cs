@@ -24,8 +24,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         ScanOrder = 0,
         DirName = 1,
         ModName = 2,
-        ModId = 3,
-        UpdatedTime = 4,
+        UpdatedTime = 3,
     }
 
     internal enum ModTableVisibilityFilter
@@ -101,7 +100,6 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 "扫描顺序",
                 "文件夹名",
                 "模组名",
-                "创意工坊 ID",
                 "更新时间");
             sortSelect.SelectedIndex = 0;
             sortSelect.SelectedIndexChanged += OnSortOrFilterChanged;
@@ -163,19 +161,13 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 new AntdUI.Column("ModDirName", "文件夹名")
                 {
                     ReadOnly = true,
-                    Width = "12%",
+                    Width = "14%",
                     SortOrder = true,
                 },
                 new AntdUI.Column("ModName", "模组名")
                 {
                     ReadOnly = true,
-                    Width = "15%",
-                    SortOrder = true,
-                },
-                new AntdUI.Column("ModId", "Workshop ID")
-                {
-                    ReadOnly = true,
-                    Width = "7%",
+                    Width = "18%",
                     SortOrder = true,
                 },
                 localCol,
@@ -187,7 +179,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     Width = "5%",
                 },
                 new AntdUI.Column("BikeyStatus", "签名状态") { ReadOnly = true, Width = "4%" },
-                new AntdUI.Column("ModPath", "路径") { ReadOnly = true, Width = "25%" },
+                new AntdUI.Column("ModPath", "路径") { ReadOnly = true, Width = "27%" },
                 new AntdUI.Column("UpdatedTime", "更新时间")
                 {
                     ReadOnly = true,
@@ -432,7 +424,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void OnSortOrFilterChanged(object sender, EventArgs e)
         {
-            sortMode = (ModTableSortMode)SettingsLayoutHelper.Clamp(0, 4, sortSelect.SelectedIndex);
+            sortMode = (ModTableSortMode)SettingsLayoutHelper.Clamp(0, 3, sortSelect.SelectedIndex);
             visibilityFilter = (ModTableVisibilityFilter)SettingsLayoutHelper.Clamp(0, 2, visibilitySelect.SelectedIndex);
             RefreshTableView();
         }
@@ -550,11 +542,6 @@ namespace Arma3ServerTools.App.WinForms.Controls
             if (sortMode == ModTableSortMode.ModName)
             {
                 return source.OrderBy(row => row.ModName, StringComparer.OrdinalIgnoreCase);
-            }
-
-            if (sortMode == ModTableSortMode.ModId)
-            {
-                return source.OrderBy(row => row.ModId);
             }
 
             if (sortMode == ModTableSortMode.UpdatedTime)
