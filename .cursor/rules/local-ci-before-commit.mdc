@@ -1,0 +1,36 @@
+---
+description: Run local CI before every git commit in this repository
+alwaysApply: true
+---
+
+# 提交前本地 CI
+
+在本仓库中创建 **任何 git commit 之前**，必须先跑完与 GitHub Actions 等价的本地 CI，全部通过后再提交。
+
+## 命令
+
+在仓库根目录执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/ci-local.ps1
+```
+
+## 等价步骤（与 `.github/workflows/ci.yml`）
+
+1. `dotnet restore Arma3ServerTools.sln`
+2. `dotnet build Arma3ServerTools.sln -c Release --no-restore`
+3. `dotnet build src/Arma3ServerTools.Agent.Host/ -c Release --no-restore`
+4. `dotnet test` Core 项目（Release，`--no-build`）
+5. `dotnet test` Application 项目（同上，排除 SteamCmd 相关用例）
+6. `dotnet format Arma3ServerTools.sln --verify-no-changes --no-restore`
+
+## 失败时
+
+- 修复代码或测试，必要时先 `dotnet format Arma3ServerTools.sln` 再重跑。
+- **不要**在 CI 未通过时提交或推送。
+- 向用户汇报哪一步失败及关键错误信息。
+
+## 说明
+
+- 本地 CI 不包含 `dotnet publish` 与 artifact 上传；发版另用 `scripts/build-release.ps1`。
+- 禁止使用 `&&` 串联命令（Windows PowerShell）；使用脚本或分步执行。

@@ -411,8 +411,8 @@ namespace Arma3ServerTools.Application.Tests
 
                 Assert.True(inspection.HasBisign);
                 Assert.True(inspection.HasBikeyInMod);
+                Assert.Equal("🟢", inspection.StatusIcon);
                 Assert.True(inspection.AllCopiedToServer);
-                Assert.Equal("已签名，密钥已复制", inspection.StatusText);
             }
             finally
             {
@@ -435,7 +435,8 @@ namespace Arma3ServerTools.Application.Tests
                 ModBikeyInspectionResult inspection = service.InspectMod(modPath, "@Workshop", null);
 
                 Assert.True(inspection.HasBikeyInMod);
-                Assert.Equal("已签名，密钥未复制", inspection.StatusText);
+                Assert.Equal("🟡", inspection.StatusIcon);
+                Assert.False(inspection.AllCopiedToServer);
             }
             finally
             {
@@ -462,8 +463,8 @@ namespace Arma3ServerTools.Application.Tests
                 var service = new BikeyService();
                 ModBikeyInspectionResult inspection = service.InspectMod(modPath, "@Legacy", serverDir);
 
+                Assert.Equal("🟢", inspection.StatusIcon);
                 Assert.True(inspection.AllCopiedToServer);
-                Assert.Equal("已签名，密钥已复制", inspection.StatusText);
             }
             finally
             {
