@@ -11,10 +11,20 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 {
     internal sealed class PreflightReportForm : AntdDialogForm
     {
-        public PreflightReportForm(IReadOnlyList<PreflightCheckItem> items, bool allowProceedDespiteWarnings)
+        public PreflightReportForm(
+            IReadOnlyList<PreflightCheckItem> items,
+            bool allowProceedDespiteWarnings)
+            : this(items, allowProceedDespiteWarnings, "启动前检查")
+        {
+        }
+
+        public PreflightReportForm(
+            IReadOnlyList<PreflightCheckItem> items,
+            bool allowProceedDespiteWarnings,
+            string dialogTitle)
             : base()
         {
-            Text = "启动前检查";
+            Text = string.IsNullOrWhiteSpace(dialogTitle) ? "启动前检查" : dialogTitle;
             ApplyPreferredDialogSizing(640, 480, null);
 
             bool hasError = false;
@@ -44,6 +54,20 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             AntLabel body = AntdUiHelper.CreateHintLabel(builder.ToString(), 580);
             body.Dock = DockStyle.Fill;
             body.Padding = AppTheme.ContentPadding;
+
+            AntButton copyButton = AntdUiHelper.CreateToolbarButton("复制报告");
+            copyButton.Click += delegate
+            {
+                try
+                {
+                    Clipboard.SetText(builder.ToString());
+                    AntdUiHelper.ShowInfo(FindForm(), "报告已复制到剪贴板。", "成功");
+                }
+                catch
+                {
+                    AntdUiHelper.ShowWarning(FindForm(), "无法访问剪贴板。", "失败");
+                }
+            };
 
             AntButton closeButton = AntdUiHelper.CreatePrimaryButton("关闭");
             closeButton.Click += delegate
@@ -94,6 +118,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 Padding = UiScaleHelper.ScalePadding(12, 4, 12, 8),
             };
             buttonBar.Controls.Add(closeButton);
+            buttonBar.Controls.Add(copyButton);
             if (showProceed)
             {
                 buttonBar.Controls.Add(proceedButton);

@@ -269,6 +269,21 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
         }
 
+        public void ReloadCurrentServerFromDisk()
+        {
+            if (string.IsNullOrEmpty(boundServerUuid))
+            {
+                return;
+            }
+
+            ArmaServerConfig latest = appServices.ConfigService.Get(boundServerUuid);
+            appServices.LoadedConfigs[boundServerUuid] = latest;
+            currentConfig = null;
+            Bind(latest);
+            ClearDirtyMarkers();
+            UpdateSyncIndicators(ConfigSyncState.Saved);
+        }
+
         public void RefreshOverview()
         {
             if (OverviewPanel != null)

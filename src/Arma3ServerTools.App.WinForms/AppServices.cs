@@ -33,6 +33,9 @@ namespace Arma3ServerTools.App.WinForms
             MonitoringDeploymentService monitoringDeploymentService,
             MonitoringHealthChecker monitoringHealthChecker,
             ServerPreflightChecker preflightChecker,
+            ServerDiagnosticsService diagnosticsService,
+            ServerConfigSnapshotService snapshotService,
+            ModBikeyReadinessService modBikeyReadinessService,
             RptLogService rptLogService,
             MonitoringDatabase monitoringDatabase,
             MonitoringQueryService monitoringQueryService,
@@ -59,6 +62,9 @@ namespace Arma3ServerTools.App.WinForms
             MonitoringDeploymentService = monitoringDeploymentService;
             MonitoringHealthChecker = monitoringHealthChecker;
             PreflightChecker = preflightChecker;
+            DiagnosticsService = diagnosticsService;
+            SnapshotService = snapshotService;
+            ModBikeyReadinessService = modBikeyReadinessService;
             RptLogService = rptLogService;
             MonitoringDatabase = monitoringDatabase;
             MonitoringQueryService = monitoringQueryService;
@@ -104,6 +110,12 @@ namespace Arma3ServerTools.App.WinForms
         public MonitoringHealthChecker MonitoringHealthChecker { get; }
 
         public ServerPreflightChecker PreflightChecker { get; }
+
+        public ServerDiagnosticsService DiagnosticsService { get; }
+
+        public ServerConfigSnapshotService SnapshotService { get; }
+
+        public ModBikeyReadinessService ModBikeyReadinessService { get; }
 
         public RptLogService RptLogService { get; }
 

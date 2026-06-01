@@ -53,6 +53,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly AntdUI.Checkbox dlcCslaCheckBox;
         private readonly AntdUI.Checkbox dlcWsCheckBox;
         private readonly AntdUI.Checkbox dlcVnCheckBox;
+        private readonly AntLabel bikeySummaryLabel;
+        private readonly AntdUI.Button copyMissingBikeyButton;
 
         private readonly IAppServices appServices;
         private ArmaServerConfig boundConfig;
@@ -178,6 +180,25 @@ namespace Arma3ServerTools.App.WinForms.Controls
             disableBar.Controls.Add(disableHcButton);
             disableBar.Controls.Add(disableAllButton);
 
+            var bikeyReadinessBar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                WrapContents = true,
+                Padding = new Padding(0, 0, 0, UiScaleHelper.Scale(4)),
+            };
+            bikeySummaryLabel = new AntLabel
+            {
+                Text = "Bikey 就绪: —",
+                AutoSizeMode = AntdUI.TAutoSize.Auto,
+                Padding = new Padding(0, UiScaleHelper.Scale(8), UiScaleHelper.Scale(12), UiScaleHelper.Scale(4)),
+            };
+            copyMissingBikeyButton = SettingsLayoutHelper.CreateButton("复制缺失 Bikey");
+            copyMissingBikeyButton.Margin = new Padding(0, 0, UiScaleHelper.Scale(6), UiScaleHelper.Scale(4));
+            copyMissingBikeyButton.Click += OnCopyMissingBikeys;
+            bikeyReadinessBar.Controls.Add(bikeySummaryLabel);
+            bikeyReadinessBar.Controls.Add(copyMissingBikeyButton);
+
             modsTable = AntdTableHelper.CreateStandardTable();
             var updateCol = new AntdUI.ColumnSwitch("UpdateSelected", "更新");
             updateCol.Call = OnModSwitchCall;
@@ -292,6 +313,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             split.Panel2.Controls.Add(SettingsLayoutHelper.CreateScrollHost(optionsLayout));
 
             Controls.Add(split);
+            Controls.Add(bikeyReadinessBar);
             Controls.Add(disableBar);
             Controls.Add(viewBar);
             Controls.Add(toolbar);
@@ -584,6 +606,65 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             AntdTableHelper.BindList(modsTable, displayRows);
+            UpdateBikeyReadinessSummary();
+        }
+
+        private void UpdateBikeyReadinessSummary()
+        {
+            if (bikeySummaryLabel == null)
+            {
+                return;
+            }
+
+            ModBikeyReadinessSummary summary = appServices.ModBikeyReadinessService.SummarizeEnabledMods(allRows);
+            bikeySummaryLabel.Text = "Bikey 就绪 · " + summary.ToSummaryText();
+            if (copyMissingBikeyButton != null)
+            {
+                copyMissingBikeyButton.Enabled = summary.NeedsAttentionCount > 0
+                    && boundConfig != null
+                    && !string.IsNullOrEmpty(boundConfig.ServerDir);
+            }
+        }
+
+        private void OnCopyMissingBikeys(object sender, EventArgs e)
+        {
+            if (boundConfig == null || string.IsNullOrEmpty(boundConfig.ServerDir))
+            {
+                AntdUiHelper.ShowWarning(FindForm(), "请先选择服务器并配置服务器目录。", "提示");
+                return;
+            }
+
+            BikeyBulkCopyResult result = appServices.ModBikeyReadinessService.CopyMissingBikeysForEnabledMods(
+                boundConfig,
+                allRows);
+            RefreshBikeyStatuses();
+
+            if (result.ModsWithKeys == 0 && result.FailedModCount == 0)
+            {
+                AntdUiHelper.ShowInfo(
+                    FindForm(),
+                    "没有需要复制的 Bikey（已启用模组均已就绪或未签名）。",
+                    "提示");
+                return;
+            }
+
+            var message = new StringBuilder();
+            message.Append("已为 ");
+            message.Append(result.ModsWithKeys);
+            message.Append(" 个模组复制 ");
+            message.Append(result.KeyFileCount);
+            message.Append(" 个 bikey 文件。");
+            if (result.FailedModCount > 0)
+            {
+                message.Append(Environment.NewLine);
+                message.Append("失败 ");
+                message.Append(result.FailedModCount);
+                message.Append(" 个模组。");
+                AntdUiHelper.ShowWarning(FindForm(), message.ToString(), "复制完成");
+                return;
+            }
+
+            AntdUiHelper.ShowInfo(FindForm(), message.ToString(), "复制完成");
         }
 
         private IEnumerable<ScannedModRow> ApplySort(IEnumerable<ScannedModRow> source)
@@ -970,6 +1051,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             RefreshTableViewIfNeeded();
+            UpdateBikeyReadinessSummary();
         }
 
         private void RefreshBikeyStatuses()

@@ -25,6 +25,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly AntLabel scheduleSummaryLabel;
         private readonly AntLabel rptValueLabel;
         private readonly AntButton preflightButton;
+        private readonly AntButton diagnosticsButton;
+        private readonly AntButton snapshotButton;
         private readonly AntButton rptButton;
 
         private readonly IAppServices appServices;
@@ -57,12 +59,18 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 Padding = new Padding(0, UiScaleHelper.Scale(8), 0, 0),
             };
             preflightButton = SettingsLayoutHelper.CreateButton("启动前检查");
+            diagnosticsButton = SettingsLayoutHelper.CreateButton("开服体检");
+            snapshotButton = SettingsLayoutHelper.CreateButton("配置快照...");
             rptButton = SettingsLayoutHelper.CreateButton("查看 RPT 日志");
             AntButton aboutButton = SettingsLayoutHelper.CreateButton("关于");
             preflightButton.Click += OnRunPreflight;
+            diagnosticsButton.Click += OnRunDiagnostics;
+            snapshotButton.Click += OnOpenConfigSnapshots;
             rptButton.Click += OnViewRpt;
             aboutButton.Click += OnOpenAbout;
+            toolbar.Controls.Add(diagnosticsButton);
             toolbar.Controls.Add(preflightButton);
+            toolbar.Controls.Add(snapshotButton);
             toolbar.Controls.Add(rptButton);
             toolbar.Controls.Add(aboutButton);
 
@@ -286,6 +294,53 @@ namespace Arma3ServerTools.App.WinForms.Controls
             using (var dialog = new PreflightReportForm(items, false))
             {
                 dialog.ShowDialog(FindForm());
+            }
+        }
+
+        private void OnRunDiagnostics(object sender, EventArgs e)
+        {
+            if (boundConfig == null)
+            {
+                return;
+            }
+
+            var items = appServices.DiagnosticsService.RunFullDiagnostics(boundConfig);
+            using (var dialog = new PreflightReportForm(items, false, "开服体检"))
+            {
+                dialog.ShowDialog(FindForm());
+            }
+        }
+
+        private void OnOpenConfigSnapshots(object sender, EventArgs e)
+        {
+            if (boundConfig == null || string.IsNullOrEmpty(boundConfig.ServerUUID))
+            {
+                return;
+            }
+
+            using (var dialog = new ConfigSnapshotForm(
+                appServices.SnapshotService,
+                boundConfig.ServerUUID,
+                boundConfig.ConfigName,
+                ReloadServerConfigFromDisk))
+            {
+                dialog.ShowDialog(FindForm());
+            }
+        }
+
+        private void ReloadServerConfigFromDisk()
+        {
+            Control parent = Parent;
+            while (parent != null)
+            {
+                ServerSettingsHost host = parent as ServerSettingsHost;
+                if (host != null)
+                {
+                    host.ReloadCurrentServerFromDisk();
+                    return;
+                }
+
+                parent = parent.Parent;
             }
         }
 

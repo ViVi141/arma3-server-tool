@@ -50,6 +50,12 @@ namespace Arma3ServerTools.App.WinForms
 
         ServerPreflightChecker PreflightChecker { get; }
 
+        ServerDiagnosticsService DiagnosticsService { get; }
+
+        ServerConfigSnapshotService SnapshotService { get; }
+
+        ModBikeyReadinessService ModBikeyReadinessService { get; }
+
         RptLogService RptLogService { get; }
 
         MonitoringDatabase MonitoringDatabase { get; }

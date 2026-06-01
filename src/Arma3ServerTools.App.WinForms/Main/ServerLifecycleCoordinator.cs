@@ -25,6 +25,7 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             config.SetTime();
+            services.SnapshotService.TryCreateAutoSnapshot(config.ServerUUID, "保存前");
             services.ConfigService.Save(config);
             return OperationResult.Ok();
         }
@@ -39,6 +40,7 @@ namespace Arma3ServerTools.App.WinForms
                 return OperationResult.Fail("未选择服务器配置。");
             }
 
+            services.SnapshotService.TryCreateAutoSnapshot(config.ServerUUID, "写入服务器前");
             OperationResult cfgResult = services.ConfigWriter.WriteAll(config);
             if (!cfgResult.Success)
             {

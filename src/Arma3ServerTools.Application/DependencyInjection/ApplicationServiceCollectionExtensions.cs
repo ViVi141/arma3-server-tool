@@ -50,6 +50,9 @@ namespace Arma3ServerTools.Application.DependencyInjection
             services.AddSingleton<BansService>();
             services.AddSingleton<MonitoringHealthChecker>();
             services.AddSingleton<ServerPreflightChecker>();
+            services.AddSingleton<ServerConfigSnapshotService>();
+            services.AddSingleton<ServerDiagnosticsService>();
+            services.AddSingleton<ModBikeyReadinessService>();
             services.AddSingleton<RptLogService>();
             services.AddSingleton<MonitoringDatabase>();
             services.AddSingleton<MonitoringQueryService>();
