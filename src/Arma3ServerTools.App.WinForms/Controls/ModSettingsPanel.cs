@@ -67,7 +67,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             AppTheme.ApplyTo(this);
 
             var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
-            
+
             // 核心操作按钮
             AntdUI.Button refreshButton = SettingsLayoutHelper.CreateButton("扫描刷新");
             refreshButton.Click += delegate { ScanMods(); };

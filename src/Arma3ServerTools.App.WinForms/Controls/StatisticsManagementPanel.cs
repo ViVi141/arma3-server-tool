@@ -314,7 +314,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             int currentVersion = Interlocked.Increment(ref refreshVersion);
             string targetServerUuid = boundConfig.ServerUUID;
-                summaryLabel.Text = "统计: " + targetServerUuid + " - 正在刷新...";
+            summaryLabel.Text = "统计: " + targetServerUuid + " - 正在刷新...";
 
             try
             {

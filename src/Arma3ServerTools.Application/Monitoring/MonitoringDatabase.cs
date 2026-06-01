@@ -122,11 +122,11 @@ namespace Arma3ServerTools.Application.Monitoring
             lock (syncRoot)
             {
                 EnsureInitializedCore();
-                
+
                 using (var transaction = connection.BeginTransaction())
                 {
                     int totalAffected = 0;
-                    
+
                     using (SqliteCommand upsert = new SqliteCommand(
                         "INSERT INTO a3_player_info(server_id, data_key, player_id, player_name, infantry_kills, soft_vehicle_kills, armor_kills, air_kills, deaths, total_score, create_time, online, create_time_timestamp) "
                         + "VALUES (@serverId, @dataKey, @playerId, @playerName, @infantry, @soft, @armor, @air, @deaths, @score, @createTime, 1, @timestamp) "
@@ -149,7 +149,7 @@ namespace Arma3ServerTools.Application.Monitoring
                             upsert.Parameters.Clear();
                         }
                     }
-                    
+
                     transaction.Commit();
                     return totalAffected;
                 }
