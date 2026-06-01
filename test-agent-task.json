@@ -1,0 +1,14 @@
+﻿{
+    "commands":  [
+                     {
+                         "action":  "status"
+                     },
+                     {
+                         "action":  "save"
+                     },
+                     {
+                         "action":  "write_cfg"
+                     }
+                 ],
+    "taskId":  "test-20260601-234632"
+}
