@@ -21,6 +21,11 @@ namespace Arma3ServerTools.App.WinForms
         /// </summary>
         public bool AllowExternalConfigRefresh { get; set; }
 
+        /// <summary>
+        /// 是否已显示过托盘最小化提示（首次最小化到托盘时显示）
+        /// </summary>
+        public bool HasShownTrayMinimizeHint { get; set; }
+
         public static void LoadFrom(string configDirectory)
         {
             instance = LoadInternal(configDirectory);

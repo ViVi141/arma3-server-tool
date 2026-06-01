@@ -78,6 +78,15 @@ namespace Arma3ServerTools.App.WinForms.Main
         {
             form.Hide();
             notifyIcon.Visible = true;
+
+            if (!AppUiSettings.Instance.HasShownTrayMinimizeHint)
+            {
+                AppUiSettings.Instance.HasShownTrayMinimizeHint = true;
+                notifyIcon.BalloonTipTitle = UiLabels.AppTitle;
+                notifyIcon.BalloonTipText = "程序已最小化到系统托盘，双击托盘图标可重新打开窗口。";
+                notifyIcon.BalloonTipIcon = ToolTipIcon.Info;
+                notifyIcon.ShowBalloonTip(5000);
+            }
         }
 
         public void ShowMainWindow(Form form)
