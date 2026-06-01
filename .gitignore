@@ -29,6 +29,14 @@ scripts/_build-metadata.iss
 
 # Release build output
 artifacts/
+publish/
+
+# Test output
+TestResults/
+*.trx
+coverage/
+*.coverage
+*.coveragexml
 
 # Local scratch / probe assets
 pic/
