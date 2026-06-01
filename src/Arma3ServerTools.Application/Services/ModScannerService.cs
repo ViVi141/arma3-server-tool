@@ -341,6 +341,16 @@ namespace Arma3ServerTools.Application.Services
                 TimeStamp = meta.TimeStamp,
             };
         }
+
+        // Async concurrent scan method
+        public async System.Threading.Tasks.Task<ModScanResult> ScanAsync(
+            ArmaServerConfig config,
+            SteamcmdEntity steamcmd,
+            bool includeBikeyStatus = false,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            return await System.Threading.Tasks.Task.Run(() => Scan(config, steamcmd, includeBikeyStatus), cancellationToken);
+        }
     }
 
     internal sealed class MetaCacheEntry

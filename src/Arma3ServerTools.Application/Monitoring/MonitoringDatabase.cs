@@ -117,6 +117,45 @@ namespace Arma3ServerTools.Application.Monitoring
             }
         }
 
+        public int BatchInsertPlayerInfo(int serverId, System.Collections.Generic.IEnumerable<string[]> playerDataBatch)
+        {
+            lock (syncRoot)
+            {
+                EnsureInitializedCore();
+                
+                using (var transaction = connection.BeginTransaction())
+                {
+                    int totalAffected = 0;
+                    
+                    using (SqliteCommand upsert = new SqliteCommand(
+                        "INSERT INTO a3_player_info(server_id, data_key, player_id, player_name, infantry_kills, soft_vehicle_kills, armor_kills, air_kills, deaths, total_score, create_time, online, create_time_timestamp) "
+                        + "VALUES (@serverId, @dataKey, @playerId, @playerName, @infantry, @soft, @armor, @air, @deaths, @score, @createTime, 1, @timestamp) "
+                        + "ON CONFLICT(server_id, player_id) DO UPDATE SET "
+                        + "player_name = excluded.player_name, "
+                        + "infantry_kills = infantry_kills + excluded.infantry_kills, "
+                        + "soft_vehicle_kills = soft_vehicle_kills + excluded.soft_vehicle_kills, "
+                        + "armor_kills = armor_kills + excluded.armor_kills, "
+                        + "air_kills = air_kills + excluded.air_kills, "
+                        + "deaths = deaths + excluded.deaths, "
+                        + "total_score = total_score + excluded.total_score, "
+                        + "online = 1",
+                        connection,
+                        transaction))
+                    {
+                        foreach (var playerData in playerDataBatch)
+                        {
+                            AddPlayerParameters(upsert, serverId, playerData);
+                            totalAffected += upsert.ExecuteNonQuery();
+                            upsert.Parameters.Clear();
+                        }
+                    }
+                    
+                    transaction.Commit();
+                    return totalAffected;
+                }
+            }
+        }
+
         public int InsertObjectNum(int serverId, string[] args)
         {
             lock (syncRoot)

@@ -21,6 +21,18 @@ namespace Arma3ServerTools.Application.Services
         ArmaServerConfig Create(string name, string serverDir);
 
         ArmaServerConfig Clone(string sourceServerUuid, string newName, string newServerDir);
+
+        // Async methods
+        System.Threading.Tasks.Task<ArmaServerConfig> GetAsync(
+            string serverUuid,
+            System.Threading.CancellationToken cancellationToken = default);
+
+        System.Threading.Tasks.Task SaveAsync(
+            ArmaServerConfig config,
+            System.Threading.CancellationToken cancellationToken = default);
+
+        System.Threading.Tasks.Task<IReadOnlyDictionary<string, ArmaServerConfig>> LoadAllAsync(
+            System.Threading.CancellationToken cancellationToken = default);
     }
 
     public interface IServerProcessService
@@ -46,6 +58,31 @@ namespace Arma3ServerTools.Application.Services
         OperationResult StartHeadlessClient(string serverUuid);
 
         OperationResult DetectRestart(string serverUuid);
+
+        // Async methods
+        System.Threading.Tasks.Task<OperationResult> StartAsync(
+            string serverUuid,
+            System.Threading.CancellationToken cancellationToken = default);
+
+        System.Threading.Tasks.Task<OperationResult> StartAsync(
+            ArmaServerConfig config,
+            System.Threading.CancellationToken cancellationToken = default);
+
+        System.Threading.Tasks.Task<OperationResult> StopAsync(
+            string serverUuid,
+            System.Threading.CancellationToken cancellationToken = default);
+
+        System.Threading.Tasks.Task<OperationResult> StopAsync(
+            ArmaServerConfig config,
+            System.Threading.CancellationToken cancellationToken = default);
+
+        System.Threading.Tasks.Task<ServerRunState> GetStateAsync(
+            string serverUuid,
+            System.Threading.CancellationToken cancellationToken = default);
+
+        System.Threading.Tasks.Task<ServerRunState> SyncStateAsync(
+            string serverUuid,
+            System.Threading.CancellationToken cancellationToken = default);
     }
 
     public interface IGameConfigWriter
@@ -55,6 +92,11 @@ namespace Arma3ServerTools.Application.Services
         string BuildStartCommandLine(ArmaServerConfig config);
 
         string BuildHeadlessClientCommandLine(ArmaServerConfig config);
+
+        // Async methods
+        System.Threading.Tasks.Task<OperationResult> WriteAllAsync(
+            ArmaServerConfig config,
+            System.Threading.CancellationToken cancellationToken = default);
     }
 
     public interface IRconService : System.IDisposable

@@ -83,6 +83,66 @@ namespace Arma3ServerTools.Application.Services
             return OperationResult.Ok();
         }
 
+        public async System.Threading.Tasks.Task<OperationResult> StartAsync(
+            string serverUuid,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            ArmaServerConfig config = configService.Get(serverUuid);
+            return await StartAsync(config, cancellationToken);
+        }
+
+        public async System.Threading.Tasks.Task<OperationResult> StartAsync(
+            ArmaServerConfig config,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            if (config == null)
+            {
+                return OperationResult.Fail("未找到服务器配置。");
+            }
+
+            if (!GameConfigPaths.ServerCfgExists(config))
+            {
+                return OperationResult.Fail(
+                    "尚未生成游戏配置文件。请先在工具中点击「应用到服务器目录」，再启动服务器。");
+            }
+
+            configWriter.BuildStartCommandLine(config);
+            string executable = GetServerExecutablePath(config);
+            if (!File.Exists(executable))
+            {
+                return OperationResult.Fail("找不到服务器可执行文件: " + executable);
+            }
+
+            ProcessStartResult startResult = processRunner.Start(executable, config.StartCommandLine, config.ServerDir);
+            if (!startResult.Success)
+            {
+                return OperationResult.Fail("启动失败: " + startResult.Message);
+            }
+
+            config.ServerTaskManagement.ProcessById = startResult.ProcessId;
+
+            // 验证进程是否已在运行中
+            if (!processRunner.IsRunning(startResult.ProcessId))
+            {
+                config.ServerTaskManagement.ProcessById = 0;
+                configService.Save(config);
+                return OperationResult.Fail("进程已退出: " + startResult.Message);
+            }
+
+            configService.Save(config);
+
+            // 异步等待后二次验证进程存活
+            await System.Threading.Tasks.Task.Delay(2000, cancellationToken);
+            if (!processRunner.IsRunning(startResult.ProcessId))
+            {
+                config.ServerTaskManagement.ProcessById = 0;
+                configService.Save(config);
+                return OperationResult.Fail("进程启动后2秒内已退出，请检查模板/模组配置。");
+            }
+
+            return OperationResult.Ok();
+        }
+
         public OperationResult Stop(string serverUuid)
         {
             ArmaServerConfig config = configService.Get(serverUuid);
@@ -125,6 +185,21 @@ namespace Arma3ServerTools.Application.Services
             return OperationResult.Ok();
         }
 
+        public async System.Threading.Tasks.Task<OperationResult> StopAsync(
+            string serverUuid,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            ArmaServerConfig config = configService.Get(serverUuid);
+            return await StopAsync(config, cancellationToken);
+        }
+
+        public async System.Threading.Tasks.Task<OperationResult> StopAsync(
+            ArmaServerConfig config,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            return await System.Threading.Tasks.Task.Run(() => Stop(config), cancellationToken);
+        }
+
         public ServerRunState GetState(string serverUuid)
         {
             ArmaServerConfig config = configService.Get(serverUuid);
@@ -155,6 +230,22 @@ namespace Arma3ServerTools.Application.Services
             }
 
             return ResolveState(config, clearStaleProcessId: true);
+        }
+
+        public async System.Threading.Tasks.Task<ServerRunState> GetStateAsync(
+            string serverUuid,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            ArmaServerConfig config = configService.Get(serverUuid);
+            return await System.Threading.Tasks.Task.Run(() => GetState(config), cancellationToken);
+        }
+
+        public async System.Threading.Tasks.Task<ServerRunState> SyncStateAsync(
+            string serverUuid,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            ArmaServerConfig config = configService.Get(serverUuid);
+            return await System.Threading.Tasks.Task.Run(() => SyncState(config), cancellationToken);
         }
 
         public ServerRunState PeekState(ArmaServerConfig config)
@@ -279,43 +370,65 @@ namespace Arma3ServerTools.Application.Services
 
             try
             {
-                using (Process process = Process.GetProcessById(pid))
+                // 添加超时机制
+                using (var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(2)))
                 {
-                    string actualPath = null;
-                    try
+                    var task = System.Threading.Tasks.Task.Run(() =>
                     {
-                        ProcessModule module = process.MainModule;
-                        if (module != null)
+                        using (Process process = Process.GetProcessById(pid))
                         {
-                            actualPath = module.FileName;
+                            string actualPath = null;
+                            try
+                            {
+                                ProcessModule module = process.MainModule;
+                                if (module != null)
+                                {
+                                    actualPath = module.FileName;
+                                }
+                            }
+                            catch
+                            {
+                                return (ProcessIdentityStatus.Unknown, null);
+                            }
+
+                            if (string.IsNullOrWhiteSpace(actualPath))
+                            {
+                                return (ProcessIdentityStatus.Unknown, null);
+                            }
+
+                            return (ProcessIdentityStatus.Match, actualPath);
                         }
+                    }, cts.Token);
+
+                    if (task.Wait(2000))  // 2秒超时
+                    {
+                        var (status, actualPath) = task.Result;
+                        if (status == ProcessIdentityStatus.Unknown || actualPath == null)
+                        {
+                            return ProcessIdentityStatus.Unknown;
+                        }
+
+                        string actualFullPath;
+                        try
+                        {
+                            actualFullPath = Path.GetFullPath(actualPath);
+                        }
+                        catch
+                        {
+                            return ProcessIdentityStatus.Unknown;
+                        }
+
+                        if (string.Equals(actualFullPath, expectedFullPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return ProcessIdentityStatus.Match;
+                        }
+
+                        return ProcessIdentityStatus.Mismatch;
                     }
-                    catch
+                    else
                     {
                         return ProcessIdentityStatus.Unknown;
                     }
-
-                    if (string.IsNullOrWhiteSpace(actualPath))
-                    {
-                        return ProcessIdentityStatus.Unknown;
-                    }
-
-                    string actualFullPath;
-                    try
-                    {
-                        actualFullPath = Path.GetFullPath(actualPath);
-                    }
-                    catch
-                    {
-                        return ProcessIdentityStatus.Unknown;
-                    }
-
-                    if (string.Equals(actualFullPath, expectedFullPath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return ProcessIdentityStatus.Match;
-                    }
-
-                    return ProcessIdentityStatus.Mismatch;
                 }
             }
             catch

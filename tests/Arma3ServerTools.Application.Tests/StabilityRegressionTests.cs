@@ -88,6 +88,37 @@ namespace Arma3ServerTools.Application.Tests
             public OperationResult StartHeadlessClient(string serverUuid) => OperationResult.Ok();
 
             public OperationResult DetectRestart(string serverUuid) => OperationResult.Ok();
+
+            // Async methods
+            public System.Threading.Tasks.Task<OperationResult> StartAsync(
+                string serverUuid,
+                System.Threading.CancellationToken cancellationToken = default) => 
+                System.Threading.Tasks.Task.FromResult(OperationResult.Ok());
+
+            public System.Threading.Tasks.Task<OperationResult> StartAsync(
+                ArmaServerConfig config,
+                System.Threading.CancellationToken cancellationToken = default) => 
+                System.Threading.Tasks.Task.FromResult(OperationResult.Ok());
+
+            public System.Threading.Tasks.Task<OperationResult> StopAsync(
+                string serverUuid,
+                System.Threading.CancellationToken cancellationToken = default) => 
+                System.Threading.Tasks.Task.FromResult(OperationResult.Ok());
+
+            public System.Threading.Tasks.Task<OperationResult> StopAsync(
+                ArmaServerConfig config,
+                System.Threading.CancellationToken cancellationToken = default) => 
+                System.Threading.Tasks.Task.FromResult(OperationResult.Ok());
+
+            public System.Threading.Tasks.Task<ServerRunState> GetStateAsync(
+                string serverUuid,
+                System.Threading.CancellationToken cancellationToken = default) => 
+                System.Threading.Tasks.Task.FromResult(ServerRunState.Stopped);
+
+            public System.Threading.Tasks.Task<ServerRunState> SyncStateAsync(
+                string serverUuid,
+                System.Threading.CancellationToken cancellationToken = default) => 
+                System.Threading.Tasks.Task.FromResult(ServerRunState.Stopped);
         }
     }
 }

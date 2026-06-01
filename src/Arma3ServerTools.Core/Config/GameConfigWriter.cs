@@ -111,6 +111,44 @@ namespace Arma3ServerTools.Core.Config
             }
         }
 
+        public async System.Threading.Tasks.Task<OperationResult> WriteAllAsync(
+            ArmaServerConfig config,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            if (config == null)
+            {
+                return OperationResult.Fail("配置不能为空。");
+            }
+
+            if (string.IsNullOrEmpty(config.ServerDir) || string.IsNullOrEmpty(config.ServerUUID))
+            {
+                return OperationResult.Fail("服务器目录或 UUID 未设置。");
+            }
+
+            try
+            {
+                EnsureConfigDirectories(config);
+                
+                // 并行写入多个配置文件
+                await System.Threading.Tasks.Task.WhenAll(
+                    WriteServerCfgAsync(config, cancellationToken),
+                    WriteBasicCfgAsync(config, cancellationToken),
+                    WriteServerProfileAsync(config, cancellationToken),
+                    WriteBattlEyeCfgAsync(config, cancellationToken)
+                );
+                
+                return OperationResult.Ok();
+            }
+            catch (ConfigException ex)
+            {
+                return OperationResult.Fail(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return OperationResult.Fail("保存失败: " + ex.Message);
+            }
+        }
+
         public string BuildHeadlessClientCommandLine(ArmaServerConfig config)
         {
             var sb = new StringBuilder();
@@ -287,7 +325,18 @@ namespace Arma3ServerTools.Core.Config
 
             AppendStartupExtraArgs(sb, config.StartupParameters.StartConfigArgs);
 
-            config.StartCommandLine = sb.ToString();
+            string commandLine = sb.ToString();
+            
+            // 添加长度检查
+            const int WindowsCommandLineLimit = 8191;
+            if (commandLine.Length > WindowsCommandLineLimit)
+            {
+                throw new ConfigException(
+                    $"启动参数过长 ({commandLine.Length} 字符)，Windows 限制为 {WindowsCommandLineLimit} 字符。" +
+                    "请减少模组数量或使用更短的路径。");
+            }
+            
+            config.StartCommandLine = commandLine;
             return config.StartCommandLine;
         }
 
@@ -1121,6 +1170,35 @@ namespace Arma3ServerTools.Core.Config
             }
 
             return normalized;
+        }
+
+        // Async versions of write methods - delegate to sync versions on background thread
+        private async System.Threading.Tasks.Task WriteServerCfgAsync(
+            ArmaServerConfig config,
+            System.Threading.CancellationToken cancellationToken)
+        {
+            await System.Threading.Tasks.Task.Run(() => WriteServerCfg(config), cancellationToken);
+        }
+
+        private async System.Threading.Tasks.Task WriteBasicCfgAsync(
+            ArmaServerConfig config,
+            System.Threading.CancellationToken cancellationToken)
+        {
+            await System.Threading.Tasks.Task.Run(() => WriteBasicCfg(config), cancellationToken);
+        }
+
+        private async System.Threading.Tasks.Task WriteServerProfileAsync(
+            ArmaServerConfig config,
+            System.Threading.CancellationToken cancellationToken)
+        {
+            await System.Threading.Tasks.Task.Run(() => WriteServerProfile(config), cancellationToken);
+        }
+
+        private async System.Threading.Tasks.Task WriteBattlEyeCfgAsync(
+            ArmaServerConfig config,
+            System.Threading.CancellationToken cancellationToken)
+        {
+            await System.Threading.Tasks.Task.Run(() => WriteBattlEyeCfg(config), cancellationToken);
         }
     }
 }

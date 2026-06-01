@@ -26,6 +26,13 @@ namespace Arma3ServerTools.Application.Services
         {
             return writer.BuildHeadlessClientCommandLine(config);
         }
+
+        public async System.Threading.Tasks.Task<OperationResult> WriteAllAsync(
+            ArmaServerConfig config,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            return await writer.WriteAllAsync(config, cancellationToken);
+        }
     }
 
     public sealed class ServerConfigService : IServerConfigService
@@ -118,6 +125,26 @@ namespace Arma3ServerTools.Application.Services
             copy.ServerTaskManagement.ProcessById = 0;
             repository.Save(copy);
             return copy;
+        }
+
+        public async System.Threading.Tasks.Task<ArmaServerConfig> GetAsync(
+            string serverUuid,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            return await System.Threading.Tasks.Task.Run(() => Get(serverUuid), cancellationToken);
+        }
+
+        public async System.Threading.Tasks.Task SaveAsync(
+            ArmaServerConfig config,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            await System.Threading.Tasks.Task.Run(() => Save(config), cancellationToken);
+        }
+
+        public async System.Threading.Tasks.Task<IReadOnlyDictionary<string, ArmaServerConfig>> LoadAllAsync(
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            return await System.Threading.Tasks.Task.Run(() => LoadAll(), cancellationToken);
         }
     }
 }
