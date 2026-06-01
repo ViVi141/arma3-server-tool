@@ -158,24 +158,24 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             modsTable.Columns = new AntdUI.ColumnCollection
             {
-                new AntdUI.Column("RowIndex", "序号") { ReadOnly = true, Width = "4%" },
+                new AntdUI.Column("RowIndex", "序号") { ReadOnly = true, Width = "3%" },
                 updateCol,
                 new AntdUI.Column("ModDirName", "文件夹名")
                 {
                     ReadOnly = true,
-                    Width = "9%",
+                    Width = "12%",
                     SortOrder = true,
                 },
                 new AntdUI.Column("ModName", "模组名")
                 {
                     ReadOnly = true,
-                    Width = "13%",
+                    Width = "15%",
                     SortOrder = true,
                 },
                 new AntdUI.Column("ModId", "Workshop ID")
                 {
                     ReadOnly = true,
-                    Width = "8%",
+                    Width = "7%",
                     SortOrder = true,
                 },
                 localCol,
@@ -186,12 +186,12 @@ namespace Arma3ServerTools.App.WinForms.Controls
                     ReadOnly = true,
                     Width = "5%",
                 },
-                new AntdUI.Column("BikeyStatus", "签名状态") { ReadOnly = true, Width = "5%" },
-                new AntdUI.Column("ModPath", "路径") { ReadOnly = true, Width = "22%" },
+                new AntdUI.Column("BikeyStatus", "签名状态") { ReadOnly = true, Width = "4%" },
+                new AntdUI.Column("ModPath", "路径") { ReadOnly = true, Width = "25%" },
                 new AntdUI.Column("UpdatedTime", "更新时间")
                 {
                     ReadOnly = true,
-                    Width = "10%",
+                    Width = "9%",
                     SortOrder = true,
                 },
             };

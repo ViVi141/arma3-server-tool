@@ -94,7 +94,7 @@ namespace Arma3ServerTools.App.WinForms
             AppIcon.ApplyTo(this);
             Text = UiLabels.AppTitle;
             ClientSize = UiScaleHelper.ScaleSize(1100, 720);
-            MinimumSize = UiScaleHelper.ScaleSize(820, 560);
+            MinimumSize = UiScaleHelper.ScaleSize(780, 560);
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Color.White;
             FormBorderStyle = FormBorderStyle.Sizable;
@@ -202,7 +202,7 @@ namespace Arma3ServerTools.App.WinForms
             split.Panel2.Padding = UiScaleHelper.ScalePadding(8);
             split.Panel1.Controls.Add(serverListHost);
             split.Panel2.Controls.Add(settingsPanelHost);
-            SplitContainerHelper.BindProportionalSplit(split, 0.34, false, 240, 320);
+            SplitContainerHelper.BindProportionalSplit(split, 0.30, false, 220, 340);
 
             Control statusPanel = BuildStatusPanel();
 
