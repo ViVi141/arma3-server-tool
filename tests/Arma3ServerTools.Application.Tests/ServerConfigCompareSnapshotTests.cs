@@ -8,6 +8,21 @@ namespace Arma3ServerTools.Application.Tests
     public sealed class ServerConfigCompareSnapshotTests
     {
         [Fact]
+        public void Serialize_RestoresModsAfterFingerprint()
+        {
+            var config = CreateConfig("restore-mods");
+            config.StartupParameters.modsEntities = new List<ModsEntity>
+            {
+                new ModsEntity(@"D:\mods\@test", "@test", "Test", 42, true, false, false, false),
+            };
+
+            ServerConfigSnapshotTracker.SerializeForCompare(config);
+
+            Assert.Single(config.StartupParameters.modsEntities);
+            Assert.Equal(@"D:\mods\@test", config.StartupParameters.modsEntities[0].ModPath);
+        }
+
+        [Fact]
         public void Serialize_IgnoresVolatileFields()
         {
             var config = CreateConfig("volatile-test");

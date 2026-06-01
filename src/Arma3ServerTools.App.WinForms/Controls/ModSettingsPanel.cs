@@ -269,6 +269,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             dlcCslaCheckBox.Checked = config.StartupParameters.DLCCSLA;
             dlcWsCheckBox.Checked = config.StartupParameters.DLCWS;
             dlcVnCheckBox.Checked = config.StartupParameters.DLCVN;
+            LoadRowsFromSavedMods();
             ScanMods();
         }
 
@@ -294,6 +295,20 @@ namespace Arma3ServerTools.App.WinForms.Controls
         {
             if (boundConfig == null)
             {
+                return;
+            }
+
+            if (allRows.Count == 0
+                && boundConfig.StartupParameters != null
+                && boundConfig.StartupParameters.modsEntities != null
+                && boundConfig.StartupParameters.modsEntities.Count > 0)
+            {
+                boundConfig.AutoCopyBikey = autoCopyBikeyCheckBox.Checked;
+                boundConfig.StartupParameters.DLCcontact = dlcContactCheckBox.Checked;
+                boundConfig.StartupParameters.DLCGM = dlcGmCheckBox.Checked;
+                boundConfig.StartupParameters.DLCCSLA = dlcCslaCheckBox.Checked;
+                boundConfig.StartupParameters.DLCWS = dlcWsCheckBox.Checked;
+                boundConfig.StartupParameters.DLCVN = dlcVnCheckBox.Checked;
                 return;
             }
 
@@ -450,7 +465,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 ModScanResult scanResult = await Task.Run(
                     delegate
                     {
-                        return appServices.ModScannerService.Scan(config, settings);
+                        return appServices.ModScannerService.Scan(config, settings, includeBikeyStatus: false);
                     }).ConfigureAwait(true);
 
                 if (currentVersion != scanVersion || IsDisposed)
@@ -846,26 +861,79 @@ namespace Arma3ServerTools.App.WinForms.Controls
             RefreshBikeyStatuses();
         }
 
-        private void RefreshBikeyStatuses()
+        private void LoadRowsFromSavedMods()
         {
-            if (boundConfig == null)
+            allRows.Clear();
+            if (boundConfig == null
+                || boundConfig.StartupParameters == null
+                || boundConfig.StartupParameters.modsEntities == null)
+            {
+                RefreshTableView();
+                return;
+            }
+
+            int scanOrder = 0;
+            foreach (ModsEntity saved in boundConfig.StartupParameters.modsEntities)
+            {
+                if (saved == null || string.IsNullOrEmpty(saved.ModPath))
+                {
+                    continue;
+                }
+
+                var row = new ScannedModRow();
+                row.ModPath = saved.ModPath;
+                row.ModDirName = saved.ModDirName;
+                row.ModName = string.IsNullOrEmpty(saved.ModName) ? saved.ModDirName : saved.ModName;
+                row.ModId = saved.ModId;
+                row.LocalMod = saved.LocalMod;
+                row.ServerMod = saved.ServerMod;
+                row.HeadlessClientMod = saved.HeadlessClientMod;
+                row.InputLocalMod = saved.InputLocalMod;
+                row.ScanOrder = scanOrder;
+                scanOrder++;
+                row.HasBikeyFile = false;
+                row.BikeyStatus = "—";
+                allRows.Add(row);
+            }
+
+            RefreshTableView();
+        }
+
+        private async void RefreshBikeyStatusesAsync()
+        {
+            if (boundConfig == null || allRows.Count == 0)
             {
                 return;
             }
 
             string serverDir = boundConfig.ServerDir;
-            for (int i = 0; i < allRows.Count; i++)
+            List<ScannedModRow> rowsSnapshot = allRows.ToList();
+            await Task.Run(
+                delegate
+                {
+                    for (int i = 0; i < rowsSnapshot.Count; i++)
+                    {
+                        ScannedModRow row = rowsSnapshot[i];
+                        ModBikeyInspectionResult inspection = appServices.BikeyService.InspectMod(
+                            row.ModPath,
+                            row.ModDirName,
+                            serverDir);
+                        row.HasBikeyFile = inspection.HasBikeyInMod;
+                        row.BikeyStatus = inspection.StatusText;
+                    }
+                }).ConfigureAwait(true);
+
+            if (IsDisposed)
             {
-                ScannedModRow row = allRows[i];
-                ModBikeyInspectionResult inspection = appServices.BikeyService.InspectMod(
-                    row.ModPath,
-                    row.ModDirName,
-                    serverDir);
-                row.HasBikeyFile = inspection.HasBikeyInMod;
-                row.BikeyStatus = inspection.StatusText;
+                return;
             }
 
             RefreshTableViewIfNeeded();
+        }
+
+        private void RefreshBikeyStatuses()
+        {
+            RefreshBikeyStatusesAsync();
         }
     }
 }

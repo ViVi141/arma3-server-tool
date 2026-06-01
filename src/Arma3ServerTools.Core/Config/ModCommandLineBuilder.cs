@@ -77,7 +77,15 @@ namespace Arma3ServerTools.Core.Config
 
         public static string BuildModList(string serverDir, IEnumerable<ModsEntityModRef> mods)
         {
-            var builder = new InternalBuilder(serverDir);
+            return BuildModList(serverDir, mods, verifyModPaths: true);
+        }
+
+        public static string BuildModList(
+            string serverDir,
+            IEnumerable<ModsEntityModRef> mods,
+            bool verifyModPaths)
+        {
+            var builder = new InternalBuilder(serverDir, verifyModPaths);
             if (mods == null)
             {
                 return string.Empty;
@@ -92,6 +100,11 @@ namespace Arma3ServerTools.Core.Config
         }
 
         public static string BuildClientModList(string serverDir, IList<ModsEntity> mods)
+        {
+            return BuildClientModList(serverDir, mods, verifyModPaths: true);
+        }
+
+        public static string BuildClientModList(string serverDir, IList<ModsEntity> mods, bool verifyModPaths)
         {
             var entries = new List<ModsEntityModRef>();
             if (mods != null)
@@ -110,13 +123,22 @@ namespace Arma3ServerTools.Core.Config
                 }
             }
 
-            return BuildModList(serverDir, entries);
+            return BuildModList(serverDir, entries, verifyModPaths);
         }
 
         public static string BuildServerModList(
             string serverDir,
             IList<ModsEntity> mods,
             bool includeMonitoringMod)
+        {
+            return BuildServerModList(serverDir, mods, includeMonitoringMod, verifyModPaths: true);
+        }
+
+        public static string BuildServerModList(
+            string serverDir,
+            IList<ModsEntity> mods,
+            bool includeMonitoringMod,
+            bool verifyModPaths)
         {
             var entries = new List<ModsEntityModRef>();
             if (mods != null)
@@ -140,10 +162,15 @@ namespace Arma3ServerTools.Core.Config
                 entries.Add(new ModsEntityModRef(ToolConstants.MonitoringServerModToken, string.Empty));
             }
 
-            return BuildModList(serverDir, entries);
+            return BuildModList(serverDir, entries, verifyModPaths);
         }
 
         public static string BuildHeadlessModList(string serverDir, IList<ModsEntity> mods)
+        {
+            return BuildHeadlessModList(serverDir, mods, verifyModPaths: true);
+        }
+
+        public static string BuildHeadlessModList(string serverDir, IList<ModsEntity> mods, bool verifyModPaths)
         {
             var entries = new List<ModsEntityModRef>();
             if (mods != null)
@@ -162,7 +189,7 @@ namespace Arma3ServerTools.Core.Config
                 }
             }
 
-            return BuildModList(serverDir, entries);
+            return BuildModList(serverDir, entries, verifyModPaths);
         }
 
         private static string TryFormatAsServerRelativeToken(string serverDir, string fullPath)
@@ -220,18 +247,25 @@ namespace Arma3ServerTools.Core.Config
         private sealed class InternalBuilder
         {
             private readonly string serverDir;
+            private readonly bool verifyModPaths;
             private readonly HashSet<string> entries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             private readonly StringBuilder buffer = new StringBuilder();
 
-            public InternalBuilder(string serverDir)
+            public InternalBuilder(string serverDir, bool verifyModPaths)
             {
                 this.serverDir = serverDir ?? string.Empty;
+                this.verifyModPaths = verifyModPaths;
             }
 
             public void TryAdd(string modPath, string modDirName)
             {
                 string formatted = FormatModParameter(serverDir, modPath, modDirName);
-                if (!IsModParameterAvailable(serverDir, formatted))
+                if (string.IsNullOrWhiteSpace(formatted))
+                {
+                    return;
+                }
+
+                if (verifyModPaths && !IsModParameterAvailable(serverDir, formatted))
                 {
                     return;
                 }

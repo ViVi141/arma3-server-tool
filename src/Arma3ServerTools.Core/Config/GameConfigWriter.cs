@@ -148,7 +148,8 @@ namespace Arma3ServerTools.Core.Config
 
             string headlessClientMod = ModCommandLineBuilder.BuildHeadlessModList(
                 config.ServerDir,
-                config.StartupParameters.modsEntities);
+                config.StartupParameters.modsEntities,
+                verifyModPaths: false);
 
             sb.Append(" ")
                 .Append(GameConfigFormat.DoubleQuotes)
@@ -263,13 +264,15 @@ namespace Arma3ServerTools.Core.Config
             string clientMod = BuildDlcModList(config.StartupParameters);
             string userClientMods = ModCommandLineBuilder.BuildClientModList(
                 config.ServerDir,
-                config.StartupParameters.modsEntities);
+                config.StartupParameters.modsEntities,
+                verifyModPaths: false);
             clientMod = CombineModListSegments(clientMod, userClientMods);
 
             string serverMod = ModCommandLineBuilder.BuildServerModList(
                 config.ServerDir,
                 config.StartupParameters.modsEntities,
-                config.ServerTaskManagement.EnableMonitor);
+                config.ServerTaskManagement.EnableMonitor,
+                verifyModPaths: false);
 
             sb.Append(" ")
                 .Append(GameConfigFormat.DoubleQuotes)

@@ -8,8 +8,8 @@ using Arma3ServerTools.Core.Models;
 namespace Arma3ServerTools.Application.Sync
 {
     /// <summary>
-    /// Builds compact compare fingerprints for <see cref="ArmaServerConfig"/> without
-    /// serializing large mod lists twice into JSON.
+    /// Builds compact compare fingerprints for <see cref="ArmaServerConfig"/> with a single JSON
+    /// serialization pass (mods are summarized separately).
     /// </summary>
     internal static class ServerConfigCompareSnapshot
     {
@@ -23,22 +23,11 @@ namespace Arma3ServerTools.Application.Sync
             }
 
             string modsFingerprint = BuildModsFingerprint(config.StartupParameters?.modsEntities);
-            string json = JsonSerializer.ToCompactJson(config);
-            ArmaServerConfig clone = JsonSerializer.FromJson<ArmaServerConfig>(json);
-            if (clone == null)
+            using (CompareSnapshotRestoreToken restore = CompareSnapshotRestoreToken.Capture(config))
             {
-                return modsFingerprint;
+                string settingsPart = JsonSerializer.ToCompactJson(config);
+                return settingsPart + ModsSeparator + modsFingerprint;
             }
-
-            NormalizeInPlace(clone);
-            if (clone.StartupParameters == null)
-            {
-                clone.StartupParameters = new StartupParameters();
-            }
-
-            clone.StartupParameters.modsEntities = new List<ModsEntity>();
-            string settingsPart = JsonSerializer.ToCompactJson(clone);
-            return settingsPart + ModsSeparator + modsFingerprint;
         }
 
         internal static string BuildModsFingerprint(IList<ModsEntity> mods)
@@ -84,22 +73,72 @@ namespace Arma3ServerTools.Application.Sync
             }
         }
 
-        private static void NormalizeInPlace(ArmaServerConfig config)
+        private sealed class CompareSnapshotRestoreToken : IDisposable
         {
-            if (config.ServerTaskManagement == null)
+            private readonly ArmaServerConfig config;
+            private List<ModsEntity> modsBackup;
+            private int processId;
+            private string saveTime;
+            private Dictionary<string, string> missionParamsBackup;
+
+            private CompareSnapshotRestoreToken(ArmaServerConfig config)
             {
-                config.ServerTaskManagement = new ServerManagement();
+                this.config = config;
+                ApplyNormalization();
             }
 
-            if (config.MissionParams != null && config.MissionParams.Count > 1)
+            public static CompareSnapshotRestoreToken Capture(ArmaServerConfig config)
             {
-                config.MissionParams = config.MissionParams
-                    .OrderBy(pair => pair.Key, StringComparer.Ordinal)
-                    .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+                return new CompareSnapshotRestoreToken(config);
             }
 
-            config.ServerTaskManagement.ProcessById = 0;
-            config.SaveTime = string.Empty;
+            public void Dispose()
+            {
+                if (config.StartupParameters != null)
+                {
+                    if (modsBackup != null)
+                    {
+                        config.StartupParameters.modsEntities = modsBackup;
+                    }
+                }
+
+                if (config.ServerTaskManagement != null)
+                {
+                    config.ServerTaskManagement.ProcessById = processId;
+                }
+
+                config.SaveTime = saveTime;
+                config.MissionParams = missionParamsBackup;
+            }
+
+            private void ApplyNormalization()
+            {
+                if (config.ServerTaskManagement == null)
+                {
+                    config.ServerTaskManagement = new ServerManagement();
+                }
+
+                processId = config.ServerTaskManagement.ProcessById;
+                config.ServerTaskManagement.ProcessById = 0;
+                saveTime = config.SaveTime;
+                config.SaveTime = string.Empty;
+
+                if (config.StartupParameters == null)
+                {
+                    config.StartupParameters = new StartupParameters();
+                }
+
+                modsBackup = config.StartupParameters.modsEntities;
+                config.StartupParameters.modsEntities = new List<ModsEntity>();
+
+                missionParamsBackup = config.MissionParams;
+                if (config.MissionParams != null && config.MissionParams.Count > 1)
+                {
+                    config.MissionParams = config.MissionParams
+                        .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                        .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+                }
+            }
         }
     }
 }

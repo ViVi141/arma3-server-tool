@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -83,6 +84,7 @@ namespace Arma3ServerTools.App.WinForms
         private int pollCacheVersion = -1;
         private string cachedCompareSnapshot;
         private string cachedCompareSnapshotUuid;
+        private int refreshConfigSyncVersion;
 
         public MainForm(IAppServices services, ServerLifecycleCoordinator lifecycleCoordinator)
         {
@@ -1168,28 +1170,54 @@ namespace Arma3ServerTools.App.WinForms
                 .OrderBy(config => config.ConfigName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(config => config.ServerUUID, StringComparer.Ordinal);
 
-            foreach (ArmaServerConfig config in orderedConfigs)
-            {
-                try
+            List<ArmaServerConfig> configList = orderedConfigs.ToList();
+            var snapshotBag = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
+            Parallel.ForEach(
+                configList,
+                new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1) },
+                config =>
                 {
-                    string serverUuid = config.ServerUUID;
-                    bundle.PersistedSnapshots[serverUuid] =
-                        ServerConfigSnapshotTracker.SerializeForCompare(config);
-                    ServerRunState runState = services.ProcessService.PeekState(config);
-                    bundle.Rows.Add(new ServerGridRow
+                    if (config == null || string.IsNullOrEmpty(config.ServerUUID))
                     {
-                        ConfigName = config.ConfigName,
-                        ServerUuid = serverUuid,
-                        SaveTime = config.SaveTime,
-                        RunState = runState,
-                    });
-                }
-                catch (Exception ex)
+                        return;
+                    }
+
+                    try
+                    {
+                        string snapshot = ServerConfigSnapshotTracker.SerializeForCompare(config);
+                        snapshotBag[config.ServerUUID] = snapshot;
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new InvalidOperationException(
+                            "读取配置失败 [" + config.ServerUUID + "]: " + ex.Message,
+                            ex);
+                    }
+                });
+
+            foreach (ArmaServerConfig config in configList)
+            {
+                if (config == null || string.IsNullOrEmpty(config.ServerUUID))
                 {
-                    throw new InvalidOperationException(
-                        "读取配置失败 [" + config.ServerUUID + "]: " + ex.Message,
-                        ex);
+                    continue;
                 }
+
+                string serverUuid = config.ServerUUID;
+                string snapshot;
+                if (!snapshotBag.TryGetValue(serverUuid, out snapshot))
+                {
+                    snapshot = ServerConfigSnapshotTracker.SerializeForCompare(config);
+                }
+
+                bundle.PersistedSnapshots[serverUuid] = snapshot;
+                ServerRunState runState = services.ProcessService.PeekState(config);
+                bundle.Rows.Add(new ServerGridRow
+                {
+                    ConfigName = config.ConfigName,
+                    ServerUuid = serverUuid,
+                    SaveTime = config.SaveTime,
+                    RunState = runState,
+                });
             }
 
             return bundle;
@@ -1949,7 +1977,6 @@ namespace Arma3ServerTools.App.WinForms
 
                     RefreshTableAfterStateChanges();
                     settingsHost.RefreshOverview();
-                    RefreshConfigSyncIndicators();
                     return;
                 }
             }
@@ -1996,22 +2023,80 @@ namespace Arma3ServerTools.App.WinForms
             }
 
             string snapshot = TryGetCachedCompareSnapshot(config.ServerUUID);
-            ConfigSyncState state;
             if (snapshot != null)
             {
-                state = ConfigSyncStateEvaluator.Evaluate(
-                    configSnapshots,
-                    config.ServerUUID,
-                    snapshot);
-            }
-            else
-            {
-                state = ConfigSyncStateEvaluator.Evaluate(
-                    configSnapshots,
-                    config.ServerUUID,
-                    config);
+                ApplyConfigSyncState(config, snapshot);
+                return;
             }
 
+            ScheduleConfigSyncStateCompute(config);
+        }
+
+        private void ScheduleConfigSyncStateCompute(ArmaServerConfig config)
+        {
+            string serverUuid = config.ServerUUID;
+            int version = Interlocked.Increment(ref refreshConfigSyncVersion);
+            Task.Run(
+                delegate
+                {
+                    return ServerConfigSnapshotTracker.SerializeForCompare(config);
+                }).ContinueWith(
+                task =>
+                {
+                    if (IsDisposed || !IsHandleCreated)
+                    {
+                        return;
+                    }
+
+                    if (version != Volatile.Read(ref refreshConfigSyncVersion))
+                    {
+                        return;
+                    }
+
+                    if (task.IsFaulted || task.IsCanceled)
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        BeginInvoke(new Action(delegate
+                        {
+                            if (IsDisposed || services.CurrentServerUuid != serverUuid)
+                            {
+                                return;
+                            }
+
+                            if (settingsHost.HasLocalEdits())
+                            {
+                                return;
+                            }
+
+                            string computedSnapshot = task.Result;
+                            SetCompareSnapshotCache(serverUuid, computedSnapshot);
+                            ArmaServerConfig current = services.GetCurrentConfig();
+                            if (current != null)
+                            {
+                                ApplyConfigSyncState(current, computedSnapshot);
+                            }
+                        }));
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                    }
+                    catch (InvalidOperationException)
+                    {
+                    }
+                },
+                TaskScheduler.Default);
+        }
+
+        private void ApplyConfigSyncState(ArmaServerConfig config, string snapshot)
+        {
+            ConfigSyncState state = ConfigSyncStateEvaluator.Evaluate(
+                configSnapshots,
+                config.ServerUUID,
+                snapshot);
             settingsHost.UpdateSyncIndicators(state);
             UpdateStatusBar(config, state);
             UpdateActionButtonMarkers(state);

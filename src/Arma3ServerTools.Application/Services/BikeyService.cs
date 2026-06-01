@@ -264,8 +264,19 @@ namespace Arma3ServerTools.Application.Services
 
         private static bool HasBisignFiles(string modPath)
         {
-            string[] bisigns = Directory.GetFiles(modPath, "*.bisign", SearchOption.AllDirectories);
-            return bisigns.Length > 0;
+            if (Directory.GetFiles(modPath, "*.bisign", SearchOption.TopDirectoryOnly).Length > 0)
+            {
+                return true;
+            }
+
+            string addonsPath = Path.Combine(modPath, "addons");
+            if (Directory.Exists(addonsPath)
+                && Directory.GetFiles(addonsPath, "*.bisign", SearchOption.TopDirectoryOnly).Length > 0)
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private static string NormalizeBikeyToken(string value)

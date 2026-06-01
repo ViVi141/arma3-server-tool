@@ -70,6 +70,11 @@ namespace Arma3ServerTools.Application.Services
 
         public ModScanResult Scan(ArmaServerConfig config, SteamcmdEntity steamcmd)
         {
+            return Scan(config, steamcmd, includeBikeyStatus: false);
+        }
+
+        public ModScanResult Scan(ArmaServerConfig config, SteamcmdEntity steamcmd, bool includeBikeyStatus)
+        {
             EnsureDefaultWorkshopPath(steamcmd);
             var scanResult = new ModScanResult();
             List<ModuleScanPathEntity> scanPaths = scanPathRepository.Load();
@@ -179,7 +184,15 @@ namespace Arma3ServerTools.Application.Services
                     row.ModName = row.ModDirName;
                 }
 
-                DetectBikeyStatus(row, config);
+                if (includeBikeyStatus)
+                {
+                    DetectBikeyStatus(row, config);
+                }
+                else
+                {
+                    row.HasBikeyFile = false;
+                    row.BikeyStatus = "—";
+                }
 
                 rows.Add(row);
             }
