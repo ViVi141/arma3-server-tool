@@ -67,33 +67,41 @@ namespace Arma3ServerTools.App.WinForms.Controls
             AppTheme.ApplyTo(this);
 
             var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
+            
+            // 核心操作按钮
             AntdUI.Button refreshButton = SettingsLayoutHelper.CreateButton("扫描刷新");
-            AntdUI.Button scanPathButton = SettingsLayoutHelper.CreateButton("扫描路径...");
-            AntdUI.Button addLocalButton = SettingsLayoutHelper.CreateButton("添加本地模组");
-            AntdUI.Button downloadButton = SettingsLayoutHelper.CreateButton("下载选中模组");
-            AntdUI.Button pasteButton = SettingsLayoutHelper.CreateButton("从剪贴板导入 ID");
-            AntdUI.Button htmlDownloadButton = SettingsLayoutHelper.CreateButton("从 HTML 下载...");
-            AntdUI.Button htmlEnableButton = SettingsLayoutHelper.CreateButton("从 HTML 启用...");
-            AntdUI.Button bikeyButton = SettingsLayoutHelper.CreateButton("管理 Bikey");
-            AntdUI.Button copyAllBikeysButton = SettingsLayoutHelper.CreateButton("复制全部 Bikey");
             refreshButton.Click += delegate { ScanMods(); };
-            scanPathButton.Click += OnEditScanPaths;
-            addLocalButton.Click += OnAddLocalMod;
-            downloadButton.Click += OnDownloadSelected;
-            pasteButton.Click += OnPasteModIds;
-            htmlDownloadButton.Click += OnImportFromHtmlDownload;
-            htmlEnableButton.Click += OnImportFromHtmlEnable;
-            bikeyButton.Click += OnManageBikeys;
-            copyAllBikeysButton.Click += OnCopyAllBikeys;
             toolbar.Controls.Add(refreshButton);
+
+            // 获取模组下拉菜单
+            var getModsDropdown = new AntdUI.Dropdown
+            {
+                Text = "获取模组",
+                Type = AntdUI.TTypeMini.Default,
+            };
+            getModsDropdown.Items.Add(new AntdUI.MenuItem("add_local", "添加本地模组"));
+            getModsDropdown.Items.Add(new AntdUI.MenuItem("download", "下载选中模组"));
+            getModsDropdown.Items.Add(new AntdUI.MenuItem("paste", "从剪贴板导入 ID"));
+            getModsDropdown.Items.Add(new AntdUI.MenuItem("html_download", "从 HTML 下载..."));
+            getModsDropdown.Items.Add(new AntdUI.MenuItem("html_enable", "从 HTML 启用..."));
+            getModsDropdown.ItemClick += OnGetModsMenuClick;
+            toolbar.Controls.Add(getModsDropdown);
+
+            // Bikey 管理下拉菜单
+            var bikeyDropdown = new AntdUI.Dropdown
+            {
+                Text = "Bikey 管理",
+                Type = AntdUI.TTypeMini.Default,
+            };
+            bikeyDropdown.Items.Add(new AntdUI.MenuItem("manage", "管理 Bikey"));
+            bikeyDropdown.Items.Add(new AntdUI.MenuItem("copy_all", "复制全部 Bikey"));
+            bikeyDropdown.ItemClick += OnBikeyMenuClick;
+            toolbar.Controls.Add(bikeyDropdown);
+
+            // 设置按钮
+            AntdUI.Button scanPathButton = SettingsLayoutHelper.CreateButton("扫描路径...");
+            scanPathButton.Click += OnEditScanPaths;
             toolbar.Controls.Add(scanPathButton);
-            toolbar.Controls.Add(addLocalButton);
-            toolbar.Controls.Add(downloadButton);
-            toolbar.Controls.Add(pasteButton);
-            toolbar.Controls.Add(htmlDownloadButton);
-            toolbar.Controls.Add(htmlEnableButton);
-            toolbar.Controls.Add(bikeyButton);
-            toolbar.Controls.Add(copyAllBikeysButton);
 
             sortSelect = SettingsLayoutHelper.CreateSelect(
                 140,
@@ -921,6 +929,54 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private void RefreshBikeyStatuses()
         {
             RefreshBikeyStatusesAsync();
+        }
+
+        private void OnGetModsMenuClick(object sender, AntdUI.ObjectNEventArgs e)
+        {
+            string key = Convert.ToString(e.Value);
+            if (key == null)
+            {
+                return;
+            }
+
+            if (key == "add_local")
+            {
+                OnAddLocalMod(sender, EventArgs.Empty);
+            }
+            else if (key == "download")
+            {
+                OnDownloadSelected(sender, EventArgs.Empty);
+            }
+            else if (key == "paste")
+            {
+                OnPasteModIds(sender, EventArgs.Empty);
+            }
+            else if (key == "html_download")
+            {
+                OnImportFromHtmlDownload(sender, EventArgs.Empty);
+            }
+            else if (key == "html_enable")
+            {
+                OnImportFromHtmlEnable(sender, EventArgs.Empty);
+            }
+        }
+
+        private void OnBikeyMenuClick(object sender, AntdUI.ObjectNEventArgs e)
+        {
+            string key = Convert.ToString(e.Value);
+            if (key == null)
+            {
+                return;
+            }
+
+            if (key == "manage")
+            {
+                OnManageBikeys(sender, EventArgs.Empty);
+            }
+            else if (key == "copy_all")
+            {
+                OnCopyAllBikeys(sender, EventArgs.Empty);
+            }
         }
     }
 }
