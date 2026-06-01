@@ -190,18 +190,25 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             modsTable.Columns = new AntdUI.ColumnCollection
             {
-                new AntdUI.Column("RowIndex", "序号") { ReadOnly = true, Width = "3%" },
+                new AntdUI.Column("RowIndex", "序号")
+                {
+                    ReadOnly = true,
+                    Width = "3%",
+                    MaxWidth = "60",
+                },
                 updateCol,
                 new AntdUI.Column("ModDirName", "文件夹名")
                 {
                     ReadOnly = true,
                     Width = "12%",
+                    MaxWidth = "200",
                     SortOrder = true,
                 },
                 new AntdUI.Column("ModName", "模组名")
                 {
                     ReadOnly = true,
                     Width = "22%",
+                    MaxWidth = "400",
                     SortOrder = true,
                 },
                 localCol,
@@ -211,13 +218,25 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 {
                     ReadOnly = true,
                     Width = "5%",
+                    MaxWidth = "100",
                 },
-                new AntdUI.Column("BikeyStatus", "签名状态") { ReadOnly = true, Width = "4%" },
-                new AntdUI.Column("ModPath", "路径") { ReadOnly = true, Width = "20%" },
+                new AntdUI.Column("BikeyStatus", "签名状态")
+                {
+                    ReadOnly = true,
+                    Width = "4%",
+                    MaxWidth = "80",
+                },
+                new AntdUI.Column("ModPath", "路径")
+                {
+                    ReadOnly = true,
+                    Width = "20%",
+                    MaxWidth = "500",
+                },
                 new AntdUI.Column("UpdatedTime", "更新时间")
                 {
                     ReadOnly = true,
                     Width = "9%",
+                    MaxWidth = "150",
                     SortOrder = true,
                 },
             };
