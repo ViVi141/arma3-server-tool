@@ -1,0 +1,46 @@
+import type { FastifyInstance } from "fastify";
+import { randomUUID } from "node:crypto";
+
+export async function healthRoutes(app: FastifyInstance) {
+  app.get("/health", async (_req, _reply) => {
+    const settings = { remoteAccessEnabled: false };
+    return {
+      success: true,
+      service: "Arma3ServerTools.Service",
+      version: "2.0.0-alpha",
+      remoteAccessEnabled: false,
+      publicBaseUrl: `http://127.0.0.1:${(app.server.address() as { port: number })?.port ?? 19580}`,
+    };
+  });
+
+  app.get("/actions", async () => {
+    return {
+      success: true,
+      requestId: randomUUID().slice(0, 12),
+      data: {
+        taskActions: [
+          "status", "start", "stop", "restart", "save", "write_cfg",
+          "switch_mission", "enable_mods", "disable_mods", "download_mods",
+          "import_mods_html", "scan_mods", "update_server", "preflight",
+          "rcon_players", "rcon_kick", "rcon_ban", "rcon_broadcast",
+          "rcon_mission", "read_logs",
+        ],
+        restEndpoints: [
+          { method: "GET", path: "/api/v1/health" },
+          { method: "GET", path: "/api/v1/actions" },
+          { method: "GET", path: "/api/v1/servers" },
+          { method: "GET", path: "/api/v1/servers/{uuid}/status" },
+          { method: "GET", path: "/api/v1/servers/{uuid}/config" },
+          { method: "PUT", path: "/api/v1/servers/{uuid}/config" },
+          { method: "PATCH", path: "/api/v1/servers/{uuid}/config" },
+          { method: "POST", path: "/api/v1/task" },
+          { method: "GET", path: "/api/v1/tasks/{taskId}" },
+        ],
+        fileUploads: [
+          "/api/v1/servers/{uuid}/files/mission-pbo",
+          "/api/v1/servers/{uuid}/files/mod-list-html",
+        ],
+      },
+    };
+  });
+}

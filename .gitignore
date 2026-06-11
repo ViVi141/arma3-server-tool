@@ -1,52 +1,29 @@
 # Build output
-**/bin/
-**/obj/
-**/Debug/
-**/Release/
+dist/
+*.tsbuildinfo
+out/
 
-# Visual Studio
-.vs/
-*.user
-*.suo
-*.userosscache
-*.sln.docstates
-
-# NuGet (legacy packages folder)
-packages/
-
-# IDE
-.idea/
-*.DotSettings.user
-
-# Local / secrets
-*.db
-data.json
-skin.json
-logs/
-
-tools/innosetup-6/
-scripts/_build-metadata.iss
-
-# Release build output
-artifacts/
-publish/
-
-# Test output
-TestResults/
-*.trx
-coverage/
-*.coverage
-*.coveragexml
-
-# Local scratch / probe assets
-pic/
-src/_AntdProbe/
-
-# Bundled runtime tools (steamcmd.exe installed by bootstrapper)
-extension/*
-!extension/.gitkeep
+# Node / npm
+node_modules/
 
 # OS
 Thumbs.db
 Desktop.ini
 .opencode/
+
+# IDE
+.idea/
+.vs/
+
+# Legacy archive
+legacy/
+
+# Secrets
+*.db
+logs/
+config/
+
+# Runtime data
+a3st_*.db
+bans.json
+snapshots/

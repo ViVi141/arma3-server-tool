@@ -25,6 +25,12 @@
 
 运行 Agent 后 **`GET /api/v1/actions`** 为权威 action 列表，勿猜命令名。
 
+### 客户端重构（计划）
+
+| 文档 | 说明 |
+|------|------|
+| [vue-electron-client-plan.md](vue-electron-client-plan.md) | **Vue + Electron + Capacitor** 替代 WinForms；Service 被控 + 双角色桌面 + 手机主控 |
+
 ### 开发与发版
 
 | 文档 | 说明 |

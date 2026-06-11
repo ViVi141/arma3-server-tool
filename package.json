@@ -1,0 +1,26 @@
+{
+  "name": "arma3-server-tools-monorepo",
+  "version": "2.0.0-alpha",
+  "private": true,
+  "description": "Arma3 Server Tools — Vue + Electron + Service monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm -w @a3st/web run dev",
+    "dev:desktop": "npm -w @a3st/desktop run dev",
+    "dev:service": "npm -w @a3st/service run dev",
+    "build:web": "npm -w @a3st/web run build",
+    "build:desktop": "npm -w @a3st/desktop run build",
+    "build:service": "npm -w @a3st/service run build",
+    "build:all": "npm run build:service && npm run build:web",
+    "test": "npm -w @a3st/service run test",
+    "typecheck": "npm -w @a3st/api-client run typecheck && npm -w @a3st/service run typecheck",
+    "start:service": "node packages/service/dist/index.js",
+    "clean": "npm -w @a3st/web run clean 2>/dev/null; npm -w @a3st/service run clean 2>/dev/null; rm -rf packages/service/dist packages/web/dist"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

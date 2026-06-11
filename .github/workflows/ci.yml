@@ -5,49 +5,37 @@ on:
     branches:
       - main
       - master
-      - 'auto-fix/**'
   pull_request:
     branches:
       - main
       - master
-      - 'auto-fix/**'
 
 jobs:
   build-test:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20, 22]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          dotnet-version: '10.0.x'
+          node-version: ${{ matrix.node-version }}
 
-      - name: Restore
-        run: dotnet restore Arma3ServerTools.sln
+      - name: Install
+        run: npm ci
 
-      - name: Build
-        run: dotnet build Arma3ServerTools.sln -c Release --no-restore
+      - name: TypeScript Check
+        run: npm run typecheck
 
-      - name: Build Agent (standalone)
-        run: dotnet build src/Arma3ServerTools.Agent.Host/ -c Release --no-restore
+      - name: Run Tests
+        run: npm test
 
-      - name: Test Core
-        run: dotnet test tests/Arma3ServerTools.Core.Tests/Arma3ServerTools.Core.Tests.csproj -c Release --no-build --verbosity normal
+      - name: Build Service
+        run: npm run build:service
 
-      - name: Test Application
-        run: dotnet test tests/Arma3ServerTools.Application.Tests/Arma3ServerTools.Application.Tests.csproj -c Release --no-build --verbosity normal --filter "FullyQualifiedName!~SteamCmdService&FullyQualifiedName!~SteamCmdExecutionGate"
-
-      - name: Verify formatting
-        run: dotnet format Arma3ServerTools.sln --verify-no-changes --no-restore --verbosity diagnostic
-
-      - name: Publish Agent Host
-        run: dotnet publish src/Arma3ServerTools.Agent.Host/ -c Release -o publish/Agent
-
-      - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: Arma3ServerTools-Release
-          path: publish/
-          retention-days: 7
+      - name: Build Web
+        run: npm run build:web

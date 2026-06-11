@@ -1,0 +1,30 @@
+{
+  "name": "@a3st/service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Arma3 Server Tools — TypeScript backend service",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsc --watch",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.0",
+    "@fastify/multipart": "^9.0.0",
+    "croner": "^9.0.0",
+    "fastify": "^5.0.0",
+    "sql.js": "^1.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^4.1.8",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.8"
+  }
+}
