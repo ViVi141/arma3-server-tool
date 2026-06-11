@@ -15,8 +15,7 @@ Desktop.ini
 .idea/
 .vs/
 
-# Legacy archive
-legacy/
+
 
 # Secrets
 *.db
@@ -27,3 +26,5 @@ config/
 a3st_*.db
 bans.json
 snapshots/
+coverage/
+${APPDATA}/

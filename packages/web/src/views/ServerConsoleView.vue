@@ -20,9 +20,16 @@ const subPages = [
   { path: "dashboard", label: "仪表盘" },
   { path: "missions", label: "任务" },
   { path: "mods", label: "模组" },
+  { path: "rcon", label: "远程控制" },
   { path: "upload", label: "上传PBO" },
+  { path: "steamcmd", label: "SteamCMD" },
+  { path: "statistics", label: "统计" },
+  { path: "snapshots", label: "快照" },
+  { path: "bans", label: "封禁" },
   { path: "logs", label: "日志" },
+  { path: "wizard", label: "开服向导" },
   { path: "settings", label: "配置" },
+  { path: "about", label: "关于" },
 ];
 
 // connect on mount

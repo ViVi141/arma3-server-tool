@@ -51,6 +51,41 @@ const routes = [
         component: () => import("../views/UploadView.vue"),
       },
       {
+        path: "rcon",
+        name: "rcon",
+        component: () => import("../views/RconView.vue"),
+      },
+      {
+        path: "snapshots",
+        name: "snapshots",
+        component: () => import("../views/SnapshotsView.vue"),
+      },
+      {
+        path: "statistics",
+        name: "statistics",
+        component: () => import("../views/StatisticsView.vue"),
+      },
+      {
+        path: "wizard",
+        name: "wizard",
+        component: () => import("../views/SetupWizardView.vue"),
+      },
+      {
+        path: "about",
+        name: "about",
+        component: () => import("../views/AboutView.vue"),
+      },
+      {
+        path: "bans",
+        name: "bans",
+        component: () => import("../views/BansView.vue"),
+      },
+      {
+        path: "steamcmd",
+        name: "steamcmd",
+        component: () => import("../views/SteamCmdView.vue"),
+      },
+      {
         path: "logs",
         name: "logs",
         component: () => import("../views/LogsView.vue"),

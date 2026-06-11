@@ -31,7 +31,7 @@ export class A3stClient {
   private readonly f: typeof fetch;
 
   constructor(options: ClientOptions) {
-    this.baseUrl = options.baseUrl.replace(/\/+$/, "");
+    this.baseUrl = options.baseUrl.trim().replace(/\/+$/, "");
     this.token = options.token;
     this.f = options.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
   }

@@ -10,6 +10,7 @@ import { MonitoringDb } from "./monitoring/index.js";
 import { Scheduler } from "./scheduling/index.js";
 import { asyncTaskManager } from "./task/index.js";
 import { RptLogReader } from "./logs/index.js";
+import { sseManager } from "./api/sse.js";
 
 export interface ServiceOptions {
   port: number;
@@ -69,8 +70,12 @@ export async function createService(options: ServiceOptions) {
   await app.register(cors, { origin: true });
   await app.register(multipart, { limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
 
+  // Wire SSE to SteamCMD events
+  sseManager.wireSteamCmd(steamCmd);
+
   // Routes
   await app.register(healthRoutes, { prefix: "/api/v1" });
+  sseManager.registerRoutes(app, "/api/v1");
   await app.register(apiRoutes, { prefix: "/api/v1" });
 
   await app.listen({ port: options.port, host: options.host });
