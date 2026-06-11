@@ -87,6 +87,23 @@ namespace Arma3ServerTools.App.WinForms
             return CreateButton(text, AntdUI.TTypeMini.Default);
         }
 
+        public static AntButton CreateToolbarMenuButton(string text, ContextMenuStrip menu)
+        {
+            var button = CreateToolbarButton(text);
+            button.Margin = new Padding(0, 0, UiScaleHelper.Scale(8), UiScaleHelper.Scale(4));
+            button.Click += delegate (object sender, EventArgs e)
+            {
+                Control control = sender as Control;
+                if (control == null)
+                {
+                    return;
+                }
+
+                menu.Show(control, new Point(0, control.Height));
+            };
+            return button;
+        }
+
         public static AntButton CreatePrimaryButton(string text)
         {
             return CreateButton(text, AntdUI.TTypeMini.Primary);

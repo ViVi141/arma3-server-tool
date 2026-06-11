@@ -18,9 +18,14 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             : base()
         {
             Text = "复制服务器配置";
-            ApplyPreferredDialogSizing(480, 180, null);
+            ApplyPreferredDialogSizing(500, 240, 200, null);
 
             var layout = SettingsLayoutHelper.CreateFormLayout(96);
+
+            AntLabel hint = AntdUiHelper.CreateHintLabel(
+                "将复制当前 json 配置并生成新 UUID。不会复制服务器文件目录内容。",
+                460);
+            SettingsLayoutHelper.AddRow(layout, string.Empty, hint, 48);
             string defaultName = "副本";
             if (source != null && !string.IsNullOrWhiteSpace(source.ConfigName))
             {
@@ -45,11 +50,6 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             dirPanel.Controls.Add(browseButton);
             SettingsLayoutHelper.AddRow(layout, "服务器目录", dirPanel);
 
-            AntLabel hint = AntdUiHelper.CreateHintLabel(
-                "将复制当前 json 配置并生成新 UUID。不会复制服务器文件目录内容。",
-                440);
-            hint.Dock = DockStyle.Top;
-
             AntButton okButton = AntdUiHelper.CreatePrimaryButton("确定");
             okButton.Click += OnConfirm;
             AntButton cancelButton = AntdUiHelper.CreateToolbarButton("取消");
@@ -63,7 +63,6 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
 
             Controls.Add(CreateButtonBar(okButton, cancelButton));
             Controls.Add(body);
-            Controls.Add(hint);
         }
 
         private void OnConfirm(object sender, System.EventArgs e)

@@ -34,7 +34,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         private AntLabel statusLabel;
         private AntButton autoStartButton;
 
-        public AgentSettingsForm(IAppServices appServices)
+        public AgentSettingsForm(IAppServices appServices, Form ownerForm = null)
         {
             this.appServices = appServices ?? throw new ArgumentNullException(nameof(appServices));
             agentSettingsService = appServices.AgentSettings;
@@ -42,9 +42,16 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             settings = agentSettingsService.LoadOrCreate();
 
             Text = "Agent / OpenClaw 设置";
-            ApplyPreferredDialogSizing(560, 620, null);
+            ApplyPreferredDialogSizing(680, 720, 580, ownerForm);
 
             var layout = SettingsLayoutHelper.CreateFormLayout(132);
+            AntLabel hint = AntdUiHelper.CreateHintLabel(
+                "OpenClaw / QQ 机器人请在本机或局域网通过 HTTP 调用 Agent。"
+                + " 保存后需重启 Agent 生效。"
+                + " 「登录时自动启动」与安装包选项相同，计划任务名：Arma3 Server Tools Agent。",
+                640);
+            SettingsLayoutHelper.AddRow(layout, string.Empty, hint, 72);
+
             presetSelect = SettingsLayoutHelper.AddRow(
                 layout,
                 "使用场景",
@@ -64,7 +71,8 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             remoteAccessCheckBox = SettingsLayoutHelper.AddRow(
                 layout,
                 "远程访问",
-                SettingsLayoutHelper.CreateCheckbox("允许局域网其他电脑连接（OpenClaw 在另一台机器时）", false));
+                SettingsLayoutHelper.CreateCheckbox("允许局域网其他电脑连接（OpenClaw 在另一台机器时）", false),
+                52);
             allowedIpsInput = SettingsLayoutHelper.AddRow(
                 layout,
                 "来访 IP 白名单",
@@ -127,9 +135,16 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 Close();
             };
 
-            var actionBar = new FlowLayoutPanel
+            var bottomHost = new Panel
             {
                 Dock = DockStyle.Bottom,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            };
+
+            var actionBar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
                 FlowDirection = FlowDirection.LeftToRight,
                 AutoSize = true,
                 WrapContents = true,
@@ -140,17 +155,20 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             actionBar.Controls.Add(copyButton);
             actionBar.Controls.Add(openDirButton);
 
-            Control buttonBar = CreateButtonBar(okButton, cancelButton, "保存", "取消");
-            AntLabel hint = AntdUiHelper.CreateHintLabel(
-                "OpenClaw / QQ 机器人请在本机或局域网通过 HTTP 调用 Agent。"
-                + " 保存后需重启 Agent 生效。"
-                + " 「登录时自动启动」与安装包选项相同，计划任务名：Arma3 Server Tools Agent。",
-                520);
-            hint.Dock = DockStyle.Top;
+            var confirmBar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                FlowDirection = FlowDirection.RightToLeft,
+                AutoSize = true,
+                Padding = UiScaleHelper.ScalePadding(12, 4, 12, 8),
+            };
+            confirmBar.Controls.Add(cancelButton);
+            confirmBar.Controls.Add(okButton);
 
-            Controls.Add(buttonBar);
-            Controls.Add(actionBar);
-            Controls.Add(hint);
+            bottomHost.Controls.Add(confirmBar);
+            bottomHost.Controls.Add(actionBar);
+
+            Controls.Add(bottomHost);
             Controls.Add(SettingsLayoutHelper.CreateScrollHost(layout));
         }
 
@@ -159,7 +177,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             var select = new AntSelect
             {
                 List = true,
-                Width = UiScaleHelper.Scale(320),
+                Width = UiScaleHelper.Scale(420),
             };
             select.Items.Add(new AntdUI.SelectItem(0, "仅本机（OpenClaw 与 Agent 在同一台电脑）"));
             select.Items.Add(new AntdUI.SelectItem(1, "局域网远程（OpenClaw 在另一台电脑）"));

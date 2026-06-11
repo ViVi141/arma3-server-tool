@@ -1,3 +1,4 @@
+using System;
 using System.Drawing;
 using System.Windows.Forms;
 using AntButton = AntdUI.Button;
@@ -27,7 +28,8 @@ namespace Arma3ServerTools.App.WinForms
         protected void ApplyPreferredDialogSizing(int logicalWidth, int logicalHeight, Form ownerForm)
         {
             ClientSize = UiScaleHelper.GetPreferredDialogSize(logicalWidth, logicalHeight, ownerForm);
-            MinimumSize = UiScaleHelper.ScaleSize(logicalWidth, logicalHeight);
+            int logicalMinHeight = Math.Max(280, logicalHeight - Math.Max(120, logicalHeight / 4));
+            MinimumSize = UiScaleHelper.ScaleSize(logicalWidth, logicalMinHeight);
         }
 
         protected void ApplyPreferredDialogSizing(int logicalWidth, int logicalHeight, int logicalMinHeight, Form ownerForm)

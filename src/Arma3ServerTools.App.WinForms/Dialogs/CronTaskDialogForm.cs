@@ -17,9 +17,12 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         private readonly AntSelect actionSelect;
         private readonly AntCheckbox enabledCheckBox;
 
-        public CronTaskDialogForm()
-            : base("添加定时任务", new Size(420, 260))
+        public CronTaskDialogForm(Form ownerForm = null)
+            : base()
         {
+            Text = "添加定时任务";
+            ApplyPreferredDialogSizing(440, 300, 260, ownerForm);
+
             var layout = SettingsLayoutHelper.CreateFormLayout(100);
             cronInput = SettingsLayoutHelper.AddRow(layout, "Cron 表达式", SettingsLayoutHelper.CreateInput(true));
             cronInput.Text = "0 0 4 * * ?";
@@ -41,16 +44,13 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 "启用",
                 SettingsLayoutHelper.CreateCheckbox("立即启用", true));
 
-            layout.Dock = DockStyle.Fill;
-            layout.Padding = AppTheme.ContentPadding;
-
             AntButton okButton = AntdUiHelper.CreatePrimaryButton("确定");
             AntButton cancelButton = AntdUiHelper.CreateToolbarButton("取消");
             FlowLayoutPanel buttonBar = CreateButtonBar(okButton, cancelButton);
             WireDialogButtons(okButton, cancelButton);
 
-            Controls.Add(layout);
             Controls.Add(buttonBar);
+            Controls.Add(SettingsLayoutHelper.CreateScrollHost(layout));
         }
 
         public string CronExpression

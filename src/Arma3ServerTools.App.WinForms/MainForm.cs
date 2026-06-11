@@ -18,7 +18,6 @@ using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using Microsoft.Extensions.Logging;
 using AntButton = AntdUI.Button;
-using AntDropdown = AntdUI.Dropdown;
 using AntInput = AntdUI.Input;
 using AntLabel = AntdUI.Label;
 using AntTable = AntdUI.Table;
@@ -57,8 +56,8 @@ namespace Arma3ServerTools.App.WinForms
         private readonly AntdUI.Select serverSortSelect;
         private readonly FlowLayoutPanel serverListToolbarFlow;
         private readonly AntButton aboutButton;
-        private readonly AntDropdown toolsMenuButton;
-        private readonly AntDropdown serverMenuButton;
+        private readonly AntButton toolsMenuButton;
+        private readonly AntButton serverMenuButton;
         private readonly AntLabel serverSortLabel;
         private readonly ServerConfigSnapshotTracker configSnapshots = new ServerConfigSnapshotTracker();
         private readonly ConfigSyncIndicatorDebouncer configSyncDebouncer;
@@ -299,23 +298,15 @@ namespace Arma3ServerTools.App.WinForms
                 Margin = new Padding(0),
                 Padding = new Padding(0),
             };
-            chrome.Controls.Add(actionBarPanel);
             chrome.Controls.Add(pageHeader);
+            chrome.Controls.Add(actionBarPanel);
+            actionBarPanel.BringToFront();
             return chrome;
         }
 
         private Control BuildActionBar()
         {
             int verticalPadding = UiScaleHelper.Scale(10);
-            var panel = new AntdUI.Panel
-            {
-                AutoSize = true,
-                MinimumSize = new Size(0, ActionBarHeight),
-                Padding = new Padding(
-                    UiScaleHelper.Scale(12), verticalPadding, UiScaleHelper.Scale(12), verticalPadding),
-                BackColor = Color.FromArgb(245, 247, 250),
-            };
-
             var leftLayout = new FlowLayoutPanel
             {
                 Dock = DockStyle.Top,
@@ -324,8 +315,11 @@ namespace Arma3ServerTools.App.WinForms
                 WrapContents = true,
                 AutoScroll = false,
                 FlowDirection = FlowDirection.LeftToRight,
-                Padding = new Padding(0),
+                Padding = new Padding(
+                    UiScaleHelper.Scale(12), verticalPadding, UiScaleHelper.Scale(12), verticalPadding),
                 Margin = new Padding(0),
+                MinimumSize = new Size(0, ActionBarHeight),
+                BackColor = Color.FromArgb(245, 247, 250),
             };
             leftLayout.Controls.Add(startButton);
             leftLayout.Controls.Add(stopButton);
@@ -339,135 +333,67 @@ namespace Arma3ServerTools.App.WinForms
             leftLayout.Controls.Add(toolsMenuButton);
             leftLayout.Controls.Add(serverMenuButton);
 
-            panel.Controls.Add(leftLayout);
-            return panel;
+            return leftLayout;
         }
 
-        private AntDropdown CreateServerMenuButton()
+        private AntButton CreateServerMenuButton()
         {
-            int verticalMargin = UiScaleHelper.Scale(2);
-            var dropdown = new AntDropdown
+            var menu = new ContextMenuStrip();
+            menu.Items.Add(CreateToolbarMenuItem("新建...", OnNewServer));
+            menu.Items.Add(CreateToolbarMenuItem("重命名...", OnRenameServer));
+            menu.Items.Add(CreateToolbarMenuItem("复制为新建...", OnCopyServer));
+            menu.Items.Add(CreateToolbarMenuItem("删除", OnDeleteServer));
+            menu.Items.Add(CreateToolbarMenuItem("刷新列表", delegate (object sender, EventArgs e)
             {
-                Text = "服务器",
-                Type = AntdUI.TTypeMini.Default,
-                Margin = new Padding(0, verticalMargin, UiScaleHelper.Scale(8), verticalMargin),
-            };
-            dropdown.Items.AddRange(new object[]
+                ReloadServers(AppUiSettings.Instance.AllowExternalConfigRefresh);
+            }));
+            menu.Items.Add(CreateToolbarMenuItem("配置读取模式：性能优先（推荐）", delegate (object sender, EventArgs e)
             {
-                new AntdUI.SelectItem("new", "新建..."),
-                new AntdUI.SelectItem("rename", "重命名..."),
-                new AntdUI.SelectItem("copy", "复制为新建..."),
-                new AntdUI.SelectItem("delete", "删除"),
-                new AntdUI.SelectItem("refresh", "刷新列表"),
-                new AntdUI.SelectItem("modePerf", "配置读取模式：性能优先（推荐）"),
-                new AntdUI.SelectItem("modeCompat", "配置读取模式：兼容（手动刷新读磁盘）"),
-                new AntdUI.SelectItem("sepSnapshot", "-"),
-                new AntdUI.SelectItem("snapshotOff", "自动快照：关闭"),
-                new AntdUI.SelectItem("snapshotBeforeSave", "自动快照：保存配置前"),
-                new AntdUI.SelectItem("snapshotBeforeWrite", "自动快照：写入服务器前（默认）"),
-                new AntdUI.SelectItem("snapshotAsync", "自动快照：后台异步（切换）"),
-                new AntdUI.SelectItem("sep1", "-"),
-                new AntdUI.SelectItem("openConfig", "打开配置目录"),
-                new AntdUI.SelectItem("openServerConfig", "打开服务器配置目录"),
-                new AntdUI.SelectItem("installServer", "安装/更新专用服务器..."),
-            });
-            dropdown.ItemClick += delegate (object sender, AntdUI.ObjectNEventArgs e)
+                SetConfigRefreshMode(false);
+            }));
+            menu.Items.Add(CreateToolbarMenuItem("配置读取模式：兼容（手动刷新读磁盘）", delegate (object sender, EventArgs e)
             {
-                string id = Convert.ToString(e.Value);
-                if (id == "new")
-                {
-                    OnNewServer(sender, EventArgs.Empty);
-                }
-                else if (id == "rename")
-                {
-                    OnRenameServer(sender, EventArgs.Empty);
-                }
-                else if (id == "copy")
-                {
-                    OnCopyServer(sender, EventArgs.Empty);
-                }
-                else if (id == "delete")
-                {
-                    OnDeleteServer(sender, EventArgs.Empty);
-                }
-                else if (id == "refresh")
-                {
-                    ReloadServers(AppUiSettings.Instance.AllowExternalConfigRefresh);
-                }
-                else if (id == "modePerf")
-                {
-                    SetConfigRefreshMode(false);
-                }
-                else if (id == "modeCompat")
-                {
-                    SetConfigRefreshMode(true);
-                }
-                else if (id == "snapshotOff")
-                {
-                    SetAutoSnapshotMode(AutoSnapshotMode.Off);
-                }
-                else if (id == "snapshotBeforeSave")
-                {
-                    SetAutoSnapshotMode(AutoSnapshotMode.BeforeSave);
-                }
-                else if (id == "snapshotBeforeWrite")
-                {
-                    SetAutoSnapshotMode(AutoSnapshotMode.BeforeWrite);
-                }
-                else if (id == "snapshotAsync")
-                {
-                    ToggleAutoSnapshotAsync();
-                }
-                else if (id == "openConfig")
-                {
-                    OnOpenConfigDirectory(sender, EventArgs.Empty);
-                }
-                else if (id == "openServerConfig")
-                {
-                    OnOpenServerConfigDirectory(sender, EventArgs.Empty);
-                }
-                else if (id == "installServer")
-                {
-                    OnInstallDedicatedServer(sender, EventArgs.Empty);
-                }
-            };
-            return dropdown;
+                SetConfigRefreshMode(true);
+            }));
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(CreateToolbarMenuItem("自动快照：关闭", delegate (object sender, EventArgs e)
+            {
+                SetAutoSnapshotMode(AutoSnapshotMode.Off);
+            }));
+            menu.Items.Add(CreateToolbarMenuItem("自动快照：保存配置前", delegate (object sender, EventArgs e)
+            {
+                SetAutoSnapshotMode(AutoSnapshotMode.BeforeSave);
+            }));
+            menu.Items.Add(CreateToolbarMenuItem("自动快照：写入服务器前（默认）", delegate (object sender, EventArgs e)
+            {
+                SetAutoSnapshotMode(AutoSnapshotMode.BeforeWrite);
+            }));
+            menu.Items.Add(CreateToolbarMenuItem("自动快照：后台异步（切换）", delegate (object sender, EventArgs e)
+            {
+                ToggleAutoSnapshotAsync();
+            }));
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(CreateToolbarMenuItem("打开配置目录", OnOpenConfigDirectory));
+            menu.Items.Add(CreateToolbarMenuItem("打开服务器配置目录", OnOpenServerConfigDirectory));
+            menu.Items.Add(CreateToolbarMenuItem("安装/更新专用服务器...", OnInstallDedicatedServer));
+            return AntdUiHelper.CreateToolbarMenuButton("服务器", menu);
         }
 
-        private AntDropdown CreateToolsMenuButton()
+        private AntButton CreateToolsMenuButton()
         {
-            int verticalMargin = UiScaleHelper.Scale(2);
-            var dropdown = new AntDropdown
-            {
-                Text = "工具",
-                Type = AntdUI.TTypeMini.Default,
-                Margin = new Padding(0, verticalMargin, 0, verticalMargin),
-            };
-            dropdown.Items.Add(new AntdUI.SelectItem("quickSetup", "首服向导..."));
-            dropdown.Items.Add(new AntdUI.SelectItem("steamcmd", "SteamCMD 设置..."));
-            dropdown.Items.Add(new AntdUI.SelectItem("agent", "Agent / OpenClaw 设置..."));
-            dropdown.Items.Add(new AntdUI.SelectItem("about", "关于..."));
-            dropdown.ItemClick += delegate (object sender, AntdUI.ObjectNEventArgs e)
-            {
-                string id = Convert.ToString(e.Value);
-                if (id == "quickSetup")
-                {
-                    OnQuickSetupWizard(sender, EventArgs.Empty);
-                }
-                else if (id == "steamcmd")
-                {
-                    OnSteamCmdSettings(sender, EventArgs.Empty);
-                }
-                else if (id == "agent")
-                {
-                    OnAgentSettings(sender, EventArgs.Empty);
-                }
-                else if (id == "about")
-                {
-                    OnAbout(sender, EventArgs.Empty);
-                }
-            };
-            return dropdown;
+            var menu = new ContextMenuStrip();
+            menu.Items.Add(CreateToolbarMenuItem("首服向导...", OnQuickSetupWizard));
+            menu.Items.Add(CreateToolbarMenuItem("SteamCMD 设置...", OnSteamCmdSettings));
+            menu.Items.Add(CreateToolbarMenuItem("Agent / OpenClaw 设置...", OnAgentSettings));
+            menu.Items.Add(CreateToolbarMenuItem("关于...", OnAbout));
+            return AntdUiHelper.CreateToolbarMenuButton("工具", menu);
+        }
+
+        private static ToolStripMenuItem CreateToolbarMenuItem(string text, EventHandler handler)
+        {
+            var item = new ToolStripMenuItem(text);
+            item.Click += handler;
+            return item;
         }
 
         private static AntButton CreateActionButton(string text, AntdUI.TTypeMini type)
@@ -1551,7 +1477,7 @@ namespace Arma3ServerTools.App.WinForms
                 return;
             }
 
-            using (var dialog = new TextInputDialog("重命名配置", "配置名称", config.ConfigName))
+            using (var dialog = new TextInputDialog("重命名配置", "配置名称", config.ConfigName, this))
             {
                 if (dialog.ShowDialog(this) != DialogResult.OK)
                 {
@@ -1925,7 +1851,7 @@ namespace Arma3ServerTools.App.WinForms
 
         private void OnAgentSettings(object sender, EventArgs e)
         {
-            using (var dialog = new AgentSettingsForm(services))
+            using (var dialog = new AgentSettingsForm(services, this))
             {
                 dialog.ShowDialog(this);
             }
@@ -1933,7 +1859,7 @@ namespace Arma3ServerTools.App.WinForms
 
         private void OnSteamCmdSettings(object sender, EventArgs e)
         {
-            using (var dialog = new SteamCmdConfigForm(services, services.GetSteamCmdSettings()))
+            using (var dialog = new SteamCmdConfigForm(services, services.GetSteamCmdSettings(), this))
             {
                 if (dialog.ShowDialog(this) != DialogResult.OK)
                 {

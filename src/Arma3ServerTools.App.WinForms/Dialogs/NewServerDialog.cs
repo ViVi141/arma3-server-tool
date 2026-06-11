@@ -16,7 +16,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             : base()
         {
             Text = "新建服务器配置";
-            ApplyPreferredDialogSizing(480, 160, null);
+            ApplyPreferredDialogSizing(500, 200, 180, null);
 
             var layout = SettingsLayoutHelper.CreateFormLayout(96);
             nameInput = SettingsLayoutHelper.AddRow(layout, "配置名称", SettingsLayoutHelper.CreateInput(true));

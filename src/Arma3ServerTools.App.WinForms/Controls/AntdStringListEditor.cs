@@ -134,9 +134,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void OnAdd(object sender, EventArgs e)
         {
-            using (var prompt = new TextInputDialog(resolvedAddTitle, resolvedAddLabel, resolvedAddDefault))
+            Form ownerForm = FindForm();
+            using (var prompt = new TextInputDialog(resolvedAddTitle, resolvedAddLabel, resolvedAddDefault, ownerForm))
             {
-                if (prompt.ShowDialog(FindForm()) != DialogResult.OK)
+                if (prompt.ShowDialog(ownerForm) != DialogResult.OK)
                 {
                     return;
                 }

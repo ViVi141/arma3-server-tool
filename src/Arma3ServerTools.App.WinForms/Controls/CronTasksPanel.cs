@@ -162,9 +162,10 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void OnAddTask(object sender, System.EventArgs e)
         {
-            using (var dialog = new CronTaskDialogForm())
+            Form ownerForm = FindForm();
+            using (var dialog = new CronTaskDialogForm(ownerForm))
             {
-                if (dialog.ShowDialog(FindForm()) != DialogResult.OK)
+                if (dialog.ShowDialog(ownerForm) != DialogResult.OK)
                 {
                     return;
                 }

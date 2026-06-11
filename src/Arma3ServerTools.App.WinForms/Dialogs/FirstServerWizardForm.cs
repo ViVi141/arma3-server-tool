@@ -57,7 +57,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         {
             this.appServices = appServices;
             Text = "首服向导";
-            ApplyPreferredDialogSizing(600, 620, null);
+            ApplyPreferredDialogSizing(640, 660, 520, null);
 
             stepTitleLabel = new AntLabel
             {
@@ -197,7 +197,8 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             installDedicated = SettingsLayoutHelper.AddRow(
                 layout,
                 "SteamCMD",
-                SettingsLayoutHelper.CreateCheckbox("安装/更新专用服务器到上述游戏目录", true));
+                SettingsLayoutHelper.CreateCheckbox("安装/更新专用服务器到上述游戏目录", true),
+                52);
 
             AntButton downloadButton = SettingsLayoutHelper.CreateButton(
                 "下载 SteamCMD");
@@ -297,7 +298,8 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             writeCfg = SettingsLayoutHelper.AddRow(
                 layout,
                 "完成后",
-                SettingsLayoutHelper.CreateCheckbox("保存到工具并应用到服务器目录", true));
+                SettingsLayoutHelper.CreateCheckbox("保存到工具并应用到服务器目录", true),
+                52);
 
             panel.Controls.Add(SettingsLayoutHelper.CreateScrollHost(layout));
             return panel;

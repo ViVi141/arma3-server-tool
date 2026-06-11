@@ -11,7 +11,6 @@ using AntCheckbox = AntdUI.Checkbox;
 using AntInput = AntdUI.Input;
 using AntInputNumber = AntdUI.InputNumber;
 using AntLabel = AntdUI.Label;
-using AntPanel = AntdUI.Panel;
 
 namespace Arma3ServerTools.App.WinForms.Dialogs
 {
@@ -33,9 +32,15 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         {
             this.appServices = appServices;
             Text = "快速配置向导";
-            ApplyPreferredDialogSizing(560, 520, null);
+            ApplyPreferredDialogSizing(600, 540, 460, null);
 
             var layout = SettingsLayoutHelper.CreateFormLayout(120);
+
+            AntLabel hint = AntdUiHelper.CreateHintLabel(
+                UiLabels.PathRulesHint + " 向导将创建新的服务器配置；专用服务器需已安装到所选目录。",
+                540);
+            SettingsLayoutHelper.AddRow(layout, string.Empty, hint, 72);
+
             nameInput = SettingsLayoutHelper.AddRow(layout, "配置名称", SettingsLayoutHelper.CreateInput(true));
             nameInput.Text = "我的服务器";
 
@@ -75,12 +80,8 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             writeCfgCheckBox = SettingsLayoutHelper.AddRow(
                 layout,
                 "完成后",
-                SettingsLayoutHelper.CreateCheckbox("保存到工具并应用到服务器目录", true));
-
-            AntLabel hint = AntdUiHelper.CreateHintLabel(
-                UiLabels.PathRulesHint + " 向导将创建新的服务器配置；专用服务器需已安装到所选目录。",
-                500);
-            hint.Dock = DockStyle.Top;
+                SettingsLayoutHelper.CreateCheckbox("保存到工具并应用到服务器目录", true),
+                52);
 
             AntButton finishButton = AntdUiHelper.CreatePrimaryButton("完成");
             finishButton.Click += OnFinish;
@@ -91,12 +92,8 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 Close();
             };
 
-            var filler = new AntPanel { Dock = DockStyle.Fill, Padding = AppTheme.ContentPadding };
-            filler.Controls.Add(SettingsLayoutHelper.CreateScrollHost(layout));
-
             Controls.Add(CreateButtonBar(finishButton, cancelButton, "完成", "取消"));
-            Controls.Add(filler);
-            Controls.Add(hint);
+            Controls.Add(SettingsLayoutHelper.CreateScrollHost(layout));
         }
 
         public ArmaServerConfig CreatedConfig { get; private set; }

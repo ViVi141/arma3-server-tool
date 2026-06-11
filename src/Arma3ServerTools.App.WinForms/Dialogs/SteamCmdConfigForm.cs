@@ -22,14 +22,19 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
         private readonly AntInput workshopRootInput;
         private readonly AntInput serverInstallInput;
         private readonly AntdUI.Label steamCmdStatusLabel;
-        public SteamCmdConfigForm(IAppServices appServices, SteamcmdEntity current)
+        public SteamCmdConfigForm(IAppServices appServices, SteamcmdEntity current, Form ownerForm = null)
             : base()
         {
             this.appServices = appServices;
             Text = "SteamCMD 配置";
-            ApplyPreferredDialogSizing(520, 380, null);
+            ApplyPreferredDialogSizing(560, 500, 420, ownerForm);
 
             var layout = SettingsLayoutHelper.CreateFormLayout(120);
+
+            AntLabel hint = AntdUiHelper.CreateHintLabel(
+                UiLabels.PathRulesHint + " " + SteamPathUiHelper.PathsHint,
+                540);
+            SettingsLayoutHelper.AddRow(layout, string.Empty, hint, 96);
 
             userInput = SettingsLayoutHelper.AddRow(layout, "Steam 账号", SettingsLayoutHelper.CreateInput(true));
             passwordInput = SettingsLayoutHelper.AddRow(layout, "Steam 密码", SettingsLayoutHelper.CreatePasswordInput());
@@ -77,30 +82,21 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 Close();
             };
 
-            var buttonBar = CreateButtonBar(okButton, cancelButton, "保存", "取消");
-            var actionBar = new FlowLayoutPanel
+            var bottomBar = new FlowLayoutPanel
             {
                 Dock = DockStyle.Bottom,
                 FlowDirection = FlowDirection.LeftToRight,
                 AutoSize = true,
-                Padding = new Padding(
-                    UiScaleHelper.Scale(12),
-                    UiScaleHelper.Scale(4),
-                    UiScaleHelper.Scale(12),
-                    0),
+                WrapContents = true,
+                Padding = UiScaleHelper.ScalePadding(12, 4, 12, 8),
             };
-            actionBar.Controls.Add(downloadButton);
+            bottomBar.Controls.Add(downloadButton);
+            bottomBar.Controls.Add(okButton);
+            bottomBar.Controls.Add(cancelButton);
+            okButton.Margin = new Padding(UiScaleHelper.Scale(12), 0, 0, 0);
 
-            AntLabel hint = AntdUiHelper.CreateHintLabel(
-                UiLabels.PathRulesHint + " " + SteamPathUiHelper.PathsHint,
-                520);
-            hint.Dock = DockStyle.Top;
-
-            var body = SettingsLayoutHelper.CreateScrollHost(layout);
-            Controls.Add(buttonBar);
-            Controls.Add(actionBar);
-            Controls.Add(hint);
-            Controls.Add(body);
+            Controls.Add(bottomBar);
+            Controls.Add(SettingsLayoutHelper.CreateScrollHost(layout));
         }
 
         public SteamcmdEntity BuildSettings()

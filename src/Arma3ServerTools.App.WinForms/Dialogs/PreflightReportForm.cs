@@ -2,10 +2,10 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Text;
 using System.Windows.Forms;
+using Arma3ServerTools.App.WinForms.Controls;
 using Arma3ServerTools.Application.Services;
 using AntButton = AntdUI.Button;
 using AntLabel = AntdUI.Label;
-using AntPanel = AntdUI.Panel;
 
 namespace Arma3ServerTools.App.WinForms.Dialogs
 {
@@ -25,7 +25,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             : base()
         {
             Text = string.IsNullOrWhiteSpace(dialogTitle) ? "启动前检查" : dialogTitle;
-            ApplyPreferredDialogSizing(640, 480, null);
+            ApplyPreferredDialogSizing(640, 520, 400, null);
 
             bool hasError = false;
             bool hasWarning = false;
@@ -51,8 +51,7 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 builder.AppendLine();
             }
 
-            AntLabel body = AntdUiHelper.CreateHintLabel(builder.ToString(), 580);
-            body.Dock = DockStyle.Fill;
+            AntLabel body = AntdUiHelper.CreateHintLabel(builder.ToString(), 600);
             body.Padding = AppTheme.ContentPadding;
 
             AntButton copyButton = AntdUiHelper.CreateToolbarButton("复制报告");
@@ -124,11 +123,8 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
                 buttonBar.Controls.Add(proceedButton);
             }
 
-            var filler = new AntPanel { Dock = DockStyle.Fill };
-            filler.Controls.Add(body);
-
             Controls.Add(buttonBar);
-            Controls.Add(filler);
+            Controls.Add(SettingsLayoutHelper.CreateScrollHost(body));
         }
     }
 }

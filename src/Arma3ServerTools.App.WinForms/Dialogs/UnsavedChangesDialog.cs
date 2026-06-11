@@ -1,5 +1,5 @@
-using System.Drawing;
 using System.Windows.Forms;
+using Arma3ServerTools.App.WinForms.Controls;
 using AntButton = AntdUI.Button;
 
 namespace Arma3ServerTools.App.WinForms.Dialogs
@@ -18,20 +18,14 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             : base()
         {
             Text = "未保存的更改";
-            ApplyPreferredDialogSizing(520, 200, null);
+            ApplyPreferredDialogSizing(600, 260, 220, null);
 
             string message = "配置 \"" + configName + "\" 有未保存的修改。"
                 + System.Environment.NewLine
                 + "「保存到工具」仅更新工具内 JSON；「应用到服务器目录」会写入 server.cfg、basic.cfg、*.Arma3Profile 与 BattlEye 等游戏文件。";
 
-            var body = new AntdUI.Label
-            {
-                Text = message,
-                Dock = DockStyle.Fill,
-                AutoSizeMode = AntdUI.TAutoSize.Auto,
-                MaximumSize = new Size(UiScaleHelper.Scale(480), 0),
-                Padding = AppTheme.ContentPadding,
-            };
+            var body = AntdUiHelper.CreateHintLabel(message, 560);
+            body.Padding = AppTheme.ContentPadding;
 
             AntButton applyButton = AntdUiHelper.CreatePrimaryButton(UiLabels.ApplyToServerButton);
             AntButton saveButton = AntdUiHelper.CreateToolbarButton(UiLabels.SaveToToolButton);
@@ -78,8 +72,8 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             bar.Controls.Add(saveButton);
             bar.Controls.Add(applyButton);
 
-            Controls.Add(body);
             Controls.Add(bar);
+            Controls.Add(SettingsLayoutHelper.CreateScrollHost(body));
         }
 
         public UnsavedChangesChoice Choice { get; private set; } = UnsavedChangesChoice.Cancel;

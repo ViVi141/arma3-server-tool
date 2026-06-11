@@ -24,26 +24,37 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             StartPosition = FormStartPosition.CenterParent;
             AutoScaleMode = AutoScaleMode.Font;
             Font = AppTheme.UiFont;
-            ClientSize = new Size(UiScaleHelper.Scale(480), UiScaleHelper.Scale(130));
+            ClientSize = UiScaleHelper.ScaleSize(480, 160);
+
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                Padding = UiScaleHelper.ScalePadding(16, 12, 16, 12),
+            };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, UiScaleHelper.Scale(26)));
 
             statusLabel = new Label
             {
-                AutoSize = false,
-                Location = new Point(UiScaleHelper.Scale(16), UiScaleHelper.Scale(16)),
-                Size = new Size(UiScaleHelper.Scale(448), UiScaleHelper.Scale(48)),
+                AutoSize = true,
+                Dock = DockStyle.Fill,
+                MaximumSize = new Size(UiScaleHelper.Scale(448), 0),
                 Text = "准备中…",
             };
 
             progressBar = new ProgressBar
             {
-                Location = new Point(UiScaleHelper.Scale(16), UiScaleHelper.Scale(72)),
-                Size = new Size(UiScaleHelper.Scale(448), UiScaleHelper.Scale(22)),
+                Dock = DockStyle.Fill,
                 Style = ProgressBarStyle.Marquee,
                 MarqueeAnimationSpeed = 30,
             };
 
-            Controls.Add(statusLabel);
-            Controls.Add(progressBar);
+            layout.Controls.Add(statusLabel, 0, 0);
+            layout.Controls.Add(progressBar, 0, 1);
+            Controls.Add(layout);
         }
 
         public async Task<OperationResult> ExecuteAsync(

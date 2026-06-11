@@ -100,6 +100,19 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return label.Height + UiScaleHelper.Scale(4);
             }
 
+            if (control is AntCheckbox checkbox)
+            {
+                int measureWidth = checkbox.Width > 0 ? checkbox.Width : UiScaleHelper.Scale(380);
+                Size preferred = checkbox.GetPreferredSize(new Size(measureWidth, 0));
+                int height = preferred.Height;
+                if (height < FieldHeight)
+                {
+                    height = FieldHeight;
+                }
+
+                return height + UiScaleHelper.Scale(4);
+            }
+
             if (control.Height > FieldHeight)
             {
                 return control.Height + UiScaleHelper.Scale(4);
