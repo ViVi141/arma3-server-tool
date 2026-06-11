@@ -26,5 +26,12 @@ config/
 a3st_*.db
 bans.json
 snapshots/
+*.dll
+*.exe
+userdata/
+siteserverui/
+steamcmd.exe
+steamcmd.exe.*
+update_hosts_cached.vdf
 coverage/
 ${APPDATA}/
