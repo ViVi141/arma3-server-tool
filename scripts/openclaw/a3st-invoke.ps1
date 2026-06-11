@@ -21,7 +21,8 @@ param(
     [string]$WaitTaskId = "",
     [string]$UploadModHtml = "",
     [string]$UploadMissionPbo = "",
-    [string]$ModHtmlMode = "download_and_enable"
+    [string]$ModHtmlMode = "download_and_enable",
+    [switch]$WriteCfg
 )
 
 $ErrorActionPreference = "Stop"
@@ -155,6 +156,10 @@ Arma3 Server Tools Agent invoke
   -UploadModHtml <mods.html> -ServerUuid <uuid> [-ModHtmlMode download_and_enable]
   -Command upload-mod-html  (同上，需 -UploadModHtml)
 
+任务 PBO（不是 task action，勿写进 TaskJson commands）:
+  -UploadMissionPbo <file.pbo> -ServerUuid <uuid> [-WriteCfg]
+  上传后若要立即换图: 再 -Command restart -ServerUuid <uuid>
+
 常用:
   -Command actions|health|list|status|get-config|put-config|task|logs|rpt|steamcmd-status|steamcmd-stop
   -Command stop|start|restart|write_cfg|update_server|help  (快捷 task)
@@ -226,6 +231,9 @@ if (-not [string]::IsNullOrWhiteSpace($UploadMissionPbo)) {
         Write-Error "UploadMissionPbo requires -ServerUuid."
     }
     $uri = "$BaseUrl/api/v1/servers/$ServerUuid/files/mission-pbo?addToMissionList=true"
+    if ($WriteCfg) {
+        $uri = "$uri&writeCfg=true"
+    }
     $headers = @{}
     if (-not [string]::IsNullOrWhiteSpace($Token)) {
         $headers["Authorization"] = "Bearer $Token"
