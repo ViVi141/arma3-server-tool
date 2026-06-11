@@ -27,6 +27,7 @@ const subPages = [
   { path: "snapshots", label: "快照" },
   { path: "bans", label: "封禁" },
   { path: "logs", label: "日志" },
+  { path: "preflight", label: "体检" },
   { path: "wizard", label: "开服向导" },
   { path: "settings", label: "配置" },
   { path: "about", label: "关于" },

@@ -139,33 +139,58 @@ async function addMission() {
       </el-tab-pane>
 
       <el-tab-pane label="服务器设置" name="basic_settings">
-        <el-form label-width="140px" v-loading="loading">
-          <el-form-item label="服务器名称">
-            <el-input v-model="sections.basic.hostname" placeholder="My Arma3 Server" />
-          </el-form-item>
-          <el-form-item label="最大玩家">
-            <el-input-number v-model="sections.basic.maxPlayers" :min="1" :max="128" />
-          </el-form-item>
-          <el-form-item label="密码">
-            <el-input v-model="sections.basic.password" type="password" show-password />
-          </el-form-item>
-          <el-form-item label="管理员密码">
-            <el-input v-model="sections.basic.passwordAdmin" type="password" show-password />
-          </el-form-item>
-          <el-form-item label="BattlEye">
-            <el-switch v-model="sections.basic.battlEye" />
-          </el-form-item>
-          <el-form-item label="签名验证">
-            <el-select v-model="sections.basic.verifySignatures">
-              <el-option :value="0" label="关闭" />
-              <el-option :value="1" label="警告" />
-              <el-option :value="2" label="禁止" />
-            </el-select>
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" :loading="saving" @click="saveSection('basic')">保存</el-button>
-          </el-form-item>
-        </el-form>
+        <div v-loading="loading" style="max-height: 600px; overflow-y: auto;">
+          <el-form label-width="180px" style="padding: 4px;">
+            <h4 style="margin: 8px 0;">基础</h4>
+            <el-form-item label="服务器名称"><el-input v-model="sections.basic.hostname" /></el-form-item>
+            <el-form-item label="密码"><el-input v-model="sections.basic.password" type="password" show-password /></el-form-item>
+            <el-form-item label="管理员密码"><el-input v-model="sections.basic.passwordAdmin" type="password" show-password /></el-form-item>
+            <el-form-item label="最大玩家"><el-input-number v-model="sections.basic.maxPlayers" :min="1" :max="128" /></el-form-item>
+            <el-form-item label="游戏端口"><el-input-number v-model="sections.basic.port" :min="1024" :max="65535" /></el-form-item>
+            <el-form-item label="BattlEye"><el-switch v-model="sections.basic.battlEye" /></el-form-item>
+            <el-form-item label="Persistent"><el-switch v-model="sections.basic.persistent" /></el-form-item>
+            <el-form-item label="跳过大厅"><el-switch v-model="sections.basic.skipLobby" /></el-form-item>
+            <el-form-item label="签名验证"><el-select v-model="sections.basic.verifySignatures">
+              <el-option :value="0" label="关闭" /><el-option :value="1" label="警告" /><el-option :value="2" label="禁止" />
+            </el-select></el-form-item>
+            <el-form-item label="允许文件修补"><el-select v-model="sections.basic.allowedFilePatching">
+              <el-option :value="0" label="禁止" /><el-option :value="1" label="客户端" /><el-option :value="2" label="所有人" />
+            </el-select></el-form-item>
+            <el-divider />
+            <h4>MOTD / 欢迎语</h4>
+            <el-form-item label="欢迎语"><el-input v-model="sections.basic.motd" type="textarea" :rows="2" /></el-form-item>
+            <el-form-item label="MOTD 间隔(秒)"><el-input-number v-model="sections.basic.motdInterval" :min="0" :max="600" /></el-form-item>
+            <el-divider />
+            <h4>语音 (VoN)</h4>
+            <el-form-item label="禁用 VoN"><el-switch v-model="sections.basic.disableVoN" /></el-form-item>
+            <el-form-item label="VoN 质量"><el-input-number v-model="sections.basic.vonCodecQuality" :min="1" :max="30" /></el-form-item>
+            <el-divider />
+            <h4>投票 / 超时</h4>
+            <el-form-item label="投票阈值"><el-input-number v-model="sections.basic.voteThreshold" :min="1" :max="100" /></el-form-item>
+            <el-form-item label="投票超时(秒)"><el-input-number v-model="sections.basic.votingTimeout" :min="0" :max="999" /></el-form-item>
+            <el-form-item label="任务投票人数"><el-input-number v-model="sections.basic.voteMissionPlayers" :min="0" :max="100" /></el-form-item>
+            <el-form-item label="断线超时(秒)"><el-input-number v-model="sections.basic.disconnectTimeout" :min="0" :max="600" /></el-form-item>
+            <el-form-item label="最大 Ping"><el-input-number v-model="sections.basic.maxPing" :min="50" :max="500" /></el-form-item>
+            <el-form-item label="最大 Desync"><el-input-number v-model="sections.basic.maxDesync" :min="50" :max="500" /></el-form-item>
+            <el-divider />
+            <h4>无头客户端</h4>
+            <el-form-item label="启用 HC"><el-switch v-model="sections.basic.enableHeadless" /></el-form-item>
+            <el-form-item label="HC IP (逗号分隔)">
+              <el-input v-model="sections.basic.headlessClients" placeholder="127.0.0.1,192.168.1.10" />
+            </el-form-item>
+            <el-form-item label="本机客户端">
+              <el-input v-model="sections.basic.localClient" placeholder="127.0.0.1" />
+            </el-form-item>
+            <el-divider />
+            <h4>日志 / 文件</h4>
+            <el-form-item label="日志文件"><el-input v-model="sections.basic.logFile" placeholder="server_console.log" /></el-form-item>
+            <el-form-item label="PID 文件"><el-input v-model="sections.basic.pidFile" /></el-form-item>
+            <el-form-item label="统计启用"><el-switch v-model="sections.basic.statistics" /></el-form-item>
+            <el-form-item style="margin-top: 12px;">
+              <el-button type="primary" :loading="saving" @click="saveSection('basic')">保存</el-button>
+            </el-form-item>
+          </el-form>
+        </div>
       </el-tab-pane>
 
       <el-tab-pane label="BattlEye" name="battleye">

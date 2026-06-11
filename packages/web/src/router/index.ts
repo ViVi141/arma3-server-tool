@@ -76,6 +76,11 @@ const routes = [
         component: () => import("../views/AboutView.vue"),
       },
       {
+        path: "preflight",
+        name: "preflight",
+        component: () => import("../views/PreflightView.vue"),
+      },
+      {
         path: "bans",
         name: "bans",
         component: () => import("../views/BansView.vue"),

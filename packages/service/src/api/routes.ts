@@ -648,6 +648,7 @@ async function executeCommand(
     case "rcon_ban":
     case "rcon_broadcast":
     case "rcon_mission":
+    case "rcon_command":
     case "rcon_lock":
     case "rcon_unlock": {
       const rconHost = "127.0.0.1";
@@ -677,6 +678,12 @@ async function executeCommand(
           }
           case "rcon_mission": {
             const r = await client.loadMission(cmd.missionTemplate as string);
+            return ok(r.message);
+          }
+          case "rcon_command": {
+            const text = cmd.rconCommandText as string;
+            if (!text) return fail("缺少命令文本");
+            const r = await client.sendCommand(text);
             return ok(r.message);
           }
           case "rcon_lock": {

@@ -97,6 +97,48 @@ async function toggleMod(id: number, enabled: boolean) {
   } catch (e: unknown) { ElMessage.error(e instanceof Error ? e.message : "操作失败"); }
 }
 
+// ---- Bikey management ----
+const showBikeyDialog = ref(false);
+const bikeyMods = ref<{ name: string; workshopId: number; bikeyPresent: boolean }[]>([]);
+const copyingBikey = ref(false);
+
+async function openBikeyDialog() {
+  showBikeyDialog.value = true;
+  try {
+    const client = store.getClient();
+    if (!client) return;
+    // Get scanned mods via task
+    const res = await client.submitTask({ serverUuid: props.serverUuid, commands: [{ action: "scan_mods" as const }] });
+    const msg = (res.data as { steps?: { message: string }[] })?.steps?.[0]?.message ?? "";
+    // Parse scan result - mod names with bikey info
+    bikeyMods.value = modList.value.map(m => ({ ...m, bikeyPresent: m.bikey }));
+  } catch { /* ignore */ }
+}
+
+async function copyAllBikeys() {
+  copyingBikey.value = true;
+  try {
+    const client = store.getClient();
+    if (!client) return;
+    const res = await client.submitTask({ serverUuid: props.serverUuid, commands: [{ action: "write_cfg" as const }] });
+    ElMessage.success("Bikey 复制任务已提交 (写入配置时会同步复制)");
+  } catch (e: unknown) { ElMessage.error(e instanceof Error ? e.message : "复制失败"); }
+  finally { copyingBikey.value = false; }
+}
+
+async function setServerMod(id: number, isServer: boolean) {
+  try {
+    const client = store.getClient();
+    if (!client) return;
+    const currentIds = modList.value.filter(m => m.isServerMod).map(m => m.workshopId);
+    const newIds = isServer ? [...currentIds, id] : currentIds.filter(i => i !== id);
+    await client.patchConfig(props.serverUuid, { mods: { serverModIds: newIds } } as never);
+    const mod = modList.value.find(m => m.workshopId === id);
+    if (mod) mod.isServerMod = isServer;
+    ElMessage.success(isServer ? "已标记为服务器模组" : "已取消服务器模组");
+  } catch (e: unknown) { ElMessage.error(e instanceof Error ? e.message : "操作失败"); }
+}
+
 // ---- HTML Import ----
 
 function parseHtml() {
@@ -168,6 +210,8 @@ async function doHtmlImport() {
 
     <div style="margin: 12px 0; display: flex; gap: 8px; flex-wrap: wrap;">
       <el-button :loading="scanning" @click="doScan">扫描模组</el-button>
+      <el-button @click="openBikeyDialog">Bikey 管理</el-button>
+      <el-button :loading="copyingBikey" @click="copyAllBikeys">复制全部 Bikey</el-button>
     </div>
 
     <el-card style="margin-top: 12px;">
@@ -244,5 +288,31 @@ async function doHtmlImport() {
         </el-card>
       </el-col>
     </el-row>
+
+    <!-- Bikey Dialog -->
+    <el-dialog v-model="showBikeyDialog" title="Bikey 管理" width="600px">
+      <el-table :data="bikeyMods" stripe size="small">
+        <el-table-column prop="name" label="模组" min-width="200" />
+        <el-table-column prop="workshopId" label="ID" width="120" />
+        <el-table-column label="Bikey" width="80">
+          <template #default="{ row }">
+            <el-tag v-if="row.bikeyPresent" type="success" size="small">🟢 存在</el-tag>
+            <el-tag v-else type="danger" size="small">🔴 缺失</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="服模" width="80">
+          <template #default="{ row }">
+            <el-switch
+              :model-value="modList.find(m => m.workshopId === row.workshopId)?.isServerMod ?? false"
+              size="small"
+              @change="(v: boolean) => setServerMod(row.workshopId, v)" />
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button :loading="copyingBikey" @click="copyAllBikeys">复制缺失 Bikey</el-button>
+        <el-button @click="showBikeyDialog = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
