@@ -36,7 +36,7 @@ namespace Arma3ServerTools.App.WinForms
         public const string StatusSaved = "✓ 已保存";
 
         public const string SyncLegendHint =
-            "橙色字段 = 已修改未保存；Tab 旁 ● = 该页有未保存修改。游戏目录 cfg 仅由「应用到服务器目录」生成，手改 cfg 工具不负责。";
+            "橙色字段 = 已修改未保存；Tab 旁 ● = 该页有未保存修改。游戏目录 cfg 仅由「写入服务器」生成，手改 cfg 工具不负责。";
 
         public const string ConfigRefreshModePerformance = "配置读取模式：性能优先（内存）";
 

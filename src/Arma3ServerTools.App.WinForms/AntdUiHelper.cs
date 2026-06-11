@@ -176,11 +176,29 @@ namespace Arma3ServerTools.App.WinForms
 
         public static AntdUI.Tabs CreateTabsPanel()
         {
-            return new AntdUI.Tabs
+            var tabs = new AntdUI.Tabs
             {
                 Dock = DockStyle.Fill,
                 Type = AntdUI.TabType.Line,
             };
+            ConfigureOverflowTabs(tabs);
+            return tabs;
+        }
+
+        /// <summary>
+        /// 标签页超出宽度时显示左右滚动按钮，避免 Tab 被裁切后无法发现。
+        /// </summary>
+        public static void ConfigureOverflowTabs(AntdUI.Tabs tabs)
+        {
+            if (tabs == null)
+            {
+                return;
+            }
+
+            tabs.TypExceed = AntdUI.TabTypExceed.Button;
+            tabs.Gap = UiScaleHelper.Scale(4);
+            tabs.EnablePageScrolling = true;
+            tabs.TabMenuVisible = true;
         }
 
         public static void AddTabPage(AntdUI.Tabs tabs, string title, Control content)

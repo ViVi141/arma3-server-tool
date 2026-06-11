@@ -77,8 +77,8 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
             tabJumpDropdown = new AntDropdown
             {
-                Text = "跳转",
-                Type = AntdUI.TTypeMini.Default,
+                Text = "切换页",
+                Type = AntdUI.TTypeMini.Primary,
                 Margin = new Padding(UiScaleHelper.Scale(12), 0, 0, 0),
             };
             tabJumpDropdown.ItemClick += OnTabJumpItemClick;
@@ -94,6 +94,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 Type = AntdUI.TabType.Line,
                 Padding = new Padding(0),
             };
+            AntdUiHelper.ConfigureOverflowTabs(tabs);
             tabs.SelectedIndexChanged += OnSettingsTabChanged;
             tabs.MouseWheel += OnTabsMouseWheel;
 
@@ -117,6 +118,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
             Load += OnHostLoad;
             Resize += OnHostResize;
             RebuildVisibleTabs();
+            UpdateSyncLegendLayout();
         }
 
         private void OnHostResize(object sender, EventArgs e)
@@ -127,6 +129,34 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             topBar.MaximumSize = new Size(ClientSize.Width, 0);
+            UpdateSyncLegendLayout();
+            tabs.Invalidate(true);
+        }
+
+        private void UpdateSyncLegendLayout()
+        {
+            if (syncLegendLabel == null || ClientSize.Width <= 0)
+            {
+                return;
+            }
+
+            int minLegendWidth = UiScaleHelper.Scale(560);
+            if (ClientSize.Width < minLegendWidth)
+            {
+                syncLegendLabel.Visible = false;
+                return;
+            }
+
+            int reserved = UiScaleHelper.Scale(280);
+            int maxWidth = ClientSize.Width - reserved;
+            if (maxWidth < UiScaleHelper.Scale(160))
+            {
+                syncLegendLabel.Visible = false;
+                return;
+            }
+
+            syncLegendLabel.Visible = true;
+            syncLegendLabel.MaximumSize = new Size(maxWidth, 0);
         }
 
         private void OnTabsMouseWheel(object sender, MouseEventArgs e)

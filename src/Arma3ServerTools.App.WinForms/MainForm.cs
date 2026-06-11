@@ -94,7 +94,7 @@ namespace Arma3ServerTools.App.WinForms
             AppIcon.ApplyTo(this);
             Text = UiLabels.AppTitle;
             ClientSize = UiScaleHelper.ScaleSize(1100, 720);
-            MinimumSize = UiScaleHelper.ScaleSize(780, 560);
+            MinimumSize = UiScaleHelper.ScaleSize(820, 560);
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Color.White;
             FormBorderStyle = FormBorderStyle.Sizable;
