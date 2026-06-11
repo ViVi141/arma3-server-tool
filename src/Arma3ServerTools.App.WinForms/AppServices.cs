@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Arma3ServerTools.Application.Agent;
 using Arma3ServerTools.Application.Monitoring;
 using Arma3ServerTools.Application.ProcessManagement;
 using Arma3ServerTools.Application.Repositories;
@@ -45,7 +46,9 @@ namespace Arma3ServerTools.App.WinForms
             RconQuickProbe rconQuickProbe,
             ServerConfigSessionStore sessions,
             ConfigPersistenceService persistence,
-            DefaultConfigPersistenceSettingsProvider persistenceSettings)
+            DefaultConfigPersistenceSettingsProvider persistenceSettings,
+            AgentSettingsService agentSettings,
+            AgentScheduledTaskService agentScheduledTasks)
         {
             Paths = paths;
             Logger = logger;
@@ -78,6 +81,8 @@ namespace Arma3ServerTools.App.WinForms
             Sessions = sessions;
             Persistence = persistence;
             PersistenceSettings = persistenceSettings;
+            AgentSettings = agentSettings;
+            AgentScheduledTasks = agentScheduledTasks;
         }
 
         public IAppPaths Paths { get; }
@@ -141,6 +146,10 @@ namespace Arma3ServerTools.App.WinForms
         public ConfigPersistenceService Persistence { get; }
 
         public DefaultConfigPersistenceSettingsProvider PersistenceSettings { get; }
+
+        public AgentSettingsService AgentSettings { get; }
+
+        public AgentScheduledTaskService AgentScheduledTasks { get; }
 
         public string CurrentServerUuid { get; set; }
 

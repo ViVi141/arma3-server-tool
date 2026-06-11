@@ -9,6 +9,8 @@ namespace Arma3ServerTools.Application.Services
 
         OperationResult PutConfig(string serverUuid, ArmaServerConfig config);
 
+        OperationResult PatchConfig(string serverUuid, string patchJson);
+
         OperationResult CreateServer(string name, string serverDir);
 
         OperationResult CloneServer(string sourceUuid, string newName, string newServerDir);

@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Arma3ServerTools.Agent.Host.Configuration;
+using Arma3ServerTools.Application.Agent;
 using Arma3ServerTools.Application.Automation;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
@@ -13,6 +13,7 @@ namespace Arma3ServerTools.Agent.Host.Inbox
     public sealed class AutomationInboxWatcher : IDisposable
     {
         private readonly IAppPaths paths;
+        private readonly AgentSettingsRepository settingsRepository;
         private readonly AgentSettings settings;
         private readonly IServerAutomationService automationService;
         private readonly MissionFileDeployService missionDeployService;
@@ -23,6 +24,7 @@ namespace Arma3ServerTools.Agent.Host.Inbox
 
         public AutomationInboxWatcher(
             IAppPaths paths,
+            AgentSettingsRepository settingsRepository,
             AgentSettings settings,
             IServerAutomationService automationService,
             MissionFileDeployService missionDeployService,
@@ -30,6 +32,7 @@ namespace Arma3ServerTools.Agent.Host.Inbox
             ILogger logger)
         {
             this.paths = paths;
+            this.settingsRepository = settingsRepository;
             this.settings = settings;
             this.automationService = automationService;
             this.missionDeployService = missionDeployService;
@@ -54,7 +57,7 @@ namespace Arma3ServerTools.Agent.Host.Inbox
             timer = new Timer(OnTimer, null, intervalMs, intervalMs);
             logger.LogInformation(
                 "Automation inbox watcher started. directory={Directory}",
-                AgentSettingsLoader.GetInboxDirectory(paths));
+                settingsRepository.GetInboxDirectory());
         }
 
         public void Dispose()
@@ -85,7 +88,7 @@ namespace Arma3ServerTools.Agent.Host.Inbox
 
         private void ScanInbox()
         {
-            string inbox = AgentSettingsLoader.GetInboxDirectory(paths);
+            string inbox = settingsRepository.GetInboxDirectory();
             string processedDir = Path.Combine(inbox, "processed");
             string failedDir = Path.Combine(inbox, "failed");
             Directory.CreateDirectory(processedDir);

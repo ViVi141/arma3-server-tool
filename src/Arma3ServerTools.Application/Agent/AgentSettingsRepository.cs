@@ -2,39 +2,43 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Arma3ServerTools.Core;
-using Newtonsoft.Json;
+using Arma3ServerTools.Core.IO;
 using Newtonsoft.Json.Linq;
 
-namespace Arma3ServerTools.Agent.Host.Configuration
+namespace Arma3ServerTools.Application.Agent
 {
-    public static class AgentSettingsLoader
+    public sealed class AgentSettingsRepository
     {
-        public static string GetSettingsPath(IAppPaths paths)
+        private readonly IAppPaths paths;
+
+        public AgentSettingsRepository(IAppPaths paths)
+        {
+            this.paths = paths ?? throw new ArgumentNullException(nameof(paths));
+        }
+
+        public string GetSettingsPath()
         {
             string agentDirectory = Path.Combine(paths.ConfigDirectory, "agent");
             Directory.CreateDirectory(agentDirectory);
             return Path.Combine(agentDirectory, "settings.json");
         }
 
-        public static string GetInboxDirectory(IAppPaths paths)
+        public string GetInboxDirectory()
         {
             string inbox = Path.Combine(paths.ConfigDirectory, "agent", "inbox");
             Directory.CreateDirectory(inbox);
-            string processed = Path.Combine(inbox, "processed");
-            Directory.CreateDirectory(processed);
-            string failed = Path.Combine(inbox, "failed");
-            Directory.CreateDirectory(failed);
+            Directory.CreateDirectory(Path.Combine(inbox, "processed"));
+            Directory.CreateDirectory(Path.Combine(inbox, "failed"));
             return inbox;
         }
 
-        public static AgentSettings LoadOrCreate(IAppPaths paths)
+        public AgentSettings LoadOrCreate()
         {
-            string settingsPath = GetSettingsPath(paths);
+            string settingsPath = GetSettingsPath();
             if (!File.Exists(settingsPath))
             {
                 AgentSettings defaults = CreateDefaults();
-                string json = JsonConvert.SerializeObject(defaults, Formatting.Indented);
-                File.WriteAllText(settingsPath, json);
+                Save(defaults);
                 return defaults;
             }
 
@@ -43,12 +47,49 @@ namespace Arma3ServerTools.Agent.Host.Configuration
             StripLegacyOneBotSection(root);
             MigrateLegacyListenPrefix(root);
 
-            AgentSettings loaded = root.ToObject<AgentSettings>();
+            AgentSettings loaded = JsonSerializer.FromJson<AgentSettings>(root.ToString());
             if (loaded == null)
             {
                 return CreateDefaults();
             }
 
+            Normalize(loaded);
+            return loaded;
+        }
+
+        public void Save(AgentSettings settings)
+        {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            Normalize(settings);
+            File.WriteAllText(GetSettingsPath(), JsonSerializer.ToJson(settings));
+        }
+
+        private static AgentSettings CreateDefaults()
+        {
+            return new AgentSettings
+            {
+                Http = new AgentHttpSettings
+                {
+                    Enabled = true,
+                    RemoteAccessEnabled = false,
+                    ListenHost = "127.0.0.1",
+                    ListenPort = 19580,
+                    ApiToken = Guid.NewGuid().ToString("N"),
+                },
+                Inbox = new AgentInboxSettings
+                {
+                    Enabled = true,
+                    PollSeconds = 5,
+                },
+            };
+        }
+
+        private static void Normalize(AgentSettings loaded)
+        {
             if (loaded.Http == null)
             {
                 loaded.Http = new AgentHttpSettings();
@@ -59,12 +100,20 @@ namespace Arma3ServerTools.Agent.Host.Configuration
                 loaded.Inbox = new AgentInboxSettings();
             }
 
+            if (loaded.FileUpload == null)
+            {
+                loaded.FileUpload = new AgentFileUploadSettings();
+            }
+
+            if (loaded.SteamCmd == null)
+            {
+                loaded.SteamCmd = new AgentSteamCmdSettings();
+            }
+
             if (loaded.Http.AllowedCallerIps == null)
             {
                 loaded.Http.AllowedCallerIps = new List<string>();
             }
-
-            return loaded;
         }
 
         private static void StripLegacyOneBotSection(JObject root)
@@ -114,26 +163,6 @@ namespace Arma3ServerTools.Agent.Host.Configuration
 
             http["remoteAccessEnabled"] = true;
             http["listenPrefix"] = listenPrefix;
-        }
-
-        private static AgentSettings CreateDefaults()
-        {
-            return new AgentSettings
-            {
-                Http = new AgentHttpSettings
-                {
-                    Enabled = true,
-                    RemoteAccessEnabled = false,
-                    ListenHost = "127.0.0.1",
-                    ListenPort = 19580,
-                    ApiToken = Guid.NewGuid().ToString("N"),
-                },
-                Inbox = new AgentInboxSettings
-                {
-                    Enabled = true,
-                    PollSeconds = 5,
-                },
-            };
         }
     }
 }

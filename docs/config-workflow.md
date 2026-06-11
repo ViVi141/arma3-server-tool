@@ -64,13 +64,20 @@ Tab 旁 **●** 表示该页有本地未保存编辑。
 
 | `action` | 配置包 | 游戏 cfg |
 |----------|--------|----------|
-| `save` | 是 | 否 |
-| `write_cfg` / `apply` | 否 | 是 |
-| `start` | 否 | 否（要求已存在 cfg） |
-| `restart` | 否 | 是（`stop` → `write_cfg` → `start`） |
+| `save` | 是 | 可选（`writeCfgAfter` / 任务级 `writeCfgAfter`） |
+| `write_cfg` / `apply` | 是（先） | 是（`SaveAndWrite`，等同 GUI「写入服务器」） |
+| `start` | 是（先 save） | 否（使用目录中已有 cfg） |
+| `restart` | 是 | 是（stop → apply → start） |
 | `switch_mission` | 是 | 是 |
+| `enable_mods` / `disable_mods` / `import_mods_html` / `sync_cron_jobs` | 是 | 可选（`writeCfgAfter` 或 `restartAfter`） |
 
-改配置后启服推荐：`save` → `write_cfg` → `start`，或 GUI 一次 **应用到服务器目录** 再 **启动**。详见 [agent-capabilities.md](agent-capabilities.md)。
+改配置后启服推荐：
+
+- **一步 apply**：`write_cfg` 或 REST `PATCH ...?writeCfg=true`
+- **改并重启**：task 设 `"restartAfter": true`（或末尾 `{ "action": "restart" }`）
+- **分步**：`save` → `write_cfg` → `start`
+
+详见 [agent-capabilities.md](agent-capabilities.md)。
 
 ## 升级自 v1.4.x
 

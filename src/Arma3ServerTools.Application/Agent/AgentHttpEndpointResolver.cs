@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 
-namespace Arma3ServerTools.Agent.Host.Configuration
+namespace Arma3ServerTools.Application.Agent
 {
-    internal static class AgentHttpEndpointResolver
+    public static class AgentHttpEndpointResolver
     {
         public static IList<string> ResolveListenPrefixes(AgentHttpSettings http)
         {
@@ -48,6 +48,12 @@ namespace Arma3ServerTools.Agent.Host.Configuration
             }
 
             return prefix;
+        }
+
+        public static string ResolveLocalBaseUrl(AgentHttpSettings http)
+        {
+            int port = http.ListenPort > 0 ? http.ListenPort : 19580;
+            return "http://127.0.0.1:" + port;
         }
 
         private static string ResolveListenHost(AgentHttpSettings http)

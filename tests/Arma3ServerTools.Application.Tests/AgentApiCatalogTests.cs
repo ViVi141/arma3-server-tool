@@ -64,6 +64,24 @@ namespace Arma3ServerTools.Application.Tests
         }
 
         [Fact]
+        public void Build_ContainsDisableModsAction()
+        {
+            AgentApiCatalogData data = AgentApiCatalog.Build();
+
+            Assert.Contains(data.TaskActions, a => a.Name == "disable_mods");
+        }
+
+        [Fact]
+        public void Build_ContainsPatchConfigEndpoint()
+        {
+            AgentApiCatalogData data = AgentApiCatalog.Build();
+
+            Assert.Contains(
+                data.RestEndpoints,
+                e => e.Method == "PATCH" && e.Path == "/api/v1/servers/{uuid}/config");
+        }
+
+        [Fact]
         public void Build_ReturnsRestEndpoints()
         {
             AgentApiCatalogData data = AgentApiCatalog.Build();

@@ -445,6 +445,7 @@ namespace Arma3ServerTools.App.WinForms
             };
             dropdown.Items.Add(new AntdUI.SelectItem("quickSetup", "首服向导..."));
             dropdown.Items.Add(new AntdUI.SelectItem("steamcmd", "SteamCMD 设置..."));
+            dropdown.Items.Add(new AntdUI.SelectItem("agent", "Agent / OpenClaw 设置..."));
             dropdown.Items.Add(new AntdUI.SelectItem("about", "关于..."));
             dropdown.ItemClick += delegate (object sender, AntdUI.ObjectNEventArgs e)
             {
@@ -456,6 +457,10 @@ namespace Arma3ServerTools.App.WinForms
                 else if (id == "steamcmd")
                 {
                     OnSteamCmdSettings(sender, EventArgs.Empty);
+                }
+                else if (id == "agent")
+                {
+                    OnAgentSettings(sender, EventArgs.Empty);
                 }
                 else if (id == "about")
                 {
@@ -1916,6 +1921,14 @@ namespace Arma3ServerTools.App.WinForms
 
                     AntdUiHelper.ShowWarning(this, "定时任务同步失败: " + message, "警告");
                 });
+        }
+
+        private void OnAgentSettings(object sender, EventArgs e)
+        {
+            using (var dialog = new AgentSettingsForm(services))
+            {
+                dialog.ShowDialog(this);
+            }
         }
 
         private void OnSteamCmdSettings(object sender, EventArgs e)

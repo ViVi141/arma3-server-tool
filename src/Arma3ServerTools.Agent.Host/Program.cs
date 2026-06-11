@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using Arma3ServerTools.Agent.Host.Configuration;
 using Arma3ServerTools.Agent.Host.Http;
 using Arma3ServerTools.Agent.Host.Inbox;
+using Arma3ServerTools.Application.Agent;
 using Arma3ServerTools.Application.DependencyInjection;
 using Arma3ServerTools.Application.Logging;
 using Arma3ServerTools.Application.Services;
@@ -20,7 +20,8 @@ namespace Arma3ServerTools.Agent.Host
             Console.OutputEncoding = System.Text.Encoding.UTF8;
             string baseDirectory = AppContext.BaseDirectory;
             var paths = new AppPaths(baseDirectory);
-            AgentSettings settings = AgentSettingsLoader.LoadOrCreate(paths);
+            var settingsRepository = new AgentSettingsRepository(paths);
+            AgentSettings settings = settingsRepository.LoadOrCreate();
             SteamCmdConsoleMirror.Enabled = settings.SteamCmd.MirrorOutputToConsole;
 
             if (!settings.Http.Enabled)
@@ -75,7 +76,7 @@ namespace Arma3ServerTools.Agent.Host
             inboxWatcher.Start();
 
             logger.LogInformation("Arma3 Server Tools Agent starting (Kestrel).");
-            logger.LogInformation("Settings: {SettingsPath}", AgentSettingsLoader.GetSettingsPath(paths));
+            logger.LogInformation("Settings: {SettingsPath}", settingsRepository.GetSettingsPath());
             logger.LogInformation(
                 "HTTP API public URL: {PublicUrl}, remote={Remote}",
                 AgentHttpEndpointResolver.ResolvePublicBaseUrl(settings.Http),

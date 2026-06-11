@@ -1,10 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.Net;
 
-namespace Arma3ServerTools.Agent.Host.Configuration
+namespace Arma3ServerTools.Application.Agent
 {
-    internal static class AgentCallerAllowlist
+    public static class AgentCallerAllowlist
     {
         public static bool IsCallerAllowed(AgentHttpSettings http, IPAddress remoteAddress)
         {

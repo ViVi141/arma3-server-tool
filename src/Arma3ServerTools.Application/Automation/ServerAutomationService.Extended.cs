@@ -162,7 +162,12 @@ namespace Arma3ServerTools.Application.Automation
                     return fail;
                 }
 
-                AutomationStepResult ok = OkStep(action, message);
+                AutomationStepResult ok = ToStepWithOptionalApply(
+                    action,
+                    OperationResult.Ok(message),
+                    config,
+                    command,
+                    task);
                 if (capture)
                 {
                     if (data != null && !string.IsNullOrWhiteSpace(data.SteamCmdLog))
@@ -172,9 +177,8 @@ namespace Arma3ServerTools.Application.Automation
                     }
                     else
                     {
-                        AutomationStepResult withLog = ToStepWithSteamCmdLog(action, result);
-                        withLog.Message = ok.Message;
-                        return withLog;
+                        ok.SteamCmdLog = steamCmdLogService.ReadAggregatedLog(300);
+                        ok.SteamCmdLogFile = steamCmdLogService.GetLatestSessionLogFilePath();
                     }
                 }
 
@@ -223,7 +227,32 @@ namespace Arma3ServerTools.Application.Automation
                         });
                 }
 
-                return ToStep(action, modWorkshopWorkflow.EnableHtmlModsOnServer(config, entries));
+                return ToStepWithOptionalApply(
+                    action,
+                    modWorkshopWorkflow.EnableHtmlModsOnServer(config, entries),
+                    config,
+                    command,
+                    task);
+            }
+
+            if (action == "disable_mods")
+            {
+                if (config == null)
+                {
+                    return FailStep(action, "未选择服务器。");
+                }
+
+                if (command.ModIds == null || command.ModIds.Count == 0)
+                {
+                    return FailStep(action, "modIds 为空。");
+                }
+
+                return ToStepWithOptionalApply(
+                    action,
+                    modWorkshopWorkflow.DisableModsOnServer(config, command.ModIds),
+                    config,
+                    command,
+                    task);
             }
 
             if (action == "sync_cron_jobs")
@@ -257,7 +286,12 @@ namespace Arma3ServerTools.Application.Automation
                 schedulerService.SyncJobsAsync(config.ServerUUID, crons)
                     .GetAwaiter()
                     .GetResult();
-                return OkStep(action, "已同步定时任务。");
+                return ToStepWithOptionalApply(
+                    action,
+                    OperationResult.Ok("已同步定时任务。"),
+                    config,
+                    command,
+                    task);
             }
 
             if (action == "local_ban_add")

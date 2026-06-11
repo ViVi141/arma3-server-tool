@@ -18,6 +18,7 @@
 - **配置快照**：按 `AutoSnapshotMode` 在保存/写入前可选自动备份（默认写入前）；概览页可手动备份、恢复与删除。
 - **开服体检**：概览页一键检测 SteamCMD、模组路径、Bikey 就绪、启动命令行长度、Keys 目录等；报告可复制。
 - **Bikey 就绪视图**：模组页显示已启用模组的 🟢🟡🔴 统计，支持「复制缺失 Bikey」仅处理未复制的已启用模组。
+- **Agent 能力补全**：`disable_mods`、`PATCH config`；读-改-应用链条统一（Session 失效、`write_cfg`=SaveAndWrite、`writeCfgAfter`/`restartAfter`、REST/上传 `?writeCfg=true`）。
 
 ## [1.5.0]
 

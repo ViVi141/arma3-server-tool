@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Arma3ServerTools.Application.Session;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.IO;
 using Arma3ServerTools.Core.Models;
@@ -18,10 +19,14 @@ namespace Arma3ServerTools.Application.Services
     public sealed class MissionFileDeployService
     {
         private readonly IServerConfigService configService;
+        private readonly ServerConfigSessionStore sessionStore;
 
-        public MissionFileDeployService(IServerConfigService configService)
+        public MissionFileDeployService(
+            IServerConfigService configService,
+            ServerConfigSessionStore sessionStore)
         {
             this.configService = configService;
+            this.sessionStore = sessionStore;
         }
 
         public (OperationResult Result, MissionFileDeployResult Data) DeployPbo(
@@ -81,6 +86,7 @@ namespace Arma3ServerTools.Application.Services
                 PromoteMissionInConfig(config, safeName, missionDifficulty);
                 config.SetTime();
                 configService.Save(config);
+                sessionStore.Unload(serverUuid);
             }
 
             var deployResult = new MissionFileDeployResult

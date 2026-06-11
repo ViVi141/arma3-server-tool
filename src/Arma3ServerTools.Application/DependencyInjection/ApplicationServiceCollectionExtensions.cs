@@ -1,4 +1,5 @@
 using System;
+using Arma3ServerTools.Application.Agent;
 using Arma3ServerTools.Application.Automation;
 using Arma3ServerTools.Application.Logging;
 using Arma3ServerTools.Application.Monitoring;
@@ -71,6 +72,9 @@ namespace Arma3ServerTools.Application.DependencyInjection
             services.AddSingleton<MissionFileDeployService>();
             services.AddSingleton<AgentSteamSettingsService>();
             services.AddSingleton<AutomationTaskRunTracker>();
+            services.AddSingleton<AgentSettingsRepository>();
+            services.AddSingleton<AgentSettingsService>();
+            services.AddSingleton<AgentScheduledTaskService>();
             services.AddSingleton<IServerAutomationService, ServerAutomationService>();
 
             services.AddSingleton<ILogger>(provider =>

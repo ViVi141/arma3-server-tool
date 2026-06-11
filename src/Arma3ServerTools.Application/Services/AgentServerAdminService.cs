@@ -1,4 +1,6 @@
+using Arma3ServerTools.Application.Session;
 using Arma3ServerTools.Core;
+using Arma3ServerTools.Core.Config;
 using Arma3ServerTools.Core.Models;
 
 namespace Arma3ServerTools.Application.Services
@@ -7,13 +9,16 @@ namespace Arma3ServerTools.Application.Services
     {
         private readonly IServerConfigService configService;
         private readonly IServerProcessService processService;
+        private readonly ServerConfigSessionStore sessionStore;
 
         public AgentServerAdminService(
             IServerConfigService configService,
-            IServerProcessService processService)
+            IServerProcessService processService,
+            ServerConfigSessionStore sessionStore)
         {
             this.configService = configService;
             this.processService = processService;
+            this.sessionStore = sessionStore;
         }
 
         public ArmaServerConfig GetConfig(string serverUuid)
@@ -35,7 +40,35 @@ namespace Arma3ServerTools.Application.Services
 
             config.SetTime();
             configService.Save(config);
+            sessionStore.Unload(serverUuid);
             return OperationResult.Ok("已保存配置。");
+        }
+
+        public OperationResult PatchConfig(string serverUuid, string patchJson)
+        {
+            if (string.IsNullOrWhiteSpace(patchJson))
+            {
+                return OperationResult.Fail("PATCH 内容为空。");
+            }
+
+            ArmaServerConfig existing = configService.Get(serverUuid);
+            if (existing == null)
+            {
+                return OperationResult.Fail("未找到服务器: " + serverUuid);
+            }
+
+            ArmaServerConfig merged;
+            try
+            {
+                merged = ArmaServerConfigJsonMerge.Merge(existing, patchJson);
+            }
+            catch (System.Exception ex)
+            {
+                return OperationResult.Fail("无法合并 PATCH JSON: " + ex.Message);
+            }
+
+            merged.ServerUUID = existing.ServerUUID;
+            return PutConfig(serverUuid, merged);
         }
 
         public OperationResult CreateServer(string name, string serverDir)
@@ -100,6 +133,7 @@ namespace Arma3ServerTools.Application.Services
             config.ConfigName = newName.Trim();
             config.SetTime();
             configService.Save(config);
+            sessionStore.Unload(serverUuid);
             return OperationResult.Ok("已重命名。");
         }
     }

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using Arma3ServerTools.Agent.Host.Configuration;
+using Arma3ServerTools.Application.Agent;
 using Arma3ServerTools.Application.Automation;
 using Arma3ServerTools.Application.Services;
 using Arma3ServerTools.Core;
@@ -27,6 +27,7 @@ namespace Arma3ServerTools.Agent.Host.Http
             endpoints.MapGet("/api/v1/servers/{uuid}/status", HandleServerStatus);
             endpoints.MapGet("/api/v1/servers/{uuid}/config", HandleGetConfig);
             endpoints.MapPut("/api/v1/servers/{uuid}/config", HandlePutConfig);
+            endpoints.MapPatch("/api/v1/servers/{uuid}/config", HandlePatchConfig);
             endpoints.MapPost("/api/v1/servers", HandleCreateServer);
             endpoints.MapPost("/api/v1/servers/{uuid}/clone", HandleCloneServer);
             endpoints.MapDelete("/api/v1/servers/{uuid}", HandleDeleteServer);
@@ -146,10 +147,57 @@ namespace Arma3ServerTools.Agent.Host.Http
                 return;
             }
 
+            OperationResult finalizeResult = await FinalizeConfigSaveAsync(context, uuid, result)
+                .ConfigureAwait(false);
+            if (!finalizeResult.Success)
+            {
+                await WriteFailEnvelope(
+                    context,
+                    StatusCodes.Status400BadRequest,
+                    "WRITE_CFG_FAILED",
+                    finalizeResult.Message).ConfigureAwait(false);
+                return;
+            }
+
             await AgentApiResponseWriter.WriteEnvelopeAsync(
                 context,
                 StatusCodes.Status200OK,
-                AgentApiResponseWriter.Ok(context, new { message = result.Message })).ConfigureAwait(false);
+                AgentApiResponseWriter.Ok(context, new { message = finalizeResult.Message })).ConfigureAwait(false);
+        }
+
+        private static async Task HandlePatchConfig(HttpContext context, string uuid)
+        {
+            IAgentServerAdminService admin = context.RequestServices.GetRequiredService<IAgentServerAdminService>();
+            string body = await ReadBodyAsync(context).ConfigureAwait(false);
+            OperationResult result = admin.PatchConfig(uuid, body);
+            if (!result.Success)
+            {
+                string code = result.Message.StartsWith("未找到", StringComparison.Ordinal)
+                    ? "NOT_FOUND"
+                    : "PATCH_CONFIG_FAILED";
+                int status = code == "NOT_FOUND"
+                    ? StatusCodes.Status404NotFound
+                    : StatusCodes.Status400BadRequest;
+                await WriteFailEnvelope(context, status, code, result.Message).ConfigureAwait(false);
+                return;
+            }
+
+            OperationResult finalizeResult = await FinalizeConfigSaveAsync(context, uuid, result)
+                .ConfigureAwait(false);
+            if (!finalizeResult.Success)
+            {
+                await WriteFailEnvelope(
+                    context,
+                    StatusCodes.Status400BadRequest,
+                    "WRITE_CFG_FAILED",
+                    finalizeResult.Message).ConfigureAwait(false);
+                return;
+            }
+
+            await AgentApiResponseWriter.WriteEnvelopeAsync(
+                context,
+                StatusCodes.Status200OK,
+                AgentApiResponseWriter.Ok(context, new { message = finalizeResult.Message })).ConfigureAwait(false);
         }
 
         private static async Task HandleCreateServer(HttpContext context)
@@ -462,6 +510,18 @@ namespace Arma3ServerTools.Agent.Host.Http
                 return;
             }
 
+            OperationResult finalizeResult = await FinalizeConfigSaveAsync(context, uuid, result)
+                .ConfigureAwait(false);
+            if (!finalizeResult.Success)
+            {
+                await WriteFailEnvelope(
+                    context,
+                    StatusCodes.Status400BadRequest,
+                    "WRITE_CFG_FAILED",
+                    finalizeResult.Message).ConfigureAwait(false);
+                return;
+            }
+
             await AgentApiResponseWriter.WriteEnvelopeAsync(
                 context,
                 StatusCodes.Status200OK,
@@ -469,7 +529,7 @@ namespace Arma3ServerTools.Agent.Host.Http
                     context,
                     new
                     {
-                        message = result.Message,
+                        message = finalizeResult.Message,
                         import = data,
                         steamCmdLog = data != null ? data.SteamCmdLog : null,
                         steamCmdLogFile = data != null ? data.SteamCmdLogFile : null,
@@ -533,10 +593,22 @@ namespace Arma3ServerTools.Agent.Host.Http
                     return;
                 }
 
+                OperationResult finalizeResult = await FinalizeConfigSaveAsync(context, uuid, result)
+                    .ConfigureAwait(false);
+                if (!finalizeResult.Success)
+                {
+                    await WriteFailEnvelope(
+                        context,
+                        StatusCodes.Status400BadRequest,
+                        "WRITE_CFG_FAILED",
+                        finalizeResult.Message).ConfigureAwait(false);
+                    return;
+                }
+
                 await AgentApiResponseWriter.WriteEnvelopeAsync(
                     context,
                     StatusCodes.Status200OK,
-                    AgentApiResponseWriter.Ok(context, new { message = result.Message, deploy = data })).ConfigureAwait(false);
+                    AgentApiResponseWriter.Ok(context, new { message = finalizeResult.Message, deploy = data })).ConfigureAwait(false);
             }
         }
 
@@ -623,6 +695,45 @@ namespace Arma3ServerTools.Agent.Host.Http
             }
 
             return body;
+        }
+
+        private static async Task<OperationResult> FinalizeConfigSaveAsync(
+            HttpContext context,
+            string serverUuid,
+            OperationResult saveResult)
+        {
+            if (!saveResult.Success)
+            {
+                return saveResult;
+            }
+
+            if (!ParseQueryBool(context.Request.Query["writeCfg"]))
+            {
+                return saveResult;
+            }
+
+            IServerAutomationService automation =
+                context.RequestServices.GetRequiredService<IServerAutomationService>();
+            OperationResult applyResult = await Task.Run(() => automation.WriteConfigFiles(serverUuid))
+                .ConfigureAwait(false);
+            if (!applyResult.Success)
+            {
+                return OperationResult.Fail(saveResult.Message + " " + applyResult.Message);
+            }
+
+            return OperationResult.Ok(saveResult.Message + " 已应用到服务器目录。");
+        }
+
+        private static bool ParseQueryBool(Microsoft.Extensions.Primitives.StringValues value)
+        {
+            if (value.Count == 0)
+            {
+                return false;
+            }
+
+            string text = value.ToString();
+            return string.Equals(text, "true", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(text, "1", StringComparison.OrdinalIgnoreCase);
         }
 
         private static async Task<string> ReadBodyAsync(HttpContext context)

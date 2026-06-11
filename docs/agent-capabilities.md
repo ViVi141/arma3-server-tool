@@ -59,11 +59,15 @@
 |------|-------------|------|
 | `missionTemplate` | `switch_mission` | Arma 任务模板名，如 `coop_01.Altis` |
 | `missionDifficulty` | `switch_mission` | 默认 `3` |
-| `restartAfterMission` | `switch_mission` | `true`：写 cfg 后若服在跑则先停再启；`false`：只改配置并写盘，不自动启服 |
-| `modIds` | `download_mods` | Workshop 物品 ID 列表（ulong） |
+| `writeCfgAfter` | `save` / `enable_mods` / `disable_mods` / `import_mods_html` / `sync_cron_jobs` / `download_mods` | 默认 `false`；为 `true` 时 `SaveAndWrite`（等同 GUI「写入服务器」） |
+| `restartAfter` | 同上 | 默认 `false`；为 `true` 时 `restart`（含 apply，无需再设 `writeCfgAfter`） |
+| `restartAfterMission` | `switch_mission` | 默认 `true` |
+| `modIds` | `download_mods` / `enable_mods` / `disable_mods` | Workshop 物品 ID 列表（ulong） |
 | `enableModsOnServer` | `download_mods` | 默认 `true`：下载后把模组挂到**当前服配置**并保存 |
 | `scanModsAfterDownload` | `download_mods` | 默认 `true`：成功后跑一次 `ModScannerService.Scan` 刷新扫描缓存 |
 | `rconMissionName` | `rcon_mission` | BattlEye RCon `#mission` 使用的名称 |
+
+任务根字段 **`writeCfgAfter` / `restartAfter`**：作为各 command 的默认值（command 未显式设置时生效）。
 
 说明：`AutomationCommand` 上的 `CopyBikeys` 等字段当前**未**在任务执行分支单独读取；是否复制 bikey 由**服务器配置**里的 `AutoCopyBikey` 决定（与 GUI 行为一致）。
 
@@ -95,16 +99,16 @@
 顺序等价：`stop` → `write_cfg`（仅写游戏 cfg）→ `start`。  
 若刚通过 `PUT /config` 或 GUI 改了设置，应先 `save` 再 `restart`，否则 `write_cfg` 使用的是磁盘上已保存的配置包。
 
-### 4.5 `write_cfg` / `apply`（仅写游戏目录）
+### 4.5 `write_cfg` / `apply`（应用到服务器目录）
 
-- `GameConfigWriter.WriteAll`（`server.cfg`、`basic.cfg`、profile、BattlEye 等；与 GUI「应用到服务器目录」写盘部分一致）。  
-- **不**保存 A3ST 配置包、**不**启停进程（除非后续另有 `start`/`stop`）。
+- `SaveAndWrite`：先保存 A3ST 配置包，再写入 `server.cfg`、`basic.cfg`、Profile、BattlEye 等（与 GUI「写入服务器」一致）。  
+- **不**启停进程（除非后续另有 `start`/`restart`）。
 
 ### 4.6 `switch_mission`（切换任务）
 
 1. 在 `ServerConfig.missions` 里把指定模板放到**列表首位**（不存在则插入；存在则提升并更新难度）。  
-2. 保存 JSON + `WriteAll`。  
-3. 若 `restartAfterMission == true`：若当前为运行中则 **Stop**，再 **Start**（会再次写 cfg 并启进程）。  
+2. `SaveAndWrite`（保存包 + 写游戏 cfg）。  
+3. 若 `restartAfterMission == true`：若当前为运行中则 **Stop**，再 **Start**（使用已写入的 cfg，不再重复 apply）。  
 4. 若 `restartAfterMission == false`：**只改配置与文件**，不自动启服。
 
 适用于「冷切换」与「只改下次启动图」两种策略。
@@ -139,22 +143,31 @@
 
 无头捕获若卡在 Steam Guard：重试并设 `captureSteamCmdOutput: false`，或先在 A 机 GUI/SteamCMD 窗口完成一次登录。
 
-### 4.9 `update_server`（更新专用服务器文件）
+### 4.9 `disable_mods`（按 modId 停用服模）
+
+1. 在**当前服配置**的 `modsEntities` 中按 `modId` 查找条目。  
+2. 将匹配条目的 **`ServerMod` 设为 `false`**（条目仍保留在列表中，与 GUI 取消勾选服模一致）。  
+3. 保存 A3ST 配置包；**不**自动 `write_cfg` / 重启（除非 `writeCfgAfter: true` 或后续 task 步骤）。  
+4. 未找到的 `modId` 会在步骤消息中报告。  
+
+改配置后若需生效且未设 `writeCfgAfter`，在 task 中追加 `write_cfg` 与 `restart`（或 `start`）。
+
+### 4.10 `update_server`（更新专用服务器文件）
 
 - 使用 SteamCMD 对**当前配置中的 `ServerDir`** 执行 `app_update 233780`（与 GUI「安装/更新专用服务器」同源逻辑）。  
 - 需已在工具内配置 **Steam 账号** 与可用 **steamcmd.exe**。  
 - 可与 `captureSteamCmdOutput: true` 配合，行为同 `download_mods` 的捕获模式。
 
-### 4.10 `save`（仅保存 A3ST 配置包）
+### 4.11 `save`（仅保存 A3ST 配置包）
 
 - `SetTime` + `configService.Save` → `config/{uuid}/` 配置包（含 `mods.json` 等），**不写** `server.cfg`。  
 - 改配置后若需启服，通常再接 `write_cfg` 与 `start`。
 
-### 4.11 `help`（帮助文本）
+### 4.12 `help`（帮助文本）
 
 - 返回内置简短说明字符串，供脚本或 OpenClaw 展示。
 
-### 4.12 `read_logs` / `read_rpt`（游戏日志与 RPT）
+### 4.13 `read_logs` / `read_rpt`（游戏日志与 RPT）
 
 读取 Arma 3 专用服在磁盘上的日志（与 GUI「查看 RPT」同源 `RptLogService`）。
 
@@ -211,11 +224,11 @@
 
 **已暴露**（见 `GET /api/v1/actions`）：
 
-- 配置：`GET/PUT /api/v1/servers/{uuid}/config`、服务器 CRUD
+- 配置：`GET/PUT/PATCH /api/v1/servers/{uuid}/config`、服务器 CRUD
 - 文件：`POST .../files/mod-list-html`、`POST .../files/mission-pbo`
 - 开服：`ensure_steamcmd`、`install_dedicated_server`、`create_server`、`first_server_setup`、`preflight`
 - RCon：`rcon_players`、`rcon_kick`、`rcon_ban`、`rcon_broadcast`、`rcon_lock`、`rcon_unlock`
-- 模组：`scan_mods`、`enable_mods`、`import_mods_html`
+- 模组：`scan_mods`、`enable_mods`、`disable_mods`、`import_mods_html`
 - 定时/封禁：`sync_cron_jobs`、`local_ban_add`、`local_ban_remove`
 - 监控只读：`GET .../monitoring/summary`
 - 游戏日志：`GET .../logs`（列表）、`GET .../logs/read`、`GET .../rpt`（等同读最新 RPT）；task：`read_logs`、`read_rpt`
@@ -227,7 +240,7 @@
 
 | 方向 | 说明 |
 |------|------|
-| JSON Merge **PATCH** 配置 | 当前为 PUT 整份；AI 可 GET→改→PUT |
+| JSON Merge **PATCH** 配置 | 已支持 `PATCH /api/v1/servers/{uuid}/config`（嵌套对象合并；数组整段替换） |
 | 大 HTML 勿塞进 task JSON | 用 `POST .../mod-list-html` 或 Inbox，避免 IM/模型截断 |
 | 监控 CSV/HTML **导出** REST | Application 有导出服务，未单独挂端点 |
 | RCon 运行时改密 | GUI 有，Agent 未暴露 |

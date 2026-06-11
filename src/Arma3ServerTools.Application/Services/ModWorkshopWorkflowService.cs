@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Arma3ServerTools.Application.Session;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 
@@ -15,6 +16,7 @@ namespace Arma3ServerTools.Application.Services
         private readonly ModEnablerService modEnablerService;
         private readonly BikeyService bikeyService;
         private readonly IServerConfigService configService;
+        private readonly ServerConfigSessionStore sessionStore;
 
         public ModWorkshopWorkflowService(
             IAppPaths paths,
@@ -22,7 +24,8 @@ namespace Arma3ServerTools.Application.Services
             ISteamCmdConfigProvider steamCmdConfigProvider,
             ModEnablerService modEnablerService,
             BikeyService bikeyService,
-            IServerConfigService configService)
+            IServerConfigService configService,
+            ServerConfigSessionStore sessionStore)
         {
             this.paths = paths;
             this.steamCmdService = steamCmdService;
@@ -30,6 +33,7 @@ namespace Arma3ServerTools.Application.Services
             this.modEnablerService = modEnablerService;
             this.bikeyService = bikeyService;
             this.configService = configService;
+            this.sessionStore = sessionStore;
         }
 
         public OperationResult DownloadMods(IList<ulong> modIds, bool ensureSteamCmd)
@@ -143,10 +147,39 @@ namespace Arma3ServerTools.Application.Services
 
             config.SetTime();
             configService.Save(config);
+            sessionStore.Unload(config.ServerUUID);
             string message = "已启用 " + applyResult.AppliedCount + " 个模组。";
             if (applyResult.MissingOnDisk.Count > 0)
             {
                 message += " 仍有 " + applyResult.MissingOnDisk.Count + " 个未在磁盘找到。";
+            }
+
+            return OperationResult.Ok(message);
+        }
+
+        public OperationResult DisableModsOnServer(ArmaServerConfig config, IList<ulong> modIds)
+        {
+            if (config == null)
+            {
+                return OperationResult.Fail("配置为空。");
+            }
+
+            if (modIds == null || modIds.Count == 0)
+            {
+                return OperationResult.Fail("modIds 为空。");
+            }
+
+            ModDisableApplyResult applyResult = modEnablerService.DisableModsByModIds(
+                config,
+                modIds,
+                ModApplyTarget.Server);
+            config.SetTime();
+            configService.Save(config);
+            sessionStore.Unload(config.ServerUUID);
+            string message = "已停用 " + applyResult.DisabledCount + " 个服模。";
+            if (applyResult.NotFoundModIds.Count > 0)
+            {
+                message += " 未找到 " + applyResult.NotFoundModIds.Count + " 个 modId。";
             }
 
             return OperationResult.Ok(message);

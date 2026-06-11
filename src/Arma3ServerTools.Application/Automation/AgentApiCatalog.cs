@@ -49,7 +49,7 @@ namespace Arma3ServerTools.Application.Automation
             yield return Entry("stop", "停止进程");
             yield return Entry("start", "启动（需游戏目录已有 cfg）");
             yield return Entry("restart", "停服 → 写 cfg → 启服");
-            yield return Entry("write_cfg", "仅写入游戏目录 cfg（不写工具配置包）");
+            yield return Entry("write_cfg", "应用到服务器目录（SaveAndWrite，等同 GUI「写入服务器」）");
             yield return Entry("apply", "同 write_cfg");
             yield return Entry("switch_mission", "切换任务列表首项");
             yield return Entry("rcon_mission", "RCon 热加载任务");
@@ -71,6 +71,7 @@ namespace Arma3ServerTools.Application.Automation
             yield return Entry("first_server_setup", "首服组合流程");
             yield return Entry("scan_mods", "扫描模组目录");
             yield return Entry("enable_mods", "按 modId 启用模组");
+            yield return Entry("disable_mods", "按 modId 停用服模（ServerMod=false）");
             yield return Entry("rcon_players", "RCon 玩家列表");
             yield return Entry("rcon_kick", "RCon 踢人");
             yield return Entry("rcon_ban", "RCon 封禁");
@@ -94,6 +95,7 @@ namespace Arma3ServerTools.Application.Automation
             yield return Endpoint("GET", "/api/v1/tasks/{taskId}", false);
             yield return Endpoint("GET", "/api/v1/servers/{uuid}/config", false);
             yield return Endpoint("PUT", "/api/v1/servers/{uuid}/config", false);
+            yield return Endpoint("PATCH", "/api/v1/servers/{uuid}/config", false);
             yield return Endpoint("POST", "/api/v1/servers", false);
             yield return Endpoint("POST", "/api/v1/servers/{uuid}/clone", false);
             yield return Endpoint("DELETE", "/api/v1/servers/{uuid}", false);

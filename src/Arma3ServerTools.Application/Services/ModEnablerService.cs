@@ -21,6 +21,13 @@ namespace Arma3ServerTools.Application.Services
         public List<LauncherHtmlModEntry> MissingOnDisk { get; set; } = new List<LauncherHtmlModEntry>();
     }
 
+    public sealed class ModDisableApplyResult
+    {
+        public int DisabledCount { get; set; }
+
+        public List<ulong> NotFoundModIds { get; set; } = new List<ulong>();
+    }
+
     public sealed class ModEnablerService
     {
         public const string WorkshopContentRelativePath = @"steamapps\workshop\content\107410";
@@ -123,6 +130,44 @@ namespace Arma3ServerTools.Application.Services
             return result;
         }
 
+        public ModDisableApplyResult DisableModsByModIds(
+            ArmaServerConfig config,
+            IList<ulong> modIds,
+            ModApplyTarget target)
+        {
+            var result = new ModDisableApplyResult();
+            if (config == null || modIds == null || modIds.Count == 0)
+            {
+                return result;
+            }
+
+            if (config.StartupParameters.modsEntities == null)
+            {
+                config.StartupParameters.modsEntities = new List<ModsEntity>();
+            }
+
+            for (int i = 0; i < modIds.Count; i++)
+            {
+                ulong modId = modIds[i];
+                if (modId == 0)
+                {
+                    continue;
+                }
+
+                ModsEntity entity = FindByModId(config, modId);
+                if (entity == null)
+                {
+                    result.NotFoundModIds.Add(modId);
+                    continue;
+                }
+
+                ClearTargetFlags(entity, target);
+                result.DisabledCount++;
+            }
+
+            return result;
+        }
+
         public static void ApplyTargetFlags(ModsEntity entity, ModApplyTarget target)
         {
             if (entity == null)
@@ -157,6 +202,36 @@ namespace Arma3ServerTools.Application.Services
             entity.LocalMod = true;
             entity.ServerMod = true;
             entity.HeadlessClientMod = true;
+        }
+
+        public static void ClearTargetFlags(ModsEntity entity, ModApplyTarget target)
+        {
+            if (entity == null)
+            {
+                return;
+            }
+
+            if (target == ModApplyTarget.Client)
+            {
+                entity.LocalMod = false;
+                return;
+            }
+
+            if (target == ModApplyTarget.Server)
+            {
+                entity.ServerMod = false;
+                return;
+            }
+
+            if (target == ModApplyTarget.Headless)
+            {
+                entity.HeadlessClientMod = false;
+                return;
+            }
+
+            entity.LocalMod = false;
+            entity.ServerMod = false;
+            entity.HeadlessClientMod = false;
         }
 
         private static ModsEntity FindByModId(ArmaServerConfig config, ulong modId)

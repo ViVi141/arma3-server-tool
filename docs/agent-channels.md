@@ -23,7 +23,7 @@ Authorization: Bearer <apiToken>
 dotnet run --project src/Arma3ServerTools.Agent.Host/Arma3ServerTools.Agent.Host.csproj -c Release
 ```
 
-配置：`{UserData}/config/agent/settings.json`。
+配置：`{UserData}/config/agent/settings.json`（WinForms **工具 → Agent / OpenClaw 设置** 可图形化编辑，并一键注册登录自动启动计划任务）。
 
 ---
 
@@ -49,7 +49,7 @@ dotnet run --project src/Arma3ServerTools.Agent.Host/Arma3ServerTools.Agent.Host
 | 方法 | 路径 |
 |------|------|
 | GET | `/api/v1/actions` |
-| GET/PUT | `/api/v1/servers/{uuid}/config` |
+| GET/PUT/PATCH | `/api/v1/servers/{uuid}/config` |
 | POST | `/api/v1/servers` · `.../clone` |
 | DELETE | `/api/v1/servers/{uuid}` |
 | PUT | `/api/v1/servers/{uuid}/rename` |
@@ -91,8 +91,8 @@ PowerShell：`a3st-invoke.ps1 -TaskFile task.json -Async` 然后 `-WaitTaskId <i
 
 | 类型 | 端点 | 说明 |
 |------|------|------|
-| HTML 模组列表 | `POST .../files/mod-list-html` | `multipart` 字段 `file` 或 raw body；`?mode=download\|enable\|download_and_enable` |
-| PBO 任务 | `POST .../files/mission-pbo` | `multipart` 字段 `file`；写入 `{ServerDir}/MPMissions/`；`?addToMissionList=true` |
+| HTML 模组列表 | `POST .../files/mod-list-html` | `multipart` 字段 `file` 或 raw body；`?mode=download\|enable\|download_and_enable`；`?writeCfg=true` |
+| PBO 任务 | `POST .../files/mission-pbo` | `multipart` 字段 `file`；写入 `{ServerDir}/MPMissions/`；`?addToMissionList=true`；`?writeCfg=true` 写入游戏 cfg |
 
 脚本：`-UploadModHtml`、`-UploadMissionPbo`（见 `scripts/openclaw/a3st-invoke.ps1`）。
 
@@ -112,12 +112,26 @@ PowerShell：`a3st-invoke.ps1 -TaskFile task.json -Async` 然后 `-WaitTaskId <i
 
 ## 配置读写
 
-改任意工具配置字段（整份 JSON，非单字段 PATCH）：
+改任意工具配置字段（整份 JSON 用 PUT；部分字段用 PATCH 合并）：
 
 ```http
-GET /api/v1/servers/{uuid}/config
-PUT /api/v1/servers/{uuid}/config
+GET   /api/v1/servers/{uuid}/config
+PUT   /api/v1/servers/{uuid}/config
+PATCH /api/v1/servers/{uuid}/config
 ```
+
+PATCH 示例（只改服名与人数，无需发送整份配置）：
+
+```json
+{
+  "ServerConfig": {
+    "HostName": "新服名",
+    "MaxPlayers": 32
+  }
+}
+```
+
+保存后写入游戏目录：在 PUT/PATCH/文件上传请求加 query **`?writeCfg=true`**（`SaveAndWrite`，等同 GUI「写入服务器」）。
 
 保存后若需写入 `server.cfg` 或重启，在 task 中追加 `write_cfg` / `restart`。详见 [agent-capabilities.md](agent-capabilities.md) §4.12 与配置相关 REST。
 

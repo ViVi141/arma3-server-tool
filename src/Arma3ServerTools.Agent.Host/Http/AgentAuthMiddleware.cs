@@ -1,6 +1,6 @@
 using System.Net;
 using System.Threading.Tasks;
-using Arma3ServerTools.Agent.Host.Configuration;
+using Arma3ServerTools.Application.Agent;
 using Microsoft.AspNetCore.Http;
 
 namespace Arma3ServerTools.Agent.Host.Http

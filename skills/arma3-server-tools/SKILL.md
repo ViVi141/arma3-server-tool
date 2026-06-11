@@ -18,7 +18,20 @@ metadata:
 powershell -ExecutionPolicy Bypass -File $script -Command actions
 ```
 
-或 `GET /api/v1/actions`（Bearer Token）。**不存在** `get_config`、`rename`、`list_details` 等 task action；改配置用 `GET/PUT /api/v1/servers/{uuid}/config`。
+或 `GET /api/v1/actions`（Bearer Token）。**不存在** `get_config`、`rename`、`list_details` 等 task action；改配置用 `GET/PUT/PATCH /api/v1/servers/{uuid}/config`（部分字段优先 PATCH；`?writeCfg=true` 应用到服务器）。
+
+**读→改→应用** 推荐 task 模板：
+
+```json
+{
+  "serverUuid": "...",
+  "writeCfgAfter": true,
+  "restartAfter": true,
+  "commands": [
+    { "action": "enable_mods", "modIds": [450814997] }
+  ]
+}
+```
 
 ## 安装包内路径（官方 Setup 已自带）
 
@@ -208,7 +221,8 @@ powershell -ExecutionPolicy Bypass -File "<repo>\scripts\openclaw\a3st-invoke.ps
 | HTML 只上一半 | **勿**在对话 JSON 里贴整页 HTML；用文件上传 `-UploadModHtml` |
 | 多服失败 | 先 `list` / `GET /servers`，补 `serverUuid` |
 | 在线人数 | 用 `rcon_players`，不是 `status` |
-| 改配置不生效 | `PUT .../config` 后 `save` + `write_cfg`，或 `restart`（须已有 server.cfg） |
+| 改配置不生效 | 末尾加 `write_cfg` 或设 `writeCfgAfter:true` / REST `?writeCfg=true`；运行中还需 `restart` 或 `restartAfter:true` |
+| 停用模组 | `disable_mods` + `modIds`；应用用 `writeCfgAfter` 或 `restartAfter` |
 
 完整说明见 [docs/ai-agent-pitfalls.md](../docs/ai-agent-pitfalls.md)。
 

@@ -231,20 +231,32 @@ namespace Arma3ServerTools.Application.Automation
 
         public OperationResult StartServer(string serverUuid)
         {
-            // 从服务刷新配置，确保包含最新修改
             ArmaServerConfig config = configService.Get(serverUuid);
             if (config == null)
             {
                 return OperationResult.Fail("未找到服务器: " + serverUuid);
             }
 
-            // 检查 SteamCMD 是否正在运行
             SteamCmdStatusSnapshot steamStatus = steamCmdService.GetSteamCmdStatus();
             if (steamStatus.RunningProcessCount > 0)
             {
                 return OperationResult.Fail("SteamCMD 正在运行中，请等待完成或先停止 SteamCMD 再启动服务器。");
             }
 
+            sessionStore.Unload(serverUuid);
+            ServerConfigSession session = sessionStore.GetOrLoad(serverUuid);
+            if (session == null)
+            {
+                return OperationResult.Fail("未找到服务器: " + serverUuid);
+            }
+
+            OperationResult saveResult = persistence.SavePackage(session);
+            if (!saveResult.Success)
+            {
+                return saveResult;
+            }
+
+            config = configService.Get(serverUuid);
             return processService.Start(config);
         }
 
@@ -256,10 +268,10 @@ namespace Arma3ServerTools.Application.Automation
                 return stopResult;
             }
 
-            OperationResult writeResult = WriteConfigFiles(serverUuid);
-            if (!writeResult.Success)
+            OperationResult applyResult = WriteConfigFiles(serverUuid);
+            if (!applyResult.Success)
             {
-                return writeResult;
+                return applyResult;
             }
 
             return StartServer(serverUuid);
@@ -267,13 +279,14 @@ namespace Arma3ServerTools.Application.Automation
 
         public OperationResult WriteConfigFiles(string serverUuid)
         {
+            sessionStore.Unload(serverUuid);
             ServerConfigSession session = sessionStore.GetOrLoad(serverUuid);
             if (session == null)
             {
                 return OperationResult.Fail("未找到服务器: " + serverUuid);
             }
 
-            return persistence.WriteGameCfg(session);
+            return persistence.SaveAndWrite(session);
         }
 
         public OperationResult SwitchMission(
@@ -561,6 +574,7 @@ namespace Arma3ServerTools.Application.Automation
             }
 
             string action = command.Action.Trim().ToLowerInvariant();
+            MergeTaskApplyDefaults(task, command);
             if (config == null
                 && action != "help"
                 && action != "create_server"
@@ -644,11 +658,13 @@ namespace Arma3ServerTools.Application.Automation
                 AutomationStepResult step;
                 if (capture)
                 {
-                    step = ToStepWithSteamCmdLog(action, modResult);
+                    step = ToStepWithOptionalApply(action, modResult, config, command, task);
+                    step.SteamCmdLog = steamCmdLogService.ReadAggregatedLog(300);
+                    step.SteamCmdLogFile = steamCmdLogService.GetLatestSessionLogFilePath();
                 }
                 else
                 {
-                    step = ToStep(action, modResult);
+                    step = ToStepWithOptionalApply(action, modResult, config, command, task);
                 }
 
                 if (command.CoalescedFromCount > 1)
@@ -690,7 +706,7 @@ namespace Arma3ServerTools.Application.Automation
                 config.SetTime();
                 ServerConfigSession session = EnsureAutomationSession(config);
                 OperationResult saveResult = persistence.SavePackage(session);
-                return ToStep(action, saveResult);
+                return ToStepWithOptionalApply(action, saveResult, config, command, task);
             }
 
             return ExecuteExtendedCommand(ref config, action, command, task);
@@ -860,6 +876,65 @@ namespace Arma3ServerTools.Application.Automation
             }
 
             return FailStep(action, result.Message);
+        }
+
+        private static void MergeTaskApplyDefaults(AutomationTaskDocument task, AutomationCommand command)
+        {
+            if (task == null || command == null)
+            {
+                return;
+            }
+
+            if (task.WriteCfgAfter && !command.WriteCfgAfter)
+            {
+                command.WriteCfgAfter = true;
+            }
+
+            if (task.RestartAfter && !command.RestartAfter)
+            {
+                command.RestartAfter = true;
+            }
+        }
+
+        private AutomationStepResult ToStepWithOptionalApply(
+            string action,
+            OperationResult result,
+            ArmaServerConfig config,
+            AutomationCommand command,
+            AutomationTaskDocument task)
+        {
+            MergeTaskApplyDefaults(task, command);
+            AutomationStepResult step = ToStep(action, result);
+            if (!step.Success || config == null || command == null)
+            {
+                return step;
+            }
+
+            if (command.RestartAfter)
+            {
+                OperationResult restartResult = RestartServer(config.ServerUUID);
+                if (!restartResult.Success)
+                {
+                    return FailStep(action, step.Message + " " + restartResult.Message);
+                }
+
+                step.Message = step.Message + " 已重启服务器。";
+                return step;
+            }
+
+            if (command.WriteCfgAfter)
+            {
+                ServerConfigSession session = EnsureAutomationSession(config);
+                OperationResult applyResult = persistence.SaveAndWrite(session);
+                if (!applyResult.Success)
+                {
+                    return FailStep(action, step.Message + " " + applyResult.Message);
+                }
+
+                step.Message = step.Message + " 已应用到服务器目录。";
+            }
+
+            return step;
         }
 
         private AutomationStepResult ToStepWithSteamCmdLog(string action, OperationResult result)

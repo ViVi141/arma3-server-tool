@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Arma3ServerTools.Application.Agent;
 using Arma3ServerTools.Application.Monitoring;
 using Arma3ServerTools.Application.ProcessManagement;
 using Arma3ServerTools.Application.Repositories;
@@ -74,6 +75,10 @@ namespace Arma3ServerTools.App.WinForms
         ConfigPersistenceService Persistence { get; }
 
         DefaultConfigPersistenceSettingsProvider PersistenceSettings { get; }
+
+        AgentSettingsService AgentSettings { get; }
+
+        AgentScheduledTaskService AgentScheduledTasks { get; }
 
         string CurrentServerUuid { get; set; }
 
