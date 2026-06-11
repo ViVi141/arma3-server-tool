@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Arma3ServerTools.Application.Logging;
 using Arma3ServerTools.Application.Services;
@@ -102,49 +103,53 @@ namespace Arma3ServerTools.App.WinForms.Main
                     return;
                 }
 
-                var results = new List<ServerStatePollResult>(configs.Count);
-                for (int i = 0; i < configs.Count; i++)
-                {
-                    ArmaServerConfig config = configs[i];
-                    if (config == null || string.IsNullOrEmpty(config.ServerUUID))
-                    {
-                        continue;
-                    }
-
-                    int pidBefore = config.ServerTaskManagement.ProcessById;
-                    ServerRunState runState = processService.SyncState(config);
-                    bool persistedBySyncState =
-                        pidBefore > 0
-                        && runState == ServerRunState.Stopped
-                        && config.ServerTaskManagement.ProcessById == 0;
-                    results.Add(new ServerStatePollResult(config.ServerUUID, runState, persistedBySyncState));
-                }
-
-                if (IsDisposed() || invokeTarget.IsDisposed || !invokeTarget.IsHandleCreated)
-                {
-                    return;
-                }
-
-                try
-                {
-                    invokeTarget.BeginInvoke(new Action(() =>
-                    {
-                        if (IsDisposed() || invokeTarget.IsDisposed)
+                Task.Run(
+                    () => PollStates(configs),
+                    CancellationToken.None)
+                    .ContinueWith(
+                        task =>
                         {
-                            return;
-                        }
+                            if (task.IsFaulted)
+                            {
+                                logger.LogWarning(task.Exception, "Background server state poll failed.");
+                                return;
+                            }
 
-                        onResultsReady(results);
-                    }));
-                }
-                catch (ObjectDisposedException)
-                {
-                    // Control disposed after checks; safe to skip.
-                }
-                catch (InvalidOperationException)
-                {
-                    // Control is disposing/disposed between checks and BeginInvoke; safe to skip.
-                }
+                            if (IsDisposed() || invokeTarget.IsDisposed || !invokeTarget.IsHandleCreated)
+                            {
+                                return;
+                            }
+
+                            IReadOnlyList<ServerStatePollResult> results = task.Result;
+                            if (results == null || results.Count == 0)
+                            {
+                                return;
+                            }
+
+                            try
+                            {
+                                invokeTarget.BeginInvoke(new Action(() =>
+                                {
+                                    if (IsDisposed() || invokeTarget.IsDisposed)
+                                    {
+                                        return;
+                                    }
+
+                                    onResultsReady(results);
+                                }));
+                            }
+                            catch (ObjectDisposedException)
+                            {
+                                // Control disposed after checks; safe to skip.
+                            }
+                            catch (InvalidOperationException)
+                            {
+                                // Control is disposing/disposed between checks and BeginInvoke; safe to skip.
+                            }
+                        },
+                        CancellationToken.None,
+                        TaskContinuationOptions.None,
+                        TaskScheduler.Default);
             }
             catch (Exception ex)
             {
@@ -154,6 +159,34 @@ namespace Arma3ServerTools.App.WinForms.Main
             {
                 Interlocked.Exchange(ref pollInProgress, 0);
             }
+        }
+
+        private List<ServerStatePollResult> PollStates(IReadOnlyList<ArmaServerConfig> configs)
+        {
+            var results = new List<ServerStatePollResult>(configs.Count);
+            for (int i = 0; i < configs.Count; i++)
+            {
+                ArmaServerConfig config = configs[i];
+                if (config == null || string.IsNullOrEmpty(config.ServerUUID))
+                {
+                    continue;
+                }
+
+                int pidBefore = config.ServerTaskManagement.ProcessById;
+                ServerRunState runState = processService.PeekState(config);
+                bool persistedBySyncState = false;
+                if (pidBefore > 0 && runState == ServerRunState.Stopped)
+                {
+                    runState = processService.SyncState(config);
+                    persistedBySyncState =
+                        runState == ServerRunState.Stopped
+                        && config.ServerTaskManagement.ProcessById == 0;
+                }
+
+                results.Add(new ServerStatePollResult(config.ServerUUID, runState, persistedBySyncState));
+            }
+
+            return results;
         }
 
         private bool IsDisposed()

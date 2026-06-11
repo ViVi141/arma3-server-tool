@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using Arma3ServerTools.App.WinForms;
 using Arma3ServerTools.Application.Services;
+using Arma3ServerTools.Application.Session;
 using Arma3ServerTools.Application.Sync;
 using Arma3ServerTools.Core.Models;
 using AntDropdown = AntdUI.Dropdown;
@@ -45,6 +46,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private readonly HashSet<IServerSettingsPanel> uiSyncedPanels = new HashSet<IServerSettingsPanel>();
         private string lastSelectedTabTitle = "概览";
         private ArmaServerConfig currentConfig;
+        private ServerConfigSession currentSession;
         private string boundServerUuid = string.Empty;
         private ConfigSyncState currentSyncState = ConfigSyncState.Saved;
 
@@ -229,22 +231,24 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
         }
 
-        public void Bind(ArmaServerConfig config)
+        public void Attach(ServerConfigSession session)
         {
-            string serverUuid = config != null ? config.ServerUUID : string.Empty;
-            if (config != null
+            string serverUuid = session != null ? session.ServerUuid : string.Empty;
+            if (session != null
                 && string.Equals(serverUuid, boundServerUuid, StringComparison.Ordinal)
-                && ReferenceEquals(config, currentConfig))
+                && ReferenceEquals(session, currentSession))
             {
                 return;
             }
 
-            currentConfig = config;
+            DetachSessionPanels();
+            currentSession = session;
+            currentConfig = session != null ? session.Model : null;
             boundServerUuid = serverUuid ?? string.Empty;
             uiSyncedPanels.Clear();
             dirtyTracker.ClearAll();
 
-            if (config == null)
+            if (session == null)
             {
                 dirtyTracker.EnterSuppress();
                 try
@@ -267,15 +271,126 @@ namespace Arma3ServerTools.App.WinForms.Controls
             }
 
             EnsureActiveTabContentMounted();
+            AttachSessionPanels(session);
             BindActiveTabPanel(forceRefresh: true);
             RefreshActiveTab(tabs.SelectedIndex);
             RefreshTabTitles();
+        }
+
+        public void Bind(ArmaServerConfig config)
+        {
+            if (config == null)
+            {
+                Attach(null);
+                return;
+            }
+
+            ServerConfigSession session = appServices.EnsureSession(config);
+            Attach(session);
+        }
+
+        private void DetachSessionPanels()
+        {
+            foreach (TabDefinition definition in tabDefinitions)
+            {
+                IServerConfigSessionPanel sessionPanel = definition.SettingsPanel as IServerConfigSessionPanel;
+                if (sessionPanel != null && sessionPanel.IsSessionAttached)
+                {
+                    sessionPanel.Detach();
+                }
+            }
+        }
+
+        private void AttachSessionPanels(ServerConfigSession session)
+        {
+            foreach (TabDefinition definition in tabDefinitions)
+            {
+                if (definition.SettingsPanel == null)
+                {
+                    continue;
+                }
+
+                IServerConfigSessionPanel sessionPanel = definition.SettingsPanel as IServerConfigSessionPanel;
+                if (sessionPanel != null)
+                {
+                    sessionPanel.Attach(session);
+                }
+            }
+        }
+
+        private void SyncDirtyPanelsToSession()
+        {
+            if (currentSession == null)
+            {
+                return;
+            }
+
+            dirtyTracker.EnterSuppress();
+            try
+            {
+                foreach (IServerSettingsPanel panel in applyPanels)
+                {
+                    if (panel is IServerConfigSessionPanel sessionPanel && sessionPanel.IsSessionAttached)
+                    {
+                        continue;
+                    }
+
+                    if (!ShouldApplyPanel(panel))
+                    {
+                        continue;
+                    }
+
+                    EnsurePanelReadyForApply(panel);
+                    currentSession.Patch(
+                        config =>
+                        {
+                            panel.ApplyToModel();
+                        });
+                }
+            }
+            finally
+            {
+                dirtyTracker.ExitSuppress();
+            }
         }
 
         public void ApplyAll(bool force = false)
         {
             if (currentConfig == null)
             {
+                return;
+            }
+
+            if (currentSession != null)
+            {
+                dirtyTracker.EnterSuppress();
+                try
+                {
+                    foreach (IServerSettingsPanel panel in applyPanels)
+                    {
+                        if (panel is IServerConfigSessionPanel sessionPanel && sessionPanel.IsSessionAttached)
+                        {
+                            continue;
+                        }
+
+                        if (!force && !ShouldApplyPanel(panel))
+                        {
+                            continue;
+                        }
+
+                        EnsurePanelReadyForApply(panel);
+                        currentSession.Patch(
+                            config =>
+                            {
+                                panel.ApplyToModel();
+                            });
+                    }
+                }
+                finally
+                {
+                    dirtyTracker.ExitSuppress();
+                }
+
                 return;
             }
 
@@ -306,9 +421,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
                 return;
             }
 
+            appServices.Sessions.Unload(boundServerUuid);
             ArmaServerConfig latest = appServices.ConfigService.Get(boundServerUuid);
             appServices.LoadedConfigs[boundServerUuid] = latest;
             currentConfig = null;
+            currentSession = null;
             Bind(latest);
             ClearDirtyMarkers();
             UpdateSyncIndicators(ConfigSyncState.Saved);
@@ -371,6 +488,7 @@ namespace Arma3ServerTools.App.WinForms.Controls
 
         private void OnDirtyTrackerChanged()
         {
+            SyncDirtyPanelsToSession();
             RefreshTabTitles();
             RaiseSyncIndicatorsChanged();
         }
@@ -378,6 +496,11 @@ namespace Arma3ServerTools.App.WinForms.Controls
         private bool ShouldApplyPanel(IServerSettingsPanel panel)
         {
             if (panel == null)
+            {
+                return false;
+            }
+
+            if (panel is IServerConfigSessionPanel sessionPanel && sessionPanel.IsSessionAttached)
             {
                 return false;
             }

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Arma3ServerTools.Application.Services;
+using Arma3ServerTools.Application.Session;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using Microsoft.Extensions.Logging;
@@ -24,10 +25,8 @@ namespace Arma3ServerTools.App.WinForms
                 return OperationResult.Fail("未选择服务器配置。");
             }
 
-            config.SetTime();
-            services.SnapshotService.TryCreateAutoSnapshot(config.ServerUUID, "保存前");
-            services.ConfigService.Save(config);
-            return OperationResult.Ok();
+            ServerConfigSession session = services.EnsureSession(config);
+            return services.Persistence.SavePackage(session);
         }
 
         /// <summary>
@@ -40,14 +39,19 @@ namespace Arma3ServerTools.App.WinForms
                 return OperationResult.Fail("未选择服务器配置。");
             }
 
-            services.SnapshotService.TryCreateAutoSnapshot(config.ServerUUID, "写入服务器前");
-            OperationResult cfgResult = services.ConfigWriter.WriteAll(config);
-            if (!cfgResult.Success)
+            ServerConfigSession session = services.EnsureSession(config);
+            return services.Persistence.WriteGameCfg(session);
+        }
+
+        public OperationResult SaveAndApplyToServerDirectory(ArmaServerConfig config)
+        {
+            if (config == null)
             {
-                return cfgResult;
+                return OperationResult.Fail("未选择服务器配置。");
             }
 
-            return services.MonitoringDeploymentService.DeployIfEnabled(config);
+            ServerConfigSession session = services.EnsureSession(config);
+            return services.Persistence.SaveAndWrite(session);
         }
 
         public OperationResult StartServer(ArmaServerConfig config)

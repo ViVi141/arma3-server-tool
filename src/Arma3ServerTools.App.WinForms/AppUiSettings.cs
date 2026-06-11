@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Arma3ServerTools.Application.Session;
 using Arma3ServerTools.Core.IO;
 
 namespace Arma3ServerTools.App.WinForms
@@ -25,6 +26,10 @@ namespace Arma3ServerTools.App.WinForms
         /// 是否已显示过托盘最小化提示（首次最小化到托盘时显示）
         /// </summary>
         public bool HasShownTrayMinimizeHint { get; set; }
+
+        public AutoSnapshotMode AutoSnapshotMode { get; set; } = AutoSnapshotMode.BeforeWrite;
+
+        public bool AutoSnapshotAsync { get; set; } = true;
 
         public static void LoadFrom(string configDirectory)
         {

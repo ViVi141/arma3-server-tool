@@ -1,7 +1,7 @@
 # Arma3 Server Tools — 架构说明
 
 > 当前主线：**.NET 10** · WinForms + Application 服务层 · 可选 **Agent.Host**（Kestrel）  
-> 当前版本：**v1.5.0**
+> 当前版本：**v1.6.0**
 
 ## 解决方案
 
@@ -31,13 +31,27 @@ Arma3ServerTools.Core/
 
 工具配置包与游戏 cfg 分离；保存/应用/启动语义见 **[config-workflow.md](config-workflow.md)**。
 
-实现：`ServerConfigRepository` → `A3stServerConfigPackageStorage`；游戏文件由 `GameConfigWriter` 写入。同步状态仅 **Saved / Unsaved**（`ServerConfigSnapshotTracker` + `ConfigSyncStateEvaluator`）。
+实现：`ServerConfigRepository` → `A3stServerConfigPackageStorage`；游戏文件由 `GameConfigWriter` 写入。
+
+### ServerConfigSession（v1.6+）
+
+| 组件 | 职责 |
+|------|------|
+| `ServerConfigSession` | 内存中的 `ArmaServerConfig` 工作副本；`Patch` 即时更新模型与 compare fingerprint |
+| `ServerConfigSessionStore` | 按 UUID 缓存 Session；`ListSummaries()` 仅读 manifest 列表 |
+| `ConfigPersistenceService` | 按 UUID 串行队列：`SavePackageAsync` / `WriteGameCfgAsync` / `SaveAndWriteAsync` |
+| `ServerSettingsHost.Attach` | UI 绑定 Session；脏字段变更时 Patch 回写模型 |
+
+GUI 与 Agent 的 `save` / `write_cfg` 均经 `ConfigPersistenceService`，快照策略见 `ui-settings.json`（`AutoSnapshotMode` / `AutoSnapshotAsync`）。
+
+同步状态：`SessionSyncState`（Saved / Unsaved / Saving / Error）+ Tab 旁 dirty 高亮（`SettingsDirtyTracker`）。
 
 ## Application
 
 ```
 Arma3ServerTools.Application/
 ├── Services/          # ServerConfig、Process、SteamCMD、RCon、模组、封禁…
+├── Session/           # ServerConfigSession、SessionStore、ConfigPersistenceService
 ├── Sync/              # ServerConfigCompareSnapshot、ConfigSyncStateEvaluator
 ├── Automation/        # ServerAutomationService、Agent API 目录
 ├── Monitoring/        # SQLite 统计入库

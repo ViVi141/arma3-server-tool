@@ -1,6 +1,24 @@
-# 配置保存、应用与同步（v1.5+）
+# 配置保存、应用与同步（v1.6+）
 
 > 工具配置（A3ST）与游戏目录 cfg **分离**。本文为主说明；架构见 [architecture.md](architecture.md)，开服步骤见 [first-server-guide.md](first-server-guide.md)。
+
+## 数据流（v1.6）
+
+1. 选中服务器 → `ServerConfigSessionStore.GetOrLoad(uuid)` 加载 Session  
+2. 设置页编辑 → `ServerConfigSession.Patch` 更新内存模型（无需点保存才扫 Tab）  
+3. **保存配置** → `ConfigPersistenceService.SavePackageAsync`（后台队列，UI 不阻塞）  
+4. **写入服务器** → `SaveAndWriteAsync`（先包后 cfg + 可选监控部署）
+
+启动时列表仅读 `manifest.json` 摘要，不再对全部服务器做 compare 序列化。
+
+## 自动快照策略（`ui-settings.json`）
+
+| 设置 | 默认 | 说明 |
+|------|------|------|
+| `AutoSnapshotMode` | `BeforeWrite` | `Off` / `BeforeSave` / `BeforeWrite` |
+| `AutoSnapshotAsync` | `true` | 异步快照不阻塞保存/写入；失败写日志 |
+
+GUI：**服务器** 菜单中可切换上述选项。概览页仍可手动创建/恢复快照。
 
 ## 两类存储
 

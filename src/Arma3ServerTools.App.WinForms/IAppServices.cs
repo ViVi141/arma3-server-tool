@@ -3,6 +3,7 @@ using Arma3ServerTools.Application.Monitoring;
 using Arma3ServerTools.Application.ProcessManagement;
 using Arma3ServerTools.Application.Repositories;
 using Arma3ServerTools.Application.Services;
+using Arma3ServerTools.Application.Session;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.Core.Repositories;
@@ -68,14 +69,28 @@ namespace Arma3ServerTools.App.WinForms
 
         RconQuickProbe RconQuickProbe { get; }
 
+        ServerConfigSessionStore Sessions { get; }
+
+        ConfigPersistenceService Persistence { get; }
+
+        DefaultConfigPersistenceSettingsProvider PersistenceSettings { get; }
+
         string CurrentServerUuid { get; set; }
 
         Dictionary<string, ArmaServerConfig> LoadedConfigs { get; }
 
         ArmaServerConfig GetCurrentConfig();
 
+        ServerConfigSession GetCurrentSession();
+
+        ServerConfigSession EnsureSession(ArmaServerConfig config);
+
+        bool TryGetSession(string serverUuid, out ServerConfigSession session);
+
         SteamcmdEntity GetSteamCmdSettings();
 
         void SaveSteamCmdSettings(SteamcmdEntity settings);
+
+        void SyncPersistenceSettingsFromUi();
     }
 }

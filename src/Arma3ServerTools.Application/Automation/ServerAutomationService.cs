@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Arma3ServerTools.Application.Services;
+using Arma3ServerTools.Application.Session;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using Microsoft.Extensions.Logging;
@@ -31,6 +32,8 @@ namespace Arma3ServerTools.Application.Automation
         private readonly AutomationTaskRunTracker taskRunTracker;
         private readonly SteamCmdLogService steamCmdLogService;
         private readonly RptLogService rptLogService;
+        private readonly ServerConfigSessionStore sessionStore;
+        private readonly ConfigPersistenceService persistence;
         private readonly ILogger logger;
 
         public ServerAutomationService(
@@ -53,6 +56,8 @@ namespace Arma3ServerTools.Application.Automation
             AutomationTaskRunTracker taskRunTracker,
             SteamCmdLogService steamCmdLogService,
             RptLogService rptLogService,
+            ServerConfigSessionStore sessionStore,
+            ConfigPersistenceService persistence,
             ILogger logger)
         {
             this.paths = paths;
@@ -74,6 +79,8 @@ namespace Arma3ServerTools.Application.Automation
             this.taskRunTracker = taskRunTracker;
             this.steamCmdLogService = steamCmdLogService;
             this.rptLogService = rptLogService;
+            this.sessionStore = sessionStore;
+            this.persistence = persistence;
             this.logger = logger;
         }
 
@@ -260,13 +267,13 @@ namespace Arma3ServerTools.Application.Automation
 
         public OperationResult WriteConfigFiles(string serverUuid)
         {
-            ArmaServerConfig config = configService.Get(serverUuid);
-            if (config == null)
+            ServerConfigSession session = sessionStore.GetOrLoad(serverUuid);
+            if (session == null)
             {
                 return OperationResult.Fail("未找到服务器: " + serverUuid);
             }
 
-            return configWriter.WriteAll(config);
+            return persistence.WriteGameCfg(session);
         }
 
         public OperationResult SwitchMission(
@@ -306,8 +313,8 @@ namespace Arma3ServerTools.Application.Automation
             }
 
             config.SetTime();
-            configService.Save(config);
-            OperationResult writeResult = configWriter.WriteAll(config);
+            ServerConfigSession session = EnsureAutomationSession(config);
+            OperationResult writeResult = persistence.SaveAndWrite(session);
             if (!writeResult.Success)
             {
                 return writeResult;
@@ -681,8 +688,9 @@ namespace Arma3ServerTools.Application.Automation
                 }
 
                 config.SetTime();
-                configService.Save(config);
-                return OkStep(action, "已保存到工具配置。");
+                ServerConfigSession session = EnsureAutomationSession(config);
+                OperationResult saveResult = persistence.SavePackage(session);
+                return ToStep(action, saveResult);
             }
 
             return ExecuteExtendedCommand(ref config, action, command, task);
@@ -766,7 +774,13 @@ namespace Arma3ServerTools.Application.Automation
             }
 
             config.SetTime();
-            configService.Save(config);
+            ServerConfigSession session = EnsureAutomationSession(config);
+            OperationResult saveResult = persistence.SavePackage(session);
+            if (!saveResult.Success)
+            {
+                return OperationResult.Fail(prefixMessage + System.Environment.NewLine + saveResult.Message);
+            }
+
             string message = prefixMessage + System.Environment.NewLine
                 + "已启用 " + applyResult.AppliedCount + " 个模组。";
             if (applyResult.MissingOnDisk.Count > 0)
@@ -890,6 +904,22 @@ namespace Arma3ServerTools.Application.Automation
                 GameLogPath = logResult.Path,
                 GameLogContent = logResult.Content,
             };
+        }
+
+        private ServerConfigSession EnsureAutomationSession(ArmaServerConfig config)
+        {
+            ServerConfigSession session = sessionStore.GetOrLoad(config.ServerUUID);
+            if (session == null)
+            {
+                session = new ServerConfigSession(config);
+                sessionStore.Register(session);
+            }
+            else if (!ReferenceEquals(session.Model, config))
+            {
+                session.ReplaceModel(config, markSaved: false);
+            }
+
+            return session;
         }
     }
 }

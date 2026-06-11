@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using Arma3ServerTools.Application.Services;
+using Arma3ServerTools.Application.Session;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using Microsoft.Extensions.Logging;
@@ -246,7 +247,13 @@ namespace Arma3ServerTools.Application.Automation
 
                 config.ServerTaskManagement.CronEntity = crons;
                 config.SetTime();
-                configService.Save(config);
+                ServerConfigSession session = EnsureAutomationSession(config);
+                OperationResult saveResult = persistence.SavePackage(session);
+                if (!saveResult.Success)
+                {
+                    return FailStep(action, saveResult.Message);
+                }
+
                 schedulerService.SyncJobsAsync(config.ServerUUID, crons)
                     .GetAwaiter()
                     .GetResult();

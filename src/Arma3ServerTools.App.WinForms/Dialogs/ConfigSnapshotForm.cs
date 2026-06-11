@@ -55,7 +55,8 @@ namespace Arma3ServerTools.App.WinForms.Dialogs
             toolbar.Controls.Add(deleteButton);
 
             AntLabel hint = AntdUiHelper.CreateHintLabel(
-                "保存配置或写入服务器前会自动创建快照（最多保留 30 条）。恢复后将从磁盘重新加载配置包。",
+                "按「服务器」菜单中的自动快照策略，保存或写入服务器前可自动备份（最多 30 条）。"
+                + "恢复后将从磁盘重新加载配置包。",
                 640);
             hint.Dock = DockStyle.Top;
 

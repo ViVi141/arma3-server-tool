@@ -5,6 +5,7 @@ using Arma3ServerTools.Application.Monitoring;
 using Arma3ServerTools.Application.ProcessManagement;
 using Arma3ServerTools.Application.Repositories;
 using Arma3ServerTools.Application.Services;
+using Arma3ServerTools.Application.Session;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Repositories;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,6 +35,11 @@ namespace Arma3ServerTools.Application.DependencyInjection
             services.AddSingleton<ModuleScanPathRepository>();
             services.AddSingleton<PlayerDatabaseRepository>();
             services.AddSingleton<ISteamCmdConfigProvider, SteamCmdConfigProvider>();
+            services.AddSingleton<DefaultConfigPersistenceSettingsProvider>();
+            services.AddSingleton<IConfigPersistenceSettingsProvider>(
+                provider => provider.GetRequiredService<DefaultConfigPersistenceSettingsProvider>());
+            services.AddSingleton<ServerConfigSessionStore>();
+            services.AddSingleton<ConfigPersistenceService>();
             services.AddSingleton<IServerConfigService, ServerConfigService>();
             services.AddSingleton<IGameConfigWriter, GameConfigWriterAdapter>();
             services.AddSingleton<IProcessRunner, SystemProcessRunner>();

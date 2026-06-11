@@ -4,6 +4,7 @@ using Arma3ServerTools.Application.Monitoring;
 using Arma3ServerTools.Application.ProcessManagement;
 using Arma3ServerTools.Application.Repositories;
 using Arma3ServerTools.Application.Services;
+using Arma3ServerTools.Application.Session;
 using Arma3ServerTools.Core;
 using Arma3ServerTools.Core.Models;
 using Arma3ServerTools.Core.Repositories;
@@ -41,7 +42,10 @@ namespace Arma3ServerTools.App.WinForms
             MonitoringQueryService monitoringQueryService,
             PlayerDirectoryService playerDirectoryService,
             IRconService rconService,
-            RconQuickProbe rconQuickProbe)
+            RconQuickProbe rconQuickProbe,
+            ServerConfigSessionStore sessions,
+            ConfigPersistenceService persistence,
+            DefaultConfigPersistenceSettingsProvider persistenceSettings)
         {
             Paths = paths;
             Logger = logger;
@@ -71,6 +75,9 @@ namespace Arma3ServerTools.App.WinForms
             PlayerDirectoryService = playerDirectoryService;
             RconService = rconService;
             RconQuickProbe = rconQuickProbe;
+            Sessions = sessions;
+            Persistence = persistence;
+            PersistenceSettings = persistenceSettings;
         }
 
         public IAppPaths Paths { get; }
@@ -129,6 +136,12 @@ namespace Arma3ServerTools.App.WinForms
 
         public RconQuickProbe RconQuickProbe { get; }
 
+        public ServerConfigSessionStore Sessions { get; }
+
+        public ConfigPersistenceService Persistence { get; }
+
+        public DefaultConfigPersistenceSettingsProvider PersistenceSettings { get; }
+
         public string CurrentServerUuid { get; set; }
 
         public Dictionary<string, ArmaServerConfig> LoadedConfigs { get; } =
@@ -136,18 +149,73 @@ namespace Arma3ServerTools.App.WinForms
 
         public ArmaServerConfig GetCurrentConfig()
         {
+            ServerConfigSession session = GetCurrentSession();
+            if (session == null)
+            {
+                return null;
+            }
+
+            return session.Model;
+        }
+
+        public ServerConfigSession GetCurrentSession()
+        {
             if (string.IsNullOrEmpty(CurrentServerUuid))
             {
                 return null;
             }
 
-            ArmaServerConfig config;
-            if (LoadedConfigs.TryGetValue(CurrentServerUuid, out config))
+            ServerConfigSession session;
+            if (Sessions.TryGet(CurrentServerUuid, out session))
             {
-                return config;
+                LoadedConfigs[CurrentServerUuid] = session.Model;
+                return session;
             }
 
-            return null;
+            ArmaServerConfig config;
+            if (LoadedConfigs.TryGetValue(CurrentServerUuid, out config) && config != null)
+            {
+                return EnsureSession(config);
+            }
+
+            return Sessions.GetOrLoad(CurrentServerUuid);
+        }
+
+        public ServerConfigSession EnsureSession(ArmaServerConfig config)
+        {
+            if (config == null || string.IsNullOrEmpty(config.ServerUUID))
+            {
+                return null;
+            }
+
+            ServerConfigSession session = Sessions.GetOrLoad(config.ServerUUID);
+            if (session == null)
+            {
+                session = new ServerConfigSession(config);
+                Sessions.Register(session);
+            }
+            else if (!ReferenceEquals(session.Model, config))
+            {
+                session.ReplaceModel(config, markSaved: false);
+            }
+
+            LoadedConfigs[config.ServerUUID] = session.Model;
+            return session;
+        }
+
+        public bool TryGetSession(string serverUuid, out ServerConfigSession session)
+        {
+            return Sessions.TryGet(serverUuid, out session);
+        }
+
+        public void SyncPersistenceSettingsFromUi()
+        {
+            AppUiSettings ui = AppUiSettings.Instance;
+            PersistenceSettings.Update(new ConfigPersistenceSettings
+            {
+                AutoSnapshotMode = ui.AutoSnapshotMode,
+                AutoSnapshotAsync = ui.AutoSnapshotAsync,
+            });
         }
 
         public SteamcmdEntity GetSteamCmdSettings()
