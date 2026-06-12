@@ -233,38 +233,48 @@ async function persistModRolesFromList() {
   if (!client) {
     return;
   }
-  const cfgRes = await client.getConfig(props.serverUuid);
-  if (!cfgRes.success) {
-    return;
-  }
-  const modsCfg = (cfgRes.data.mods ?? {}) as {
-    localMods?: {
-      path: string;
-      name?: string;
-      enabled?: boolean;
-      isServerMod?: boolean;
-      isClientMod?: boolean;
-      isHcMod?: boolean;
-    }[];
-    enabledLocalPaths?: string[];
-  };
 
   const clientModIds: number[] = [];
   const serverModIds: number[] = [];
   const hcModIds: number[] = [];
   const enabledIds: number[] = [];
-  const localMods = [...(modsCfg.localMods ?? [])];
+  const localMods: {
+    path: string;
+    name?: string;
+    enabled?: boolean;
+    isServerMod?: boolean;
+    isClientMod?: boolean;
+    isHcMod?: boolean;
+  }[] = [];
+  const roleEntries: {
+    path: string;
+    dirName: string;
+    workshopId: number;
+    isClientMod: boolean;
+    isServerMod: boolean;
+    isHcMod: boolean;
+  }[] = [];
 
   for (const row of modList.value) {
+    roleEntries.push({
+      path: row.path,
+      dirName: row.dirName,
+      workshopId: row.workshopId,
+      isClientMod: row.isClientMod,
+      isServerMod: row.isServerMod,
+      isHcMod: row.isHcMod,
+    });
+
     if (row.isLocalMod) {
-      const idx = localMods.findIndex((e) => e.path.toLowerCase() === row.path.toLowerCase());
-      if (idx >= 0) {
-        localMods[idx] = {
-          ...localMods[idx],
+      if (row.path) {
+        localMods.push({
+          path: row.path,
+          name: row.name,
+          enabled: row.enabled,
           isServerMod: row.isServerMod,
           isClientMod: row.isClientMod,
           isHcMod: row.isHcMod,
-        };
+        });
       }
       continue;
     }
@@ -285,15 +295,19 @@ async function persistModRolesFromList() {
     }
   }
 
-  await client.patchConfig(props.serverUuid, {
+  const res = await client.patchConfig(props.serverUuid, {
     mods: {
       clientModIds,
       serverModIds,
       hcModIds,
       enabledIds,
       localMods,
+      roleEntries,
     },
   } as never);
+  if (!res.success) {
+    throw new Error(res.error ?? "保存模组设置失败");
+  }
 }
 
 async function copyBikeysForPath(modPath: string) {
@@ -318,6 +332,7 @@ async function onRoleChange(row: ModRow, field: "client" | "server" | "hc", valu
   row.enabled = row.isClientMod || row.isServerMod || row.isHcMod;
   try {
     await persistModRolesFromList();
+    ElMessage.success("模组启用状态已保存");
     await copyBikeysForPath(row.path);
     await loadMods();
     await loadBikeySummary();

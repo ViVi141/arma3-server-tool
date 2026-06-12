@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { LocalModEntry, ModMeta } from "../types/mods.js";
+import type { ModRoleEntry } from "../types/config.js";
 import type { ModScanPathEntry } from "./scan-path-store.js";
 import { expandScanTargets, isModDirectory } from "./paths.js";
 import {
@@ -17,6 +18,7 @@ export interface ModScannerOptions {
   serverModIds: number[];
   clientModIds?: number[];
   hcModIds?: number[];
+  roleEntries?: ModRoleEntry[];
   localMods?: LocalModEntry[];
   enabledLocalPaths?: string[];
   serverDir?: string;
@@ -175,15 +177,21 @@ export class ModScanner {
     const parsed = this.readModMeta(modPath, dirName);
     const isLocalMod = !!localEntry;
     const inputLocalMod = isLocalMod;
-    const isServerMod = isLocalMod
+    const savedRole = this.findSavedRole(options.roleEntries ?? [], modPath, parsed.workshopId);
+    let isServerMod = isLocalMod
       ? localEntry?.isServerMod ?? true
       : options.serverModIds.includes(parsed.workshopId);
-    const isClientMod = isLocalMod
+    let isClientMod = isLocalMod
       ? localEntry?.isClientMod ?? true
       : (options.clientModIds ?? []).includes(parsed.workshopId);
-    const isHcMod = isLocalMod
+    let isHcMod = isLocalMod
       ? localEntry?.isHcMod ?? false
       : (options.hcModIds ?? []).includes(parsed.workshopId);
+    if (savedRole) {
+      isServerMod = savedRole.isServerMod;
+      isClientMod = savedRole.isClientMod;
+      isHcMod = savedRole.isHcMod;
+    }
     const enabled = isClientMod || isServerMod || isHcMod;
 
     const bikeyInspection = inspectMod(modPath, dirName, options.serverDir);
@@ -208,6 +216,27 @@ export class ModScanner {
       updatedTime: updated.updatedTime,
       scanOrder: 0,
     };
+  }
+
+  private findSavedRole(
+    roleEntries: ModRoleEntry[],
+    modPath: string,
+    workshopId: number
+  ): ModRoleEntry | undefined {
+    const pathKey = modPath.toLowerCase();
+    for (const entry of roleEntries) {
+      if (entry.path && entry.path.toLowerCase() === pathKey) {
+        return entry;
+      }
+    }
+    if (workshopId > 0) {
+      for (const entry of roleEntries) {
+        if (entry.workshopId === workshopId) {
+          return entry;
+        }
+      }
+    }
+    return undefined;
   }
 
   private readUpdatedTime(

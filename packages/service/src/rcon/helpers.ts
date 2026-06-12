@@ -33,3 +33,12 @@ export async function fetchRconPlayers(config: ServerConfigPackage): Promise<Rco
     client.disconnect();
   }
 }
+
+export async function countOnlinePlayers(config: ServerConfigPackage): Promise<number | null> {
+  try {
+    const players = await fetchRconPlayers(config);
+    return players.length;
+  } catch {
+    return null;
+  }
+}

@@ -7,18 +7,22 @@ import type { ServerConfigPackage } from "../types/config.js";
 import {
   writeAll,
   buildStartCommandLine,
-  splitCommandLine,
   serverCfgExists,
   getServerExecutablePath,
 } from "../config/game-config-writer.js";
 import { runPreflightChecks } from "../preflight/checker.js";
-import { fetchRconPlayers, resolveRconOptions } from "../rcon/helpers.js";
+import { fetchRconPlayers, resolveRconOptions, countOnlinePlayers } from "../rcon/helpers.js";
 import { maybeAutoSnapshot } from "../config/auto-snapshot.js";
 import { evaluateSyncState } from "../config/sync-state.js";
 import { disableModsByScope, type ModDisableScope } from "../mods/enabler.js";
 import { collectModPaths, ensureDefaultWorkshopScanPath, isModDirectory } from "../mods/paths.js";
+import {
+  buildModScanOptions,
+  scanModsForConfig,
+  syncRoleEntriesFromIds,
+} from "../mods/mod-config-sync.js";
 import { getServerKeysDirectory } from "../mods/bikey-service.js";
-import type { ModMeta, LocalModEntry } from "../types/mods.js";
+import type { LocalModEntry } from "../types/mods.js";
 import { startHeadlessClient, stopHeadlessClient } from "../process/headless.js";
 import type { UiSettings } from "../settings/ui-settings.js";
 import type { ModScanPathEntry } from "../mods/scan-path-store.js";
@@ -47,6 +51,7 @@ import {
   startServer,
   stopServer,
 } from "../scheduling/server-lifecycle.js";
+import { syncCronJobsForServer } from "../scheduling/cron-sync.js";
 import { validateServerPath } from "../utils/path-validation.js";
 
 export async function apiRoutes(app: FastifyInstance) {
@@ -73,7 +78,7 @@ export async function apiRoutes(app: FastifyInstance) {
   app.get("/servers/:uuid/status", async (req) => {
     const { uuid } = req.params as { uuid: string };
     const config = app.configStore.load(uuid);
-    const state = app.processManager.getState(uuid);
+    const state = app.processManager.getState(uuid, config ?? undefined);
     return {
       isRunning: state.isRunning,
       pid: state.pid,
@@ -341,7 +346,7 @@ export async function apiRoutes(app: FastifyInstance) {
       return envelope(false, null, "NOT_FOUND", uuid);
     }
 
-    const state = app.processManager.getState(uuid);
+    const state = app.processManager.getState(uuid, config ?? undefined);
     const modPaths = collectModPaths(app, config);
     const scannedMods = modPaths.length > 0
       ? scanModsForConfig(app, config)
@@ -459,7 +464,7 @@ export async function apiRoutes(app: FastifyInstance) {
       reply.status(404);
       return envelope(false, null, "NOT_FOUND", uuid);
     }
-    const state = app.processManager.getState(uuid);
+    const state = app.processManager.getState(uuid, config ?? undefined);
     const modPaths = collectModPaths(app, config);
     const scannedMods = modPaths.length > 0 ? scanModsForConfig(app, config) : [];
     const result = runFullDiagnostics(app, uuid, config, {
@@ -502,7 +507,7 @@ export async function apiRoutes(app: FastifyInstance) {
       return envelope(false, null, "NOT_FOUND", uuid);
     }
 
-    const state = app.processManager.getState(uuid);
+    const state = app.processManager.getState(uuid, config ?? undefined);
     const basic = (config.basic ?? {}) as Record<string, unknown>;
     const startup = (config.startup ?? {}) as Record<string, unknown>;
     const scheduler = (config.scheduler ?? {}) as Record<string, unknown>;
@@ -635,12 +640,12 @@ export async function apiRoutes(app: FastifyInstance) {
     const servers = app.configStore.listServers();
     let count = 0;
     for (const s of servers) {
-      const state = app.processManager.getState(s.uuid);
-      if (!state.isRunning) {
-        continue;
-      }
       const config = app.configStore.load(s.uuid);
       if (!config) {
+        continue;
+      }
+      const state = app.processManager.getState(s.uuid, config);
+      if (!state.isRunning) {
         continue;
       }
       let playerCount = 0;
@@ -756,10 +761,11 @@ export async function apiRoutes(app: FastifyInstance) {
           const config = app.configStore.load(body.serverUuid!);
           if (config?.server?.serverDir && serverCfgExists(config.server.serverDir, body.serverUuid!)) {
             const executable = getServerExecutablePath(config);
-            const args = splitCommandLine(buildStartCommandLine(body.serverUuid!, config));
+            const mods = scanModsForConfig(app, config);
+            const commandLine = buildStartCommandLine(body.serverUuid!, config, mods);
             app.processManager.register(body.serverUuid!, {
               executable,
-              args,
+              commandLine,
               cwd: config.server.serverDir,
             });
             app.processManager.start(body.serverUuid!);
@@ -951,6 +957,8 @@ export async function apiRoutes(app: FastifyInstance) {
       serverName?: string;
       commands?: { action: string; [key: string]: unknown }[];
       async?: boolean;
+      writeCfgAfter?: boolean;
+      restartAfter?: boolean;
     };
 
     if (!task.serverUuid || !task.commands?.length) {
@@ -960,13 +968,19 @@ export async function apiRoutes(app: FastifyInstance) {
 
     const uuid = task.serverUuid as string;
     const cmds = task.commands as { action: string; [key: string]: unknown }[];
+    const taskDefaults = {
+      writeCfgAfter: task.writeCfgAfter === true,
+      restartAfter: task.restartAfter === true,
+    };
+    const executor = (cmd: { action: string; [key: string]: unknown }) =>
+      executeCommandWithFollowUps(app, uuid, cmd, taskDefaults);
 
     if (task.async) {
-      const taskId = await app.asyncTaskManager.runAsync(uuid, cmds, (cmd) => executeCommand(app, uuid, cmd));
+      const taskId = await app.asyncTaskManager.runAsync(uuid, cmds, executor);
       return envelope(true, { taskId, status: "Running" }, null, uuid);
     }
 
-    const result = await app.asyncTaskManager.runSync(uuid, cmds, (cmd) => executeCommand(app, uuid, cmd));
+    const result = await app.asyncTaskManager.runSync(uuid, cmds, executor);
     return envelope(true, { ...result, steps: result.results }, null, task.taskId ?? "");
   });
 
@@ -992,6 +1006,36 @@ export async function apiRoutes(app: FastifyInstance) {
 
 function envelope<T>(success: boolean, data: T, error: string | null, requestId: string) {
   return { success, data, error, requestId: requestId || randomUUID().slice(0, 12) };
+}
+
+async function executeCommandWithFollowUps(
+  app: FastifyInstance,
+  uuid: string,
+  cmd: { action: string; [key: string]: unknown },
+  taskDefaults?: { writeCfgAfter?: boolean; restartAfter?: boolean }
+): Promise<{ success: boolean; message: string }> {
+  const result = await executeCommand(app, uuid, cmd);
+  if (!result.success) {
+    return result;
+  }
+
+  const writeCfg = cmd.writeCfgAfter === true
+    || (cmd.writeCfgAfter === undefined && taskDefaults?.writeCfgAfter === true);
+  const restart = cmd.restartAfter === true
+    || (cmd.restartAfter === undefined && taskDefaults?.restartAfter === true);
+
+  if (writeCfg && cmd.action !== "write_cfg" && cmd.action !== "apply") {
+    const writeResult = await executeCommand(app, uuid, { action: "write_cfg" });
+    if (!writeResult.success) {
+      return writeResult;
+    }
+  }
+
+  if (restart && cmd.action !== "restart" && cmd.action !== "start" && cmd.action !== "stop") {
+    return executeCommand(app, uuid, { action: "restart" });
+  }
+
+  return result;
 }
 
 function mergeConfigPackage(
@@ -1025,15 +1069,6 @@ function parseQueryBool(value: unknown): boolean {
   return false;
 }
 
-async function countOnlinePlayers(config: ServerConfigPackage): Promise<number | null> {
-  try {
-    const players = await fetchRconPlayers(config);
-    return players.length;
-  } catch {
-    return null;
-  }
-}
-
 async function executeCommand(
   app: FastifyInstance,
   uuid: string,
@@ -1044,7 +1079,7 @@ async function executeCommand(
   switch (cmd.action) {
     // ------- Process -------
     case "status": {
-      const state = app.processManager.getState(uuid);
+      const state = app.processManager.getState(uuid, config ?? undefined);
       return { success: true, message: JSON.stringify(state) };
     }
     case "start": {
@@ -1052,8 +1087,7 @@ async function executeCommand(
       return startServer(app, uuid, config);
     }
     case "stop": {
-      await stopServer(app, uuid);
-      return ok("服务器已停止");
+      return stopServer(app, uuid);
     }
     case "restart": {
       return restartServer(app, uuid);
@@ -1093,7 +1127,21 @@ async function executeCommand(
       }
       config.tasks = { ...config.tasks, missions };
       app.configStore.save(uuid, config);
-      return ok(`任务已切换至 ${template}（需重启生效）`);
+
+      const restartAfterMission = cmd.restartAfterMission !== false;
+      if (!restartAfterMission) {
+        return ok(`任务已切换至 ${template}（需重启生效）`);
+      }
+
+      const state = app.processManager.getState(uuid, config);
+      if (state.isRunning) {
+        const stopResult = await stopServer(app, uuid);
+        if (!stopResult.success) {
+          return stopResult;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+      return startServer(app, uuid, config);
     }
 
     // ------- Mods -------
@@ -1101,19 +1149,15 @@ async function executeCommand(
       if (!config) return fail("未找到配置");
       const enableIds = cmd.modIds as number[] | undefined;
       if (!enableIds?.length) return fail("缺少 modIds");
+      const clientModIds = new Set(config.mods?.clientModIds ?? []);
+      for (const id of enableIds) {
+        clientModIds.add(id);
+      }
       config.mods = {
         ...config.mods,
         enabledIds: [...new Set([...(config.mods?.enabledIds ?? []), ...enableIds])],
+        clientModIds: [...clientModIds],
       };
-      // Update startup parameters with mod list
-      const enabledList = config.mods?.enabledIds ?? [];
-      if (enabledList.length > 0 && config?.server?.serverDir) {
-        const modParam = `-mod=${enabledList.map((id) => `workshop_${id}`).join(";@")}`;
-        config.startup = {
-          ...config.startup,
-          parameters: appendModParam(config.startup?.parameters ?? "", modParam),
-        };
-      }
       app.configStore.save(uuid, config);
       return ok(`已启用 ${enableIds.length} 个模组`);
     }
@@ -1133,15 +1177,24 @@ async function executeCommand(
           isClientMod: false,
           isHcMod: false,
         }));
+        const roleEntries = (config.mods?.roleEntries ?? []).map((entry) => ({
+          ...entry,
+          isServerMod: false,
+          isClientMod: false,
+          isHcMod: false,
+        }));
         config.mods = {
           ...config.mods,
+          enabledIds: [],
           serverModIds: [],
           clientModIds: [],
           hcModIds: [],
+          roleEntries,
           localMods,
         };
       } else {
         config = disableModsByScope(config, disableIds, scope);
+        config = syncRoleEntriesFromIds(config);
       }
 
       app.configStore.save(uuid, config);
@@ -1242,7 +1295,7 @@ async function executeCommand(
     // ------- Preflight -------
     case "preflight": {
       if (!config) return fail("未找到服务器配置");
-      const state = app.processManager.getState(uuid);
+      const state = app.processManager.getState(uuid, config ?? undefined);
       const modPaths = collectModPaths(app, config);
       const scannedMods = modPaths.length > 0 ? scanModsForConfig(app, config) : [];
       const result = runPreflightChecks(uuid, config, {
@@ -1345,12 +1398,10 @@ async function executeCommand(
     case "rcon_command":
     case "rcon_lock":
     case "rcon_unlock": {
-      const rconHost = "127.0.0.1";
-      const rconPort = config?.battleye?.rconPort ?? 2302;
-      const rconPwd = config?.battleye?.rconPassword;
-      if (!rconPwd) return fail("未配置 RCon 密码");
+      const rconOptions = config ? resolveRconOptions(config) : null;
+      if (!rconOptions) return fail("未配置 RCon 密码");
 
-      const client = new RconClient({ host: rconHost, port: rconPort, password: rconPwd, timeout: 5000 });
+      const client = new RconClient({ ...rconOptions, timeout: 5000 });
       try {
         await client.connect();
         switch (cmd.action) {
@@ -1444,7 +1495,7 @@ async function executeCommand(
     // ------- Headless -------
     case "start_headless_client": {
       if (!config) return fail("未找到配置");
-      const result = startHeadlessClient(uuid, config);
+      const result = startHeadlessClient(app, uuid, config);
       if (!result.success) {
         return fail(result.message);
       }
@@ -1458,99 +1509,16 @@ async function executeCommand(
     // ------- Sync Cron -------
     case "sync_cron_jobs": {
       if (!config) return fail("未找到配置");
-      app.scheduler.clear();
-      let count = 0;
-      const schedulerCfg = config.scheduler ?? {};
-
-      if (schedulerCfg.restartCron) {
-        app.scheduler.add({
-          name: `${uuid}-restart`,
-          schedule: schedulerCfg.restartCron,
-          handler: async () => {
-            await executeCronAction(app, uuid, "restart");
-          },
-        });
-        count += 1;
+      const result = syncCronJobsForServer(app, uuid, config);
+      if (!result.success) {
+        return fail(result.message);
       }
-
-      if (schedulerCfg.monitoringCron) {
-        app.scheduler.add({
-          name: `${uuid}-monitoring`,
-          schedule: schedulerCfg.monitoringCron,
-          handler: async () => {
-            const latest = app.configStore.load(uuid);
-            if (!latest) {
-              return;
-            }
-            const state = app.processManager.getState(uuid);
-            if (!state.isRunning) {
-              return;
-            }
-            const online = await countOnlinePlayers(latest);
-            if (online !== null) {
-              app.monitorDb.recordStats(uuid, online);
-              const players = await fetchRconPlayers(latest);
-              for (const player of players) {
-                if (player.guid) {
-                  app.monitorDb.recordPlayer({
-                    playerGuid: player.guid,
-                    playerName: player.name ?? player.guid,
-                    serverUuid: uuid,
-                    lastSeen: new Date().toISOString(),
-                  });
-                }
-              }
-            }
-          },
-        });
-        count += 1;
-      }
-
-      const cronJobs = schedulerCfg.cronJobs ?? {};
-      for (const [taskId, job] of Object.entries(cronJobs)) {
-        if (!job || !job.cron) {
-          continue;
-        }
-        const enabled = job.enabled ?? job.status === 1;
-        if (!enabled) {
-          continue;
-        }
-        const actionText = String(job.actionText ?? job.action ?? "restart");
-        app.scheduler.add({
-          name: `${uuid}-cron-${taskId}`,
-          schedule: job.cron,
-          handler: async () => {
-            await executeCronAction(app, uuid, actionText);
-          },
-        });
-        count += 1;
-      }
-
-      return ok(`定时任务已同步 (${count} 个)`);
+      return ok(result.message);
     }
 
     default:
       return fail(`未知 action: ${cmd.action}`);
   }
-}
-
-function buildModScanOptions(app: FastifyInstance, config: ServerConfigPackage) {
-  const modPaths = collectModPaths(app, config);
-  return {
-    modPaths,
-    scanPathEntries: app.modScanPathStore.list(),
-    enabledIds: config.mods?.enabledIds ?? [],
-    serverModIds: config.mods?.serverModIds ?? [],
-    clientModIds: config.mods?.clientModIds ?? [],
-    hcModIds: config.mods?.hcModIds ?? [],
-    localMods: config.mods?.localMods ?? [],
-    enabledLocalPaths: config.mods?.enabledLocalPaths ?? [],
-    serverDir: config.server?.serverDir,
-  };
-}
-
-function scanModsForConfig(app: FastifyInstance, config: ServerConfigPackage): ModMeta[] {
-  return app.modScanner.scan(buildModScanOptions(app, config));
 }
 
 async function runSteamCmdModDownload(
@@ -1574,10 +1542,6 @@ async function runSteamCmdModDownload(
 
 function ok(message: string) {
   return { success: true, message };
-}
-function appendModParam(existing: string, modParam: string): string {
-  const cleaned = existing.replace(/-mod=[^ ]+/g, "").replace(/\s{2,}/g, " ").trim();
-  return (cleaned + " " + modParam).trim();
 }
 
 function fail(message: string) {

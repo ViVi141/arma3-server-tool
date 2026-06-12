@@ -2,11 +2,17 @@ import { spawn, ChildProcess, execSync } from "node:child_process";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import { EventEmitter } from "node:events";
+import type { ServerConfigPackage } from "../types/config.js";
 import type { ServerProcessState } from "../types/server.js";
+import { getServerExecutablePath } from "../config/game-config-writer.js";
+import { isProcessRunning, verifyProcessIdentity } from "./identity.js";
 
 export interface SpawnOptions {
   executable: string;
-  args: string[];
+  /** Full argument string (C# ProcessStartInfo.Arguments parity). Preferred on Windows. */
+  commandLine?: string;
+  /** Parsed argv; used when commandLine is not set. */
+  args?: string[];
   cwd: string;
 }
 
@@ -23,19 +29,34 @@ export class ProcessManager extends EventEmitter {
     this.kill(uuid);
   }
 
-  async start(uuid: string): Promise<boolean> {
+  async start(uuid: string): Promise<number | undefined> {
     const opts = this.configs.get(uuid);
-    if (!opts) return false;
+    if (!opts) {
+      return undefined;
+    }
 
-    // Kill existing process if any
     this.kill(uuid);
 
     return new Promise((resolve) => {
-      const proc = spawn(opts.executable, opts.args, {
+      const spawnOpts = {
         cwd: opts.cwd,
         windowsHide: true,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
+        stdio: ["ignore", "pipe", "pipe"] as ["ignore", "pipe", "pipe"],
+      };
+
+      let proc: ChildProcess;
+      if (opts.commandLine !== undefined) {
+        if (process.platform === "win32") {
+          proc = spawn(opts.executable, [opts.commandLine], {
+            ...spawnOpts,
+            windowsVerbatimArguments: true,
+          });
+        } else {
+          proc = spawn(opts.executable, [opts.commandLine], spawnOpts);
+        }
+      } else {
+        proc = spawn(opts.executable, opts.args ?? [], spawnOpts);
+      }
 
       this.processes.set(uuid, proc);
 
@@ -61,8 +82,7 @@ export class ProcessManager extends EventEmitter {
         this.emit("error", uuid, err);
       });
 
-      // Consider started when the process is spawned successfully
-      resolve(true);
+      resolve(proc.pid);
     });
   }
 
@@ -72,7 +92,6 @@ export class ProcessManager extends EventEmitter {
 
     try {
       if (process.platform === "win32") {
-        // On Windows, use taskkill for the process tree
         execSync(`taskkill /PID ${proc.pid} /T /F 2>nul`, { stdio: "ignore" });
       } else {
         proc.kill("SIGTERM");
@@ -88,36 +107,37 @@ export class ProcessManager extends EventEmitter {
     return true;
   }
 
-  getState(uuid: string): ServerProcessState {
+  getState(uuid: string, config?: ServerConfigPackage): ServerProcessState {
     const proc = this.processes.get(uuid);
-    if (!proc || !proc.pid) {
-      return { isRunning: false };
+    if (proc && proc.pid) {
+      if (isProcessRunning(proc.pid)) {
+        return { isRunning: true, pid: proc.pid };
+      }
+      this.processes.delete(uuid);
     }
 
-    try {
-      // Check if process is actually alive
-      if (process.platform === "win32") {
-        execSync(`tasklist /FI "PID eq ${proc.pid}" 2>nul`, {
-          stdio: "pipe",
-          timeout: 1000,
-        });
+    const persistedPid = config?.tasks?.processById ?? 0;
+    if (persistedPid > 0 && isProcessRunning(persistedPid)) {
+      if (config?.server?.serverDir) {
+        const executable = getServerExecutablePath(config);
+        const identity = verifyProcessIdentity(persistedPid, executable);
+        if (identity === "match") {
+          return { isRunning: true, pid: persistedPid };
+        }
       } else {
-        process.kill(proc.pid, 0);
+        return { isRunning: true, pid: persistedPid };
       }
-      return { isRunning: true, pid: proc.pid };
-    } catch {
-      // Process is dead
-      this.processes.delete(uuid);
-      return { isRunning: false };
     }
+
+    return { isRunning: false };
   }
 
   getPid(uuid: string): number | undefined {
     return this.processes.get(uuid)?.pid;
   }
 
-  isRunning(uuid: string): boolean {
-    return this.getState(uuid).isRunning;
+  isRunning(uuid: string, config?: ServerConfigPackage): boolean {
+    return this.getState(uuid, config).isRunning;
   }
 
   killAll(): void {
@@ -127,5 +147,4 @@ export class ProcessManager extends EventEmitter {
   }
 }
 
-// Singleton
 export const processManager = new ProcessManager();

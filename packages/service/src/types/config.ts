@@ -1,5 +1,14 @@
 import type { LocalModEntry } from "./mods.js";
 
+export interface ModRoleEntry {
+  path: string;
+  dirName: string;
+  workshopId: number;
+  isClientMod: boolean;
+  isServerMod: boolean;
+  isHcMod: boolean;
+}
+
 export interface ServerConfigPackage {
   formatVersion: number;
   server?: ServerConfigSection;
@@ -42,6 +51,7 @@ export interface StartupConfigSection {
   ignoreMissionLoadErrors?: boolean;
   queueSizeLogG?: number;
   startArgs?: string;
+  startConfigArgs?: string;
   [key: string]: unknown;
 }
 
@@ -50,6 +60,7 @@ export interface ModsConfigSection {
   serverModIds?: number[];
   clientModIds?: number[];
   hcModIds?: number[];
+  roleEntries?: ModRoleEntry[];
   autoCopyBikey?: boolean;
   modPaths?: string[];
   localMods?: LocalModEntry[];
@@ -70,6 +81,7 @@ export interface ProfileConfigSection {
 }
 
 export interface BattlEyeConfigSection {
+  rconHost?: string;
   rconPort?: number;
   rconPassword?: string;
 }
@@ -87,6 +99,7 @@ export interface TaskListSection {
   autoSelectMission?: boolean;
   randomMissionOrder?: boolean;
   enableHeadlessClient?: boolean;
+  processById?: number;
 }
 
 export interface CronJobEntry {
@@ -101,6 +114,7 @@ export interface CronJobEntry {
 
 export interface MissionParamsSection {
   params?: Record<string, string | number | boolean>;
+  byTemplate?: Record<string, string>;
 }
 
 export interface SchedulerConfigSection {

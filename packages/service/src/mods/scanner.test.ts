@@ -173,6 +173,32 @@ describe("ModScanner", () => {
     }
   });
 
+  it("roleEntries override id lists when path matches", () => {
+    const modDir = createTempModDir();
+    try {
+      const scanner = new ModScanner();
+      const result = scanner.scan({
+        modPaths: [modDir],
+        enabledIds: [],
+        serverModIds: [],
+        clientModIds: [],
+        roleEntries: [{
+          path: path.join(modDir, "@cba"),
+          dirName: "@cba",
+          workshopId: 450814997,
+          isClientMod: true,
+          isServerMod: false,
+          isHcMod: false,
+        }],
+      });
+      const row = result.find((m) => m.workshopId === 450814997);
+      expect(row?.enabled).toBe(true);
+      expect(row?.isClientMod).toBe(true);
+    } finally {
+      fs.rmSync(modDir, { recursive: true, force: true });
+    }
+  });
+
   it("copyBikeysFromScanned copies keys for disabled mods too", () => {
     const modDir = createTempModDir();
     const serverDir = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-keys-all-"));

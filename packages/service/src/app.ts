@@ -102,6 +102,10 @@ export async function createService(options: ServiceOptions) {
   await app.listen({ port: options.port, host: options.host });
   app.log.info(`Service listening on ${options.host}:${options.port}`);
 
+  const { syncAllCronJobs } = await import("./scheduling/cron-sync.js");
+  const cronCount = syncAllCronJobs(app);
+  app.log.info(`Cron jobs synced on startup: ${cronCount} job(s)`);
+
   return app;
 }
 

@@ -33,7 +33,7 @@ export function runFullDiagnostics(
   checkSteamCmd(app, issues);
   checkModScanPaths(app, config, issues);
   checkEnabledModBikeys(config, options?.scannedMods ?? [], issues);
-  checkStartCommandLine(uuid, config, issues);
+  checkStartCommandLine(uuid, config, options?.scannedMods ?? [], issues);
   checkKeysDirectory(config, issues);
 
   const hasBlockingErrors = issues.some((item) => item.severity === "error");
@@ -160,17 +160,10 @@ function checkEnabledModBikeys(
 function checkStartCommandLine(
   uuid: string,
   config: ServerConfigPackage,
+  mods: ModMeta[],
   issues: DiagnosticIssue[]
 ): void {
-  const cmdLine = buildStartCommandLine(uuid, config);
-  if (cmdLine.length > 8191) {
-    issues.push({
-      category: "启动",
-      severity: "error",
-      message: `启动命令行过长 (${cmdLine.length} 字符，Windows 上限 8191)`,
-    });
-    return;
-  }
+  const cmdLine = buildStartCommandLine(uuid, config, mods);
   issues.push({
     category: "启动",
     severity: "info",

@@ -1,11 +1,19 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import * as path from "node:path";
 import type { ServerConfigPackage } from "../types/config.js";
-import { buildStartCommandLine, getServerExecutablePath, splitCommandLine } from "../config/game-config-writer.js";
+import {
+  buildHeadlessClientCommandLine,
+  getServerExecutablePath,
+} from "../config/game-config-writer.js";
+import { scanModsForConfig } from "../mods/mod-config-sync.js";
+import type { FastifyInstance } from "fastify";
 
 const hcProcesses = new Map<string, ChildProcess>();
 
-export function startHeadlessClient(uuid: string, config: ServerConfigPackage): { success: boolean; message: string } {
+export function startHeadlessClient(
+  app: FastifyInstance,
+  uuid: string,
+  config: ServerConfigPackage
+): { success: boolean; message: string } {
   const basic = (config.basic ?? {}) as Record<string, unknown>;
   const tasks = (config.tasks ?? {}) as Record<string, unknown>;
   const enableHc = tasks.enableHeadlessClient ?? basic.enableHeadlessClient;
@@ -21,15 +29,30 @@ export function startHeadlessClient(uuid: string, config: ServerConfigPackage): 
   stopHeadlessClient(uuid);
 
   const executable = getServerExecutablePath(config);
-  const args = splitCommandLine(buildStartCommandLine(uuid, config));
-  args.push("-client");
-  args.push("-connect=127.0.0.1:2302");
+  const mods = scanModsForConfig(app, config);
+  let commandLine: string;
+  try {
+    commandLine = buildHeadlessClientCommandLine(uuid, config, mods);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "构建无头客户端命令行失败";
+    return { success: false, message };
+  }
 
-  const proc = spawn(executable, args, {
+  const spawnOpts = {
     cwd: serverDir,
     windowsHide: true,
-    stdio: "ignore",
-  });
+    stdio: "ignore" as const,
+  };
+
+  let proc: ChildProcess;
+  if (process.platform === "win32") {
+    proc = spawn(executable, [commandLine], {
+      ...spawnOpts,
+      windowsVerbatimArguments: true,
+    });
+  } else {
+    proc = spawn(executable, [commandLine], spawnOpts);
+  }
 
   hcProcesses.set(uuid, proc);
   proc.on("exit", () => {

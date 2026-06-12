@@ -1,6 +1,16 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { execSync } from "node:child_process";
 import type { ServerConfigPackage } from "../types/config.js";
+import type { ModMeta } from "../types/mods.js";
+import {
+  buildClientModListFromMeta,
+  buildDlcModList,
+  buildHeadlessModListFromMeta,
+  buildServerModListFromMeta,
+  combineModListSegments,
+  stripModParameters,
+} from "../mods/mod-command-line.js";
 
 export const CONFIG_FOLDER = "a3st_serverconfig";
 
@@ -78,8 +88,16 @@ function writeCfgArray(key: string, items: string[]): string[] {
   if (items.length === 0) {
     return [];
   }
-  const body = items.map((item) => `"${item.replace(/"/g, '\\"')}"`).join(",");
-  return [`${key}{${body}};`];
+  const arrayKey = key.endsWith("=") ? key : `${key}=`;
+  const lines: string[] = [];
+  lines.push(`${arrayKey}{`);
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i].replace(/"/g, '\\"');
+    const suffix = i < items.length - 1 ? "," : "";
+    lines.push(`\t"${item}"${suffix}`);
+  }
+  lines.push("};");
+  return lines;
 }
 
 function writeCfgEvent(key: string, value: unknown): string[] {
@@ -124,6 +142,146 @@ function appendExtraLines(content: string, extra: unknown): string {
   }
   const suffix = text.endsWith("\n") ? text : `${text}\n`;
   return `${content}${suffix}`;
+}
+
+export function decodeBase64Config(value: unknown): string {
+  const encoded = str(value).trim();
+  if (!encoded) {
+    return "";
+  }
+  try {
+    return Buffer.from(encoded, "base64").toString("utf-8");
+  } catch {
+    return "";
+  }
+}
+
+export function isSafeStartupExtraArg(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || !trimmed.startsWith("-") || trimmed.length > 256) {
+    return false;
+  }
+  for (let i = 0; i < trimmed.length; i++) {
+    const c = trimmed[i];
+    if (/[a-zA-Z0-9]/.test(c)) {
+      continue;
+    }
+    if ("-_=:.\\/+@ \",()[]".includes(c)) {
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+export function appendStartupExtraArgs(parts: string[], startConfigArgs: unknown): void {
+  const decoded = decodeBase64Config(startConfigArgs);
+  if (!decoded) {
+    return;
+  }
+  const lines = decoded.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || !isSafeStartupExtraArg(trimmed)) {
+      continue;
+    }
+    parts.push(trimmed);
+  }
+}
+
+export function isPortInUse(port: number): boolean {
+  if (port <= 0 || port > 65535) {
+    return true;
+  }
+  try {
+    if (process.platform === "win32") {
+      const out = execSync("netstat -ano -p udp", {
+        encoding: "utf-8",
+        timeout: 3000,
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      const pattern = new RegExp(`:${port}\\s`);
+      return pattern.test(out);
+    }
+    const out = execSync("ss -uln", {
+      encoding: "utf-8",
+      timeout: 3000,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return out.includes(`:${port} `);
+  } catch {
+    return false;
+  }
+}
+
+export function pickHeadlessProtPort(serverPort: number): number {
+  let hcPort = serverPort + 5;
+  for (let i = 0; i < 10; i++) {
+    hcPort = Math.floor(Math.random() * 100) + serverPort;
+    if (!isPortInUse(hcPort)) {
+      return hcPort;
+    }
+  }
+  return hcPort;
+}
+
+function resolveMissionParamsText(
+  config: ServerConfigPackage,
+  template: string
+): string {
+  const missionParams = asRecord(config.missionParams);
+  const byTemplate = asRecord(missionParams.byTemplate);
+  const templateKey = template.endsWith(".pbo") ? template : `${template}.pbo`;
+  const direct = str(byTemplate[template] ?? byTemplate[templateKey]).trim();
+  if (direct) {
+    return direct;
+  }
+
+  const flat = asRecord(missionParams.params);
+  const lines: string[] = [];
+  for (const [key, value] of Object.entries(flat)) {
+    if (value === undefined || value === null) {
+      continue;
+    }
+    lines.push(`${key} = ${String(value)};`);
+  }
+  return lines.join("\n");
+}
+
+function writeMissionParamsBlock(paramsText: string): string[] {
+  const trimmed = paramsText.trim();
+  if (!trimmed) {
+    return [];
+  }
+  const lines: string[] = [];
+  lines.push("    class Params {");
+  for (const line of trimmed.split(/\r?\n/)) {
+    const row = line.trim();
+    if (!row) {
+      continue;
+    }
+    lines.push(`      ${row}`);
+  }
+  lines.push("    };");
+  return lines;
+}
+
+function writeMissionWhitelist(missions: unknown[]): string[] {
+  const whitelist: string[] = [];
+  for (const mission of missions) {
+    const m = asRecord(mission);
+    if (!bool(m.whiteList)) {
+      continue;
+    }
+    const template = str(m.template).replace(/\.pbo$/i, "");
+    if (template) {
+      whitelist.push(template);
+    }
+  }
+  if (whitelist.length === 0) {
+    return [];
+  }
+  return writeCfgArray("missionWhitelist[]", whitelist);
 }
 
 export function getConfigRoot(serverDir: string, uuid: string): string {
@@ -255,9 +413,19 @@ function writeServerCfg(uuid: string, config: ServerConfigPackage, configRoot: s
       lines.push(`  class Mission${index + 1} {`);
       lines.push(`    template = "${template.replace(/"/g, '\\"')}";`);
       lines.push(`    difficulty = "${difficultyName(num(m.difficulty, 3))}";`);
+      lines.push(...writeMissionParamsBlock(resolveMissionParamsText(config, str(m.template))));
       lines.push("  };");
     });
     lines.push("};");
+  }
+
+  lines.push(...writeMissionWhitelist(missions));
+
+  if (bool(tasks.autoSelectMission ?? basic.autoSelectMission)) {
+    lines.push(line("autoSelectMission", true));
+  }
+  if (bool(tasks.randomMissionOrder ?? basic.randomMissionOrder)) {
+    lines.push(line("randomMissionOrder", true));
   }
 
   lines.push(quotedLine("logFile", str(basic.logFile, "server_console.log")));
@@ -455,15 +623,24 @@ export function splitCommandLine(line: string): string[] {
   return args;
 }
 
-export function buildStartCommandLine(uuid: string, config: ServerConfigPackage): string {
+export function buildStartCommandLine(
+  uuid: string,
+  config: ServerConfigPackage,
+  mods: ModMeta[] = []
+): string {
   const startup = asRecord(config.startup);
   const basic = asRecord(config.basic);
+  const monitoring = asRecord(config.monitoring);
   const serverDir = str(config.server?.serverDir).trim();
   const configRoot = getConfigRoot(serverDir, uuid);
   const parts: string[] = [];
 
   if (bool(startup.autoInit)) {
     parts.push("-autoInit");
+  }
+
+  if (bool(startup.filePatching)) {
+    parts.push("-filePatching");
   }
 
   const pidFile = str(basic.pidFile).trim();
@@ -523,7 +700,16 @@ export function buildStartCommandLine(uuid: string, config: ServerConfigPackage)
   parts.push(`"-profiles=${configRoot}"`);
   parts.push(`"-name=${uuid}"`);
 
-  const extraParams = str(startup.parameters).trim();
+  const dlcMods = buildDlcModList(startup);
+  const userClientMods = buildClientModListFromMeta(serverDir, mods);
+  const clientModList = combineModListSegments(dlcMods, userClientMods);
+  const includeMonitoring = bool(monitoring.enabled) || bool(monitoring.modEnabled);
+  const serverModList = buildServerModListFromMeta(serverDir, mods, includeMonitoring);
+
+  parts.push(`"-mod=${clientModList}"`);
+  parts.push(`"-serverMod=${serverModList}"`);
+
+  const extraParams = stripModParameters(str(startup.parameters).trim());
   if (extraParams) {
     parts.push(...splitCommandLine(extraParams));
   }
@@ -532,6 +718,41 @@ export function buildStartCommandLine(uuid: string, config: ServerConfigPackage)
   if (startArgs) {
     parts.push(...splitCommandLine(startArgs));
   }
+
+  appendStartupExtraArgs(parts, startup.startConfigArgs);
+
+  return parts.join(" ");
+}
+
+export function buildHeadlessClientCommandLine(
+  uuid: string,
+  config: ServerConfigPackage,
+  mods: ModMeta[] = []
+): string {
+  const basic = asRecord(config.basic);
+  const startup = asRecord(config.startup);
+  const serverDir = str(config.server?.serverDir).trim();
+  const configRoot = getConfigRoot(serverDir, uuid);
+  const parts: string[] = [];
+
+  const password = str(basic.password).trim();
+  if (password) {
+    parts.push(`-password=${password}`);
+  }
+
+  const serverPort = num(startup.port, num(basic.port, 2302));
+  const hcPort = pickHeadlessProtPort(serverPort);
+  parts.push("-limitFPS=1000");
+  parts.push("-client");
+  parts.push(`-connect=127.0.0.1:${serverPort}`);
+  parts.push(`-prot=${hcPort}`);
+  parts.push(`"-profiles=${configRoot}"`);
+  parts.push(`"-name=${uuid}"`);
+
+  const headlessModList = buildHeadlessModListFromMeta(serverDir, mods);
+  parts.push(`"-mod=${headlessModList}"`);
+  parts.push("-noPause");
+  parts.push("-noSound");
 
   return parts.join(" ");
 }
