@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";import { ElMessage } from "element-plus";import { useConnectionsStore } from "@/stores/connections";
-import { applyDefaults } from "@/utils/defaults";
-const props=defineProps<{connectionId:string;serverUuid:string}>();const store=useConnectionsStore();const cfg=ref<Record<string,unknown>>({});const loading=ref(false);const b=()=>(cfg.value.basic??{})as Record<string,unknown>;const be=()=>(cfg.value.battleye??{})as Record<string,unknown>;
-onMounted(load);async function load(){loading.value=true;try{const c=store.getClient();if(!c)return;const r=await c.getConfig(props.serverUuid);if(r.success)cfg.value=applyDefaults(r.data as Record<string,unknown>);}finally{loading.value=false}}
-async function save(){try{const c=store.getClient();if(!c)return;await c.patchConfig(props.serverUuid,{basic:b(),battleye:be()}as never);ElMessage.success("已保存")}catch(e){ElMessage.error(e instanceof Error?e.message:"保存失败")}}
+import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import { useSettingsPage } from "@/composables/useSettingsPage";
+const props = defineProps<{ connectionId: string; serverUuid: string }>();
+const { cfg, loading } = useSettingsPage(props.serverUuid, "安全", () => ({ basic: b(), battleye: be() }));
+const b = () => (cfg.value.basic ?? {}) as Record<string, unknown>;
+const be = () => (cfg.value.battleye ?? {}) as Record<string, unknown>;
 </script>
-<template><div class="page" v-loading="loading">
-<div class="toolbar"><el-button size="small" type="primary" @click="save">保存</el-button></div>
-<div class="body">
+<template><ConsolePageLayout v-loading="loading">
 <fieldset><legend>BattlEye</legend>
 <div class="row"><label>BattlEye</label><el-switch v-model="b().battlEye" size="small"/></div>
 <div class="row"><label>签名验证</label><el-select v-model="b().verifySignatures" size="small"><el-option :value="0" label="关闭"/><el-option :value="1" label="警告"/><el-option :value="2" label="禁止"/></el-select></div>
@@ -47,6 +46,6 @@ async function save(){try{const c=store.getClient();if(!c)return;await c.patchCo
 <div class="row"><label>最大 SetPos 数</label><el-input-number v-model="b().maxSetPosCount" :min="0" :max="1000" size="small" controls-position="right"/></div>
 <div class="row"><label>SetPos 秒数窗口</label><el-input-number v-model="b().maxSetPosSeconds" :min="0" :max="999" size="small" controls-position="right"/></div>
 </fieldset>
-</div></div>
+</ConsolePageLayout>
 </template>
-<style scoped>.page{height:100%;display:flex;flex-direction:column}.toolbar{padding:6px 8px;display:flex;gap:4px;border-bottom:1px solid var(--el-border-color);flex-shrink:0}.body{flex:1;overflow-y:auto;padding:8px}fieldset{border:1px solid var(--el-border-color-light);padding:8px 12px;margin-bottom:8px}legend{font-size:12px;font-weight:600;padding:0 4px}.row{display:flex;align-items:center;gap:8px;margin-bottom:6px}.row label{width:120px;font-size:12px;color:var(--el-text-color-secondary);flex-shrink:0;text-align:right}</style>
+<style scoped>fieldset{border:1px solid var(--el-border-color-light);padding:8px 12px;margin-bottom:8px}legend{font-size:12px;font-weight:600;padding:0 4px}.row{display:flex;align-items:center;gap:8px;margin-bottom:6px}.row label{width:120px;font-size:12px;color:var(--el-text-color-secondary);flex-shrink:0;text-align:right}</style>

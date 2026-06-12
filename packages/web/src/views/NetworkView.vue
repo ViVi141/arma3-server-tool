@@ -1,17 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";import { ElMessage } from "element-plus";import { useConnectionsStore } from "@/stores/connections";
-import { applyDefaults } from "@/utils/defaults";
-const props=defineProps<{connectionId:string;serverUuid:string}>();const store=useConnectionsStore();const cfg=ref<Record<string,unknown>>({});const loading=ref(false);const b=()=>(cfg.value.basic??{})as Record<string,unknown>;const st=()=>(cfg.value.startup??{})as Record<string,unknown>;
-onMounted(load);async function load(){loading.value=true;try{const c=store.getClient();if(!c)return;const r=await c.getConfig(props.serverUuid);if(r.success)cfg.value=applyDefaults(r.data as Record<string,unknown>);}finally{loading.value=false}}
-async function save(){try{const c=store.getClient();if(!c)return;await c.patchConfig(props.serverUuid,{basic:b(),startup:st()}as never);ElMessage.success("已保存")}catch(e){ElMessage.error(e instanceof Error?e.message:"保存失败")}}
+import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import { useSettingsPage } from "@/composables/useSettingsPage";
+const props = defineProps<{ connectionId: string; serverUuid: string }>();
+const { cfg, loading } = useSettingsPage(props.serverUuid, "网络", () => ({ basic: b() }));
+const b = () => (cfg.value.basic ?? {}) as Record<string, unknown>;
 </script>
-<template><div class="page" v-loading="loading">
-<div class="toolbar"><el-button size="small" type="primary" @click="save">保存</el-button></div>
-<div class="body">
-<fieldset><legend>简易设置 (按上行带宽)</legend>
-<div class="row"><label>上行带宽(Mbps)</label><el-input-number v-model="st().uploadMbps" :min="1" :max="10000" size="small" controls-position="right"/></div>
-</fieldset>
-<fieldset><legend>专业设置 (basic.cfg 参数)</legend>
+<template><ConsolePageLayout v-loading="loading">
+<fieldset><legend>basic.cfg 网络参数</legend>
 <div class="row"><label>MaxMsgSend</label><el-input-number v-model="b().maxMsgSend" :min="64" :max="512" size="small" controls-position="right"/></div>
 <div class="row"><label>MaxSizeGuaranteed</label><el-input-number v-model="b().maxSizeGuaranteed" :min="128" :max="1024" size="small" controls-position="right"/></div>
 <div class="row"><label>MaxSizeNonguaranteed</label><el-input-number v-model="b().maxSizeNonguaranteed" :min="64" :max="512" size="small" controls-position="right"/></div>
@@ -33,6 +28,6 @@ async function save(){try{const c=store.getClient();if(!c)return;await c.patchCo
 <div class="row"><label>Loopback</label><el-switch v-model="b().loopback" size="small"/></div>
 <div class="row"><label>带宽算法</label><el-switch v-model="b().bandwidthAlg" size="small"/></div>
 </fieldset>
-</div></div>
+</ConsolePageLayout>
 </template>
-<style scoped>.page{height:100%;display:flex;flex-direction:column}.toolbar{padding:6px 8px;display:flex;gap:4px;border-bottom:1px solid var(--el-border-color);flex-shrink:0}.body{flex:1;overflow-y:auto;padding:8px}fieldset{border:1px solid var(--el-border-color-light);padding:8px 12px;margin-bottom:8px}legend{font-size:12px;font-weight:600;padding:0 4px}.row{display:flex;align-items:center;gap:8px;margin-bottom:6px}.row label{width:160px;font-size:12px;color:var(--el-text-color-secondary);flex-shrink:0;text-align:right}</style>
+<style scoped>fieldset{border:1px solid var(--el-border-color-light);padding:8px 12px;margin-bottom:8px}legend{font-size:12px;font-weight:600;padding:0 4px}.row{display:flex;align-items:center;gap:8px;margin-bottom:6px}.row label{width:160px;font-size:12px;color:var(--el-text-color-secondary);flex-shrink:0;text-align:right}</style>

@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
 import { ref, onMounted } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
+import type { AutomationCommand, ModScanPathEntry } from "@a3st/api-client";
+import { pickDirectory } from "@/utils/electron";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
@@ -32,32 +35,126 @@ const copyingBikey = ref(false);
 const bikeySummary = ref("Bikey 就绪: —");
 
 // DLC
-const dlcMods = { contact: false, gm: false, csla: false, ws: false, vn: false };
+const dlcMods = ref({ contact: false, gm: false, csla: false, ws: false, vn: false });
 
+function formatSize(bytes?: number): string {
+  if (!bytes) {
+    return "-";
+  }
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+async function loadDlcFromConfig(cfg: Record<string, unknown>) {
+  const startup = (cfg.startup ?? {}) as Record<string, unknown>;
+  dlcMods.value = {
+    contact: !!startup.dlcContact,
+    gm: !!startup.dlcGm,
+    csla: !!startup.dlcCsla,
+    ws: !!startup.dlcWs,
+    vn: !!startup.dlcVn,
+  };
+}
+
+async function saveDlc() {
+  try {
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    await client.patchConfig(props.serverUuid, {
+      startup: {
+        dlcContact: dlcMods.value.contact,
+        dlcGm: dlcMods.value.gm,
+        dlcCsla: dlcMods.value.csla,
+        dlcWs: dlcMods.value.ws,
+        dlcVn: dlcMods.value.vn,
+      },
+    } as never);
+    ElMessage.success("DLC 设置已保存");
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : "保存失败");
+  }
+}
+
+async function loadBikeySummary() {
+  try {
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    const res = await client.getBikeySummary(props.serverUuid);
+    if (res.success) {
+      const s = res.data;
+      bikeySummary.value = `Bikey 就绪: ${s.ready}/${s.enabled}（缺失 ${s.missingBikey}）`;
+    }
+  } catch {
+    bikeySummary.value = "Bikey 就绪: —";
+  }
+}
+// Scan paths
+const showScanPathDialog = ref(false);
+const scanPaths = ref<ModScanPathEntry[]>([]);
 // Sort / Filter
 const sortMode = ref("scanOrder");
 const visibilityFilter = ref("all");
+const savingScanPaths = ref(false);
 
-onMounted(loadMods);
+onMounted(() => {
+  loadMods();
+  loadBikeySummary();
+});
 
 async function loadMods() {
   try {
-    const client = store.getClient(); if (!client) return;
-    const res = await client.getConfig(props.serverUuid);
-    if (res.success) {
-      const cfg = res.data;
-      const enabledIds = (cfg.mods as { enabledIds?: number[] })?.enabledIds ?? [];
-      const serverModIds = (cfg.mods as { serverModIds?: number[] })?.serverModIds ?? [];
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    const cfgRes = await client.getConfig(props.serverUuid);
+    if (cfgRes.success) {
+      await loadDlcFromConfig(cfgRes.data as Record<string, unknown>);
+      const cfg = cfgRes.data;
       const clientModIds = (cfg.mods as { clientModIds?: number[] })?.clientModIds ?? [];
       const hcModIds = (cfg.mods as { hcModIds?: number[] })?.hcModIds ?? [];
+
+      const scanRes = await client.getModScan(props.serverUuid);
+      if (scanRes.success && scanRes.data.mods.length > 0) {
+        modList.value = scanRes.data.mods.map((m) => ({
+          name: m.name,
+          workshopId: m.workshopId,
+          enabled: m.enabled,
+          isServerMod: m.isServerMod,
+          isClientMod: clientModIds.includes(m.workshopId),
+          isHcMod: hcModIds.includes(m.workshopId),
+          bikey: !!m.bikeyPresent,
+          size: formatSize(m.sizeBytes),
+          updated: "-",
+        }));
+        hasScanned.value = true;
+        return;
+      }
+
+      const enabledIds = (cfg.mods as { enabledIds?: number[] })?.enabledIds ?? [];
+      const serverModIds = (cfg.mods as { serverModIds?: number[] })?.serverModIds ?? [];
       modList.value = enabledIds.map((id: number) => ({
-        name: `workshop_${id}`, workshopId: id, enabled: true,
-        isServerMod: serverModIds.includes(id), isClientMod: clientModIds.includes(id), isHcMod: hcModIds.includes(id),
-        bikey: false, size: "-", updated: "-",
+        name: `workshop_${id}`,
+        workshopId: id,
+        enabled: true,
+        isServerMod: serverModIds.includes(id),
+        isClientMod: clientModIds.includes(id),
+        isHcMod: hcModIds.includes(id),
+        bikey: false,
+        size: "-",
+        updated: "-",
       }));
       hasScanned.value = true;
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 async function doScan() {
@@ -66,6 +163,7 @@ async function doScan() {
     const res = await client.submitTask({ serverUuid: props.serverUuid, commands: [{ action: "scan_mods" as const }] });
     ElMessage.success((res.data as { steps?: { message: string }[] })?.steps?.[0]?.message ?? "扫描完成");
     await loadMods();
+    await loadBikeySummary();
   } catch (e: unknown) { ElMessage.error(e instanceof Error ? e.message : "扫描失败"); } finally { scanning.value = false; }
 }
 
@@ -73,9 +171,13 @@ async function doAddMods() {
   const ids = modIdsText.value.split(/[\s,]+/).map(s => s.trim()).filter(Boolean).map(Number).filter(n => !isNaN(n) && n > 0);
   if (!ids.length) return; adding.value = true; try {
     const client = store.getClient(); if (!client) return;
-    const cmds: { action: string; modIds?: number[]; writeCfgAfter?: boolean }[] = [];
-    if (mode.value === "enable" || mode.value === "download_and_enable") cmds.push({ action: "enable_mods", modIds: ids, writeCfgAfter: writeCfg.value });
-    if (mode.value === "download" || mode.value === "download_and_enable") cmds.push({ action: "download_mods", modIds: ids });
+    const cmds: AutomationCommand[] = [];
+    if (mode.value === "enable" || mode.value === "download_and_enable") {
+      cmds.push({ action: "enable_mods", modIds: ids, writeCfgAfter: writeCfg.value });
+    }
+    if (mode.value === "download" || mode.value === "download_and_enable") {
+      cmds.push({ action: "download_mods", modIds: ids });
+    }
     await client.submitTask({ serverUuid: props.serverUuid, async: true, commands: cmds });
     ElMessage.success("任务已提交"); await loadMods();
   } catch (e: unknown) { ElMessage.error(e instanceof Error ? e.message : "操作失败"); } finally { adding.value = false; }
@@ -93,35 +195,149 @@ async function toggleMod(id: number, enabled: boolean) {
 // ---- Get mods dropdown ----
 function onGetMods(action: string) {
   switch (action) {
-    case "add_local": ElMessage.info("请通过 Workshop ID 输入框添加"); break;
-    case "download": doAddMods(); break;
-    case "paste": navigator.clipboard.readText().then(t => { modIdsText.value = t; ElMessage.success("已从剪贴板导入"); }); break;
-    case "html_download": htmlFileInput.value?.click(); break;
-    case "html_enable": htmlFileInput.value?.click(); break;
+    case "add_local":
+      addLocalModPath();
+      break;
+    case "scan_paths":
+      openScanPathDialog();
+      break;
+    case "download":
+      doAddMods();
+      break;
+    case "paste":
+      navigator.clipboard.readText().then((t) => {
+        modIdsText.value = t;
+        ElMessage.success("已从剪贴板导入");
+      });
+      break;
+    case "html_download":
+      htmlFileInput.value?.click();
+      break;
+    case "html_enable":
+      htmlFileInput.value?.click();
+      break;
+  }
+}
+
+async function addLocalModPath() {
+  const picked = await pickDirectory();
+  if (!picked) {
+    ElMessage.info("请选择本地模组目录");
+    return;
+  }
+  try {
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    const cfgRes = await client.getConfig(props.serverUuid);
+    if (!cfgRes.success) {
+      return;
+    }
+    const serverPaths = (cfgRes.data.server as { modPaths?: string[] })?.modPaths ?? [];
+    const merged = [...new Set([...serverPaths, picked])];
+    await client.patchConfig(props.serverUuid, { server: { modPaths: merged } } as never);
+    ElMessage.success("本地模组路径已添加");
+    await doScan();
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : "添加失败");
+  }
+}
+
+async function openScanPathDialog() {
+  showScanPathDialog.value = true;
+  try {
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    const res = await client.getModScanPaths();
+    if (res.success) {
+      scanPaths.value = [...res.data.paths];
+    }
+  } catch {
+    scanPaths.value = [];
+  }
+}
+
+function addScanPathRow() {
+  scanPaths.value.push({ modulePath: "", remark: "" });
+}
+
+async function saveScanPaths() {
+  savingScanPaths.value = true;
+  try {
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    await client.saveModScanPaths(scanPaths.value.filter((p) => p.modulePath.trim()));
+    ElMessage.success("扫描路径已保存");
+    showScanPathDialog.value = false;
+    await doScan();
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : "保存失败");
+  } finally {
+    savingScanPaths.value = false;
   }
 }
 
 // ---- Disable all ----
 async function disableMods(scope: "client" | "server" | "hc" | "all") {
-  const ids = modList.value.filter(m => m.enabled).map(m => m.workshopId);
-  if (!ids.length) return;
+  let ids: number[] = [];
+  if (scope === "all") {
+    ids = modList.value.filter((m) => m.enabled).map((m) => m.workshopId);
+  } else if (scope === "server") {
+    ids = modList.value.filter((m) => m.isServerMod).map((m) => m.workshopId);
+  } else if (scope === "client") {
+    ids = modList.value.filter((m) => m.isClientMod).map((m) => m.workshopId);
+  } else {
+    ids = modList.value.filter((m) => m.isHcMod).map((m) => m.workshopId);
+  }
+  if (!ids.length) {
+    return;
+  }
   try {
-    const client = store.getClient(); if (!client) return;
-    await client.submitTask({ serverUuid: props.serverUuid, commands: [{ action: "disable_mods" as never, modIds: ids }] });
-    ElMessage.success(`已禁用 ${ids.length} 个模组 (${scope})`); await loadMods();
-  } catch (e: unknown) { ElMessage.error(e instanceof Error ? e.message : "操作失败"); }
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    await client.submitTask({
+      serverUuid: props.serverUuid,
+      commands: [{ action: "disable_mods" as never, modIds: ids, scope }],
+    });
+    ElMessage.success(`已禁用 ${ids.length} 个模组 (${scope})`);
+    await loadMods();
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : "操作失败");
+  }
 }
 
 // ---- Bikey ----
 async function openBikeyDialog() {
-  showBikeyDialog.value = true; bikeyMods.value = modList.value.map(m => ({ ...m, bikeyPresent: m.bikey }));
+  showBikeyDialog.value = true;
+  bikeyMods.value = modList.value.map((m) => ({ name: m.name, workshopId: m.workshopId, bikeyPresent: m.bikey }));
 }
 async function copyAllBikeys() {
-  copyingBikey.value = true; try {
-    const client = store.getClient(); if (!client) return;
-    await client.submitTask({ serverUuid: props.serverUuid, commands: [{ action: "write_cfg" as never }] });
-    ElMessage.success("Bikey 复制任务已提交"); await loadMods();
-  } catch (e: unknown) { ElMessage.error(e instanceof Error ? e.message : "复制失败"); } finally { copyingBikey.value = false; }
+  copyingBikey.value = true;
+  try {
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    const res = await client.submitTask({
+      serverUuid: props.serverUuid,
+      commands: [{ action: "copy_bikeys" as const }],
+    });
+    const msg = (res.data as { steps?: { message: string }[] })?.steps?.[0]?.message ?? "Bikey 复制完成";
+    ElMessage.success(msg);
+    await loadMods();
+    await loadBikeySummary();
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : "复制失败");
+  } finally {
+    copyingBikey.value = false;
+  }
 }
 
 async function setServerMod(id: number, isServer: boolean) {
@@ -132,6 +348,42 @@ async function setServerMod(id: number, isServer: boolean) {
     await client.patchConfig(props.serverUuid, { mods: { serverModIds: newIds } } as never);
     const mod = modList.value.find(m => m.workshopId === id); if (mod) mod.isServerMod = isServer;
   } catch (e: unknown) { ElMessage.error(e instanceof Error ? e.message : "操作失败"); }
+}
+
+async function setClientMod(id: number, isClient: boolean) {
+  try {
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    const currentIds = modList.value.filter((m) => m.isClientMod).map((m) => m.workshopId);
+    const newIds = isClient ? [...currentIds, id] : currentIds.filter((i) => i !== id);
+    await client.patchConfig(props.serverUuid, { mods: { clientModIds: newIds } } as never);
+    const mod = modList.value.find((m) => m.workshopId === id);
+    if (mod) {
+      mod.isClientMod = isClient;
+    }
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : "操作失败");
+  }
+}
+
+async function setHcMod(id: number, isHc: boolean) {
+  try {
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    const currentIds = modList.value.filter((m) => m.isHcMod).map((m) => m.workshopId);
+    const newIds = isHc ? [...currentIds, id] : currentIds.filter((i) => i !== id);
+    await client.patchConfig(props.serverUuid, { mods: { hcModIds: newIds } } as never);
+    const mod = modList.value.find((m) => m.workshopId === id);
+    if (mod) {
+      mod.isHcMod = isHc;
+    }
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : "操作失败");
+  }
 }
 
 // ---- HTML Import ----
@@ -169,29 +421,40 @@ const filteredList = computed(() => {
 </script>
 <script lang="ts">import { computed } from "vue";</script>
 <template>
-<div class="mods-page">
-<div class="toolbar">
+<ConsolePageLayout>
+<template #toolbar>
+<div class="mods-toolbar">
   <el-button size="small" :loading="scanning" @click="doScan">扫描刷新</el-button>
   <el-dropdown size="small" @command="onGetMods"><el-button size="small">获取模组<el-icon class="el-icon--right"><arrow-down/></el-icon></el-button>
-    <el-dropdown-menu slot="dropdown"><el-dropdown-item command="add_local">添加本地模组</el-dropdown-item><el-dropdown-item command="download">下载选中模组</el-dropdown-item><el-dropdown-item command="paste">从剪贴板导入 ID</el-dropdown-item><el-dropdown-item command="html_download">从 HTML 下载...</el-dropdown-item><el-dropdown-item command="html_enable">从 HTML 启用...</el-dropdown-item></el-dropdown-menu>
+    <el-dropdown-menu slot="dropdown"><el-dropdown-item command="add_local">添加本地模组</el-dropdown-item><el-dropdown-item command="scan_paths">扫描路径...</el-dropdown-item><el-dropdown-item command="download">下载选中模组</el-dropdown-item><el-dropdown-item command="paste">从剪贴板导入 ID</el-dropdown-item><el-dropdown-item command="html_download">从 HTML 下载...</el-dropdown-item><el-dropdown-item command="html_enable">从 HTML 启用...</el-dropdown-item></el-dropdown-menu>
   </el-dropdown>
-  <el-dropdown size="small"><el-button size="small">Bikey 管理<el-icon class="el-icon--right"><arrow-down/></el-icon></el-button>
-    <el-dropdown-menu slot="dropdown"><el-dropdown-item @click="openBikeyDialog">管理 Bikey</el-dropdown-item><el-dropdown-item @click="copyAllBikeys">复制全部 Bikey</el-dropdown-item></el-dropdown-menu>
+  <el-dropdown size="small" @command="disableMods">
+    <el-button size="small">禁用范围</el-button>
+    <template #dropdown>
+      <el-dropdown-menu>
+        <el-dropdown-item command="all">全部禁用</el-dropdown-item>
+        <el-dropdown-item command="server">服模</el-dropdown-item>
+        <el-dropdown-item command="client">客模</el-dropdown-item>
+        <el-dropdown-item command="hc">HC 模</el-dropdown-item>
+      </el-dropdown-menu>
+    </template>
   </el-dropdown>
-  <el-button size="small" @click="disableMods('all')">全部禁用</el-button>
   <span style="font-size:11px;color:var(--el-text-color-secondary);margin-left:auto;">{{ bikeySummary }}</span>
 </div>
-<div class="toolbar" style="border-top:none;">
+<div class="mods-toolbar mods-toolbar--secondary">
   <span style="font-size:12px;">排序</span><el-select v-model="sortMode" size="small" style="width:120px"><el-option value="scanOrder" label="扫描顺序"/><el-option value="name" label="模组名"/><el-option value="id" label="Workshop ID"/></el-select>
   <span style="font-size:12px;margin-left:8px;">可见性</span><el-select v-model="visibilityFilter" size="small" style="width:130px"><el-option value="all" label="显示全部"/><el-option value="selected" label="仅已选择"/><el-option value="unselected" label="仅未选择"/></el-select>
-  <el-checkbox v-model="dlcMods.contact" size="small" style="margin-left:12px;">Contact</el-checkbox><el-checkbox v-model="dlcMods.gm" size="small">GM</el-checkbox><el-checkbox v-model="dlcMods.csla" size="small">CSLA</el-checkbox><el-checkbox v-model="dlcMods.ws" size="small">WS</el-checkbox><el-checkbox v-model="dlcMods.vn" size="small">VN</el-checkbox>
+  <el-checkbox v-model="dlcMods.contact" size="small" style="margin-left:12px;" @change="saveDlc">Contact</el-checkbox><el-checkbox v-model="dlcMods.gm" size="small" @change="saveDlc">GM</el-checkbox><el-checkbox v-model="dlcMods.csla" size="small" @change="saveDlc">CSLA</el-checkbox><el-checkbox v-model="dlcMods.ws" size="small" @change="saveDlc">WS</el-checkbox><el-checkbox v-model="dlcMods.vn" size="small" @change="saveDlc">VN</el-checkbox>
 </div>
-<el-table :data="filteredList" stripe size="small" max-height="400">
+</template>
+<el-table :data="filteredList" stripe size="small">
   <el-table-column label="启用" width="60"><template #default="{row}"><el-switch :model-value="row.enabled" size="small" @change="(v:boolean)=>toggleMod(row.workshopId,v)"/></template></el-table-column>
   <el-table-column prop="name" label="名称" min-width="160"/>
   <el-table-column prop="workshopId" label="ID" width="110"/>
   <el-table-column label="Bikey" width="65"><template #default="{row}"><el-tag v-if="row.bikey" type="success" size="small">🟢</el-tag><el-tag v-else type="danger" size="small">🔴</el-tag></template></el-table-column>
   <el-table-column label="服模" width="55"><template #default="{row}"><el-switch :model-value="row.isServerMod" size="small" @change="(v:boolean)=>setServerMod(row.workshopId,v)"/></template></el-table-column>
+  <el-table-column label="客模" width="55"><template #default="{row}"><el-switch :model-value="row.isClientMod" size="small" @change="(v:boolean)=>setClientMod(row.workshopId,v)"/></template></el-table-column>
+  <el-table-column label="HC" width="50"><template #default="{row}"><el-switch :model-value="row.isHcMod" size="small" @change="(v:boolean)=>setHcMod(row.workshopId,v)"/></template></el-table-column>
   <el-table-column prop="size" label="大小" width="70"/>
   <el-table-column prop="updated" label="更新时间" width="90"/>
 </el-table>
@@ -214,7 +477,7 @@ const filteredList = computed(() => {
   <span v-if="htmlFileName" style="margin-left:8px;font-size:12px;color:var(--el-text-color-secondary)">{{ htmlFileName }}</span>
   <div v-if="htmlParsed" style="margin-top:8px;">
     <el-button type="primary" size="small" :loading="htmlImporting" @click="doHtmlImport" :disabled="!parsedMods.length">导入并下载 ({{ parsedMods.length }} 个)</el-button>
-    <el-table v-if="parsedMods.length" :data="parsedMods" stripe size="small" max-height="200" style="margin-top:4px;">
+    <el-table v-if="parsedMods.length" :data="parsedMods" stripe size="small" style="margin-top:4px;">
       <el-table-column prop="name" label="模组名" min-width="140"/><el-table-column prop="id" label="ID" width="100"/>
     </el-table>
   </div>
@@ -230,9 +493,30 @@ const filteredList = computed(() => {
 </el-table>
 <template #footer><el-button :loading="copyingBikey" @click="copyAllBikeys">复制缺失 Bikey</el-button><el-button @click="showBikeyDialog=false">关闭</el-button></template>
 </el-dialog>
-</div>
+<el-dialog v-model="showScanPathDialog" title="模组扫描路径" width="640px">
+  <el-table :data="scanPaths" stripe size="small">
+    <el-table-column label="路径" min-width="280">
+      <template #default="{ row }">
+        <el-input v-model="row.modulePath" size="small" placeholder="D:\Steam\steamapps\workshop\content\107410" />
+      </template>
+    </el-table-column>
+    <el-table-column label="备注" width="140">
+      <template #default="{ row }">
+        <el-input v-model="row.remark" size="small" />
+      </template>
+    </el-table-column>
+  </el-table>
+  <div style="margin-top:8px;">
+    <el-button size="small" @click="addScanPathRow">添加路径</el-button>
+  </div>
+  <template #footer>
+    <el-button @click="showScanPathDialog=false">取消</el-button>
+    <el-button type="primary" :loading="savingScanPaths" @click="saveScanPaths">保存</el-button>
+  </template>
+</el-dialog>
+</ConsolePageLayout>
 </template>
 <style scoped>
-.mods-page{height:100%;display:flex;flex-direction:column}
-.toolbar{padding:4px 8px;display:flex;gap:4px;align-items:center;border-bottom:1px solid var(--el-border-color);flex-shrink:0;flex-wrap:wrap}
+.mods-toolbar{padding:4px 0;display:flex;gap:4px;align-items:center;flex-wrap:wrap;width:100%}
+.mods-toolbar--secondary{border-top:1px solid var(--el-border-color);padding-top:6px;margin-top:2px}
 </style>

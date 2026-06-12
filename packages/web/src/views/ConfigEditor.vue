@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
 import { ref, onMounted, computed } from "vue";
 import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
@@ -56,15 +57,12 @@ async function execAction(action: string) {
 </script>
 
 <template>
-  <div class="config-editor" v-loading="loading">
-    <!-- Toolbar -->
-    <div class="toolbar">
+  <ConsolePageLayout v-loading="loading">
+    <template #toolbar>
       <el-button size="small" type="primary" @click="execAction('write_cfg')">写入服务器</el-button>
       <el-button size="small" @click="execAction('save')">保存</el-button>
       <el-button size="small" @click="loadConfig">刷新</el-button>
-    </div>
-
-    <div class="config-body">
+    </template>
       <!-- 基本 -->
       <fieldset><legend>基本</legend>
         <div class="field-row"><label>配置名称</label><el-input v-model="sections.server.configName" size="small" /></div>
@@ -118,18 +116,14 @@ async function execAction(action: string) {
       <fieldset><legend>原始 JSON</legend>
         <pre class="raw">{{ JSON.stringify(rawConfig, null, 2) }}</pre>
       </fieldset>
-    </div>
-  </div>
+  </ConsolePageLayout>
 </template>
 
 <style scoped>
-.config-editor { height: 100%; display: flex; flex-direction: column; }
-.toolbar { padding: 8px; display: flex; gap: 4px; border-bottom: 1px solid var(--el-border-color); flex-shrink: 0; }
-.config-body { flex: 1; overflow-y: auto; padding: 8px; }
 fieldset { border: 1px solid var(--el-border-color-light); padding: 8px 12px; margin-bottom: 8px; }
 legend { font-size: 12px; font-weight: 600; padding: 0 4px; }
 .field-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .field-row label { width: 100px; font-size: 12px; color: var(--el-text-color-secondary); flex-shrink: 0; text-align: right; }
 .field-row .el-input { flex: 1; }
-.raw { font-size: 11px; white-space: pre-wrap; max-height: 300px; overflow-y: auto; background: var(--el-fill-color-light); padding: 8px; border-radius: 2px; }
+.raw { font-size: 11px; white-space: pre-wrap; background: var(--el-fill-color-light); padding: 8px; border-radius: 2px; margin: 0; }
 </style>

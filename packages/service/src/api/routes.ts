@@ -3,17 +3,37 @@ import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { RconClient } from "../rcon/index.js";
+import type { ServerConfigPackage } from "../types/config.js";
+import {
+  writeAll,
+  buildStartCommandLine,
+  splitCommandLine,
+  serverCfgExists,
+  getServerExecutablePath,
+} from "../config/game-config-writer.js";
+import { runPreflightChecks } from "../preflight/checker.js";
+import { fetchRconPlayers, resolveRconOptions } from "../rcon/helpers.js";
+import { maybeAutoSnapshot } from "../config/auto-snapshot.js";
+import { evaluateSyncState } from "../config/sync-state.js";
+import { disableModsByScope, resolveModPaths, type ModDisableScope } from "../mods/enabler.js";
+import { startHeadlessClient, stopHeadlessClient } from "../process/headless.js";
+import type { UiSettings } from "../settings/ui-settings.js";
+import type { ModScanPathEntry } from "../mods/scan-path-store.js";
 
 export async function apiRoutes(app: FastifyInstance) {
   // ===================== Servers CRUD =====================
 
   app.get("/servers", async () => {
     const servers = app.configStore.listServers();
-    return servers.map((s) => ({
-      uuid: s.uuid,
-      configName: s.configName,
-      serverDir: undefined,
-    }));
+    return servers.map((s) => {
+      const config = app.configStore.load(s.uuid);
+      const serverDir = config?.server?.serverDir;
+      return {
+        uuid: s.uuid,
+        configName: s.configName,
+        serverDir: serverDir ?? undefined,
+      };
+    });
   });
 
   app.get("/servers/:uuid/status", async (req) => {
@@ -42,6 +62,7 @@ export async function apiRoutes(app: FastifyInstance) {
     const { uuid } = req.params as { uuid: string };
     const body = req.body as Record<string, unknown>;
     try {
+      maybeAutoSnapshot(app, uuid, "save");
       app.configStore.save(uuid, body as never);
       return envelope(true, { message: "配置已保存" }, null, uuid);
     } catch {
@@ -58,9 +79,38 @@ export async function apiRoutes(app: FastifyInstance) {
       return envelope(false, null, "NOT_FOUND", uuid);
     }
     const patch = req.body as Record<string, unknown>;
-    const merged = { ...existing, ...patch } as never;
+    const merged = mergeConfigPackage(existing, patch);
+    maybeAutoSnapshot(app, uuid, "save");
     app.configStore.save(uuid, merged);
+
+    const query = req.query as { writeCfg?: string };
+    if (parseQueryBool(query.writeCfg)) {
+      maybeAutoSnapshot(app, uuid, "write");
+      const writeResult = writeAll(uuid, merged);
+      if (!writeResult.success) {
+        reply.status(400);
+        return envelope(false, { message: writeResult.message }, "WRITE_CFG_FAILED", uuid);
+      }
+      return envelope(
+        true,
+        { message: `配置已更新。${writeResult.message}` },
+        null,
+        uuid
+      );
+    }
+
     return envelope(true, { message: "配置已更新" }, null, uuid);
+  });
+
+  app.get("/servers/:uuid/sync-state", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const config = app.configStore.load(uuid);
+    if (!config) {
+      reply.status(404);
+      return envelope(false, null, "NOT_FOUND", uuid);
+    }
+    const syncState = evaluateSyncState(app.dataDir, uuid, config);
+    return envelope(true, syncState, null, uuid);
   });
 
   // Create / clone / delete / rename
@@ -119,6 +169,38 @@ export async function apiRoutes(app: FastifyInstance) {
     return envelope(true, { message: "SteamCMD 设置已保存", data: body }, null, "");
   });
 
+  app.get("/settings/ui", async () => {
+    return envelope(true, app.uiSettingsStore.load(), null, "");
+  });
+
+  app.put("/settings/ui", async (req, reply) => {
+    const body = req.body as Partial<UiSettings>;
+    const current = app.uiSettingsStore.load();
+    const merged: UiSettings = {
+      showAdvancedSettings: true,
+      allowExternalConfigRefresh: body.allowExternalConfigRefresh ?? current.allowExternalConfigRefresh,
+      hasShownTrayMinimizeHint: body.hasShownTrayMinimizeHint ?? current.hasShownTrayMinimizeHint,
+      autoSnapshotMode: body.autoSnapshotMode ?? current.autoSnapshotMode,
+      autoSnapshotAsync: body.autoSnapshotAsync ?? current.autoSnapshotAsync,
+    };
+    app.uiSettingsStore.save(merged);
+    return envelope(true, merged, null, "");
+  });
+
+  app.get("/settings/mod-scan-paths", async () => {
+    return envelope(true, { paths: app.modScanPathStore.list() }, null, "");
+  });
+
+  app.put("/settings/mod-scan-paths", async (req, reply) => {
+    const body = req.body as { paths?: ModScanPathEntry[] } | null;
+    if (!body?.paths || !Array.isArray(body.paths)) {
+      reply.status(400);
+      return envelope(false, null, "INVALID_PATHS", "");
+    }
+    app.modScanPathStore.save(body.paths);
+    return envelope(true, { paths: body.paths, message: "模组扫描路径已保存" }, null, "");
+  });
+
   app.get("/steamcmd/status", async () => {
     return envelope(true, {
       isRunning: app.steamCmd.isRunning,
@@ -156,18 +238,127 @@ export async function apiRoutes(app: FastifyInstance) {
     if (!config) {
       return envelope(false, null, "NOT_FOUND", uuid);
     }
-    const issues = [];
-    // Basic checks
-    if (config.server?.serverDir && !fs.existsSync(config.server.serverDir)) {
-      issues.push({ category: "目录", severity: "error" as const, message: "服务器目录不存在" });
+
+    const state = app.processManager.getState(uuid);
+    const modPaths = config.server?.modPaths ?? [];
+    const scannedMods = modPaths.length > 0
+      ? app.modScanner.scan({
+          modPaths,
+          enabledIds: config.mods?.enabledIds ?? [],
+          serverModIds: config.mods?.serverModIds ?? [],
+        })
+      : [];
+
+    const result = runPreflightChecks(uuid, config, {
+      isRunning: state.isRunning,
+      scannedMods,
+    });
+
+    return envelope(true, result, null, uuid);
+  });
+
+  app.get("/servers/:uuid/rcon/players", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const config = app.configStore.load(uuid);
+    if (!config) {
+      reply.status(404);
+      return envelope(false, null, "NOT_FOUND", uuid);
     }
-    if (!config.server?.executable) {
-      issues.push({ category: "配置", severity: "error" as const, message: "未设置可执行文件" });
+    if (!resolveRconOptions(config)) {
+      reply.status(400);
+      return envelope(false, null, "RCON_NOT_CONFIGURED", uuid);
     }
-    if (config.basic?.maxPlayers != null && (config.basic.maxPlayers < 1 || config.basic.maxPlayers > 200)) {
-      issues.push({ category: "配置", severity: "warning" as const, message: "最大玩家数异常" });
+
+    try {
+      const players = await fetchRconPlayers(config);
+      return envelope(true, { players, count: players.length }, null, uuid);
+    } catch (error) {
+      reply.status(502);
+      const message = error instanceof Error ? error.message : "RCon 连接失败";
+      return envelope(false, { message }, "RCON_FAILED", uuid);
     }
-    return envelope(true, { issues, hasBlockingErrors: issues.some((i) => i.severity === "error") }, null, uuid);
+  });
+
+  app.get("/servers/:uuid/mods", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const config = app.configStore.load(uuid);
+    if (!config) {
+      reply.status(404);
+      return envelope(false, null, "NOT_FOUND", uuid);
+    }
+
+    const modPaths = collectModPaths(app, config);
+    const mods = app.modScanner.scan({
+      modPaths,
+      enabledIds: config.mods?.enabledIds ?? [],
+      serverModIds: config.mods?.serverModIds ?? [],
+    });
+
+    return envelope(true, { mods }, null, uuid);
+  });
+
+  app.get("/servers/:uuid/mods/bikeys", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const config = app.configStore.load(uuid);
+    if (!config) {
+      reply.status(404);
+      return envelope(false, null, "NOT_FOUND", uuid);
+    }
+
+    const modPaths = collectModPaths(app, config);
+    const summary = app.modScanner.summarizeBikeys({
+      modPaths,
+      enabledIds: config.mods?.enabledIds ?? [],
+      serverModIds: config.mods?.serverModIds ?? [],
+    });
+
+    return envelope(true, summary, null, uuid);
+  });
+
+  app.get("/servers/:uuid/dashboard", async (req) => {
+    const { uuid } = req.params as { uuid: string };
+    const config = app.configStore.load(uuid);
+    if (!config) {
+      return envelope(false, null, "NOT_FOUND", uuid);
+    }
+
+    const state = app.processManager.getState(uuid);
+    const basic = (config.basic ?? {}) as Record<string, unknown>;
+    const startup = (config.startup ?? {}) as Record<string, unknown>;
+    const scheduler = (config.scheduler ?? {}) as Record<string, unknown>;
+
+    let onlineCount: number | null = null;
+    if (state.isRunning && config.battleye?.rconPassword) {
+      onlineCount = await countOnlinePlayers(config);
+    }
+
+    const monitoring = app.monitorDb.getSummary(uuid);
+    const latestRpt = config.server?.serverDir
+      ? app.rptLogReader.listLogs(config.server.serverDir, "rpt")[0]?.fileName ?? null
+      : null;
+
+    return envelope(
+      true,
+      {
+        hostname: (basic.hostname as string) ?? "-",
+        port: startup.port ?? basic.port ?? "-",
+        isRunning: state.isRunning,
+        pid: state.pid,
+        onlineCount,
+        monitoring,
+        scheduleSummary: scheduler.restartCron
+          ? `重启: ${scheduler.restartCron}`
+          : scheduler.monitoringCron
+            ? `采集: ${scheduler.monitoringCron}`
+            : "-",
+        latestRpt,
+        cfgWritten: config.server?.serverDir
+          ? serverCfgExists(config.server.serverDir, uuid)
+          : false,
+      },
+      null,
+      uuid
+    );
   });
 
   // ===================== Logs =====================
@@ -218,16 +409,38 @@ export async function apiRoutes(app: FastifyInstance) {
     return envelope(true, summary, null, uuid);
   });
 
+  app.get("/servers/:uuid/monitoring/stats", async (req) => {
+    const { uuid } = req.params as { uuid: string };
+    const query = req.query as { hours?: string };
+    const hours = parseInt(query.hours ?? "24", 10);
+    const stats = app.monitorDb.getStats(uuid, hours);
+    return envelope(true, { stats }, null, uuid);
+  });
+
+  app.get("/servers/:uuid/monitoring/players", async (req) => {
+    const { uuid } = req.params as { uuid: string };
+    const players = app.monitorDb.listPlayers(uuid);
+    return envelope(true, { players }, null, uuid);
+  });
+
   app.post("/monitoring/collect", async () => {
-    // Collect stats for all running servers
     const servers = app.configStore.listServers();
     let count = 0;
     for (const s of servers) {
       const state = app.processManager.getState(s.uuid);
-      if (state.isRunning) {
-        app.monitorDb.recordStats(s.uuid, 0); // Real player count requires RCon
-        count++;
+      if (!state.isRunning) {
+        continue;
       }
+      const config = app.configStore.load(s.uuid);
+      let playerCount = 0;
+      if (config) {
+        const online = await countOnlinePlayers(config);
+        if (online !== null) {
+          playerCount = online;
+        }
+      }
+      app.monitorDb.recordStats(s.uuid, playerCount);
+      count++;
     }
     return envelope(true, { collected: count }, null, "");
   });
@@ -250,11 +463,13 @@ export async function apiRoutes(app: FastifyInstance) {
         app.processManager.kill(body.serverUuid!);
         setTimeout(() => {
           const config = app.configStore.load(body.serverUuid!);
-          if (config) {
+          if (config?.server?.serverDir && serverCfgExists(config.server.serverDir, body.serverUuid!)) {
+            const executable = getServerExecutablePath(config);
+            const args = splitCommandLine(buildStartCommandLine(body.serverUuid!, config));
             app.processManager.register(body.serverUuid!, {
-              executable: config.server?.executable ?? "arma3server_x64.exe",
-              args: (config.startup?.parameters ?? "").split(" ").filter(Boolean),
-              cwd: config.server?.serverDir ?? "",
+              executable,
+              args,
+              cwd: config.server.serverDir,
             });
             app.processManager.start(body.serverUuid!);
           }
@@ -296,7 +511,11 @@ export async function apiRoutes(app: FastifyInstance) {
   });
 
   app.post("/bans", async (req, reply) => {
-    const body = req.body as BanEntry | null;
+    const body = req.body as BanEntry | BanEntry[] | null;
+    if (Array.isArray(body)) {
+      saveLocalBans(app.dataDir, body);
+      return envelope(true, { message: "封禁列表已保存", count: body.length }, null, "");
+    }
     if (!body?.guid && !body?.ip) {
       reply.status(400);
       return envelope(false, null, "INVALID_BAN", "");
@@ -451,12 +670,52 @@ function envelope<T>(success: boolean, data: T, error: string | null, requestId:
   return { success, data, error, requestId: requestId || randomUUID().slice(0, 12) };
 }
 
+function mergeConfigPackage(
+  existing: ServerConfigPackage,
+  patch: Record<string, unknown>
+): ServerConfigPackage {
+  const merged = { ...existing } as Record<string, unknown>;
+  for (const [key, value] of Object.entries(patch)) {
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+      const prev = merged[key];
+      if (prev !== null && typeof prev === "object" && !Array.isArray(prev)) {
+        merged[key] = { ...(prev as object), ...(value as object) };
+      } else {
+        merged[key] = value;
+      }
+    } else {
+      merged[key] = value;
+    }
+  }
+  return merged as unknown as ServerConfigPackage;
+}
+
+function parseQueryBool(value: unknown): boolean {
+  if (value === undefined || value === null) {
+    return false;
+  }
+  const text = String(value);
+  if (text === "true" || text === "1") {
+    return true;
+  }
+  return false;
+}
+
+async function countOnlinePlayers(config: ServerConfigPackage): Promise<number | null> {
+  try {
+    const players = await fetchRconPlayers(config);
+    return players.length;
+  } catch {
+    return null;
+  }
+}
+
 async function executeCommand(
   app: FastifyInstance,
   uuid: string,
   cmd: { action: string; [key: string]: unknown }
 ): Promise<{ success: boolean; message: string }> {
-  const config = app.configStore.load(uuid);
+  let config = app.configStore.load(uuid);
 
   switch (cmd.action) {
     // ------- Process -------
@@ -466,10 +725,20 @@ async function executeCommand(
     }
     case "start": {
       if (!config) return fail("未找到服务器配置");
+      const serverDir = config.server?.serverDir;
+      if (!serverDir) return fail("未设置服务器目录");
+      if (!serverCfgExists(serverDir, uuid)) {
+        return fail("尚未写入游戏配置，请先执行「写入服务器」");
+      }
+      const executable = getServerExecutablePath(config);
+      if (!fs.existsSync(executable)) {
+        return fail(`找不到可执行文件: ${executable}`);
+      }
+      const args = splitCommandLine(buildStartCommandLine(uuid, config));
       app.processManager.register(uuid, {
-        executable: config.server?.executable ?? "arma3server_x64.exe",
-        args: (config.startup?.parameters ?? "").split(" ").filter(Boolean),
-        cwd: config.server?.serverDir ?? "",
+        executable,
+        args,
+        cwd: serverDir,
       });
       await app.processManager.start(uuid);
       return ok("服务器已启动");
@@ -482,10 +751,20 @@ async function executeCommand(
       app.processManager.kill(uuid);
       await new Promise((r) => setTimeout(r, 2000));
       if (!config) return fail("未找到服务器配置");
+      const serverDir = config.server?.serverDir;
+      if (!serverDir) return fail("未设置服务器目录");
+      if (!serverCfgExists(serverDir, uuid)) {
+        return fail("尚未写入游戏配置，请先执行「写入服务器」");
+      }
+      const executable = getServerExecutablePath(config);
+      if (!fs.existsSync(executable)) {
+        return fail(`找不到可执行文件: ${executable}`);
+      }
+      const args = splitCommandLine(buildStartCommandLine(uuid, config));
       app.processManager.register(uuid, {
-        executable: config.server?.executable ?? "arma3server_x64.exe",
-        args: (config.startup?.parameters ?? "").split(" ").filter(Boolean),
-        cwd: config.server?.serverDir ?? "",
+        executable,
+        args,
+        cwd: serverDir,
       });
       await app.processManager.start(uuid);
       return ok("服务器已重启");
@@ -497,81 +776,13 @@ async function executeCommand(
       return ok("配置已保存");
     }
     case "write_cfg": {
-      const dir = config?.server?.serverDir;
-      if (!dir) return fail("未设置服务器目录");
-      fs.mkdirSync(path.join(dir, "a3st_serverconfig", uuid), { recursive: true });
-      fs.mkdirSync(path.join(dir, "BattlEye"), { recursive: true });
-
-      const hostname = config?.basic?.hostname ?? "Arma3 Server";
-      const maxPlayers = config?.basic?.maxPlayers ?? 64;
-      const pwd = config?.basic?.password ?? "";
-      const adminPwd = config?.basic?.passwordAdmin ?? "";
-      const rconPort = config?.battleye?.rconPort ?? 2302;
-      const rconPwd = config?.battleye?.rconPassword ?? "";
-      const motd = config?.basic?.hostname ? `Welcome to ${config.basic.hostname}` : "";
-
-      // server.cfg
-      fs.writeFileSync(path.join(dir, "server.cfg"), [
-        `hostname = "${hostname}";`,
-        `password = "${pwd}";`,
-        `passwordAdmin = "${adminPwd}";`,
-        `maxPlayers = ${maxPlayers};`,
-        `BattlEye = 1;`,
-        rconPwd ? `RConPassword = "${rconPwd}";` : "",
-        rconPort ? `RConPort = ${rconPort};` : "",
-        `kickDuplicate = 1;`,
-        `verifySignatures = 2;`,
-        `allowedFilePatching = 0;`,
-        `allowedVotedAdmin = 0;`,
-        `disableVoN = 0;`,
-        `vonCodecQuality = 20;`,
-        `persistent = 1;`,
-        `disconnectTimeout = 90;`,
-        `maxDesync = 150;`,
-        `maxPing = 200;`,
-        `voteMissionPlayers = 1;`,
-        `voteThreshold = 2;`,
-        `logFile = "server_console.log";`,
-        `doubleIdDetected = "";`,
-        `onUserConnected = "";`,
-        `onUserDisconnected = "";`,
-        `headlessClients[] = {};`,
-        `localClient[] = {127.0.0.1};`,
-      ].join("\n"), "utf-8");
-
-      // basic.cfg (network)
-      fs.writeFileSync(path.join(dir, "basic.cfg"), [
-        `MaxMsgSend = 128;`,
-        `MaxSizeGuaranteed = 512;`,
-        `MaxSizeNonguaranteed = 256;`,
-        `MinErrorToSend = 0.001;`,
-        `MinErrorToSendNear = 0.01;`,
-        `MaxPacketSize = 1400;`,
-        `MinBandwidth = 131072;`,
-        `MaxBandwidth = 1048576;`,
-        `MaxCustomFileSize = 0;`,
-      ].join("\n"), "utf-8");
-
-      // beserver.cfg (BattlEye)
-      fs.writeFileSync(path.join(dir, "BattlEye", "beserver.cfg"), [
-        `RConPassword ${rconPwd || "changeme"}`,
-        `RConPort ${rconPort}`,
-        `RestartOnError 0`,
-        `MaxPing 200`,
-        `BattlEyeLicense 1`,
-        motd ? `BattlEyeMessage ${motd}` : "",
-        `KickDuplicate 1`,
-        `ConnectToServerIP 0.0.0.0`,
-      ].filter(Boolean).join("\n"), "utf-8");
-
-      // Auto-generate basic BE filter file (mins and scripts.txt)
-      fs.writeFileSync(path.join(dir, "BattlEye", "scripts.txt"), [
-        `// BattlEye Script Restriction - Generated by Arma3 Server Tools`,
-        `// https://www.battleye.com/downloads/`,
-        `1 ""`,
-      ].join("\n"), "utf-8");
-
-      return ok("server.cfg + basic.cfg + BattlEye 配置已写入");
+      if (!config) return fail("未找到服务器配置");
+      maybeAutoSnapshot(app, uuid, "write");
+      const result = writeAll(uuid, config);
+      if (!result.success) {
+        return fail(result.message);
+      }
+      return ok(result.message);
     }
 
     // ------- Mission -------
@@ -612,21 +823,35 @@ async function executeCommand(
     }
     case "disable_mods": {
       if (!config) return fail("未找到配置");
-      const disableIds = new Set(cmd.modIds as number[] | undefined ?? []);
-      config.mods = {
-        ...config.mods,
-        enabledIds: (config.mods?.enabledIds ?? []).filter((id) => !disableIds.has(id)),
-      };
-      // Remove mods from startup parameters
-      if (config?.startup?.parameters) {
-        config.startup.parameters = config.startup.parameters.replace(/-mod=[^ ]+/g, "").replace(/\s{2,}/g, " ").trim();
+      const disableIds = cmd.modIds as number[] | undefined ?? [];
+      const scopeRaw = cmd.scope as string | undefined;
+      let scope: ModDisableScope = "all";
+      if (scopeRaw === "client" || scopeRaw === "server" || scopeRaw === "hc") {
+        scope = scopeRaw;
       }
+
+      if (scope === "all") {
+        const ids = new Set(disableIds);
+        config.mods = {
+          ...config.mods,
+          enabledIds: (config.mods?.enabledIds ?? []).filter((id) => !ids.has(id)),
+          serverModIds: (config.mods?.serverModIds ?? []).filter((id) => !ids.has(id)),
+          clientModIds: (config.mods?.clientModIds ?? []).filter((id) => !ids.has(id)),
+          hcModIds: (config.mods?.hcModIds ?? []).filter((id) => !ids.has(id)),
+        };
+        if (config?.startup?.parameters) {
+          config.startup.parameters = config.startup.parameters.replace(/-mod=[^ ]+/g, "").replace(/\s{2,}/g, " ").trim();
+        }
+      } else {
+        config = disableModsByScope(config, disableIds, scope);
+      }
+
       app.configStore.save(uuid, config);
-      return ok(`已禁用 ${disableIds.size} 个模组`);
+      return ok(`已禁用 ${disableIds.length} 个模组 (${scope})`);
     }
     case "scan_mods": {
       if (!config) return fail("未找到配置");
-      const modPaths = config.server?.modPaths ?? [];
+      const modPaths = collectModPaths(app, config);
       const result = app.modScanner.scan({
         modPaths,
         enabledIds: config.mods?.enabledIds ?? [],
@@ -646,7 +871,44 @@ async function executeCommand(
       return ok(`开始下载 ${ids.length} 个模组（SteamCMD）`);
     }
     case "import_mods_html": {
-      return ok(`导入成功（${(cmd.modIds as number[] | undefined)?.length ?? 0} 个模组）`);
+      if (!config) return fail("未找到配置");
+      const ids = cmd.modIds as number[] | undefined;
+      if (!ids?.length) return fail("未能从 HTML 解析模组 ID");
+
+      const mergedIds = [...new Set([...(config.mods?.enabledIds ?? []), ...ids])];
+      config.mods = {
+        ...config.mods,
+        enabledIds: mergedIds,
+      };
+      app.configStore.save(uuid, config);
+
+      if (cmd.writeCfgAfter) {
+        const writeResult = writeAll(uuid, config);
+        if (!writeResult.success) {
+          return fail(writeResult.message);
+        }
+      }
+
+      app.steamCmd.downloadWorkshopMods(ids).catch((e: Error) => {
+        app.log.error(`模组下载失败: ${e.message}`);
+      });
+
+      return ok(`已导入 ${ids.length} 个模组 ID，SteamCMD 下载已排队`);
+    }
+    case "copy_bikeys": {
+      if (!config?.server?.serverDir) return fail("未设置服务器目录");
+      const modPaths = collectModPaths(app, config);
+      if (!modPaths.length) return fail("未配置模组扫描路径");
+
+      const scanned = app.modScanner.scan({
+        modPaths,
+        enabledIds: config.mods?.enabledIds ?? [],
+        serverModIds: config.mods?.serverModIds ?? [],
+      });
+      const enabledPaths = scanned.filter((m) => m.enabled).map((m) => m.path);
+      const keysDir = path.join(config.server.serverDir, "keys");
+      const result = app.modScanner.copyBikeys(enabledPaths, keysDir);
+      return ok(`Bikey 复制完成：新增 ${result.copied}，已有 ${result.skipped}，共 ${result.total} 个`);
     }
     case "update_server": {
       const targetDir = config?.server?.serverDir;
@@ -686,7 +948,7 @@ async function executeCommand(
         switch (cmd.action) {
           case "rcon_players": {
             const players = await client.getPlayers();
-            return ok(`在线玩家: ${JSON.stringify(players)}`);
+            return ok(JSON.stringify(players));
           }
           case "rcon_kick": {
             const r = await client.kick(cmd.playerId as string, cmd.reason as string);
@@ -758,9 +1020,122 @@ async function executeCommand(
       return ok(`已解封 ${guid}`);
     }
 
+    // ------- Headless -------
+    case "start_headless_client": {
+      if (!config) return fail("未找到配置");
+      const result = startHeadlessClient(uuid, config);
+      if (!result.success) {
+        return fail(result.message);
+      }
+      return ok(result.message);
+    }
+    case "stop_headless_client": {
+      stopHeadlessClient(uuid);
+      return ok("无头客户端已停止");
+    }
+
     // ------- Sync Cron -------
     case "sync_cron_jobs": {
-      return ok("定时任务已同步");
+      if (!config) return fail("未找到配置");
+      app.scheduler.clear();
+      let count = 0;
+      const schedulerCfg = config.scheduler ?? {};
+
+      if (schedulerCfg.restartCron) {
+        const cronExpr = schedulerCfg.restartCron;
+        app.scheduler.add({
+          name: `${uuid}-restart`,
+          schedule: cronExpr,
+          handler: async () => {
+            app.processManager.kill(uuid);
+            await new Promise((r) => setTimeout(r, 2000));
+            const latest = app.configStore.load(uuid);
+            if (!latest?.server?.serverDir) {
+              return;
+            }
+            if (!serverCfgExists(latest.server.serverDir, uuid)) {
+              return;
+            }
+            const executable = getServerExecutablePath(latest);
+            if (!fs.existsSync(executable)) {
+              return;
+            }
+            const args = splitCommandLine(buildStartCommandLine(uuid, latest));
+            app.processManager.register(uuid, {
+              executable,
+              args,
+              cwd: latest.server.serverDir,
+            });
+            await app.processManager.start(uuid);
+          },
+        });
+        count += 1;
+      }
+
+      if (schedulerCfg.monitoringCron) {
+        app.scheduler.add({
+          name: `${uuid}-monitoring`,
+          schedule: schedulerCfg.monitoringCron,
+          handler: async () => {
+            const latest = app.configStore.load(uuid);
+            if (!latest) {
+              return;
+            }
+            const state = app.processManager.getState(uuid);
+            if (!state.isRunning) {
+              return;
+            }
+            const online = await countOnlinePlayers(latest);
+            if (online !== null) {
+              app.monitorDb.recordStats(uuid, online);
+            }
+          },
+        });
+        count += 1;
+      }
+
+      const cronJobs = schedulerCfg.cronJobs ?? {};
+      for (const [taskId, job] of Object.entries(cronJobs)) {
+        if (!job || !job.cron) {
+          continue;
+        }
+        const enabled = job.enabled ?? job.status === 1;
+        if (!enabled) {
+          continue;
+        }
+        const actionText = String(job.actionText ?? job.action ?? "restart").toLowerCase();
+        app.scheduler.add({
+          name: `${uuid}-cron-${taskId}`,
+          schedule: job.cron,
+          handler: async () => {
+            if (actionText.includes("restart")) {
+              app.processManager.kill(uuid);
+              await new Promise((r) => setTimeout(r, 2000));
+              const latest = app.configStore.load(uuid);
+              if (!latest?.server?.serverDir) {
+                return;
+              }
+              if (!serverCfgExists(latest.server.serverDir, uuid)) {
+                return;
+              }
+              const executable = getServerExecutablePath(latest);
+              if (!fs.existsSync(executable)) {
+                return;
+              }
+              const args = splitCommandLine(buildStartCommandLine(uuid, latest));
+              app.processManager.register(uuid, {
+                executable,
+                args,
+                cwd: latest.server.serverDir,
+              });
+              await app.processManager.start(uuid);
+            }
+          },
+        });
+        count += 1;
+      }
+
+      return ok(`定时任务已同步 (${count} 个)`);
     }
 
     default:
@@ -792,6 +1167,11 @@ function loadLocalBans(dataDir: string): BanEntry[] {
 
 function saveLocalBans(dataDir: string, bans: BanEntry[]): void {
   fs.writeFileSync(bansFilePath(dataDir), JSON.stringify(bans, null, 2), "utf-8");
+}
+
+function collectModPaths(app: FastifyInstance, config: ServerConfigPackage): string[] {
+  const globalPaths = app.modScanPathStore.list().map((entry) => entry.modulePath);
+  return resolveModPaths(config, globalPaths);
 }
 
 function ok(message: string) {

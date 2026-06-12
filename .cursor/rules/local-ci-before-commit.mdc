@@ -17,20 +17,20 @@ powershell -ExecutionPolicy Bypass -File scripts/ci-local.ps1
 
 ## 等价步骤（与 `.github/workflows/ci.yml`）
 
-1. `dotnet restore Arma3ServerTools.sln`
-2. `dotnet build Arma3ServerTools.sln -c Release --no-restore`
-3. `dotnet build src/Arma3ServerTools.Agent.Host/ -c Release --no-restore`
-4. `dotnet test` Core 项目（Release，`--no-build`）
-5. `dotnet test` Application 项目（同上，排除 SteamCmd 相关用例）
-6. `dotnet format Arma3ServerTools.sln --verify-no-changes --no-restore`
+1. `npm ci`
+2. `npm run typecheck`
+3. `npm test`
+4. `npm run build:service`
+5. `npm run build:web`
 
 ## 失败时
 
-- 修复代码或测试，必要时先 `dotnet format Arma3ServerTools.sln` 再重跑。
+- 修复代码或测试后再重跑。
 - **不要**在 CI 未通过时提交或推送。
 - 向用户汇报哪一步失败及关键错误信息。
 
 ## 说明
 
-- 本地 CI 不包含 `dotnet publish` 与 artifact 上传；发版另用 `scripts/build-release.ps1`。
+- v2 主线为 TypeScript monorepo；`legacy/` 为 v1 归档，不在默认 CI 内。
+- 本地 CI 不包含 Electron 打包与 artifact 上传。
 - 禁止使用 `&&` 串联命令（Windows PowerShell）；使用脚本或分步执行。

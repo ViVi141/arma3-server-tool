@@ -4,6 +4,7 @@ import renderer from "vite-plugin-electron-renderer";
 import { resolve } from "path";
 
 export default defineConfig({
+  appType: "custom",
   plugins: [
     electron([
       {
@@ -13,6 +14,9 @@ export default defineConfig({
             outDir: "dist-electron",
             rollupOptions: {
               external: ["electron"],
+              output: {
+                entryFileNames: "main.js",
+              },
             },
           },
         },
@@ -27,6 +31,9 @@ export default defineConfig({
             outDir: "dist-electron",
             rollupOptions: {
               external: ["electron"],
+              output: {
+                entryFileNames: "preload.js",
+              },
             },
           },
         },
@@ -36,8 +43,13 @@ export default defineConfig({
   ],
   root: ".",
   build: {
-    outDir: "dist",
+    outDir: "dist-stub",
     emptyOutDir: true,
+    lib: {
+      entry: resolve(__dirname, "src/build-stub.ts"),
+      formats: ["es"],
+      fileName: () => "stub.js",
+    },
   },
   resolve: {
     alias: {

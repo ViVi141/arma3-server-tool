@@ -1,10 +1,20 @@
 <script setup lang="ts">
-const props = defineProps<{ connectionId: string; serverUuid: string }>();
+import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import { ref } from "vue";
+
+defineProps<{ connectionId: string; serverUuid: string }>();
+
+const showReward = ref(false);
+
+function openGithub() {
+  window.open("https://github.com/ViVi141/arma3-server-tool", "_blank");
+}
 </script>
+
 <template>
-  <div class="about-page">
+  <ConsolePageLayout>
     <h2>关于 Arma3 Server Tools</h2>
-    <el-card style="max-width: 600px; margin-top: 12px;">
+    <el-card style="max-width: 640px; margin-top: 12px;">
       <h3>v2.0.0-alpha</h3>
       <el-divider />
       <p><strong>项目来源:</strong> 从 C# / WinForms 迁移至 TypeScript 全栈</p>
@@ -23,11 +33,32 @@ const props = defineProps<{ connectionId: string; serverUuid: string }>();
       <el-divider />
       <p>Copyright (C) 2026 ViVi141</p>
       <p>Based on original work copyright 2022 destiny studio (Blue, 七龙).</p>
-      <el-button type="primary" @click="window.open('https://github.com/ViVi141/arma3-server-tool', '_blank')" style="margin-top: 8px;">GitHub</el-button>
+      <div style="margin-top: 8px; display: flex; gap: 8px;">
+        <el-button type="primary" @click="openGithub">GitHub</el-button>
+        <el-button @click="showReward = true">赞赏支持</el-button>
+      </div>
     </el-card>
-  </div>
+
+    <el-dialog v-model="showReward" title="赞赏支持" width="480px">
+      <p style="font-size: 12px; color: var(--el-text-color-secondary); margin-bottom: 12px;">
+        如果本工具对你有帮助，欢迎请作者喝杯咖啡
+      </p>
+      <div class="reward-row">
+        <div class="reward-item">
+          <img src="/assets/reward-wechat.png" alt="微信赞赏" />
+          <span>微信</span>
+        </div>
+        <div class="reward-item">
+          <img src="/assets/reward-alipay.jpg" alt="支付宝赞赏" />
+          <span>支付宝</span>
+        </div>
+      </div>
+    </el-dialog>
+  </ConsolePageLayout>
 </template>
-<script lang="ts">
-const win = window as typeof window & { open: (url: string, target: string) => void };
-export default { methods: { window: win } };
-</script>
+
+<style scoped>
+.reward-row { display: flex; gap: 16px; justify-content: center; }
+.reward-item { text-align: center; font-size: 12px; }
+.reward-item img { width: 180px; height: 180px; object-fit: contain; border: 1px solid var(--el-border-color-light); }
+</style>

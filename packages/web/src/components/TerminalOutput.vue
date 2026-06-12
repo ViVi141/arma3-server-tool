@@ -1,16 +1,24 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from "vue";
 
-const props = defineProps<{ url: string; baseUrl?: string }>();
+const props = defineProps<{ url: string; baseUrl?: string; token?: string }>();
 const lines = ref<{ time: string; text: string }[]>([]);
 const connected = ref(false);
 const container = ref<HTMLDivElement | null>(null);
 let eventSource: EventSource | null = null;
 
-onMounted(() => {
+function buildStreamUrl(): string {
   const base = (props.baseUrl ?? "").trim().replace(/\/+$/, "");
-  const fullUrl = `${base}${props.url}`;
-  eventSource = new EventSource(fullUrl);
+  let fullUrl = `${base}${props.url}`;
+  if (props.token) {
+    const sep = fullUrl.includes("?") ? "&" : "?";
+    fullUrl = `${fullUrl}${sep}token=${encodeURIComponent(props.token)}`;
+  }
+  return fullUrl;
+}
+
+onMounted(() => {
+  eventSource = new EventSource(buildStreamUrl());
 
   eventSource.onopen = () => {
     connected.value = true;
@@ -23,6 +31,9 @@ onMounted(() => {
         lines.value.push({ time: "", text: `--- ${data.message} ---` });
       } else if (data.type === "output") {
         lines.value.push({ time: data.time?.slice(11, 19) ?? "", text: data.text });
+        if (lines.value.length > 500) {
+          lines.value.splice(0, lines.value.length - 500);
+        }
       }
       scrollBottom();
     } catch {
@@ -33,7 +44,7 @@ onMounted(() => {
 
   eventSource.onerror = () => {
     connected.value = false;
-    lines.value.push({ time: "", text: "[连接断开]" });
+    lines.value.push({ time: "", text: "[连接断开，请检查 Service 是否运行]" });
   };
 });
 
@@ -58,11 +69,11 @@ function clearLog() {
   <div class="terminal-wrapper">
     <div class="terminal-bar">
       <span :class="connected ? 'dot-green' : 'dot-red'" class="dot" />
-      <span class="status-text">{{ connected ? '已连接' : '未连接' }}</span>
+      <span class="status-text">{{ connected ? '已连接 SSE' : '未连接' }}</span>
       <el-button size="small" @click="clearLog" style="margin-left: auto;">清空</el-button>
     </div>
     <div ref="container" class="terminal-output">
-      <div v-if="lines.length === 0" class="terminal-empty">等待输出...</div>
+      <div v-if="lines.length === 0" class="terminal-empty">等待 SteamCMD 输出...</div>
       <div v-for="(line, i) in lines" :key="i" class="terminal-line">
         <span v-if="line.time" class="time">{{ line.time }}</span>
         <span class="text">{{ line.text }}</span>

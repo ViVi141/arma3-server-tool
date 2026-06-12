@@ -46,41 +46,76 @@ export class ModScanner {
     return results;
   }
 
-  /** Copy bikey files from a mod's Keys directory to the server keys directory */
-  copyBikeys(modPaths: string[], serverKeysDir: string): { copied: number; total: number } {
+  /** Copy bikey files from a mod's keys directory to the server keys directory */
+  copyBikeys(modPaths: string[], serverKeysDir: string): { copied: number; total: number; skipped: number } {
     let total = 0;
     let copied = 0;
+    let skipped = 0;
 
     if (!fs.existsSync(serverKeysDir)) {
       fs.mkdirSync(serverKeysDir, { recursive: true });
     }
 
     for (const modPath of modPaths) {
-      const keysDir = path.join(modPath, "keys");
-      if (!fs.existsSync(keysDir)) continue;
+      const keysDir = this.findKeysDir(modPath);
+      if (!keysDir) {
+        continue;
+      }
 
       for (const file of fs.readdirSync(keysDir)) {
-        if (!file.endsWith(".bikey")) continue;
+        if (!file.toLowerCase().endsWith(".bikey")) {
+          continue;
+        }
         total++;
         const src = path.join(keysDir, file);
         const dst = path.join(serverKeysDir, file);
 
-        if (!fs.existsSync(dst)) {
-          fs.copyFileSync(src, dst);
-          copied++;
+        if (fs.existsSync(dst)) {
+          skipped++;
+          continue;
         }
+
+        fs.copyFileSync(src, dst);
+        copied++;
       }
     }
 
-    return { copied, total };
+    return { copied, total, skipped };
   }
 
-  /** Check if a mod has a Keys directory with .bikey files */
-  private checkBikey(modPath: string): boolean {
-    const keysDir = path.join(modPath, "keys");
-    if (!fs.existsSync(keysDir)) return false;
+  /** List enabled mods missing bikey files */
+  summarizeBikeys(options: ModScannerOptions): {
+    enabled: number;
+    missingBikey: number;
+    ready: number;
+  } {
+    const mods = this.scan(options);
+    const enabledMods = mods.filter((m) => m.enabled);
+    const missingBikey = enabledMods.filter((m) => !m.bikeyPresent).length;
+    return {
+      enabled: enabledMods.length,
+      missingBikey,
+      ready: enabledMods.length - missingBikey,
+    };
+  }
 
-    return fs.readdirSync(keysDir).some((f) => f.endsWith(".bikey"));
+  private findKeysDir(modPath: string): string | null {
+    for (const name of ["keys", "Keys"]) {
+      const dir = path.join(modPath, name);
+      if (fs.existsSync(dir)) {
+        return dir;
+      }
+    }
+    return null;
+  }
+
+  private checkBikey(modPath: string): boolean {
+    const keysDir = this.findKeysDir(modPath);
+    if (!keysDir) {
+      return false;
+    }
+
+    return fs.readdirSync(keysDir).some((f) => f.toLowerCase().endsWith(".bikey"));
   }
 
   /** Try to extract Workshop ID from a mod directory */

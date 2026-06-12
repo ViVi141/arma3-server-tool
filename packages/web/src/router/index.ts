@@ -1,8 +1,8 @@
-import { createRouter, createWebHashHistory } from "vue-router";
+import { createRouter, createWebHashHistory, type RouteRecordRaw } from "vue-router";
 
 const isMobile = import.meta.env.VITE_APP_MODE === "mobile";
 
-const routes = [
+const routes: RouteRecordRaw[] = [
   {
     path: "/",
     redirect: "/connections",
@@ -23,84 +23,14 @@ const routes = [
       ]),
   {
     path: "/console/:connectionId",
+    redirect: (to) => ({
+      path: `/console/${String(to.params.connectionId)}/dashboard`,
+    }),
+  },
+  {
+    path: "/console/:connectionId/:tab",
+    name: "console",
     component: () => import("../views/ServerConsoleView.vue"),
-    children: [
-      {
-        path: "",
-        redirect: (to: { params: { connectionId: string } }) =>
-          `/console/${to.params.connectionId}/dashboard`,
-      },
-      {
-        path: "dashboard",
-        name: "dashboard",
-        component: () => import("../views/DashboardView.vue"),
-      },
-      {
-        path: "missions",
-        name: "missions",
-        component: () => import("../views/MissionsView.vue"),
-      },
-      {
-        path: "mods",
-        name: "mods",
-        component: () => import("../views/ModsView.vue"),
-      },
-      {
-        path: "upload",
-        name: "upload",
-        component: () => import("../views/UploadView.vue"),
-      },
-      {
-        path: "rcon",
-        name: "rcon",
-        component: () => import("../views/RconView.vue"),
-      },
-      {
-        path: "snapshots",
-        name: "snapshots",
-        component: () => import("../views/SnapshotsView.vue"),
-      },
-      {
-        path: "statistics",
-        name: "statistics",
-        component: () => import("../views/StatisticsView.vue"),
-      },
-      {
-        path: "wizard",
-        name: "wizard",
-        component: () => import("../views/SetupWizardView.vue"),
-      },
-      {
-        path: "about",
-        name: "about",
-        component: () => import("../views/AboutView.vue"),
-      },
-      {
-        path: "preflight",
-        name: "preflight",
-        component: () => import("../views/PreflightView.vue"),
-      },
-      {
-        path: "bans",
-        name: "bans",
-        component: () => import("../views/BansView.vue"),
-      },
-      {
-        path: "steamcmd",
-        name: "steamcmd",
-        component: () => import("../views/SteamCmdView.vue"),
-      },
-      {
-        path: "logs",
-        name: "logs",
-        component: () => import("../views/LogsView.vue"),
-      },
-      {
-        path: "settings",
-        name: "server-settings",
-        component: () => import("../views/ConfigView.vue"),
-      },
-    ],
   },
 ];
 

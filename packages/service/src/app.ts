@@ -11,6 +11,8 @@ import { Scheduler } from "./scheduling/index.js";
 import { asyncTaskManager } from "./task/index.js";
 import { RptLogReader } from "./logs/index.js";
 import { sseManager } from "./api/sse.js";
+import { UiSettingsStore } from "./settings/ui-settings.js";
+import { ModScanPathStore } from "./mods/scan-path-store.js";
 
 export interface ServiceOptions {
   port: number;
@@ -30,6 +32,8 @@ export async function createService(options: ServiceOptions) {
   const monitorDb = new MonitoringDb(options.dataDir);
   const scheduler = new Scheduler();
   const rptLogReader = new RptLogReader();
+  const uiSettingsStore = new UiSettingsStore(options.dataDir);
+  const modScanPathStore = new ModScanPathStore(options.dataDir);
 
   // Decorate
   app.decorate("configStore", configStore);
@@ -40,13 +44,16 @@ export async function createService(options: ServiceOptions) {
   app.decorate("monitorDb", monitorDb);
   app.decorate("scheduler", scheduler);
   app.decorate("rptLogReader", rptLogReader);
+  app.decorate("uiSettingsStore", uiSettingsStore);
+  app.decorate("modScanPathStore", modScanPathStore);
   app.decorate("asyncTaskManager", asyncTaskManager);
   app.decorate("dataDir", options.dataDir);
 
   // Auth hook
   app.decorateRequest("authenticated", false);
   app.addHook("onRequest", async (request, reply) => {
-    if (request.url === "/api/v1/health" || request.url === "/api/v1/actions") {
+    const pathOnly = request.url.split("?")[0] ?? request.url;
+    if (pathOnly === "/api/v1/health" || pathOnly === "/api/v1/actions") {
       return;
     }
     const token = options.apiToken;
@@ -60,6 +67,11 @@ export async function createService(options: ServiceOptions) {
       return;
     }
     if (request.headers["x-api-key"] === token) {
+      (request as { authenticated: boolean }).authenticated = true;
+      return;
+    }
+    const query = request.query as { token?: string };
+    if (query.token === token) {
       (request as { authenticated: boolean }).authenticated = true;
       return;
     }

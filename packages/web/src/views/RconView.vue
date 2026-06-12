@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ref } from "vue";
+import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
+import type { RconPlayerRow } from "@a3st/api-client";
+import { parseRconBans, parseRconMissions } from "@/utils/rcon-parse";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
 
-const players = ref<{ id: number; name: string; guid: string; ip: string }[]>([]);
+const players = ref<RconPlayerRow[]>([]);
+const selectedPlayer = ref<RconPlayerRow | null>(null);
 const bans = ref<{ id: number; guid: string; ip: string; duration: string; reason: string }[]>([]);
 const missions = ref<{ map: string; mission: string }[]>([]);
 const loading = ref(false);
@@ -14,7 +17,6 @@ const connected = ref(false);
 const statusText = ref("未连接");
 const activeTab = ref("players");
 
-// Inputs
 const kickReason = ref("管理员踢出");
 const banDuration = ref(60);
 const broadcastText = ref("");
@@ -22,73 +24,179 @@ const playerMessageTarget = ref("");
 const playerMessage = ref("");
 const newRconPassword = ref("");
 
-function resolveHost() { return "127.0.0.1"; }
 async function doAction(action: string, extra: Record<string, unknown> = {}) {
   try {
-    const client = store.getClient(); if (!client) return;
-    const res = await client.submitTask({ serverUuid: props.serverUuid, commands: [{ action: action as never, ...extra }] });
-    ElMessage.success(`已执行`);
+    const client = store.getClient();
+    if (!client) {
+      return null;
+    }
+    const res = await client.submitTask({
+      serverUuid: props.serverUuid,
+      commands: [{ action: action as never, ...extra }],
+    });
+    ElMessage.success("已执行");
     return res;
-  } catch (e: unknown) { ElMessage.error(e instanceof Error ? e.message : "操作失败"); return null; }
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : "操作失败");
+    return null;
+  }
 }
 
 async function connectRcon() {
   loading.value = true;
   statusText.value = "连接中...";
   try {
-    const client = store.getClient(); if (!client) return;
-    const res = await client.submitTask({ serverUuid: props.serverUuid, commands: [{ action: "rcon_players" as const }] });
-    if (res.success) { connected.value = true; statusText.value = `已连接 ${resolveHost()}`; await refreshPlayers(); }
-    else { statusText.value = "连接失败"; }
-  } catch { statusText.value = "连接失败"; }
-  finally { loading.value = false; }
+    await refreshPlayers();
+    connected.value = true;
+    statusText.value = `已连接，在线 ${players.value.length} 人`;
+  } catch (e) {
+    connected.value = false;
+    statusText.value = e instanceof Error ? e.message : "连接失败";
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function refreshPlayers() {
-  if (!connected.value) return;
-  try {
-    const client = store.getClient(); if (!client) return;
-    const res = await client.submitTask({ serverUuid: props.serverUuid, commands: [{ action: "rcon_players" as const }] });
-    const msg = (res.data as { steps?: { message: string }[] })?.steps?.[0]?.message ?? "";
-    const parsed: { id: number; name: string; guid: string; ip: string }[] = [];
-    const lines = msg.split('\\n').filter(l => l.includes('['));
-    for (const line of lines) {
-      const m = line.match(/\[(\d+)\]\s+(.+?)\s+(\w+)\s+(\d+\.\d+\.\d+\.\d+)/);
-      if (m) parsed.push({ id: parseInt(m[1]), name: m[2].trim(), guid: m[3], ip: m[4] });
+  const client = store.getClient();
+  if (!client) {
+    return;
+  }
+
+  const res = await client.getRconPlayers(props.serverUuid);
+  if (!res.success) {
+    connected.value = false;
+    throw new Error(res.error ?? "RCon 连接失败");
+  }
+
+  players.value = res.data.players ?? [];
+  connected.value = true;
+  statusText.value = `已连接，在线 ${players.value.length} 人`;
+
+  if (selectedPlayer.value) {
+    const stillOnline = players.value.find((p) => p.num === selectedPlayer.value?.num);
+    if (!stillOnline) {
+      selectedPlayer.value = null;
     }
-    players.value = parsed;
-  } catch { /* ignore */ }
+  }
+}
+
+function onPlayerRowClick(row: RconPlayerRow) {
+  selectedPlayer.value = row;
+}
+
+function activePlayer(): RconPlayerRow | null {
+  if (selectedPlayer.value) {
+    return selectedPlayer.value;
+  }
+  if (players.value.length > 0) {
+    return players.value[0];
+  }
+  return null;
 }
 
 async function kickSelected() {
-  const sel = players.value[0]; if (!sel) return;
-  await doAction('rcon_kick', { playerId: String(sel.id), reason: kickReason.value });
+  const sel = activePlayer();
+  if (!sel) {
+    return;
+  }
+  await doAction("rcon_kick", { playerId: String(sel.num), reason: kickReason.value });
+  await refreshPlayers();
 }
+
 async function banTemp() {
-  const sel = players.value[0]; if (!sel) return;
-  await doAction('rcon_ban', { playerGuid: sel.guid, playerId: banDuration.value, reason: '临时封禁' });
+  const sel = activePlayer();
+  if (!sel) {
+    return;
+  }
+  await doAction("rcon_ban", { playerGuid: sel.guid, playerId: banDuration.value, reason: "临时封禁" });
 }
+
 async function banPerm() {
-  const sel = players.value[0]; if (!sel) return;
-  await doAction('rcon_ban', { playerGuid: sel.guid, playerId: 0, reason: '永久封禁' });
+  const sel = activePlayer();
+  if (!sel) {
+    return;
+  }
+  await doAction("rcon_ban", { playerGuid: sel.guid, playerId: 0, reason: "永久封禁" });
 }
-async function syncPlayers() { await doAction('rcon_players'); ElMessage.success("已同步到玩家库"); }
+
+async function syncPlayers() {
+  await doAction("rcon_players");
+  ElMessage.success("已同步到玩家库");
+}
+
 async function changePwd() {
-  if (!newRconPassword.value) return;
-  await doAction('rcon_command', { rconCommandText: `#password ${newRconPassword.value}` });
+  if (!newRconPassword.value) {
+    return;
+  }
+  await doAction("rcon_command", { rconCommandText: `#password ${newRconPassword.value}` });
 }
+
+function taskMessage(res: unknown): string {
+  if (!res || typeof res !== "object") {
+    return "";
+  }
+  const data = (res as { data?: TaskDataLike }).data;
+  if (!data) {
+    return "";
+  }
+  if (data.message) {
+    return data.message;
+  }
+  const steps = data.steps ?? [];
+  if (steps.length > 0) {
+    const last = steps[steps.length - 1];
+    if (last.message) {
+      return last.message;
+    }
+  }
+  return "";
+}
+
+interface TaskDataLike {
+  message?: string;
+  steps?: { message?: string }[];
+}
+
 async function loadBans() {
-  const res = await doAction('rcon_command', { rconCommandText: '#bans' });
-  if (res) { const msg = (res.data as { steps?: { message: string }[] })?.steps?.[0]?.message ?? ""; statusText.value = msg; }
+  const res = await doAction("rcon_command", { rconCommandText: "bans" });
+  if (res) {
+    const msg = taskMessage(res);
+    bans.value = parseRconBans(msg);
+    statusText.value = `封禁 ${bans.value.length} 条`;
+  }
 }
-async function saveBans() { await doAction('rcon_command', { rconCommandText: '#savebans' }); }
-async function removeBan(row: { id: number }) { await doAction('rcon_command', { rconCommandText: `#remove ${row.id}` }); }
-async function refreshBans() { /* reload bans via #bans */ }
-async function refreshMissions() { await doAction('rcon_mission'); }
-async function loadMission(row: { mission: string }) { await doAction('rcon_mission', { missionTemplate: row.mission }); }
-async function restartMission() { await doAction('rcon_mission', { missionTemplate: '' }); }
-const lock = () => doAction('rcon_lock');
-const unlock = () => doAction('rcon_unlock');
+
+async function saveBans() {
+  await doAction("rcon_command", { rconCommandText: "#savebans" });
+}
+
+async function removeBan(row: { id: number }) {
+  await doAction("rcon_command", { rconCommandText: `#remove ${row.id}` });
+  await refreshBans();
+}
+
+async function refreshBans() {
+  await loadBans();
+}
+
+async function refreshMissions() {
+  const res = await doAction("rcon_command", { rconCommandText: "missions" });
+  if (res) {
+    missions.value = parseRconMissions(taskMessage(res));
+  }
+}
+
+async function loadMission(row: { mission: string }) {
+  await doAction("rcon_mission", { missionTemplate: row.mission });
+}
+
+async function restartMission() {
+  await doAction("rcon_mission", { missionTemplate: "" });
+}
+
+const lock = () => doAction("rcon_lock");
+const unlock = () => doAction("rcon_unlock");
 </script>
 <template>
 <div class="rcon-page">
@@ -111,11 +219,20 @@ const unlock = () => doAction('rcon_unlock');
 
 <el-tabs v-model="activeTab" class="rcon-tabs">
   <el-tab-pane label="在线玩家" name="players">
-    <el-table :data="players" stripe size="small" @row-click="(r: never)=>0">
-      <el-table-column prop="id" label="序号" width="60"/><el-table-column prop="name" label="昵称" min-width="160"/>
-      <el-table-column prop="guid" label="Steam GUID" width="180"/><el-table-column prop="ip" label="IP 地址" width="130"/>
+    <el-table
+      :data="players"
+      stripe
+      size="small"
+      highlight-current-row
+      @row-click="onPlayerRowClick"
+    >
+      <el-table-column prop="num" label="序号" width="60"/>
+      <el-table-column prop="name" label="昵称" min-width="160"/>
+      <el-table-column prop="guid" label="Steam GUID" width="180"/>
       <el-table-column label="操作" width="160">
-        <template #default="{row}"><el-button size="small" @click="doAction('rcon_kick',{playerId:String(row.id),reason:kickReason.value})">踢出</el-button></template>
+        <template #default="{row}">
+          <el-button size="small" @click.stop="selectedPlayer = row; doAction('rcon_kick',{playerId:String(row.num),reason:kickReason})">踢出</el-button>
+        </template>
       </el-table-column>
     </el-table>
     <el-empty v-if="!players.length" description="点击「连接远程控制」查看在线玩家"/>
@@ -160,9 +277,12 @@ const unlock = () => doAction('rcon_unlock');
 </div>
 </template>
 <style scoped>
-.rcon-page{height:100%;display:flex;flex-direction:column}
-.toolbar{padding:4px 8px;display:flex;gap:4px;align-items:center;border-bottom:1px solid var(--el-border-color);flex-shrink:0;flex-wrap:wrap}
-.status-line{padding:2px 8px;font-size:12px;color:var(--el-text-color-secondary);border-bottom:1px solid var(--el-border-color)}
-.rcon-tabs{flex:1;display:flex;flex-direction:column}
-.rcon-tabs :deep(.el-tabs__content){flex:1;overflow:auto}
+.rcon-page{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--a3st-bg)}
+.toolbar{padding:4px 8px;display:flex;gap:4px;align-items:center;border-bottom:1px solid var(--a3st-border-subtle);flex-shrink:0;flex-wrap:wrap;background:var(--a3st-toolbar);min-height:28px}
+.status-line{padding:3px 8px;font-size:11px;color:var(--a3st-text-dim);border-bottom:1px solid var(--a3st-border-subtle);background:var(--a3st-bg-elevated)}
+.rcon-tabs{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.rcon-tabs :deep(.el-tabs){display:flex;flex-direction:column;height:100%;min-height:0}
+.rcon-tabs :deep(.el-tabs__header){flex-shrink:0;margin:0;padding:0 8px}
+.rcon-tabs :deep(.el-tabs__content){flex:1;min-height:0;overflow:hidden}
+.rcon-tabs :deep(.el-tab-pane){height:100%;overflow-y:auto;padding:8px;box-sizing:border-box}
 </style>

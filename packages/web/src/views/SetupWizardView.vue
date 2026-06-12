@@ -1,19 +1,21 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref } from "vue";
+import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import { useRouter } from "vue-router";
+import type { AsyncTaskResponse } from "@a3st/api-client";
 
 const props = defineProps<{ connectionId: string }>();
 const store = useConnectionsStore();
 const router = useRouter();
 
-// Wizard steps
 const step = ref(0);
 const serverDir = ref("C:\\arma3_server");
 const configName = ref("我的服务器");
 const workshopIds = ref("");
 const creating = ref(false);
 const progress = ref("");
+const progressPercent = ref(0);
 const serverUuid = ref("");
 
 const steps = [
@@ -25,70 +27,107 @@ const steps = [
   "完成",
 ];
 
+async function submitAsyncTask(
+  commands: { action: string; modIds?: number[]; writeCfgAfter?: boolean }[],
+  label: string
+): Promise<boolean> {
+  const client = store.getClient();
+  if (!client) {
+    return false;
+  }
+
+  const res = await client.submitTask({
+    serverUuid: serverUuid.value,
+    async: true,
+    commands: commands as never,
+  });
+  const taskId = (res.data as AsyncTaskResponse).taskId;
+  if (!taskId) {
+    throw new Error(`${label}：未收到任务 ID`);
+  }
+
+  progress.value = `${label}：执行中…`;
+  const finalTask = await client.pollTask(taskId, 2000, 900000);
+  if (finalTask.status !== "Succeeded") {
+    throw new Error(finalTask.error ?? `${label} 失败`);
+  }
+
+  const stepsDone = finalTask.data?.steps ?? [];
+  const last = stepsDone[stepsDone.length - 1];
+  progress.value = last?.message ?? `${label} 完成`;
+  return true;
+}
+
 async function createAndSetup() {
   creating.value = true;
-  step.value = 2;
+  progressPercent.value = 10;
   try {
     const client = store.getClient();
-    if (!client) return;
-
-    // 1. Create server config
-    const res = await fetch(`${store.active?.baseUrl}/api/v1/servers`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ configName: configName.value, serverDir: serverDir.value }),
-    });
-    const data = (await res.json()).data;
-    serverUuid.value = data.uuid;
-    progress.value = "服务器配置已创建";
-    step.value = 1;
-
-    // 2. Setup basic config
-    step.value = 2;
-    progress.value = "正在下载服务器文件...";
-    const updateRes = await fetch(`${store.active?.baseUrl}/api/v1/task`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ serverUuid: serverUuid.value, commands: [{ action: "update_server" }] }),
-    });
-    progress.value = "服务器文件下载已排队";
-
-    // 3. Configure mods
-    step.value = 3;
-    const ids = workshopIds.value.split(/[\s,]+/).map(s => s.trim()).filter(Boolean).map(Number);
-    if (ids.length > 0) {
-      await fetch(`${store.active?.baseUrl}/api/v1/task`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serverUuid: serverUuid.value, async: true, commands: [{ action: "enable_mods", modIds: ids }] }),
-      });
+    if (!client) {
+      return;
     }
 
-    // 4. Write config
+    step.value = 2;
+    progress.value = "正在创建服务器配置…";
+    const createRes = await client.createServer(configName.value, serverDir.value);
+    if (!createRes.success) {
+      throw new Error(createRes.error ?? "创建配置失败");
+    }
+    serverUuid.value = createRes.data.uuid;
+
+    await client.patchConfig(serverUuid.value, {
+      server: { serverDir: serverDir.value, configName: configName.value },
+    } as never);
+
+    progressPercent.value = 30;
+    step.value = 2;
+    await submitAsyncTask([{ action: "update_server" }], "下载/更新服务器文件");
+
+    progressPercent.value = 55;
+    step.value = 3;
+    const ids = workshopIds.value.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean).map(Number).filter((n) => !Number.isNaN(n) && n > 0);
+    if (ids.length > 0) {
+      await submitAsyncTask([
+        { action: "enable_mods", modIds: ids, writeCfgAfter: false },
+        { action: "download_mods", modIds: ids },
+      ], "下载模组");
+    } else {
+      progress.value = "跳过模组配置";
+    }
+
+    progressPercent.value = 75;
     step.value = 4;
-    await fetch(`${store.active?.baseUrl}/api/v1/task`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ serverUuid: serverUuid.value, commands: [{ action: "write_cfg" }] }),
+    await client.submitTask({
+      serverUuid: serverUuid.value,
+      commands: [{ action: "write_cfg" as const }],
     });
     progress.value = "配置已写入";
 
-    // 5. Start server
-    step.value = 4;
-    await fetch(`${store.active?.baseUrl}/api/v1/task`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ serverUuid: serverUuid.value, commands: [{ action: "start" }] }),
+    progressPercent.value = 90;
+    const startRes = await client.submitTask({
+      serverUuid: serverUuid.value,
+      commands: [{ action: "start" as const }],
     });
+    const startData = startRes.data as { success?: boolean; message?: string; steps?: { message: string }[] };
+    if (startData?.success === false) {
+      throw new Error(startData.message ?? "启动失败");
+    }
     progress.value = "服务器已启动";
-
+    progressPercent.value = 100;
     step.value = 5;
-  } catch (e: unknown) { progress.value = e instanceof Error ? e.message : "设置失败"; }
-  finally { creating.value = false; }
+    ElMessage.success("部署完成");
+  } catch (e: unknown) {
+    progress.value = e instanceof Error ? e.message : "设置失败";
+    ElMessage.error(progress.value);
+  } finally {
+    creating.value = false;
+  }
 }
 
 function goToServer() {
-  router.push(`/console/${props.connectionId}/dashboard`);
+  if (serverUuid.value) {
+    router.push(`/console/${props.connectionId}/dashboard`);
+  }
 }
 </script>
 
@@ -128,23 +167,10 @@ function goToServer() {
       </div>
     </el-card>
 
-    <el-card v-if="step === 2">
-      <h3>下载 SteamCMD 和服务器文件</h3>
-      <p>此步骤可能需要几分钟...</p>
-      <el-progress :percentage="50" :stroke-width="12" indeterminate />
+    <el-card v-if="step >= 2 && step < 5">
+      <h3>{{ steps[step] }}</h3>
+      <el-progress :percentage="progressPercent" :stroke-width="12" />
       <p style="margin-top: 8px; color: var(--el-text-color-secondary);">{{ progress }}</p>
-    </el-card>
-
-    <el-card v-if="step === 3">
-      <h3>配置模组</h3>
-      <el-progress :percentage="75" :stroke-width="12" indeterminate />
-      <p style="margin-top: 8px; color: var(--el-text-color-secondary);">{{ progress }}</p>
-    </el-card>
-
-    <el-card v-if="step === 4">
-      <h3>写入配置并启动</h3>
-      <el-progress :percentage="90" :stroke-width="12" indeterminate />
-      <p style="margin-top: 8px;">{{ progress }}</p>
     </el-card>
 
     <el-card v-if="step === 5">

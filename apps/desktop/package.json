@@ -1,16 +1,20 @@
 {
   "name": "@a3st/desktop",
-  "version": "0.1.0",
+  "version": "2.0.0-alpha",
   "private": true,
   "description": "Electron desktop shell for Arma3 Server Tools control panel",
+  "author": "ViVi141",
   "type": "module",
   "main": "./dist-electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit",
-    "lint": "echo ok"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "echo ok",
+    "stage": "powershell -ExecutionPolicy Bypass -File ../../scripts/stage-desktop.ps1",
+    "pack:dir": "npm run stage && electron-builder --config electron-builder.yml --dir",
+    "pack": "npm run stage && electron-builder --config electron-builder.yml"
   },
   "dependencies": {
     "@a3st/web": "*"
@@ -21,7 +25,6 @@
     "typescript": "^5.6.0",
     "vite": "^6.0.0",
     "vite-plugin-electron": "^0.28.0",
-    "vite-plugin-electron-renderer": "^0.14.0",
-    "vue-tsc": "^2.2.0"
+    "vite-plugin-electron-renderer": "^0.14.0"
   }
 }

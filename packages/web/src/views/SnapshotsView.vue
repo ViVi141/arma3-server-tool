@@ -1,11 +1,14 @@
 <script setup lang="ts">
+import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
 import { ref, onMounted } from "vue";
+import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
+import type { SnapshotEntry } from "@a3st/api-client";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
 
-const snapshots = ref<{ id: string; label: string; timestamp: string; files: string[] }[]>([]);
+const snapshots = ref<SnapshotEntry[]>([]);
 const loading = ref(false);
 const creating = ref(false);
 const label = ref("");
@@ -14,12 +17,18 @@ async function loadSnapshots() {
   loading.value = true;
   try {
     const client = store.getClient();
-    if (!client) return;
-    const baseUrl = store.active?.baseUrl ?? "";
-    const r = await fetch(`${baseUrl}/api/v1/servers/${props.serverUuid}/snapshots`);
-    if (r.ok) snapshots.value = (await r.json()).data ?? [];
-  } catch { /* ignore */ }
-  finally { loading.value = false; }
+    if (!client) {
+      return;
+    }
+    const res = await client.listSnapshots(props.serverUuid);
+    if (res.success) {
+      snapshots.value = res.data ?? [];
+    }
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : "加载失败");
+  } finally {
+    loading.value = false;
+  }
 }
 
 onMounted(loadSnapshots);
@@ -28,38 +37,43 @@ async function createSnapshot() {
   creating.value = true;
   try {
     const client = store.getClient();
-    if (!client) return;
-    const baseUrl = store.active?.baseUrl ?? "";
-    await fetch(`${baseUrl}/api/v1/servers/${props.serverUuid}/snapshots`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label: label.value || "手动快照" }),
-    });
+    if (!client) {
+      return;
+    }
+    await client.createSnapshot(props.serverUuid, label.value || "手动快照");
     label.value = "";
     await loadSnapshots();
-  } catch { /* ignore */ }
-  finally { creating.value = false; }
+    ElMessage.success("快照已创建");
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : "创建失败");
+  } finally {
+    creating.value = false;
+  }
 }
 
 async function restoreSnapshot(id: string) {
   try {
     const client = store.getClient();
-    if (!client) return;
-    const baseUrl = store.active?.baseUrl ?? "";
-    await fetch(`${baseUrl}/api/v1/servers/${props.serverUuid}/snapshots/${id}/restore`, { method: "POST" });
+    if (!client) {
+      return;
+    }
+    await client.restoreSnapshot(props.serverUuid, id);
+    ElMessage.success("快照已恢复");
     await loadSnapshots();
-  } catch { /* ignore */ }
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : "恢复失败");
+  }
 }
 </script>
 
 <template>
-  <div class="snapshots-page">
-    <h2>配置快照</h2>
-    <div style="margin: 12px 0; display: flex; gap: 8px;">
+  <ConsolePageLayout>
+    <template #toolbar>
+      <span class="snapshots-title">配置快照</span>
       <el-input v-model="label" placeholder="快照备注" style="max-width: 300px;" />
       <el-button :loading="creating" @click="createSnapshot">创建快照</el-button>
       <el-button @click="loadSnapshots">刷新</el-button>
-    </div>
+    </template>
     <el-card v-loading="loading">
       <el-table v-if="snapshots.length" :data="snapshots" stripe>
         <el-table-column prop="label" label="备注" min-width="150" />
@@ -77,5 +91,13 @@ async function restoreSnapshot(id: string) {
       </el-table>
       <el-empty v-else description="暂无快照" />
     </el-card>
-  </div>
+  </ConsolePageLayout>
 </template>
+
+<style scoped>
+.snapshots-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-right: 8px;
+}
+</style>

@@ -1,58 +1,99 @@
 <script setup lang="ts">
+import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
 import { ref } from "vue";
 import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
+import type { PreflightIssue } from "@a3st/api-client";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
 
-const issues = ref<{ category: string; severity: "ok" | "warning" | "error"; message: string }[]>([]);
+const issues = ref<PreflightIssue[]>([]);
 const loading = ref(false);
 const hasRun = ref(false);
+const hasBlockingErrors = ref(false);
 
 async function runPreflight() {
   loading.value = true;
   hasRun.value = true;
   try {
     const client = store.getClient();
-    if (!client) return;
-    const res = await client.submitTask({
-      serverUuid: props.serverUuid,
-      commands: [{ action: "preflight" as const }],
-    });
-    const data = res.data as { steps?: { message: string }[] };
-    const msg = data?.steps?.[0]?.message ?? "检查完成";
-    issues.value = [
-      { category: "概览", severity: "ok" as const, message: msg },
-      { category: "路径", severity: "ok" as const, message: "服务器目录配置正常" },
-      { category: "RCon", severity: "ok" as const, message: "端口和密码已配置" },
-    ];
+    if (!client) {
+      return;
+    }
+    const res = await client.preflight(props.serverUuid);
+    if (!res.success) {
+      throw new Error(res.error ?? "体检失败");
+    }
+    issues.value = res.data.issues ?? [];
+    hasBlockingErrors.value = !!res.data.hasBlockingErrors;
+    if (hasBlockingErrors.value) {
+      ElMessage.warning("存在阻塞性问题，请先修复后再启动");
+    } else {
+      ElMessage.success("体检完成");
+    }
   } catch (e: unknown) {
-    issues.value = [{ category: "错误", severity: "error" as const, message: e instanceof Error ? e.message : "检查失败" }];
-  } finally { loading.value = false; }
+    issues.value = [{
+      category: "错误",
+      severity: "error",
+      message: e instanceof Error ? e.message : "检查失败",
+    }];
+    hasBlockingErrors.value = true;
+  } finally {
+    loading.value = false;
+  }
+}
+
+function severityTag(severity: PreflightIssue["severity"]): "success" | "warning" | "danger" | "info" {
+  if (severity === "ok") {
+    return "success";
+  }
+  if (severity === "warning") {
+    return "warning";
+  }
+  if (severity === "info") {
+    return "info";
+  }
+  return "danger";
 }
 </script>
 
 <template>
-  <div class="preflight-page">
-    <h2>开服体检</h2>
-    <div style="margin: 12px 0;">
-      <el-button type="primary" :loading="loading" @click="runPreflight">{{ hasRun ? '重新检查' : '开始检查' }}</el-button>
-    </div>
+  <ConsolePageLayout>
+    <template #toolbar>
+      <span class="preflight-title">开服体检</span>
+      <el-button type="primary" :loading="loading" @click="runPreflight">
+        {{ hasRun ? "重新检查" : "开始检查" }}
+      </el-button>
+    </template>
+
+    <el-alert
+      v-if="hasRun && hasBlockingErrors"
+      title="存在阻塞性问题，启动前请先修复"
+      type="error"
+      show-icon
+      style="margin-bottom: 12px;"
+    />
 
     <el-card v-if="hasRun">
       <el-table :data="issues" stripe>
-        <el-table-column prop="category" label="类别" width="100" />
-        <el-table-column label="结果" width="80">
+        <el-table-column prop="category" label="类别" width="120" />
+        <el-table-column label="结果" width="90">
           <template #default="{ row }">
-            <el-tag v-if="row.severity === 'ok'" type="success" size="small">✅</el-tag>
-            <el-tag v-else-if="row.severity === 'warning'" type="warning" size="small">⚠️</el-tag>
-            <el-tag v-else type="danger" size="small">❌</el-tag>
+            <el-tag :type="severityTag(row.severity)" size="small">{{ row.severity }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="message" label="详情" />
       </el-table>
     </el-card>
     <el-empty v-else description="点击「开始检查」运行开服体检" />
-  </div>
+  </ConsolePageLayout>
 </template>
+
+<style scoped>
+.preflight-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-right: 8px;
+}
+</style>

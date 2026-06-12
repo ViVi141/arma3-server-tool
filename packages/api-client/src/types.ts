@@ -69,6 +69,8 @@ export interface ArmaServerConfig {
 export interface MissionEntry {
   template: string;
   difficulty?: number;
+  whiteList?: boolean;
+  choose?: boolean;
 }
 
 // ---- Task ----
@@ -98,7 +100,15 @@ export type TaskAction =
   | "stop_steamcmd"
   | "steamcmd_status"
   | "read_logs"
-  | "read_rpt";
+  | "read_rpt"
+  | "local_ban_add"
+  | "local_ban_remove"
+  | "rcon_lock"
+  | "rcon_unlock"
+  | "help"
+  | "copy_bikeys"
+  | "start_headless_client"
+  | "stop_headless_client";
 
 export interface AutomationCommand {
   action: TaskAction;
@@ -108,6 +118,7 @@ export interface AutomationCommand {
   restartAfter?: boolean;
   restartAfterMission?: boolean;
   modIds?: number[];
+  scope?: "client" | "server" | "hc" | "all";
   enableModsOnServer?: boolean;
   scanModsAfterDownload?: boolean;
   rconMissionName?: string;
@@ -181,12 +192,13 @@ export interface ModHtmlUploadData {
 
 export interface PreflightIssue {
   category: string;
-  severity: "ok" | "warning" | "error";
+  severity: "ok" | "warning" | "error" | "info";
   message: string;
 }
 
 export interface PreflightData {
   issues: PreflightIssue[];
+  hasBlockingErrors?: boolean;
 }
 
 // ---- Logs ----
@@ -201,6 +213,125 @@ export interface LogData {
 
 export interface SteamCmdStatusData {
   isRunning: boolean;
-  isBusy: boolean;
+  isBusy?: boolean;
+  isInstalled?: boolean;
   currentOperation?: string;
+}
+
+export interface RconPlayerRow {
+  num: number;
+  guid: string;
+  name: string;
+}
+
+export interface RconPlayersData {
+  players: RconPlayerRow[];
+  count: number;
+}
+
+export interface BikeySummaryData {
+  enabled: number;
+  missingBikey: number;
+  ready: number;
+}
+
+export interface ModMetaRow {
+  workshopId: number;
+  name: string;
+  path: string;
+  enabled: boolean;
+  isServerMod: boolean;
+  bikeyPresent?: boolean;
+  sizeBytes?: number;
+}
+
+export interface ModScanData {
+  mods: ModMetaRow[];
+}
+
+export interface BanEntry {
+  guid?: string;
+  ip?: string;
+  reason?: string;
+  date?: string;
+  name?: string;
+}
+
+export interface SnapshotEntry {
+  id: string;
+  label: string;
+  timestamp: string;
+  files: string[];
+}
+
+export interface MonitoringStatsPoint {
+  serverUuid: string;
+  playerCount: number;
+  timestamp: string;
+  serverFps?: number;
+}
+
+export interface MonitoringPlayerRow {
+  playerGuid: string;
+  playerName: string;
+  serverUuid: string;
+  lastSeen: string;
+}
+
+export interface MonitoringSummaryData {
+  avgPlayers: number;
+  peakPlayers: number;
+  totalEntries: number;
+}
+
+export interface CreateServerResult {
+  uuid: string;
+}
+
+export interface DashboardData {
+  hostname: string;
+  port: string | number;
+  isRunning: boolean;
+  pid?: number;
+  onlineCount: number | null;
+  monitoring: {
+    avgPlayers: number;
+    peakPlayers: number;
+    totalEntries: number;
+  };
+  scheduleSummary: string;
+  latestRpt: string | null;
+  cfgWritten: boolean;
+}
+
+export type AutoSnapshotMode = "Off" | "BeforeSave" | "BeforeWrite";
+
+export interface UiSettings {
+  showAdvancedSettings: boolean;
+  allowExternalConfigRefresh: boolean;
+  hasShownTrayMinimizeHint: boolean;
+  autoSnapshotMode: AutoSnapshotMode;
+  autoSnapshotAsync: boolean;
+}
+
+export interface ModScanPathEntry {
+  modulePath: string;
+  prefix?: string;
+  remark?: string;
+}
+
+export interface ServerSyncState {
+  lastModified: string | null;
+  cfgWritten: boolean;
+  cfgStale: boolean;
+}
+
+export interface CronJobEntry {
+  taskId: string;
+  cron: string;
+  action?: number | string;
+  actionText?: string;
+  remark?: string;
+  enabled?: boolean;
+  status?: number;
 }

@@ -30,6 +30,7 @@ export async function healthRoutes(app: FastifyInstance) {
           { method: "GET", path: "/api/v1/actions" },
           { method: "GET", path: "/api/v1/servers" },
           { method: "GET", path: "/api/v1/servers/{uuid}/status" },
+          { method: "GET", path: "/api/v1/servers/{uuid}/dashboard" },
           { method: "GET", path: "/api/v1/servers/{uuid}/config" },
           { method: "PUT", path: "/api/v1/servers/{uuid}/config" },
           { method: "PATCH", path: "/api/v1/servers/{uuid}/config" },

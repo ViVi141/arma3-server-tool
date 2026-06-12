@@ -108,19 +108,6 @@ export class MonitoringDb {
     this.save();
   }
 
-  getStats(serverUuid: string, sinceHours = 24): StatsRecord[] {
-    const rows = this.db.exec(
-      `SELECT server_uuid as serverUuid, player_count as playerCount,
-              recorded_at as timestamp, server_fps as serverFps
-       FROM a3st_statistics
-       WHERE server_uuid = ?
-         AND recorded_at >= datetime('now', ?)
-       ORDER BY recorded_at ASC`,
-      [serverUuid, `-${sinceHours} hours`]
-    );
-    return this.parseRows(rows);
-  }
-
   getSummary(serverUuid: string): {
     avgPlayers: number;
     peakPlayers: number;
@@ -142,6 +129,40 @@ export class MonitoringDb {
       };
     }
     return { avgPlayers: 0, peakPlayers: 0, totalEntries: 0 };
+  }
+
+  getStats(serverUuid: string, sinceHours = 24): StatsRecord[] {
+    const rows = this.db.exec(
+      `SELECT server_uuid as serverUuid, player_count as playerCount,
+              recorded_at as timestamp, server_fps as serverFps
+       FROM a3st_statistics
+       WHERE server_uuid = ?
+         AND recorded_at >= datetime('now', ?)
+       ORDER BY recorded_at ASC`,
+      [serverUuid, `-${sinceHours} hours`]
+    );
+    return this.parseRows(rows);
+  }
+
+  listPlayers(serverUuid: string, limit = 200): PlayerRecord[] {
+    const rows = this.db.exec(
+      `SELECT guid as playerGuid, name as playerName, server_uuid as serverUuid,
+              last_seen as lastSeen
+       FROM a3st_players
+       WHERE server_uuid = ?
+       ORDER BY last_seen DESC
+       LIMIT ?`,
+      [serverUuid, limit]
+    );
+    if (rows.length === 0) {
+      return [];
+    }
+    return rows[0].values.map((v: SqlJsValue[]) => ({
+      playerGuid: v[0] as string,
+      playerName: v[1] as string,
+      serverUuid: v[2] as string,
+      lastSeen: v[3] as string,
+    }));
   }
 
   close(): void {

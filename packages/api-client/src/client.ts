@@ -15,6 +15,19 @@ import type {
   PreflightData,
   LogData,
   SteamCmdStatusData,
+  DashboardData,
+  RconPlayersData,
+  BikeySummaryData,
+  ModScanData,
+  BanEntry,
+  SnapshotEntry,
+  MonitoringStatsPoint,
+  MonitoringPlayerRow,
+  MonitoringSummaryData,
+  CreateServerResult,
+  UiSettings,
+  ModScanPathEntry,
+  ServerSyncState,
 } from "./types";
 
 export type * from "./types";
@@ -60,6 +73,23 @@ export class A3stClient {
     return r.json();
   }
 
+  private async put<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
+    const r = await this.f(`${this.baseUrl}${path}`, {
+      method: "PUT",
+      headers: this.headers(body != null ? { "Content-Type": "application/json" } : undefined),
+      body: body != null ? JSON.stringify(body) : undefined,
+    });
+    return r.json();
+  }
+
+  private async deleteReq<T>(path: string): Promise<ApiResponse<T>> {
+    const r = await this.f(`${this.baseUrl}${path}`, {
+      method: "DELETE",
+      headers: this.headers(),
+    });
+    return r.json();
+  }
+
   async postRaw(path: string, init: RequestInit): Promise<Response> {
     return this.f(`${this.baseUrl}${path}`, {
       ...init,
@@ -91,6 +121,18 @@ export class A3stClient {
     return r.json();
   }
 
+  async getDashboard(uuid: string): Promise<ApiResponse<DashboardData>> {
+    return this.get(`/api/v1/servers/${uuid}/dashboard`);
+  }
+
+  async getRconPlayers(uuid: string): Promise<ApiResponse<RconPlayersData>> {
+    return this.get(`/api/v1/servers/${uuid}/rcon/players`);
+  }
+
+  async getBikeySummary(uuid: string): Promise<ApiResponse<BikeySummaryData>> {
+    return this.get(`/api/v1/servers/${uuid}/mods/bikeys`);
+  }
+
   async getConfig(uuid: string): Promise<ApiResponse<ArmaServerConfig>> {
     return this.get(`/api/v1/servers/${uuid}/config`);
   }
@@ -103,6 +145,82 @@ export class A3stClient {
       body: JSON.stringify(patch),
     });
     return r.json();
+  }
+
+  async createServer(configName: string, serverDir?: string): Promise<ApiResponse<CreateServerResult>> {
+    return this.post("/api/v1/servers", { configName, serverDir });
+  }
+
+  async cloneServer(uuid: string): Promise<ApiResponse<CreateServerResult>> {
+    return this.post(`/api/v1/servers/${uuid}/clone`);
+  }
+
+  async deleteServer(uuid: string): Promise<ApiResponse<{ message: string }>> {
+    return this.deleteReq(`/api/v1/servers/${uuid}`);
+  }
+
+  async renameServer(uuid: string, newName: string): Promise<ApiResponse<{ message: string }>> {
+    return this.put(`/api/v1/servers/${uuid}/rename`, { newName });
+  }
+
+  async getModScan(uuid: string): Promise<ApiResponse<ModScanData>> {
+    return this.get(`/api/v1/servers/${uuid}/mods`);
+  }
+
+  async getBans(): Promise<ApiResponse<BanEntry[]>> {
+    return this.get("/api/v1/bans");
+  }
+
+  async saveBans(bans: BanEntry[]): Promise<ApiResponse<{ message: string; count: number }>> {
+    return this.post("/api/v1/bans", bans);
+  }
+
+  async removeBan(guid: string): Promise<ApiResponse<{ message: string }>> {
+    return this.deleteReq(`/api/v1/bans/${encodeURIComponent(guid)}`);
+  }
+
+  async listSnapshots(uuid: string): Promise<ApiResponse<SnapshotEntry[]>> {
+    return this.get(`/api/v1/servers/${uuid}/snapshots`);
+  }
+
+  async createSnapshot(uuid: string, label: string): Promise<ApiResponse<SnapshotEntry>> {
+    return this.post(`/api/v1/servers/${uuid}/snapshots`, { label });
+  }
+
+  async restoreSnapshot(uuid: string, snapshotId: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post(`/api/v1/servers/${uuid}/snapshots/${snapshotId}/restore`);
+  }
+
+  async getMonitoringSummary(uuid: string): Promise<ApiResponse<MonitoringSummaryData>> {
+    return this.get(`/api/v1/servers/${uuid}/monitoring/summary`);
+  }
+
+  async getMonitoringStats(uuid: string, hours = 24): Promise<ApiResponse<{ stats: MonitoringStatsPoint[] }>> {
+    return this.get(`/api/v1/servers/${uuid}/monitoring/stats?hours=${hours}`);
+  }
+
+  async getMonitoringPlayers(uuid: string): Promise<ApiResponse<{ players: MonitoringPlayerRow[] }>> {
+    return this.get(`/api/v1/servers/${uuid}/monitoring/players`);
+  }
+
+  async getSyncState(uuid: string): Promise<ApiResponse<ServerSyncState>> {
+    return this.get(`/api/v1/servers/${uuid}/sync-state`);
+  }
+
+  async getUiSettings(): Promise<ApiResponse<UiSettings>> {
+    return this.get("/api/v1/settings/ui");
+  }
+
+  async saveUiSettings(settings: UiSettings): Promise<ApiResponse<UiSettings>> {
+    return this.put("/api/v1/settings/ui", settings);
+  }
+
+  async getModScanPaths(): Promise<ApiResponse<{ paths: ModScanPathEntry[] }>> {
+    return this.get("/api/v1/settings/mod-scan-paths");
+  }
+
+  async saveModScanPaths(paths: ModScanPathEntry[]): Promise<ApiResponse<{ paths: ModScanPathEntry[]; message: string }>> {
+    return this.put("/api/v1/settings/mod-scan-paths", { paths });
   }
 
   // ---- Tasks ----
@@ -123,6 +241,25 @@ export class A3stClient {
 
   async getTask(taskId: string): Promise<ApiResponse<TaskStatus>> {
     return this.get(`/api/v1/tasks/${taskId}`);
+  }
+
+  async pollTask(
+    taskId: string,
+    intervalMs = 2000,
+    timeoutMs = 600000
+  ): Promise<TaskStatus> {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      const res = await this.getTask(taskId);
+      const status = res.data.status;
+      if (status === "Succeeded" || status === "Failed") {
+        return res.data;
+      }
+      await new Promise((resolve) => {
+        setTimeout(resolve, intervalMs);
+      });
+    }
+    throw new Error("任务等待超时");
   }
 
   // ---- Files ----

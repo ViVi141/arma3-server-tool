@@ -8,6 +8,8 @@ import type { MonitoringDb } from "../monitoring/db.js";
 import type { Scheduler } from "../scheduling/cron.js";
 import type { AsyncTaskManager } from "../task/manager.js";
 import type { RptLogReader } from "../logs/reader.js";
+import type { UiSettingsStore } from "../settings/ui-settings.js";
+import type { ModScanPathStore } from "../mods/scan-path-store.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -19,6 +21,8 @@ declare module "fastify" {
     monitorDb: MonitoringDb;
     scheduler: Scheduler;
     rptLogReader: RptLogReader;
+    uiSettingsStore: UiSettingsStore;
+    modScanPathStore: ModScanPathStore;
     asyncTaskManager: AsyncTaskManager;
     dataDir: string;
   }

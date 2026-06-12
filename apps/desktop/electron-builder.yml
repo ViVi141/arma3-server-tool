@@ -1,0 +1,43 @@
+appId: com.vivi141.arma3servertools
+productName: Arma3 Server Tools
+copyright: Copyright © 2026 ViVi141
+electronVersion: 33.4.11
+artifactName: Arma3ServerTools-Setup-${version}.${ext}
+
+directories:
+  output: ../../artifacts/desktop
+  buildResources: build
+
+files:
+  - dist-electron/**/*
+  - package.json
+  - "!dist-stub/**"
+  - "!electron-resources/**"
+
+extraResources:
+  - from: electron-resources/web
+    to: web
+    filter:
+      - "**/*"
+  - from: electron-resources/service
+    to: service
+    filter:
+      - "**/*"
+  - from: electron-resources/assets
+    to: assets
+    filter:
+      - "**/*"
+
+asar: true
+
+win:
+  target:
+    - nsis
+  icon: build/icon.ico
+  signAndEditExecutable: false
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: Arma3 Server Tools

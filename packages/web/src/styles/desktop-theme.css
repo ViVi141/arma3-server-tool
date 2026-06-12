@@ -1,0 +1,463 @@
+/* Arma3 Server Tools — desktop shell theme (VS Code / WinUI inspired) */
+
+:root {
+  --a3st-bg: #1e1e1e;
+  --a3st-bg-panel: #252526;
+  --a3st-bg-elevated: #2d2d2d;
+  --a3st-bg-input: #3c3c3c;
+  --a3st-bg-hover: #2a2d2e;
+  --a3st-bg-active: #37373d;
+  --a3st-bg-selected: #094771;
+  --a3st-border: #3c3c3c;
+  --a3st-border-subtle: #2b2b2b;
+  --a3st-text: #cccccc;
+  --a3st-text-muted: #969696;
+  --a3st-text-dim: #6e6e6e;
+  --a3st-accent: #0078d4;
+  --a3st-accent-hover: #1a86d9;
+  --a3st-success: #4ec9b0;
+  --a3st-danger: #f48771;
+  --a3st-warning: #cca700;
+  --a3st-titlebar: #323233;
+  --a3st-toolbar: #333333;
+  --a3st-statusbar: #007acc;
+  --a3st-statusbar-text: #ffffff;
+  --a3st-font: "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  --a3st-font-mono: Consolas, "Courier New", monospace;
+
+  /* Element Plus overrides */
+  --el-bg-color: var(--a3st-bg);
+  --el-bg-color-page: var(--a3st-bg);
+  --el-bg-color-overlay: var(--a3st-bg-elevated);
+  --el-text-color-primary: var(--a3st-text);
+  --el-text-color-regular: var(--a3st-text);
+  --el-text-color-secondary: var(--a3st-text-muted);
+  --el-text-color-placeholder: var(--a3st-text-dim);
+  --el-border-color: var(--a3st-border);
+  --el-border-color-light: var(--a3st-border-subtle);
+  --el-border-color-lighter: var(--a3st-border-subtle);
+  --el-border-color-extra-light: var(--a3st-border-subtle);
+  --el-fill-color: var(--a3st-bg-elevated);
+  --el-fill-color-light: var(--a3st-bg-panel);
+  --el-fill-color-lighter: var(--a3st-bg-hover);
+  --el-fill-color-blank: var(--a3st-bg);
+  --el-color-primary: var(--a3st-accent);
+  --el-color-primary-light-3: #1a86d9;
+  --el-color-primary-light-5: #2d8fd9;
+  --el-color-primary-light-7: #4098de;
+  --el-color-primary-light-8: #529de0;
+  --el-color-primary-light-9: #094771;
+  --el-color-primary-dark-2: #006cbe;
+  --el-color-success: var(--a3st-success);
+  --el-color-warning: var(--a3st-warning);
+  --el-color-danger: var(--a3st-danger);
+  --el-color-info: var(--a3st-text-muted);
+  --el-disabled-bg-color: var(--a3st-bg-panel);
+  --el-disabled-text-color: var(--a3st-text-dim);
+  --el-disabled-border-color: var(--a3st-border-subtle);
+  --el-mask-color: rgba(0, 0, 0, 0.6);
+  --el-box-shadow: none;
+  --el-box-shadow-light: none;
+  --el-font-size-base: 12px;
+  --el-component-size: 26px;
+  --el-component-size-small: 22px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--a3st-font);
+  font-size: 12px;
+  color: var(--a3st-text);
+  background: var(--a3st-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── App shell ── */
+
+.app-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--a3st-bg);
+}
+
+.title-bar {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  background: var(--a3st-titlebar);
+  color: var(--a3st-text);
+  font-size: 12px;
+  user-select: none;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--a3st-border-subtle);
+}
+
+.title-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-mark {
+  width: 16px;
+  height: 16px;
+  background: var(--a3st-accent);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.app-name {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.app-version {
+  font-size: 11px;
+  color: var(--a3st-text-dim);
+}
+
+.title-bar-center {
+  flex: 1;
+  text-align: center;
+}
+
+.title-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.title-link {
+  color: var(--a3st-text-muted);
+  text-decoration: none;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+
+.title-link:hover {
+  color: var(--a3st-text);
+  background: var(--a3st-bg-hover);
+}
+
+.app-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Element Plus desktop overrides ── */
+
+.el-button {
+  border-radius: 2px !important;
+  font-weight: 400 !important;
+  --el-button-bg-color: var(--a3st-bg-elevated);
+  --el-button-border-color: var(--a3st-border);
+  --el-button-text-color: var(--a3st-text);
+  --el-button-hover-bg-color: var(--a3st-bg-hover);
+  --el-button-hover-border-color: var(--a3st-border);
+  --el-button-hover-text-color: var(--a3st-text);
+}
+
+.el-button--primary {
+  --el-button-bg-color: var(--a3st-accent);
+  --el-button-border-color: var(--a3st-accent);
+  --el-button-text-color: #ffffff;
+  --el-button-hover-bg-color: var(--a3st-accent-hover);
+  --el-button-hover-border-color: var(--a3st-accent-hover);
+}
+
+.el-button--success {
+  --el-button-bg-color: #2d6a4f;
+  --el-button-border-color: #40916c;
+}
+
+.el-button--warning {
+  --el-button-bg-color: #7a6200;
+  --el-button-border-color: #9a7b00;
+}
+
+.el-button--danger {
+  --el-button-bg-color: #8b3a3a;
+  --el-button-border-color: #a04545;
+}
+
+.el-button.is-text {
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+}
+
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper {
+  border-radius: 2px !important;
+  background-color: var(--a3st-bg-input) !important;
+  box-shadow: 0 0 0 1px var(--a3st-border) inset !important;
+}
+
+.el-input__wrapper:hover,
+.el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--a3st-text-dim) inset !important;
+}
+
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 1px var(--a3st-accent) inset !important;
+}
+
+.el-card {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: 1px solid var(--a3st-border) !important;
+  background: var(--a3st-bg-panel) !important;
+  --el-card-padding: 10px;
+}
+
+.el-card__header {
+  padding: 6px 10px !important;
+  border-bottom: 1px solid var(--a3st-border-subtle) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--a3st-text-muted) !important;
+  background: var(--a3st-bg-elevated) !important;
+}
+
+.el-dialog {
+  border-radius: 0 !important;
+  border: 1px solid var(--a3st-border);
+  background: var(--a3st-bg-panel) !important;
+}
+
+.el-dialog__header {
+  padding: 8px 12px !important;
+  margin: 0 !important;
+  border-bottom: 1px solid var(--a3st-border-subtle);
+  background: var(--a3st-bg-elevated);
+}
+
+.el-dialog__title {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+.el-dialog__body {
+  padding: 12px !important;
+}
+
+.el-dialog__footer {
+  padding: 8px 12px !important;
+  border-top: 1px solid var(--a3st-border-subtle);
+}
+
+.el-table {
+  border-radius: 0 !important;
+  --el-table-bg-color: var(--a3st-bg);
+  --el-table-tr-bg-color: var(--a3st-bg);
+  --el-table-header-bg-color: var(--a3st-bg-elevated);
+  --el-table-row-hover-bg-color: var(--a3st-bg-hover);
+  --el-table-border-color: var(--a3st-border-subtle);
+  --el-table-text-color: var(--a3st-text);
+  --el-table-header-text-color: var(--a3st-text-muted);
+  font-size: 12px !important;
+}
+
+.el-table th.el-table__cell {
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background: var(--a3st-bg-panel) !important;
+}
+
+.el-tabs__item {
+  border-radius: 0 !important;
+  font-size: 12px !important;
+  height: 32px !important;
+  line-height: 32px !important;
+  color: var(--a3st-text-muted) !important;
+}
+
+.el-tabs__item.is-active {
+  color: var(--a3st-text) !important;
+}
+
+.el-tabs__active-bar {
+  background-color: var(--a3st-accent) !important;
+  height: 2px !important;
+}
+
+.el-tabs__nav-wrap::after {
+  background-color: var(--a3st-border-subtle) !important;
+}
+
+.el-tabs--border-card {
+  border-radius: 0 !important;
+  border: 1px solid var(--a3st-border) !important;
+  box-shadow: none !important;
+  background: var(--a3st-bg) !important;
+}
+
+.el-tabs--border-card > .el-tabs__header {
+  background: var(--a3st-bg-elevated) !important;
+  border-bottom: 1px solid var(--a3st-border-subtle) !important;
+}
+
+.el-menu {
+  border-right: none !important;
+  background: transparent !important;
+}
+
+.el-divider {
+  margin: 8px 0 !important;
+  border-color: var(--a3st-border-subtle) !important;
+}
+
+.el-form-item {
+  margin-bottom: 10px !important;
+}
+
+.el-form-item__label {
+  font-size: 12px !important;
+  color: var(--a3st-text-muted) !important;
+}
+
+.el-message {
+  border-radius: 2px !important;
+  border: 1px solid var(--a3st-border) !important;
+  background: var(--a3st-bg-elevated) !important;
+}
+
+.el-alert {
+  border-radius: 0 !important;
+  border: 1px solid var(--a3st-border) !important;
+}
+
+.el-empty__description {
+  font-size: 12px !important;
+  color: var(--a3st-text-dim) !important;
+}
+
+.el-popover.el-popper {
+  border-radius: 0 !important;
+  border: 1px solid var(--a3st-border) !important;
+  background: var(--a3st-bg-panel) !important;
+}
+
+.el-select-dropdown {
+  border-radius: 0 !important;
+  border: 1px solid var(--a3st-border) !important;
+}
+
+.el-scrollbar__thumb {
+  background-color: rgba(121, 121, 121, 0.4) !important;
+  border-radius: 0 !important;
+}
+
+.el-scrollbar__thumb:hover {
+  background-color: rgba(121, 121, 121, 0.7) !important;
+}
+
+/* ── Shared form panels ── */
+
+.console-fieldset,
+fieldset {
+  border: 1px solid var(--a3st-border);
+  background: var(--a3st-bg-panel);
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+
+.console-fieldset legend,
+fieldset legend {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 4px;
+  color: var(--a3st-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.console-form-row,
+.row,
+.field-row,
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.console-form-row label,
+.row label,
+.field-row label,
+.form-row label {
+  width: 120px;
+  font-size: 12px;
+  color: var(--a3st-text-muted);
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.console-form-row label.w-wide {
+  width: 160px;
+}
+
+.console-form-row label.w-xwide {
+  width: 180px;
+}
+
+/* ── Stat tiles (dashboard etc.) ── */
+
+.stat-tile {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 8px;
+  background: var(--a3st-bg-panel);
+  border: 1px solid var(--a3st-border-subtle);
+  font-size: 12px;
+  min-height: 28px;
+}
+
+.stat-tile__label {
+  color: var(--a3st-text-muted);
+}
+
+.stat-tile__value {
+  font-weight: 600;
+  font-family: var(--a3st-font-mono);
+  font-size: 12px;
+}
+
+.notice-bar {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-left: 3px solid var(--a3st-warning);
+  background: rgba(204, 167, 0, 0.12);
+  color: var(--a3st-text);
+  margin: 8px 0;
+}
+
+.notice-bar--info {
+  border-left-color: var(--a3st-accent);
+  background: rgba(0, 120, 212, 0.12);
+}

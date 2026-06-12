@@ -29,6 +29,11 @@ export const DEFAULTS: Record<string, Record<string, unknown>> = {
     restartOnCrash: true,
     startupDelay: 0,
     startArgs: "",
+    dlcContact: false,
+    dlcGm: false,
+    dlcCsla: false,
+    dlcWs: false,
+    dlcVn: false,
   },
   basic: {
     hostname: "Arma3 Server",
