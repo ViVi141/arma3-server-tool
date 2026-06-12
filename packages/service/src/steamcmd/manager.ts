@@ -72,10 +72,11 @@ export class SteamCmdManager extends EventEmitter {
   }
 
   /** 安装/更新 Arma 3 专用服务器 */
-  async updateServer(onOutput?: (line: string) => void): Promise<void> {
+  async updateServer(serverDir?: string, onOutput?: (line: string) => void): Promise<void> {
     await this.ensureInstalled();
+    const installDir = serverDir ?? this.installDir;
     return this.runSteamCmd([
-      "+force_install_dir", this.installDir,
+      "+force_install_dir", installDir,
       "+app_update", APP_ID_ARMA3_SERVER, "validate",
       "+quit",
     ], onOutput);

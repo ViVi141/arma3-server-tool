@@ -126,6 +126,16 @@ export async function apiRoutes(app: FastifyInstance) {
     }, null, "");
   });
 
+  app.put("/steamcmd/credentials", async (req, reply) => {
+    const body = req.body as { username?: string; password?: string } | null;
+    if (!body?.username || !body?.password) {
+      reply.status(400);
+      return envelope(false, null, "INVALID_CREDENTIALS", "");
+    }
+    app.steamCmd.setCredentials(body.username, body.password);
+    return envelope(true, { message: "凭据已设置" }, null, "");
+  });
+
   app.get("/steamcmd/log", async (req) => {
     const query = req.query as { tail?: string };
     const maxLines = parseInt(query.tail ?? "300", 10);
@@ -588,6 +598,15 @@ async function executeCommand(
         ...config.mods,
         enabledIds: [...new Set([...(config.mods?.enabledIds ?? []), ...enableIds])],
       };
+      // Update startup parameters with mod list
+      const enabledList = config.mods?.enabledIds ?? [];
+      if (enabledList.length > 0 && config?.server?.serverDir) {
+        const modParam = `-mod=${enabledList.map((id) => `workshop_${id}`).join(";@")}`;
+        config.startup = {
+          ...config.startup,
+          parameters: appendModParam(config.startup?.parameters ?? "", modParam),
+        };
+      }
       app.configStore.save(uuid, config);
       return ok(`已启用 ${enableIds.length} 个模组`);
     }
@@ -598,6 +617,10 @@ async function executeCommand(
         ...config.mods,
         enabledIds: (config.mods?.enabledIds ?? []).filter((id) => !disableIds.has(id)),
       };
+      // Remove mods from startup parameters
+      if (config?.startup?.parameters) {
+        config.startup.parameters = config.startup.parameters.replace(/-mod=[^ ]+/g, "").replace(/\s{2,}/g, " ").trim();
+      }
       app.configStore.save(uuid, config);
       return ok(`已禁用 ${disableIds.size} 个模组`);
     }
@@ -626,8 +649,9 @@ async function executeCommand(
       return ok(`导入成功（${(cmd.modIds as number[] | undefined)?.length ?? 0} 个模组）`);
     }
     case "update_server": {
+      const targetDir = config?.server?.serverDir;
       app.steamCmd.ensureInstalled()
-        .then(() => app.steamCmd.updateServer())
+        .then(() => app.steamCmd.updateServer(targetDir))
         .catch((e: Error) => app.steamCmd.emit("output", `更新失败: ${e.message}`));
       return ok("服务器更新已排队");
     }
@@ -773,6 +797,11 @@ function saveLocalBans(dataDir: string, bans: BanEntry[]): void {
 function ok(message: string) {
   return { success: true, message };
 }
+function appendModParam(existing: string, modParam: string): string {
+  const cleaned = existing.replace(/-mod=[^ ]+/g, "").replace(/\s{2,}/g, " ").trim();
+  return (cleaned + " " + modParam).trim();
+}
+
 function fail(message: string) {
   return { success: false, message };
 }

@@ -43,7 +43,7 @@ export const useConnectionsStore = defineStore("connections", () => {
 
   function add(conn: Omit<SavedConnection, "id">) {
     const id = crypto.randomUUID();
-    connections.value.push({ id, ...conn });
+    connections.value.push({ id, ...conn, baseUrl: conn.baseUrl.trim() });
     persist();
     return id;
   }
@@ -61,7 +61,7 @@ export const useConnectionsStore = defineStore("connections", () => {
   function getClient(): A3stClient | null {
     const conn = active.value;
     if (!conn) return null;
-    return createClient(conn.baseUrl, conn.token);
+    return createClient(conn.baseUrl.trim(), conn.token);
   }
 
   return { connections, activeId, active, add, remove, setActive, getClient, persist };

@@ -4,11 +4,11 @@ import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import TerminalOutput from "@/components/TerminalOutput.vue";
 
-const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
 const baseUrl = ref(store.active?.baseUrl ?? "");
 
-const activeTab = ref("basic");
+const props = defineProps<{ connectionId: string; serverUuid: string; initialTab?: string }>();
+const activeTab = ref(props.initialTab ?? "basic");
 const rawConfig = ref<Record<string, unknown>>({});
 const loading = ref(false);
 const saving = ref(false);
@@ -136,6 +136,146 @@ async function addMission() {
             <el-button type="primary" :loading="saving" @click="saveSection('startup')">保存</el-button>
           </el-form-item>
         </el-form>
+      </el-tab-pane>
+
+      <el-tab-pane label="性能" name="performance">
+        <div v-loading="loading" style="max-height: 600px; overflow-y: auto;">
+          <el-form label-width="180px" style="padding: 4px;">
+            <h4>CPU / 内存</h4>
+            <el-form-item label="CPU 核心数"><el-input-number v-model="sections.startup.cpuCount" :min="0" :max="128" /></el-form-item>
+            <el-form-item label="额外线程"><el-input-number v-model="sections.startup.exThreads" :min="0" :max="32" /></el-form-item>
+            <el-form-item label="最大内存(MB)"><el-input-number v-model="sections.startup.maxMem" :min="0" :max="65536" /></el-form-item>
+            <el-form-item label="帧率上限"><el-input-number v-model="sections.startup.limitFps" :min="1" :max="1000" /></el-form-item>
+            <el-divider />
+            <h4>画面</h4>
+            <el-form-item label="视距"><el-input-number v-model="sections.startup.viewDistance" :min="200" :max="10000" /></el-form-item>
+            <el-form-item label="地形网格"><el-input-number v-model="sections.startup.terrainGrid" :min="1" :max="50" /></el-form-item>
+            <el-divider />
+            <h4>高级</h4>
+            <el-form-item label="超线程"><el-switch v-model="sections.startup.enableHT" /></el-form-item>
+            <el-form-item label="大页内存"><el-switch v-model="sections.startup.hugepages" /></el-form-item>
+            <el-form-item label="任务预加载"><el-switch v-model="sections.startup.loadMissionToMemory" /></el-form-item>
+            <el-form-item label="禁用服务端线程"><el-switch v-model="sections.startup.disableServerThread" /></el-form-item>
+            <el-form-item style="margin-top: 12px;">
+              <el-button type="primary" :loading="saving" @click="saveSection('startup')">保存</el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane label="网络" name="network">
+        <div v-loading="loading" style="max-height: 600px; overflow-y: auto;">
+          <el-form label-width="180px" style="padding: 4px;">
+            <h4>简易设置</h4>
+            <el-form-item label="上行带宽(Mbps)"><el-input-number v-model="sections.startup.uploadMbps" :min="1" :max="10000" /></el-form-item>
+            <el-divider />
+            <h4>专业设置 (basic.cfg)</h4>
+            <el-form-item label="MaxMsgSend"><el-input-number v-model="sections.basic.maxMsgSend" :min="64" :max="512" /></el-form-item>
+            <el-form-item label="MaxSizeGuaranteed"><el-input-number v-model="sections.basic.maxSizeGuaranteed" :min="128" :max="1024" /></el-form-item>
+            <el-form-item label="MaxSizeNonguaranteed"><el-input-number v-model="sections.basic.maxSizeNonguaranteed" :min="64" :max="512" /></el-form-item>
+            <el-form-item label="MinBandwidth"><el-input-number v-model="sections.basic.minBandwidth" :min="16384" :max="1048576" /></el-form-item>
+            <el-form-item label="MaxBandwidth"><el-input-number v-model="sections.basic.maxBandwidth" :min="131072" :max="10485760" /></el-form-item>
+            <el-form-item label="MaxPacketSize"><el-input-number v-model="sections.basic.maxPacketSize" :min="500" :max="2000" /></el-form-item>
+            <el-form-item label="MaxCustomFileSize"><el-input-number v-model="sections.basic.maxCustomFileSize" :min="0" :max="100" /></el-form-item>
+            <el-form-item label="MinErrorToSend"><el-input-number v-model="sections.basic.minErrorToSend" :min="0" :max="1" :step="0.001" /></el-form-item>
+            <el-form-item label="MinErrorToSendNear"><el-input-number v-model="sections.basic.minErrorToSendNear" :min="0" :max="1" :step="0.001" /></el-form-item>
+            <el-form-item label="UPnP"><el-switch v-model="sections.basic.upnp" /></el-form-item>
+            <el-form-item style="margin-top: 12px;">
+              <el-button type="primary" :loading="saving" @click="saveSection('basic')">保存</el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane label="难度" name="difficulty">
+        <div v-loading="loading" style="max-height: 600px; overflow-y: auto;">
+          <el-form label-width="180px" style="padding: 4px;">
+            <h4>界面</h4>
+            <el-form-item label="小队指示器"><el-select v-model="sections.basic.groupIndicators"><el-option value="0" label="从不" /><el-option value="1" label="有限距离" /><el-option value="2" label="始终" /></el-select></el-form-item>
+            <el-form-item label="友军标签"><el-select v-model="sections.basic.friendlyTags"><el-option value="0" label="从不" /><el-option value="1" label="有限距离" /><el-option value="2" label="始终" /></el-select></el-form-item>
+            <el-form-item label="敌军标签"><el-select v-model="sections.basic.enemyTags"><el-option value="0" label="从不" /><el-option value="1" label="有限距离" /><el-option value="2" label="始终" /></el-select></el-form-item>
+            <el-form-item label="已发现地雷"><el-select v-model="sections.basic.detectedMines"><el-option value="0" label="从不" /><el-option value="1" label="有限距离" /><el-option value="2" label="始终" /></el-select></el-form-item>
+            <el-form-item label="武器信息"><el-select v-model="sections.basic.weaponInfo"><el-option value="0" label="从不" /><el-option value="1" label="渐隐" /><el-option value="2" label="始终" /></el-select></el-form-item>
+            <el-form-item label="姿态指示器"><el-select v-model="sections.basic.stanceIndicator"><el-option value="0" label="从不" /><el-option value="1" label="渐隐" /><el-option value="2" label="始终" /></el-select></el-form-item>
+            <el-form-item label="命令显示"><el-select v-model="sections.basic.commands"><el-option value="0" label="从不" /><el-option value="1" label="渐隐" /><el-option value="2" label="始终" /></el-select></el-form-item>
+            <el-form-item label="航点显示"><el-select v-model="sections.basic.waypoints"><el-option value="0" label="从不" /><el-option value="1" label="渐隐" /><el-option value="2" label="始终" /></el-select></el-form-item>
+            <el-form-item label="第三人称"><el-select v-model="sections.basic.thirdPerson"><el-option value="0" label="禁用" /><el-option value="1" label="启用" /><el-option value="2" label="仅载具" /></el-select></el-form-item>
+            <el-divider />
+            <h4>开关</h4>
+            <el-form-item label="战术标记"><el-switch v-model="sections.basic.tacticalPing" /></el-form-item>
+            <el-form-item label="体力条"><el-switch v-model="sections.basic.staminaBar" /></el-form-item>
+            <el-form-item label="准星"><el-switch v-model="sections.basic.weaponCrosshair" /></el-form-item>
+            <el-form-item label="视觉辅助"><el-switch v-model="sections.basic.visionAid" /></el-form-item>
+            <el-form-item label="镜头震动"><el-switch v-model="sections.basic.cameraShake" /></el-form-item>
+            <el-form-item label="得分表"><el-switch v-model="sections.basic.scoreTable" /></el-form-item>
+            <el-form-item label="死亡消息"><el-switch v-model="sections.basic.deathMessages" /></el-form-item>
+            <el-form-item label="地图内容"><el-switch v-model="sections.basic.mapContent" /></el-form-item>
+            <el-form-item label="地图-友军"><el-switch v-model="sections.basic.mapContentFriendly" /></el-form-item>
+            <el-form-item label="地图-敌军"><el-switch v-model="sections.basic.mapContentEnemy" /></el-form-item>
+            <el-form-item label="地图-地雷"><el-switch v-model="sections.basic.mapContentMines" /></el-form-item>
+            <el-form-item label="减少伤害"><el-switch v-model="sections.basic.reducedDamage" /></el-form-item>
+            <el-divider />
+            <h4>AI</h4>
+            <el-form-item label="AI 技能"><el-input-number v-model="sections.basic.skillAi" :min="0" :max="1" :step="0.1" /></el-form-item>
+            <el-form-item label="AI 精度"><el-input-number v-model="sections.basic.precisionAi" :min="0" :max="1" :step="0.1" /></el-form-item>
+            <el-form-item style="margin-top: 12px;">
+              <el-button type="primary" :loading="saving" @click="saveSection('basic')">保存</el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane label="安全" name="security">
+        <div v-loading="loading" style="max-height: 600px; overflow-y: auto;">
+          <el-form label-width="180px" style="padding: 4px;">
+            <h4>密码 / 管理员</h4>
+            <el-form-item label="Server Cmd 密码"><el-input v-model="sections.basic.serverCommandPassword" type="password" show-password /></el-form-item>
+            <el-form-item label="管理员列表(UID)"><el-input v-model="sections.basic.admins" type="textarea" :rows="2" placeholder="每行一个 Steam64 ID" /></el-form-item>
+            <el-form-item label="双ID检测"><el-input v-model="sections.basic.doubleIdDetected" placeholder="动作: kick/ban" /></el-form-item>
+            <el-divider />
+            <h4>文件安全</h4>
+            <el-form-item label="允许文件修补"><el-select v-model="sections.basic.allowedFilePatching">
+              <el-option :value="0" label="禁止" /><el-option :value="1" label="客户端" /><el-option :value="2" label="所有人" />
+            </el-select></el-form-item>
+            <el-form-item label="例外(逗号分隔)"><el-input v-model="sections.basic.filePatchingExceptions" placeholder="7656119...,7656119..." /></el-form-item>
+            <el-form-item label="允许加载文件"><el-input v-model="sections.basic.allowedLoadFile" /></el-form-item>
+            <el-form-item label="允许预处理"><el-input v-model="sections.basic.allowedPreprocess" /></el-form-item>
+            <el-divider />
+            <h4>载具 / 创建限制</h4>
+            <el-form-item label="最大创建载具数"><el-input-number v-model="sections.basic.maxCreateVehicleCount" :min="0" :max="1000" /></el-form-item>
+            <el-form-item label="创建秒数窗口"><el-input-number v-model="sections.basic.maxCreateVehicleSeconds" :min="0" :max="999" /></el-form-item>
+            <el-form-item label="最大 SetPos 数"><el-input-number v-model="sections.basic.maxSetPosCount" :min="0" :max="1000" /></el-form-item>
+            <el-form-item label="SetPos 秒数窗口"><el-input-number v-model="sections.basic.maxSetPosSeconds" :min="0" :max="999" /></el-form-item>
+            <el-divider />
+            <h4>事件回调</h4>
+            <el-form-item label="玩家进入"><el-input v-model="sections.basic.onUserConnected" placeholder="[]" /></el-form-item>
+            <el-form-item label="玩家离开"><el-input v-model="sections.basic.onUserDisconnected" placeholder="[]" /></el-form-item>
+            <el-form-item label="玩家被踢"><el-input v-model="sections.basic.onUserKicked" placeholder="[]" /></el-form-item>
+            <el-form-item label="篡改数据"><el-input v-model="sections.basic.onHackedData" placeholder="[]" /></el-form-item>
+            <el-form-item label="不同数据"><el-input v-model="sections.basic.onDifferentData" placeholder="[]" /></el-form-item>
+            <el-form-item label="未签名数据"><el-input v-model="sections.basic.onUnsignedData" placeholder="[]" /></el-form-item>
+            <el-form-item style="margin-top: 12px;">
+              <el-button type="primary" :loading="saving" @click="saveSection('basic')">保存</el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane label="日志" name="log">
+        <div v-loading="loading" style="max-height: 600px; overflow-y: auto;">
+          <el-form label-width="180px" style="padding: 4px;">
+            <el-form-item label="禁用 RPT"><el-switch v-model="sections.basic.noLogs" /></el-form-item>
+            <el-form-item label="网络日志"><el-switch v-model="sections.basic.netLog" /></el-form-item>
+            <el-form-item label="日志文件"><el-input v-model="sections.basic.logFile" placeholder="server_console.log" /></el-form-item>
+            <el-form-item label="时间戳格式"><el-select v-model="sections.basic.timeStampFormat">
+              <el-option :value="0" label="无" /><el-option :value="1" label="简短" /><el-option :value="2" label="完整" />
+            </el-select></el-form-item>
+            <el-form-item label="扩展调用上限"><el-input-number v-model="sections.basic.callExtReportLimit" :min="1" :max="60000" /></el-form-item>
+            <el-form-item style="margin-top: 12px;">
+              <el-button type="primary" :loading="saving" @click="saveSection('basic')">保存</el-button>
+            </el-form-item>
+          </el-form>
+        </div>
       </el-tab-pane>
 
       <el-tab-pane label="服务器设置" name="basic_settings">

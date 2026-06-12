@@ -8,7 +8,7 @@ const container = ref<HTMLDivElement | null>(null);
 let eventSource: EventSource | null = null;
 
 onMounted(() => {
-  const base = props.baseUrl ?? "";
+  const base = (props.baseUrl ?? "").trim().replace(/\/+$/, "");
   const fullUrl = `${base}${props.url}`;
   eventSource = new EventSource(fullUrl);
 

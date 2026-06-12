@@ -22,7 +22,7 @@ function doAdd() {
   if (!addForm.value.name || !addForm.value.baseUrl) return;
   const id = store.add({
     name: addForm.value.name,
-    baseUrl: addForm.value.baseUrl.replace(/\/+$/, ""),
+      baseUrl: addForm.value.baseUrl.trim().replace(/\/+$/, ""),
     token: addForm.value.token || undefined,
   });
   addForm.value = { name: "", baseUrl: "", token: "" };
