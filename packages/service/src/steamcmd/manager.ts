@@ -4,13 +4,21 @@ import * as fs from "node:fs";
 import { finished } from "node:stream/promises";
 import { EventEmitter } from "node:events";
 import { spawnConsoleCapture, type ConsoleCaptureHandle } from "./console-capture.js";
+import {
+  buildDedicatedServerUpdateArguments,
+  buildWorkshopDownloadArguments,
+  redactPasswordInArguments,
+} from "./arguments.js";
+import {
+  normalizeWorkshopRoot,
+  type SteamCmdPathContext,
+} from "./path-helper.js";
+import { ensureWorkshopContentDirectory } from "../settings/steamcmd-settings.js";
 
 const STEAMCMD_URL = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip";
 const STEAMCMD_ZIP = "steamcmd.zip";
 const STEAMCMD_EXE = "steamcmd.exe";
 const BOOTSTRAP_MARKER = path.join("public", "steambootstrapper_english.txt");
-const APP_ID_ARMA3_SERVER = "233780";
-const APP_ID_ARMA3_GAME = "107410";
 const SESSION_OUTPUT_MAX_CHARS = 500000;
 
 export interface SteamCmdOptions {
@@ -23,12 +31,13 @@ interface SessionRunCapture {
   console: string;
   exitCode: number | null;
   exePath: string;
-  args: string[];
+  argumentsString: string;
 }
 
 export class SteamCmdManager extends EventEmitter {
   private activeCapture: ConsoleCaptureHandle | null = null;
   private installDir: string;
+  private pathContext: SteamCmdPathContext;
   private sessionLogDir: string;
   private _username = "";
   private _password = "";
@@ -37,9 +46,13 @@ export class SteamCmdManager extends EventEmitter {
   private sessionOutput = "";
   private latestSessionLogPath = "";
 
-  constructor(installDir: string) {
+  constructor(installDir: string, pathContext?: SteamCmdPathContext) {
     super();
     this.installDir = installDir;
+    this.pathContext = pathContext ?? {
+      applicationBase: installDir,
+      userDataDirectory: installDir,
+    };
     this.sessionLogDir = path.join(installDir, "logs", "steamcmd");
     fs.mkdirSync(this.sessionLogDir, { recursive: true });
   }
@@ -50,7 +63,7 @@ export class SteamCmdManager extends EventEmitter {
   }
 
   setWorkshopRoot(workshopRoot: string): void {
-    this._workshopRoot = workshopRoot.trim();
+    this._workshopRoot = normalizeWorkshopRoot(this.pathContext, workshopRoot);
   }
 
   setServerInstallPath(serverInstallPath: string): void {
@@ -145,7 +158,6 @@ export class SteamCmdManager extends EventEmitter {
 
   private async runBootstrapUpdate(): Promise<void> {
     const timeoutMs = 180000;
-    const exePath = path.join(this.installDir, STEAMCMD_EXE);
     let output = "";
     const timer = setTimeout(() => {
       this.kill();
@@ -153,7 +165,7 @@ export class SteamCmdManager extends EventEmitter {
 
     try {
       this.sessionOutput = "";
-      const exitCode = await this.runCapturedProcess(exePath, ["+quit"], (chunk) => {
+      const exitCode = await this.runCapturedProcess("+quit", (chunk) => {
         output += chunk;
       });
       if (!this.isInstalled) {
@@ -171,70 +183,65 @@ export class SteamCmdManager extends EventEmitter {
   /** 安装/更新 Arma 3 专用服务器 */
   async updateServer(serverDir?: string, onOutput?: (line: string) => void): Promise<void> {
     await this.ensureInstalled();
-    const installDir = serverDir ?? this.installDir;
-    return this.runSteamCmd([
-      "+force_install_dir", installDir,
-      "+app_update", APP_ID_ARMA3_SERVER, "validate",
-      "+quit",
-    ], onOutput);
+    this.requireCredentials();
+    const installDir = serverDir ?? this._serverInstallPath ?? this.installDir;
+    const argumentsString = buildDedicatedServerUpdateArguments(
+      this._username,
+      this._password,
+      installDir,
+    );
+    return this.runSteamCmdArguments(argumentsString, onOutput, { isAppUpdate: true });
   }
 
   /** 下载 Workshop 模组 */
   async downloadWorkshopMods(modIds: number[], onOutput?: (line: string) => void): Promise<void> {
     await this.ensureInstalled();
-    const installDir = this._workshopRoot || this.installDir;
-    const args: string[] = [
-      "+force_install_dir", installDir,
-    ];
-    for (const id of modIds) {
-      args.push("+workshop_download_item", APP_ID_ARMA3_GAME, String(id));
+    this.requireCredentials();
+
+    if (!modIds.length) {
+      throw new Error("没有要下载的 Workshop 模组 ID。");
     }
-    args.push("+quit");
-    return this.runSteamCmd(args, onOutput);
+
+    const workshopRoot = normalizeWorkshopRoot(this.pathContext, this._workshopRoot);
+    if (!workshopRoot.trim()) {
+      throw new Error(
+        "SteamCMD 程序目录未配置。请在「工具 → SteamCMD 设置」中填写，或点「下载 SteamCMD」使用工具内置目录。"
+      );
+    }
+
+    ensureWorkshopContentDirectory(workshopRoot);
+
+    const argumentsString = buildWorkshopDownloadArguments(
+      this._username,
+      this._password,
+      workshopRoot,
+      modIds,
+    );
+    return this.runSteamCmdArguments(argumentsString, onOutput, { isWorkshop: true });
   }
 
-  /** 通过 ConPTY（Windows）捕获与 CMD 黑窗一致的控制台输出 */
-  private async runSteamCmd(
-    customArgs: string[],
+  private requireCredentials(): void {
+    if (!this._username) {
+      throw new Error("SteamCMD 账号未配置。请在「工具 → SteamCMD 设置」中填写账号。");
+    }
+  }
+
+  /** 使用与 C# ProcessStartInfo.Arguments 相同的参数字符串启动 SteamCMD。 */
+  private async runSteamCmdArguments(
+    argumentsString: string,
     onOutput?: (line: string) => void,
-    retryCount = 0
+    flags: { isWorkshop?: boolean; isAppUpdate?: boolean } = {},
+    retryCount = 0,
   ): Promise<void> {
     if (this.activeCapture !== null) {
       throw new Error("SteamCMD 进程已在运行，请等待当前任务完成");
     }
 
-    const args: string[] = [];
-    
-    const forceInstallDirIdx = customArgs.indexOf("+force_install_dir");
-    if (forceInstallDirIdx >= 0 && forceInstallDirIdx + 1 < customArgs.length) {
-      args.push("+force_install_dir", customArgs[forceInstallDirIdx + 1]);
-    }
-    
-    if (this._username && this._password) {
-      args.push("+login", this._username, this._password);
-    } else {
-      args.push("+login", "anonymous");
-    }
-    
-    for (let i = 0; i < customArgs.length; i++) {
-      if (customArgs[i] === "+force_install_dir") {
-        i++;
-        continue;
-      }
-      args.push(customArgs[i]);
-    }
-
-    const exePath = path.join(this.installDir, STEAMCMD_EXE);
     const sessionLogPath = this.createSessionLogPath();
     this.sessionOutput = "";
 
-    const debugArgs = args.map(arg => arg === this._password ? "***" : arg);
-    const debugMsg = `[调试] 参数数组 (${args.length} 项): ${JSON.stringify(debugArgs)}\n`;
-    this.appendSessionOutput(debugMsg);
-    this.emit("output", debugMsg);
-
     let combined = "";
-    const exitCode = await this.runCapturedProcess(exePath, args, (chunk) => {
+    const exitCode = await this.runCapturedProcess(argumentsString, (chunk) => {
       combined += chunk;
       onOutput?.(chunk);
     });
@@ -242,12 +249,12 @@ export class SteamCmdManager extends EventEmitter {
     const captureResult: SessionRunCapture = {
       console: combined,
       exitCode,
-      exePath,
-      args,
+      exePath: path.join(this.installDir, STEAMCMD_EXE),
+      argumentsString,
     };
-    this.writeSessionLogFile(sessionLogPath, captureResult, customArgs);
+    this.writeSessionLogFile(sessionLogPath, captureResult, flags);
 
-    if (exitCode === 0 || this.isSteamCmdOutputSuccess(combined, customArgs)) {
+    if (exitCode === 0 || this.isSteamCmdOutputSuccess(combined, flags)) {
       this.emit("complete", combined);
       return;
     }
@@ -256,19 +263,19 @@ export class SteamCmdManager extends EventEmitter {
       this.appendSessionOutput(retryHint);
       this.emit("output", retryHint);
       await new Promise<void>((resolve) => setTimeout(resolve, 2000));
-      return this.runSteamCmd(customArgs, onOutput, retryCount + 1);
+      return this.runSteamCmdArguments(argumentsString, onOutput, flags, retryCount + 1);
     }
     throw new Error(`SteamCMD 退出代码: ${exitCode}\n${combined.slice(-500)}`);
   }
 
   private async runCapturedProcess(
-    exePath: string,
-    args: string[],
+    argumentsString: string,
     onChunk: (chunk: string) => void,
   ): Promise<number | null> {
+    const exePath = path.join(this.installDir, STEAMCMD_EXE);
     const capture = await spawnConsoleCapture(
       exePath,
-      args,
+      argumentsString,
       this.installDir,
       (chunk) => {
         this.appendSessionOutput(chunk);
@@ -293,16 +300,16 @@ export class SteamCmdManager extends EventEmitter {
   private writeSessionLogFile(
     logFilePath: string,
     capture: SessionRunCapture,
-    customArgs: string[],
+    flags: { isWorkshop?: boolean; isAppUpdate?: boolean },
   ): void {
-    const safeArgs = redactPasswordInArgs(capture.args, this._password);
+    const safeArgs = redactPasswordInArguments(capture.argumentsString, this._password);
     const success =
       capture.exitCode === 0 ||
-      this.isSteamCmdOutputSuccess(capture.console, customArgs);
+      this.isSteamCmdOutputSuccess(capture.console, flags);
     const builder: string[] = [
       `时间: ${new Date().toISOString().replace("T", " ").slice(0, 19)}`,
       `程序: ${capture.exePath}`,
-      `参数: ${safeArgs.join(" ")}`,
+      `参数: ${safeArgs}`,
       `退出码: ${capture.exitCode ?? "null"}`,
       `成功: ${success}`,
       `捕获: ${process.platform === "win32" ? "静默运行 + console_log.txt" : "stdout/stderr 管道"}`,
@@ -318,16 +325,17 @@ export class SteamCmdManager extends EventEmitter {
     }
   }
 
-  private isSteamCmdOutputSuccess(output: string, customArgs: string[]): boolean {
+  private isSteamCmdOutputSuccess(
+    output: string,
+    flags: { isWorkshop?: boolean; isAppUpdate?: boolean },
+  ): boolean {
     if (/Success!\s+App\s+['"]233780['"]/i.test(output)) {
       return true;
     }
-    const isAppUpdate = customArgs.includes("+app_update");
-    if (isAppUpdate && /fully installed|already up to date/i.test(output)) {
+    if (flags.isAppUpdate && /fully installed|already up to date/i.test(output)) {
       return true;
     }
-    const isWorkshop = customArgs.includes("+workshop_download_item");
-    if (isWorkshop && /Success\.\s+Downloaded item/i.test(output)) {
+    if (flags.isWorkshop && /Success\.\s+Downloaded item/i.test(output)) {
       return true;
     }
     return false;
@@ -435,11 +443,4 @@ function tailTextLines(text: string, maxLines: number): string {
     return lines.join("\n").trimEnd();
   }
   return lines.slice(-maxLines).join("\n").trimEnd();
-}
-
-function redactPasswordInArgs(args: string[], password: string): string[] {
-  if (!password) {
-    return [...args];
-  }
-  return args.map((arg) => (arg === password ? "***" : arg));
 }

@@ -29,7 +29,10 @@ export async function createService(options: ServiceOptions) {
   // Instantiate services
   const configStore = new ConfigStore(options.dataDir);
   const snapshotStore = new ConfigSnapshotStore(options.dataDir);
-  const steamCmd = new SteamCmdManager(options.dataDir);
+  const steamCmd = new SteamCmdManager(options.dataDir, {
+    applicationBase: process.cwd(),
+    userDataDirectory: options.dataDir,
+  });
   const modScanner = new ModScanner();
   const monitorDb = new MonitoringDb(options.dataDir);
   const scheduler = new Scheduler();

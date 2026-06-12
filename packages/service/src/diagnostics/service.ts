@@ -8,6 +8,7 @@ import {
   getServerExecutablePath,
 } from "../config/game-config-writer.js";
 import { collectModPaths } from "../mods/paths.js";
+import { getServerKeysDirectory } from "../mods/bikey-service.js";
 import type { FastifyInstance } from "fastify";
 
 export interface DiagnosticIssue {
@@ -108,40 +109,52 @@ function checkEnabledModBikeys(
   scannedMods: ModMeta[],
   issues: DiagnosticIssue[]
 ): void {
-  const enabledIds = new Set(config.mods?.enabledIds ?? []);
-  const enabledLocal = new Set(
-    (config.mods?.enabledLocalPaths ?? []).map((p) => p.toLowerCase())
-  );
+  const enabled = scannedMods.filter((mod) => mod.enabled);
+  if (enabled.length === 0) {
+    return;
+  }
 
-  let missing = 0;
-  for (const mod of scannedMods) {
-    if (!mod.enabled) {
-      continue;
-    }
-    if (mod.isLocalMod && mod.path && enabledLocal.has(mod.path.toLowerCase())) {
-      if (!mod.bikeyPresent) {
-        missing += 1;
-      }
-      continue;
-    }
-    if (enabledIds.has(mod.workshopId) && !mod.bikeyPresent) {
-      missing += 1;
+  let ready = 0;
+  let notCopied = 0;
+  let noKey = 0;
+  let unsigned = 0;
+  for (const mod of enabled) {
+    if (mod.bikeyStatus === "ready") {
+      ready += 1;
+    } else if (mod.bikeyStatus === "not_copied") {
+      notCopied += 1;
+    } else if (mod.bikeyStatus === "no_key") {
+      noKey += 1;
+    } else if (mod.bikeyStatus === "unsigned") {
+      unsigned += 1;
     }
   }
 
-  if (missing > 0) {
+  const failed = enabled.length - ready;
+  if (failed > 0) {
+    const parts: string[] = [];
+    if (notCopied > 0) {
+      parts.push(`${notCopied} 个未复制 key`);
+    }
+    if (noKey > 0) {
+      parts.push(`${noKey} 个缺少 key`);
+    }
+    if (unsigned > 0) {
+      parts.push(`${unsigned} 个缺少 bisign`);
+    }
     issues.push({
       category: "Bikey",
       severity: "warning",
-      message: `${missing} 个已启用模组缺少 Bikey`,
+      message: `${failed} 个已启用模组未通过验证（须同时具备 bisign、key 且已复制到服务器 Keys/）${parts.length ? `：${parts.join("，")}` : ""}`,
     });
-  } else {
-    issues.push({
-      category: "Bikey",
-      severity: "info",
-      message: "已启用模组的 Bikey 检查通过",
-    });
+    return;
   }
+
+  issues.push({
+    category: "Bikey",
+    severity: "info",
+    message: `已启用模组 Bikey 验证通过（${ready}/${enabled.length}）`,
+  });
 }
 
 function checkStartCommandLine(
@@ -170,7 +183,7 @@ function checkKeysDirectory(config: ServerConfigPackage, issues: DiagnosticIssue
   if (!serverDir) {
     return;
   }
-  const keysDir = path.join(serverDir, "keys");
+  const keysDir = getServerKeysDirectory(serverDir);
   if (!fs.existsSync(keysDir)) {
     issues.push({
       category: "Keys",

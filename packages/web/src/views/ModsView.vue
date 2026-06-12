@@ -19,8 +19,8 @@ import type {
 } from "@a3st/api-client";
 import PathInput from "@/components/PathInput.vue";
 import { isElectron, openPath, pickDirectory, pickFile, readTextFile } from "@/utils/electron";
-import { bikeyStatusIcon, formatBikeySummary } from "@/utils/modBikeyIcon";
-import { parseWorkshopIdsFromClipboard } from "@/utils/modClipboard";
+import { bikeyStatusIcon, bikeyStatusHint, bikeyStatusLabel, formatBikeySummary } from "@/utils/modBikeyIcon";
+import { extractTaskSteps, lastTaskStep } from "@/utils/taskSteps";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
@@ -40,6 +40,7 @@ interface ModRow {
   isLocalMod: boolean;
   inputLocalMod: boolean;
   bikeyStatus: ModBikeyStatus | "unknown";
+  bikeyLabel: string;
   bikeyHint: string;
   scanOrder: number;
   updatedTime: string;
@@ -81,22 +82,6 @@ function goToSteamCmd() {
   router.replace({ path: `/console/${props.connectionId}/steamcmd` });
 }
 
-function bikeyHintText(status: ModBikeyStatus | "unknown"): string {
-  if (status === "ready") {
-    return "Bikey 已复制到服务器 keys/ 目录。";
-  }
-  if (status === "not_copied") {
-    return "模组含密钥但未复制到服务器 keys/。";
-  }
-  if (status === "no_key") {
-    return "有 bisign 但模组 keys/ 中缺少 .bikey。";
-  }
-  if (status === "unsigned") {
-    return "未检测到 bisign，可能无需服务器密钥。";
-  }
-  return "尚未扫描签名状态。";
-}
-
 function mapModRow(m: ModMetaRow): ModRow {
   const status = m.bikeyStatus ?? "unknown";
   return {
@@ -112,7 +97,8 @@ function mapModRow(m: ModMetaRow): ModRow {
     isLocalMod: !!m.isLocalMod,
     inputLocalMod: !!m.inputLocalMod,
     bikeyStatus: status,
-    bikeyHint: bikeyHintText(status),
+    bikeyLabel: m.bikeyLabel ?? bikeyStatusLabel(status),
+    bikeyHint: bikeyStatusHint(status),
     scanOrder: m.scanOrder ?? 0,
     updatedTime: m.updatedTime ?? "-",
   };
@@ -171,11 +157,13 @@ async function loadBikeySummary() {
       bikeySummary.value = formatBikeySummary({
         enabled: s.enabled,
         ready: s.ready,
-        needsAttention: s.needsAttention ?? s.missingBikey,
+        notCopied: s.notCopied ?? 0,
+        noKey: s.noKey ?? 0,
         unsigned: s.unsigned ?? 0,
         unchecked: s.unchecked ?? 0,
+        allValid: s.allValid,
       });
-      copyMissingEnabled.value = (s.needsAttention ?? s.missingBikey) > 0;
+      copyMissingEnabled.value = (s.notCopied ?? 0) > 0;
     }
   } catch {
     bikeySummary.value = "Bikey 就绪 · —";
@@ -221,7 +209,7 @@ async function doScan() {
       serverUuid: props.serverUuid,
       commands: [{ action: "scan_mods" as const }],
     });
-    const steps = (res.data as { steps?: { success?: boolean; message?: string }[] })?.steps ?? [];
+    const steps = extractTaskSteps(res.data as never);
     const lastStep = steps[steps.length - 1];
     if (!res.success || (lastStep && lastStep.success === false)) {
       throw new Error(lastStep?.message ?? res.error ?? "扫描失败");
@@ -405,9 +393,15 @@ async function copyBikeys(options?: { missingOnly?: boolean; silent?: boolean })
         missingOnly: options?.missingOnly === true,
       }],
     });
-    const msg = (res.data as { steps?: { message: string }[] })?.steps?.[0]?.message ?? "Bikey 复制完成";
+    const step = lastTaskStep(res.data as never);
+    const taskOk = res.success && step?.success !== false;
+    const msg = step?.message ?? (res.data as { message?: string })?.message ?? "Bikey 操作完成";
     if (!options?.silent) {
-      ElMessage.success(msg);
+      if (taskOk) {
+        ElMessage.success(msg);
+      } else {
+        ElMessage.error(msg);
+      }
     }
     await loadMods();
     await loadBikeySummary();
@@ -601,6 +595,7 @@ async function applyHtmlEnable(payload: { modIds: number[]; target: "client" | "
         isLocalMod: false,
         inputLocalMod: false,
         bikeyStatus: "unknown",
+        bikeyLabel: "—",
         bikeyHint: "",
         scanOrder: modList.value.length,
         updatedTime: "-",
@@ -868,10 +863,13 @@ const filteredList = computed(() => {
             <el-table-column label="本地导入" width="72" align="center">
               <template #default="{ row }">{{ row.inputLocalMod ? "是" : "否" }}</template>
             </el-table-column>
-            <el-table-column label="签名" width="52" align="center">
+            <el-table-column label="签名" width="88" align="center">
               <template #default="{ row }">
                 <el-tooltip :content="row.bikeyHint" placement="top">
-                  <span class="bikey-icon">{{ bikeyStatusIcon(row.bikeyStatus) }}</span>
+                  <span class="bikey-status-cell">
+                    <span class="bikey-icon">{{ bikeyStatusIcon(row.bikeyStatus) }}</span>
+                    <span class="bikey-label">{{ row.bikeyLabel }}</span>
+                  </span>
                 </el-tooltip>
               </template>
             </el-table-column>
@@ -1003,6 +1001,17 @@ const filteredList = computed(() => {
 }
 .bikey-icon {
   font-size: 14px;
+}
+.bikey-status-cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  line-height: 1.2;
+}
+.bikey-label {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
 }
 .hidden-input {
   display: none;

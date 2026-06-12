@@ -17,6 +17,7 @@ import { maybeAutoSnapshot } from "../config/auto-snapshot.js";
 import { evaluateSyncState } from "../config/sync-state.js";
 import { disableModsByScope, type ModDisableScope } from "../mods/enabler.js";
 import { collectModPaths, ensureDefaultWorkshopScanPath, isModDirectory } from "../mods/paths.js";
+import { getServerKeysDirectory } from "../mods/bikey-service.js";
 import type { ModMeta, LocalModEntry } from "../types/mods.js";
 import { startHeadlessClient, stopHeadlessClient } from "../process/headless.js";
 import type { UiSettings } from "../settings/ui-settings.js";
@@ -420,7 +421,7 @@ export async function apiRoutes(app: FastifyInstance) {
       reply.status(404);
       return envelope(false, null, "NOT_FOUND", uuid);
     }
-    const keysDir = path.join(config.server.serverDir, "keys");
+    const keysDir = getServerKeysDirectory(config.server.serverDir);
     const files: { name: string; size: number; fullPath: string }[] = [];
     if (fs.existsSync(keysDir)) {
       for (const file of fs.readdirSync(keysDir)) {
@@ -966,7 +967,7 @@ export async function apiRoutes(app: FastifyInstance) {
     }
 
     const result = await app.asyncTaskManager.runSync(uuid, cmds, (cmd) => executeCommand(app, uuid, cmd));
-    return envelope(true, result, null, task.taskId ?? "");
+    return envelope(true, { ...result, steps: result.results }, null, task.taskId ?? "");
   });
 
   app.get("/tasks/:taskId", async (req) => {
@@ -1197,17 +1198,30 @@ async function executeCommand(
       if (!modPaths.length) return fail("未配置模组扫描路径");
 
       const scanned = scanModsForConfig(app, config);
-      const keysDir = path.join(config.server.serverDir, "keys");
+      if (!scanned.length) {
+        return fail("未扫描到模组，请先点击「扫描刷新」");
+      }
+
+      const serverDir = config.server.serverDir;
       const missingOnly = cmd.missingOnly === true;
       const modPathsArg = cmd.modPaths as string[] | undefined;
       let result: { copied: number; total: number; skipped: number };
       if (modPathsArg?.length) {
-        result = app.modScanner.copyBikeys(modPathsArg, keysDir);
+        result = app.modScanner.copyBikeys(modPathsArg, serverDir);
       } else if (missingOnly) {
-        result = app.modScanner.copyMissingBikeys(scanned, keysDir);
+        result = app.modScanner.copyMissingBikeys(scanned, serverDir);
       } else {
-        const enabledPaths = scanned.filter((m) => m.enabled).map((m) => m.path);
-        result = app.modScanner.copyBikeys(enabledPaths, keysDir);
+        result = app.modScanner.copyBikeysFromScanned(scanned, serverDir);
+      }
+
+      if (result.total === 0) {
+        return fail(`已扫描 ${scanned.length} 个模组，但未找到任何 .bikey 文件`);
+      }
+      if (result.copied === 0 && result.skipped === result.total) {
+        return ok(`Bikey 已全部就绪：${result.total} 个 key 已在服务器 Keys/ 目录中`);
+      }
+      if (result.copied === 0 && missingOnly) {
+        return ok("没有需要复制的 Bikey（已启用模组均已就绪或无密钥）");
       }
       return ok(`Bikey 复制完成：新增 ${result.copied}，已有 ${result.skipped}，共 ${result.total} 个`);
     }

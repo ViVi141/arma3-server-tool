@@ -1,8 +1,14 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { LocalModEntry, ModBikeyStatus, ModMeta } from "../types/mods.js";
+import type { LocalModEntry, ModMeta } from "../types/mods.js";
 import type { ModScanPathEntry } from "./scan-path-store.js";
 import { expandScanTargets, isModDirectory } from "./paths.js";
+import {
+  copyBikeysForMods,
+  inspectMod,
+  isModBikeyValidationPassed,
+  type BikeyCopyResult,
+} from "./bikey-service.js";
 
 export interface ModScannerOptions {
   modPaths: string[];
@@ -53,54 +59,42 @@ export class ModScanner {
     return results;
   }
 
-  copyBikeys(modPaths: string[], serverKeysDir: string): { copied: number; total: number; skipped: number } {
-    let total = 0;
-    let copied = 0;
-    let skipped = 0;
+  copyBikeys(modPaths: string[], serverDir: string): BikeyCopyResult {
+    const mods = modPaths.map((modPath) => ({
+      modPath,
+      modDirName: path.basename(modPath),
+    }));
+    return copyBikeysForMods(mods, serverDir);
+  }
 
-    if (!fs.existsSync(serverKeysDir)) {
-      fs.mkdirSync(serverKeysDir, { recursive: true });
-    }
-
-    for (const modPath of modPaths) {
-      const keysDir = this.findKeysDir(modPath);
-      if (!keysDir) {
+  /** Copy bikeys for every scanned mod (C# CopyBikeysForAllMods on allRows). */
+  copyBikeysFromScanned(mods: ModMeta[], serverDir: string): BikeyCopyResult {
+    const toCopy: { modPath: string; modDirName: string }[] = [];
+    for (const mod of mods) {
+      if (!mod.path) {
         continue;
       }
-
-      for (const file of fs.readdirSync(keysDir)) {
-        if (!file.toLowerCase().endsWith(".bikey")) {
-          continue;
-        }
-        total++;
-        const src = path.join(keysDir, file);
-        const dst = path.join(serverKeysDir, file);
-
-        if (fs.existsSync(dst)) {
-          skipped++;
-          continue;
-        }
-
-        fs.copyFileSync(src, dst);
-        copied++;
-      }
+      toCopy.push({ modPath: mod.path, modDirName: mod.dirName });
     }
-
-    return { copied, total, skipped };
+    return copyBikeysForMods(toCopy, serverDir);
   }
 
   summarizeBikeys(options: ModScannerOptions): {
     enabled: number;
     missingBikey: number;
     ready: number;
+    notCopied: number;
+    noKey: number;
     needsAttention: number;
     unsigned: number;
     unchecked: number;
+    allValid: boolean;
   } {
     const mods = this.scan(options);
     const activeMods = mods.filter((m) => m.enabled);
     let ready = 0;
-    let needsAttention = 0;
+    let notCopied = 0;
+    let noKey = 0;
     let unsigned = 0;
     let unchecked = 0;
 
@@ -108,8 +102,10 @@ export class ModScanner {
       const status = mod.bikeyStatus;
       if (status === "ready") {
         ready++;
-      } else if (status === "not_copied" || status === "no_key") {
-        needsAttention++;
+      } else if (status === "not_copied") {
+        notCopied++;
+      } else if (status === "no_key") {
+        noKey++;
       } else if (status === "unsigned") {
         unsigned++;
       } else {
@@ -117,30 +113,34 @@ export class ModScanner {
       }
     }
 
+    const needsAttention = notCopied + noKey + unsigned + unchecked;
+    const allValid = activeMods.length > 0 && ready === activeMods.length;
+
     return {
       enabled: activeMods.length,
       missingBikey: needsAttention,
       ready,
+      notCopied,
+      noKey,
       needsAttention,
       unsigned,
       unchecked,
+      allValid,
     };
   }
 
-  copyMissingBikeys(
-    mods: ModMeta[],
-    serverKeysDir: string
-  ): { copied: number; total: number; skipped: number } {
-    const paths: string[] = [];
+  copyMissingBikeys(mods: ModMeta[], serverDir: string): BikeyCopyResult {
+    const toCopy: { modPath: string; modDirName: string }[] = [];
     for (const mod of mods) {
-      if (!mod.enabled) {
+      if (!mod.enabled || !mod.path) {
         continue;
       }
-      if (mod.bikeyStatus === "not_copied" && mod.path) {
-        paths.push(mod.path);
+      const inspection = inspectMod(mod.path, mod.dirName, serverDir);
+      if (inspection.hasBisign && inspection.hasBikeyInMod && !inspection.allCopiedToServer) {
+        toCopy.push({ modPath: mod.path, modDirName: mod.dirName });
       }
     }
-    return this.copyBikeys(paths, serverKeysDir);
+    return copyBikeysForMods(toCopy, serverDir);
   }
 
   private buildModMeta(
@@ -186,7 +186,7 @@ export class ModScanner {
       : (options.hcModIds ?? []).includes(parsed.workshopId);
     const enabled = isClientMod || isServerMod || isHcMod;
 
-    const bikeyInspection = this.inspectBikey(modPath, options.serverDir);
+    const bikeyInspection = inspectMod(modPath, dirName, options.serverDir);
     const updated = this.readUpdatedTime(modPath, parsed.timeStamp);
 
     return {
@@ -200,13 +200,13 @@ export class ModScanner {
       isHcMod,
       isLocalMod,
       inputLocalMod,
-      bikeyPresent: bikeyInspection.hasBikeyInMod,
+      bikeyPresent: isModBikeyValidationPassed(bikeyInspection.status),
       bikeyStatus: bikeyInspection.status,
       bikeyLabel: bikeyInspection.label,
-      scanOrder: 0,
       sizeBytes: this.calculateSize(modPath),
       updatedAt: updated.updatedAt,
       updatedTime: updated.updatedTime,
+      scanOrder: 0,
     };
   }
 
@@ -273,119 +273,6 @@ export class ModScanner {
     }
 
     return { workshopId, name, timeStamp };
-  }
-
-  private findKeysDir(modPath: string): string | null {
-    for (const name of ["keys", "Keys"]) {
-      const dir = path.join(modPath, name);
-      if (fs.existsSync(dir)) {
-        return dir;
-      }
-    }
-    return null;
-  }
-
-  private listModBikeys(modPath: string): string[] {
-    const keysDir = this.findKeysDir(modPath);
-    if (!keysDir) {
-      return [];
-    }
-    const names: string[] = [];
-    for (const file of fs.readdirSync(keysDir)) {
-      if (file.toLowerCase().endsWith(".bikey")) {
-        names.push(file);
-      }
-    }
-    return names;
-  }
-
-  private checkBikey(modPath: string): boolean {
-    return this.listModBikeys(modPath).length > 0;
-  }
-
-  private hasBisignFiles(modPath: string): boolean {
-    try {
-      for (const file of fs.readdirSync(modPath)) {
-        if (file.toLowerCase().endsWith(".bisign")) {
-          return true;
-        }
-      }
-      const addonsDir = path.join(modPath, "addons");
-      if (fs.existsSync(addonsDir)) {
-        for (const file of fs.readdirSync(addonsDir)) {
-          if (file.toLowerCase().endsWith(".bisign")) {
-            return true;
-          }
-        }
-      }
-    } catch {
-      return false;
-    }
-    return false;
-  }
-
-  private areBikeysOnServer(serverDir: string, bikeyNames: string[]): boolean {
-    if (!bikeyNames.length) {
-      return false;
-    }
-    const keysDir = path.join(serverDir, "keys");
-    if (!fs.existsSync(keysDir)) {
-      return false;
-    }
-    const onDisk = new Set(
-      fs.readdirSync(keysDir).map((name) => name.toLowerCase())
-    );
-    for (const name of bikeyNames) {
-      if (!onDisk.has(name.toLowerCase())) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  private inspectBikey(
-    modPath: string,
-    serverDir?: string
-  ): { status: ModBikeyStatus; label: string; hasBikeyInMod: boolean } {
-    if (!this.hasBisignFiles(modPath)) {
-      return {
-        status: "unsigned",
-        label: "未签名",
-        hasBikeyInMod: false,
-      };
-    }
-
-    const bikeyNames = this.listModBikeys(modPath);
-    if (!bikeyNames.length) {
-      return {
-        status: "no_key",
-        label: "无密钥",
-        hasBikeyInMod: false,
-      };
-    }
-
-    const serverPath = serverDir?.trim();
-    if (!serverPath) {
-      return {
-        status: "not_copied",
-        label: "未复制",
-        hasBikeyInMod: true,
-      };
-    }
-
-    if (this.areBikeysOnServer(serverPath, bikeyNames)) {
-      return {
-        status: "ready",
-        label: "已复制",
-        hasBikeyInMod: true,
-      };
-    }
-
-    return {
-      status: "not_copied",
-      label: "未复制",
-      hasBikeyInMod: true,
-    };
   }
 
   private calculateSize(dirPath: string): number {

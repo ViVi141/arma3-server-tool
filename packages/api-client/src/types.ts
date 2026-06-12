@@ -245,9 +245,12 @@ export interface BikeySummaryData {
   enabled: number;
   missingBikey: number;
   ready: number;
+  notCopied?: number;
+  noKey?: number;
   needsAttention?: number;
   unsigned?: number;
   unchecked?: number;
+  allValid?: boolean;
 }
 
 export interface SteamWorkshopModInfo {

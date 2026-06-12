@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -14,48 +14,42 @@ const STREAM_DRAIN_MS = 500;
 const CONSOLE_LOG_POLL_MS = 400;
 
 /**
- * Windows：弹出 SteamCMD CMD 窗口，并 tail logs/console_log.txt（与黑窗同步的官方控制台日志）。
- * 其他平台：stdout/stderr 管道。
+ * Run SteamCMD with ProcessStartInfo.Arguments-compatible command tail (legacy C# parity).
+ * Windows: windowsVerbatimArguments passes the string without re-quoting.
  */
 export async function spawnConsoleCapture(
   exePath: string,
-  args: string[],
+  argumentsString: string,
   cwd: string,
   onData: (chunk: string) => void,
   steamCmdInstallDir: string,
 ): Promise<ConsoleCaptureHandle> {
   if (process.platform === "win32") {
-    return spawnWindowsCmdWindow(cwd, steamCmdInstallDir, exePath, args, onData);
+    return spawnWindowsCaptured(exePath, argumentsString, cwd, steamCmdInstallDir, onData);
   }
-  return spawnPipeCapture(exePath, args, cwd, onData);
+  return spawnPipeCapture(exePath, argumentsString, cwd, onData);
 }
 
-function spawnWindowsCmdWindow(
+function spawnWindowsCaptured(
+  exePath: string,
+  argumentsString: string,
   cwd: string,
   installDir: string,
-  exePath: string,
-  args: string[],
   onData: (chunk: string) => void,
 ): Promise<ConsoleCaptureHandle> {
   const consoleLogPath = path.join(installDir, "logs", "console_log.txt");
   let logOffset = fileSizeOrZero(consoleLogPath);
 
-  const argsString = args.map(arg => {
-    if (arg.includes(" ") || arg.includes('"')) {
-      return `"${arg.replace(/"/g, '\\"')}"`;
-    }
-    return arg;
-  }).join(" ");
-
-  const debugMsg = `[调试] 完整命令字符串: ${argsString}\n`;
+  const debugMsg = `[调试] ProcessStartInfo.Arguments: ${argumentsString}\n`;
   onData(debugMsg);
 
-  const child = spawn(exePath, [argsString], {
+  const child = spawn(exePath, [argumentsString], {
     cwd,
     stdio: "ignore",
     windowsHide: true,
     detached: false,
     shell: false,
+    windowsVerbatimArguments: true,
   });
 
   if (!child.pid) {
@@ -113,12 +107,15 @@ function spawnWindowsCmdWindow(
 
 function spawnPipeCapture(
   exePath: string,
-  args: string[],
+  argumentsString: string,
   cwd: string,
   onData: (chunk: string) => void,
 ): Promise<ConsoleCaptureHandle> {
   return new Promise((resolve, reject) => {
-    const child = spawn(exePath, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(exePath, [argumentsString], {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     const readers: ReturnType<typeof createInterface>[] = [];
 
     const wire = (stream: Readable | null | undefined) => {
@@ -170,16 +167,6 @@ function spawnPipeCapture(
       },
     });
   });
-}
-
-function quoteCmdArg(value: string): string {
-  if (!value) {
-    return "\"\"";
-  }
-  if (!/[ \t"]/.test(value)) {
-    return value;
-  }
-  return `"${value.replace(/"/g, "\\\"")}"`;
 }
 
 function fileSizeOrZero(filePath: string): number {

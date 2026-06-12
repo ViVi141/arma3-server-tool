@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { getServerKeysDirectory } from "../mods/bikey-service.js";
 import { execSync } from "node:child_process";
 import type { ServerConfigPackage } from "../types/config.js";
 import {
@@ -132,7 +133,7 @@ export function runPreflightChecks(
     });
   }
 
-  const keysDir = serverDir ? path.join(serverDir, "keys") : "";
+  const keysDir = serverDir ? getServerKeysDirectory(serverDir) : "";
   if (keysDir && !fs.existsSync(keysDir)) {
     issues.push({
       category: "Bikey",
@@ -142,12 +143,35 @@ export function runPreflightChecks(
   }
 
   const mods = options?.scannedMods ?? [];
-  const enabledWithoutBikey = mods.filter((m) => m.enabled && !m.bikeyPresent);
-  if (enabledWithoutBikey.length > 0) {
+  const enabled = mods.filter((m) => m.enabled);
+  const failed = enabled.filter((m) => m.bikeyStatus !== "ready");
+  if (failed.length > 0) {
+    let notCopied = 0;
+    let noKey = 0;
+    let unsigned = 0;
+    for (const mod of failed) {
+      if (mod.bikeyStatus === "not_copied") {
+        notCopied += 1;
+      } else if (mod.bikeyStatus === "no_key") {
+        noKey += 1;
+      } else if (mod.bikeyStatus === "unsigned") {
+        unsigned += 1;
+      }
+    }
+    const parts: string[] = [];
+    if (notCopied > 0) {
+      parts.push(`${notCopied} 个未复制 key`);
+    }
+    if (noKey > 0) {
+      parts.push(`${noKey} 个缺少 key`);
+    }
+    if (unsigned > 0) {
+      parts.push(`${unsigned} 个缺少 bisign`);
+    }
     issues.push({
       category: "Bikey",
       severity: "warning",
-      message: `${enabledWithoutBikey.length} 个已启用模组缺少 Bikey，可在模组页复制`,
+      message: `${failed.length} 个已启用模组未通过 Bikey 验证（须同时具备 bisign、key 且已复制）${parts.length ? `：${parts.join("，")}` : ""}`,
     });
   }
 
