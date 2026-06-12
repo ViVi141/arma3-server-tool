@@ -93,7 +93,7 @@ export async function createService(options: ServiceOptions) {
 
   // Routes
   await app.register(healthRoutes, { prefix: "/api/v1" });
-  sseManager.registerRoutes(app, "/api/v1");
+  sseManager.registerRoutes(app, steamCmd, "/api/v1");
   await app.register(apiRoutes, { prefix: "/api/v1" });
 
   await app.listen({ port: options.port, host: options.host });

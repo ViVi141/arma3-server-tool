@@ -64,7 +64,12 @@ async function act(action: string) {
       <fieldset><legend>语音 (VoN)</legend>
         <div class="row"><label>禁用 VoN</label><el-switch v-model="b().disableVoN" size="small"/></div>
         <div class="row"><label>VoN 质量</label><el-input-number v-model="b().vonCodecQuality" :min="1" :max="30" size="small" controls-position="right"/></div>
-        <div class="row"><label>VoN 编码</label><el-select v-model="b().vonCodec" size="small"><el-option label="SPEEX"/><el-option label="OPUS"/></el-select></div>
+        <div class="row"><label>VoN 编码</label>
+          <el-select v-model="b().vonCodec" size="small" placeholder="SPEEX">
+            <el-option value="SPEEX" label="SPEEX" />
+            <el-option value="OPUS" label="OPUS" />
+          </el-select>
+        </div>
       </fieldset>
       <fieldset><legend>无头客户端</legend>
         <div class="row"><label>启用 HC</label><el-switch v-model="b().enableHeadlessClient" size="small"/></div>

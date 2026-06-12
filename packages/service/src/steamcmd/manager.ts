@@ -1,14 +1,17 @@
-import { spawn, execSync, type ChildProcess } from "node:child_process";
+import { execSync } from "node:child_process";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import { finished } from "node:stream/promises";
 import { EventEmitter } from "node:events";
+import { spawnConsoleCapture, type ConsoleCaptureHandle } from "./console-capture.js";
 
 const STEAMCMD_URL = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip";
 const STEAMCMD_ZIP = "steamcmd.zip";
 const STEAMCMD_EXE = "steamcmd.exe";
 const BOOTSTRAP_MARKER = path.join("public", "steambootstrapper_english.txt");
 const APP_ID_ARMA3_SERVER = "233780";
+const APP_ID_ARMA3_GAME = "107410";
+const SESSION_OUTPUT_MAX_CHARS = 500000;
 
 export interface SteamCmdOptions {
   installDir: string;
@@ -16,17 +19,29 @@ export interface SteamCmdOptions {
   password?: string;
 }
 
+interface SessionRunCapture {
+  console: string;
+  exitCode: number | null;
+  exePath: string;
+  args: string[];
+}
+
 export class SteamCmdManager extends EventEmitter {
-  private process: ChildProcess | null = null;
+  private activeCapture: ConsoleCaptureHandle | null = null;
   private installDir: string;
+  private sessionLogDir: string;
   private _username = "";
   private _password = "";
   private _workshopRoot = "";
   private _serverInstallPath = "";
+  private sessionOutput = "";
+  private latestSessionLogPath = "";
 
   constructor(installDir: string) {
     super();
     this.installDir = installDir;
+    this.sessionLogDir = path.join(installDir, "logs", "steamcmd");
+    fs.mkdirSync(this.sessionLogDir, { recursive: true });
   }
 
   setCredentials(username: string, password: string): void {
@@ -61,7 +76,7 @@ export class SteamCmdManager extends EventEmitter {
   }
 
   get isRunning(): boolean {
-    return this.process !== null && !this.process.killed;
+    return this.activeCapture !== null;
   }
 
   get steamCmdDir(): string {
@@ -131,54 +146,26 @@ export class SteamCmdManager extends EventEmitter {
   private async runBootstrapUpdate(): Promise<void> {
     const timeoutMs = 180000;
     const exePath = path.join(this.installDir, STEAMCMD_EXE);
-    await new Promise<void>((resolve, reject) => {
-      let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
-      let settled = false;
+    let output = "";
+    const timer = setTimeout(() => {
+      this.kill();
+    }, timeoutMs);
 
-      const finish = (err?: Error) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        if (timeoutHandle) {
-          clearTimeout(timeoutHandle);
-        }
-        this.process = null;
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
-      };
-
-      this.process = spawn(exePath, ["+quit"], { cwd: this.installDir, stdio: ["ignore", "pipe", "pipe"] });
-      let output = "";
-      const onData = (data: Buffer) => {
-        const text = data.toString();
-        output += text;
-        this.emit("output", text);
-      };
-      this.process.stdout?.on("data", onData);
-      this.process.stderr?.on("data", onData);
-      this.process.on("error", (err) => finish(err));
-      this.process.on("exit", () => {
-        if (this.isInstalled) {
-          this.emit("complete", output);
-          finish();
-          return;
-        }
-        finish(new Error(`SteamCMD 初始化未完成\n${output.slice(-500)}`));
+    try {
+      this.sessionOutput = "";
+      const exitCode = await this.runCapturedProcess(exePath, ["+quit"], (chunk) => {
+        output += chunk;
       });
-
-      timeoutHandle = setTimeout(() => {
-        this.kill();
-        if (this.isInstalled) {
-          finish();
-          return;
-        }
-        finish(new Error("SteamCMD 初始化超时，请检查网络连接。"));
-      }, timeoutMs);
-    });
+      if (!this.isInstalled) {
+        throw new Error(`SteamCMD 初始化未完成\n${output.slice(-500)}`);
+      }
+      if (exitCode !== 0 && exitCode !== null) {
+        throw new Error(`SteamCMD 初始化退出码: ${exitCode}\n${output.slice(-500)}`);
+      }
+      this.emit("complete", output);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /** 安装/更新 Arma 3 专用服务器 */
@@ -200,59 +187,135 @@ export class SteamCmdManager extends EventEmitter {
       "+force_install_dir", installDir,
     ];
     for (const id of modIds) {
-      args.push("+workshop_download_item", APP_ID_ARMA3_SERVER, String(id));
+      args.push("+workshop_download_item", APP_ID_ARMA3_GAME, String(id));
     }
     args.push("+quit");
     return this.runSteamCmd(args, onOutput);
   }
 
-  /** 运行 SteamCMD 命令 */
+  /** 通过 ConPTY（Windows）捕获与 CMD 黑窗一致的控制台输出 */
   private async runSteamCmd(
     customArgs: string[],
     onOutput?: (line: string) => void,
     retryCount = 0
   ): Promise<void> {
+    if (this.activeCapture !== null) {
+      throw new Error("SteamCMD 进程已在运行，请等待当前任务完成");
+    }
+
     const args: string[] = [];
+    
+    const forceInstallDirIdx = customArgs.indexOf("+force_install_dir");
+    if (forceInstallDirIdx >= 0 && forceInstallDirIdx + 1 < customArgs.length) {
+      args.push("+force_install_dir", customArgs[forceInstallDirIdx + 1]);
+    }
+    
     if (this._username && this._password) {
       args.push("+login", this._username, this._password);
     } else {
       args.push("+login", "anonymous");
     }
-    args.push(...customArgs);
+    
+    for (let i = 0; i < customArgs.length; i++) {
+      if (customArgs[i] === "+force_install_dir") {
+        i++;
+        continue;
+      }
+      args.push(customArgs[i]);
+    }
 
     const exePath = path.join(this.installDir, STEAMCMD_EXE);
-    return new Promise((resolve, reject) => {
-      this.process = spawn(exePath, args, { cwd: this.installDir, stdio: ["ignore", "pipe", "pipe"] });
-      let output = "";
-      const onData = (data: Buffer) => {
-        const text = data.toString();
-        output += text;
-        this.emit("output", text);
-        onOutput?.(text);
-      };
-      this.process!.stdout?.on("data", onData);
-      this.process!.stderr?.on("data", onData);
-      this.process!.on("exit", (code) => {
-        this.process = null;
-        if (code === 0 || this.isSteamCmdOutputSuccess(output, customArgs)) {
-          this.emit("complete", output);
-          resolve();
-          return;
-        }
-        if (retryCount < 1 && this.shouldRetrySteamCmd(code, output)) {
-          this.emit("output", "[提示] SteamCMD 自更新完成，正在重试...\n");
-          setTimeout(() => {
-            this.runSteamCmd(customArgs, onOutput, retryCount + 1).then(resolve).catch(reject);
-          }, 2000);
-          return;
-        }
-        reject(new Error(`SteamCMD 退出代码: ${code}\n${output.slice(-500)}`));
-      });
-      this.process!.on("error", (err) => {
-        this.process = null;
-        reject(err);
-      });
+    const sessionLogPath = this.createSessionLogPath();
+    this.sessionOutput = "";
+
+    const debugArgs = args.map(arg => arg === this._password ? "***" : arg);
+    const debugMsg = `[调试] 参数数组 (${args.length} 项): ${JSON.stringify(debugArgs)}\n`;
+    this.appendSessionOutput(debugMsg);
+    this.emit("output", debugMsg);
+
+    let combined = "";
+    const exitCode = await this.runCapturedProcess(exePath, args, (chunk) => {
+      combined += chunk;
+      onOutput?.(chunk);
     });
+
+    const captureResult: SessionRunCapture = {
+      console: combined,
+      exitCode,
+      exePath,
+      args,
+    };
+    this.writeSessionLogFile(sessionLogPath, captureResult, customArgs);
+
+    if (exitCode === 0 || this.isSteamCmdOutputSuccess(combined, customArgs)) {
+      this.emit("complete", combined);
+      return;
+    }
+    if (retryCount < 1 && this.shouldRetrySteamCmd(exitCode, combined)) {
+      const retryHint = "Update complete, launching SteamCMD...\n";
+      this.appendSessionOutput(retryHint);
+      this.emit("output", retryHint);
+      await new Promise<void>((resolve) => setTimeout(resolve, 2000));
+      return this.runSteamCmd(customArgs, onOutput, retryCount + 1);
+    }
+    throw new Error(`SteamCMD 退出代码: ${exitCode}\n${combined.slice(-500)}`);
+  }
+
+  private async runCapturedProcess(
+    exePath: string,
+    args: string[],
+    onChunk: (chunk: string) => void,
+  ): Promise<number | null> {
+    const capture = await spawnConsoleCapture(
+      exePath,
+      args,
+      this.installDir,
+      (chunk) => {
+        this.appendSessionOutput(chunk);
+        this.emit("output", chunk);
+        onChunk(chunk);
+      },
+      this.installDir,
+    );
+    this.activeCapture = capture;
+    try {
+      return await capture.waitForExit();
+    } finally {
+      this.activeCapture = null;
+    }
+  }
+
+  private createSessionLogPath(): string {
+    const stamp = formatSessionLogStamp();
+    return path.join(this.sessionLogDir, `steamcmd_${stamp}.log`);
+  }
+
+  private writeSessionLogFile(
+    logFilePath: string,
+    capture: SessionRunCapture,
+    customArgs: string[],
+  ): void {
+    const safeArgs = redactPasswordInArgs(capture.args, this._password);
+    const success =
+      capture.exitCode === 0 ||
+      this.isSteamCmdOutputSuccess(capture.console, customArgs);
+    const builder: string[] = [
+      `时间: ${new Date().toISOString().replace("T", " ").slice(0, 19)}`,
+      `程序: ${capture.exePath}`,
+      `参数: ${safeArgs.join(" ")}`,
+      `退出码: ${capture.exitCode ?? "null"}`,
+      `成功: ${success}`,
+      `捕获: ${process.platform === "win32" ? "静默运行 + console_log.txt" : "stdout/stderr 管道"}`,
+      "",
+      "--- console ---",
+      capture.console.trimEnd(),
+    ];
+    try {
+      fs.writeFileSync(logFilePath, builder.join("\n"), "utf-8");
+      this.latestSessionLogPath = logFilePath;
+    } catch {
+      /* best effort */
+    }
   }
 
   private isSteamCmdOutputSuccess(output: string, customArgs: string[]): boolean {
@@ -263,7 +326,18 @@ export class SteamCmdManager extends EventEmitter {
     if (isAppUpdate && /fully installed|already up to date/i.test(output)) {
       return true;
     }
+    const isWorkshop = customArgs.includes("+workshop_download_item");
+    if (isWorkshop && /Success\.\s+Downloaded item/i.test(output)) {
+      return true;
+    }
     return false;
+  }
+
+  private appendSessionOutput(text: string): void {
+    this.sessionOutput += text;
+    if (this.sessionOutput.length > SESSION_OUTPUT_MAX_CHARS) {
+      this.sessionOutput = this.sessionOutput.slice(-SESSION_OUTPUT_MAX_CHARS);
+    }
   }
 
   private shouldRetrySteamCmd(exitCode: number | null, output: string): boolean {
@@ -279,19 +353,93 @@ export class SteamCmdManager extends EventEmitter {
   }
 
   async getLatestLog(maxLines = 300): Promise<string> {
-    const logDir = path.join(this.installDir, "logs");
-    if (!fs.existsSync(logDir)) return "";
-    const files = fs.readdirSync(logDir).filter((f) => f.startsWith("steamcmd_")).sort().reverse();
-    if (files.length === 0) return "";
-    const content = fs.readFileSync(path.join(logDir, files[0]), "utf-8");
-    return content.split("\n").slice(-maxLines).join("\n");
+    return this.getAggregatedLog(maxLines);
+  }
+
+  getAggregatedLog(maxLines = 300): string {
+    if (this.sessionOutput.trim()) {
+      return tailTextLines(this.sessionOutput, maxLines);
+    }
+    return this.readLatestSessionLogTail(maxLines);
+  }
+
+  private readLatestSessionLogTail(maxLines: number): string {
+    const latest = this.findLatestSessionLogPath();
+    if (!latest) {
+      return "";
+    }
+    try {
+      const content = fs.readFileSync(latest, "utf-8");
+      const marker = "--- console ---";
+      const idx = content.indexOf(marker);
+      if (idx >= 0) {
+        return tailTextLines(content.slice(idx + marker.length), maxLines);
+      }
+      const legacyStdout = "--- stdout ---";
+      const legacyIdx = content.indexOf(legacyStdout);
+      if (legacyIdx >= 0) {
+        return tailTextLines(content.slice(legacyIdx), maxLines);
+      }
+      return tailTextLines(content, maxLines);
+    } catch (err) {
+      return `无法读取日志: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  private findLatestSessionLogPath(): string {
+    if (this.latestSessionLogPath && fs.existsSync(this.latestSessionLogPath)) {
+      return this.latestSessionLogPath;
+    }
+    if (!fs.existsSync(this.sessionLogDir)) {
+      return "";
+    }
+    const files = fs
+      .readdirSync(this.sessionLogDir)
+      .filter((name) => name.startsWith("steamcmd_") && name.endsWith(".log"))
+      .sort();
+    if (files.length === 0) {
+      return "";
+    }
+    return path.join(this.sessionLogDir, files[files.length - 1]);
   }
 
   kill(): void {
-    if (this.process) {
-      try { execSync(`taskkill /PID ${this.process.pid} /T /F 2>nul`, { stdio: "ignore" }); }
-      catch { this.process.kill(); }
-      this.process = null;
+    const pid = this.activeCapture?.pid;
+    if (this.activeCapture) {
+      try {
+        this.activeCapture.kill();
+      } catch {
+        /* ignore */
+      }
+      this.activeCapture = null;
+    }
+    if (pid) {
+      try {
+        execSync(`taskkill /PID ${pid} /T /F 2>nul`, { stdio: "ignore" });
+      } catch {
+        /* ignore */
+      }
     }
   }
+}
+
+function formatSessionLogStamp(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+function tailTextLines(text: string, maxLines: number): string {
+  const lines = text.split(/\r?\n/);
+  if (lines.length <= maxLines) {
+    return lines.join("\n").trimEnd();
+  }
+  return lines.slice(-maxLines).join("\n").trimEnd();
+}
+
+function redactPasswordInArgs(args: string[], password: string): string[] {
+  if (!password) {
+    return [...args];
+  }
+  return args.map((arg) => (arg === password ? "***" : arg));
 }

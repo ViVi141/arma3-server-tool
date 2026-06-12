@@ -228,7 +228,7 @@ async function stopSteamCmd() {
   <fieldset><legend>当前服务器</legend>
     <div class="row"><label>服务器目录</label><span class="hint">{{currentServerDir}}</span></div>
   </fieldset>
-  <fieldset><legend>输出流（SSE 实时）</legend>
+  <fieldset><legend>输出流（SteamCMD 后台运行 + console_log 实时同步）</legend>
     <TerminalOutput url="/api/v1/steamcmd/stream" :base-url="baseUrl" :token="apiToken" />
   </fieldset>
 </ConsolePageLayout>

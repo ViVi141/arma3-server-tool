@@ -8,6 +8,7 @@ import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { ArrowDown } from "@element-plus/icons-vue";
 import { useConnectionsStore } from "@/stores/connections";
+import { useUiSettingsStore } from "@/stores/uiSettings";
 import type {
   AutomationCommand,
   AsyncTaskResponse,
@@ -23,6 +24,7 @@ import { parseWorkshopIdsFromClipboard } from "@/utils/modClipboard";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
+const uiSettings = useUiSettingsStore();
 const router = useRouter();
 
 interface ModRow {
@@ -73,6 +75,9 @@ const bikeyListFiles = ref<{ name: string; fullPath: string }[]>([]);
 const steamCmdReady = ref(false);
 
 function goToSteamCmd() {
+  if (!uiSettings.showAdvancedSettings) {
+    uiSettings.setShowAdvanced(true);
+  }
   router.replace({ path: `/console/${props.connectionId}/steamcmd` });
 }
 
@@ -461,13 +466,20 @@ async function runDownload(modIds: number[]) {
     async: true,
     commands: [{ action: "download_mods" as const, modIds }],
   });
+  if (!res.success) {
+    throw new Error(res.error ?? "提交下载任务失败");
+  }
   const taskId = (res.data as AsyncTaskResponse).taskId;
   if (!taskId) {
     throw new Error("未收到任务 ID");
   }
-  await client.pollTask(taskId, 2000, 900000);
-  ElMessage.success("下载任务已完成");
   goToSteamCmd();
+  ElMessage.info("SteamCMD 已开始下载，请在终端查看进度");
+  const finalTask = await client.pollTask(taskId, 2000, 900000);
+  if (finalTask.status === "Failed") {
+    throw new Error(finalTask.error ?? "下载失败");
+  }
+  ElMessage.success("模组下载已完成");
   await doScan();
 }
 

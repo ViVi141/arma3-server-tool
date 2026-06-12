@@ -49,8 +49,8 @@ export class SseManager {
   }
 
   /** Register SSE routes on a Fastify instance */
-  registerRoutes(app: FastifyInstance, prefix = ""): void {
-    app.get(`${prefix}/steamcmd/stream`, async (req: FastifyRequest, reply: FastifyReply) => {
+  registerRoutes(app: FastifyInstance, steamCmd: SteamCmdManager, prefix = ""): void {
+    app.get(`${prefix}/steamcmd/stream`, async (_req: FastifyRequest, reply: FastifyReply) => {
       reply.hijack();
       reply.raw.writeHead(200, {
         "Content-Type": "text/event-stream",
@@ -59,6 +59,24 @@ export class SseManager {
         "Access-Control-Allow-Origin": "*",
       });
       reply.raw.write(`data: ${JSON.stringify({ type: "connected", message: "已连接 SteamCMD 输出流" })}\n\n`);
+
+      const history = steamCmd.getAggregatedLog(150);
+      if (history.trim()) {
+        const historyData = JSON.stringify({
+          type: "output",
+          text: `${history}\n`,
+          time: new Date().toISOString(),
+        });
+        reply.raw.write(`data: ${historyData}\n\n`);
+      }
+      if (steamCmd.isRunning) {
+        const runningData = JSON.stringify({
+          type: "output",
+          text: "[提示] SteamCMD 正在后台运行，实时同步 console_log.txt…\n",
+          time: new Date().toISOString(),
+        });
+        reply.raw.write(`data: ${runningData}\n\n`);
+      }
 
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       this.addSteamCmdClient(id, reply);
