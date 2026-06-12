@@ -21,8 +21,10 @@ Desktop.ini
 
 # Secrets
 *.db
-logs/
-config/
+
+# Runtime logs / tool config at repo root (not packages/*/src/config or logs)
+/logs/
+/config/
 
 # Runtime data
 a3st_*.db
@@ -37,3 +39,17 @@ steamcmd.exe.*
 update_hosts_cached.vdf
 coverage/
 ${APPDATA}/
+
+# Local dev service data (default when DATA_DIR unset)
+.a3st-dev-data/
+
+# SteamCMD bootstrap artifacts when service cwd is repo root (legacy)
+/package/
+/steamapps/
+/public/steambootstrapper_*.txt
+steamcmd.zip
+libraryfolder.vdf
+libraryfolders.vdf
+depotcache/
+appcache/
+crashhandler*.dll*
