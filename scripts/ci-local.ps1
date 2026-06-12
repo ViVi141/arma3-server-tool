@@ -21,7 +21,14 @@ function Invoke-Step {
 
 Write-Host "Arma3 Server Tools v2 — local CI" -ForegroundColor Green
 
-Invoke-Step "Install dependencies" { npm ci }
+$forceInstall = $env:A3ST_FORCE_NPM_CI -eq "1"
+$hasNodeModules = Test-Path (Join-Path $Root "node_modules\typescript\package.json")
+if ($forceInstall -or -not $hasNodeModules) {
+    Invoke-Step "Install dependencies" { npm ci }
+} else {
+    Write-Host ""
+    Write-Host "==> Install dependencies (skipped, node_modules present; set A3ST_FORCE_NPM_CI=1 to reinstall)" -ForegroundColor DarkGray
+}
 Invoke-Step "TypeScript check" { npm run typecheck }
 Invoke-Step "Run tests" { npm test }
 Invoke-Step "Build service" { npm run build:service }

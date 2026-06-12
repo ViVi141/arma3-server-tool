@@ -8,7 +8,7 @@ test.describe("Arma3 Server Tools Web UI", () => {
 
   test("loads connections page", async ({ page }) => {
     await expect(page.getByTestId("connections-page")).toBeVisible();
-    await expect(page.getByText("远程主机")).toBeVisible();
+    await expect(page.getByText("主机连接")).toBeVisible();
   });
 
   test("shows default local connection", async ({ page }) => {
@@ -70,6 +70,6 @@ test.describe("Arma3 Server Tools Web UI", () => {
     await page.waitForURL(/\/console\/local\//, { timeout: 15000 });
     await page.getByTestId("nav-mods").click();
     await expect(page.getByText("扫描刷新")).toBeVisible();
-    await expect(page.getByText("添加模组")).toBeVisible();
+    await expect(page.getByText("获取模组")).toBeVisible();
   });
 });

@@ -2,9 +2,10 @@
 
 跨平台 **Arma 3 专用服务器** 管理工具。全栈 **TypeScript** 实现。
 
-- **前端**：Vue 3 + Element Plus（Web / Electron / Capacitor）
+- **前端**：Vue 3 + Element Plus（Web + Electron 桌面壳）
 - **后端**：Node.js + Fastify + SQLite
 - **当前版本**：v2.0.0-alpha
+- **开服机**：Windows（Arma 3 专用服务器）；控制面板可在其他系统通过浏览器访问
 
 ---
 
@@ -58,7 +59,7 @@ arma3-server-tool/
 ├── mod/               # 监控模组资源
 ├── sql/               # SQLite 表结构
 ├── scripts/           # 构建 / 部署脚本
-├── skills/            # CodeWhale 技能定义
+├── skills/            # OpenClaw Agent 技能
 ├── tools/             # 安装器工具
 ├── legacy/            # v1.x C# 源码归档
 └── package.json       # npm workspaces
@@ -68,21 +69,33 @@ arma3-server-tool/
 
 ## 快速开始
 
-```bash
+```powershell
 npm install
 npm run build:service
-npm run dev:service   # 后端 http://127.0.0.1:19580
-npm run dev:web       # 前端 http://localhost:5173
+npm run start:service   # 后端 http://127.0.0.1:19580
 ```
+
+另开终端：
+
+```powershell
+npm run dev:web         # 前端 http://localhost:5173
+```
+
+- `npm run dev:service` 仅为 TypeScript 编译监视，**不会**启动 HTTP 服务。
+- 完整说明见 [docs/v2-quickstart.md](docs/v2-quickstart.md)。
+- 桌面版：`npm run dev:desktop`（需先 `build:service`）。
 
 ---
 
 ## 文档
 
-- [docs/README.md](docs/README.md) — 文档索引
+- [docs/README.md](docs/README.md) — 文档索引（**请先读 v2 章节**）
+- [docs/v2-quickstart.md](docs/v2-quickstart.md) — v2 安装与开发
 - [docs/config-workflow.md](docs/config-workflow.md) — 配置保存/写入/启停语义
 - [docs/agent-capabilities.md](docs/agent-capabilities.md) — API 能力说明
 - [docs/agent-channels.md](docs/agent-channels.md) — 任务格式与端点
+
+v1 WinForms 文档与发版清单见 [docs/archive/](docs/archive/)。
 
 ---
 

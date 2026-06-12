@@ -13,8 +13,10 @@
   },
   "dependencies": {
     "@a3st/api-client": "*",
+    "@element-plus/icons-vue": "^2.3.1",
     "chart.js": "^4.5.1",
     "element-plus": "^2.14.2",
+    "esbuild": "^0.25.12",
     "pinia": "^2.3.0",
     "vue": "^3.5.0",
     "vue-chartjs": "^5.3.3",

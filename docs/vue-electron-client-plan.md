@@ -1,11 +1,12 @@
 # Vue + Electron 客户端重构计划
 
-> 文档版本：1.0  
+> 文档版本：1.1  
 > 更新日期：2026-06-12  
-> 状态：**计划 / 未实施**  
-> 关联：[architecture.md](architecture.md) · [agent-channels.md](agent-channels.md) · [config-workflow.md](config-workflow.md)
+> 状态：**部分已落地** — v2 已实现 Vue 3 + Electron + **Node** `@a3st/service`（非本文原计划的 .NET 被控服务）  
+> 当前用户文档：[v2-quickstart.md](v2-quickstart.md) · [config-workflow.md](config-workflow.md#v2-web-界面对照)  
+> 关联：[architecture.md](architecture.md) · [agent-channels.md](agent-channels.md)
 
-本文档描述将 **WinForms 主程序** 替换为 **Vue 全栈客户端 + .NET 被控服务** 的目标架构、仓库结构、分阶段交付与验收标准。
+本文档为 **早期改造计划**（WinForms → Vue + 被控服务）。下文目标架构与仓库结构仍作历史参考；实现细节以 v2 TypeScript monorepo 为准。
 
 ---
 

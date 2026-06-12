@@ -2,7 +2,15 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [1.6.0] — 当前
+## [2.0.0-alpha] — 当前（v2 主线）
+
+- **技术栈**：Vue 3 + Electron + Node.js（`@a3st/service`）替代 WinForms + C# `Agent.Host`；v1 源码在 `legacy/`。
+- **控制面板**：连接本机/远程被控服务、多服控制台、配置包编辑与「写入游戏配置」。
+- **HTTP API**：Fastify `/api/v1`，与 v1 Agent 能力大体兼容（以 `GET /api/v1/actions` 为准）。
+- **文档**：新增 [v2-quickstart.md](v2-quickstart.md)；索引与 README 标明 v1/v2 分界。
+- **界面用语**：统一「保存 / 写入游戏配置 / 开服检查」；模组页「导入模组」「已选」等。
+
+## [1.6.0] — v1（WinForms）
 
 - **ServerConfigSession 架构**：内存模型为唯一真相；`Patch` 即时更新；`ConfigPersistenceService` 按 UUID 串行落盘；启动列表仅读 manifest 摘要。
 - **快照策略**：默认「写入服务器前 + 后台异步」；可在 **服务器** 菜单关闭或改为保存前；设置持久化于 `ui-settings.json`。

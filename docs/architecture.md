@@ -1,7 +1,13 @@
 # Arma3 Server Tools — 架构说明
 
-> 当前主线：**.NET 10** · WinForms + Application 服务层 · 可选 **Agent.Host**（Kestrel）  
-> 当前版本：**v1.6.0**
+> **注意**：下文描述 **v1 WinForms / C#** 解决方案（源码在 `legacy/`）。  
+> **v2 主线**（`2.0.0-alpha`）：`packages/service`（Node `@a3st/service`）+ `packages/web`（Vue 3）+ `apps/desktop`（Electron）。见 [v2-quickstart.md](v2-quickstart.md) 与根 [README.md](../README.md)。
+
+---
+
+## v1 架构（WinForms）
+
+> 当前版本：**v1.6.0** · **.NET 10** · WinForms + Application 服务层 · 可选 **Agent.Host**（Kestrel）
 
 ## 解决方案
 

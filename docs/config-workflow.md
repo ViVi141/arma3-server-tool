@@ -2,6 +2,24 @@
 
 > 工具配置（A3ST）与游戏目录 cfg **分离**。本文为主说明；架构见 [architecture.md](architecture.md)，开服步骤见 [first-server-guide.md](first-server-guide.md)。
 
+## v2 Web 界面对照
+
+v2 控制面板（`packages/web`）按钮与 v1 WinForms 语义对齐，用语统一如下：
+
+| v2 界面 | 含义 | API / `action` |
+|---------|------|----------------|
+| 顶栏 **保存** | 写入配置包（`a3st_server.json` 等） | `save` |
+| 顶栏 **写入游戏配置** | 先保存配置包，再写 `server.cfg` 等 | `write_cfg` / `apply` |
+| 顶栏 **开服检查** | 目录、端口、Bikey 等预检 | `preflight` |
+| 顶栏 **启动** | 使用游戏目录中**已有** cfg 启动 | `start`（不写 cfg） |
+| 顶栏 **重启** | 停服 → 写入 → 启服 | `restart` |
+| 模组页 **已选** 开关 | 模组是否进入加载列表 | `enable_mods` / `disable_mods` |
+| 模组表单 **完成后写入游戏配置** | 导入/启用模组后写 cfg | `writeCfgAfter` |
+
+状态栏：**未保存** = 界面有未写入配置包的编辑；**需写入游戏配置** = 配置包与磁盘 cfg 不一致。
+
+开发启动见 [v2-quickstart.md](v2-quickstart.md)。
+
 ## 数据流（v1.6）
 
 1. 选中服务器 → `ServerConfigSessionStore.GetOrLoad(uuid)` 加载 Session  

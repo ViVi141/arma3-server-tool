@@ -19,6 +19,7 @@ import type {
   DashboardData,
   RconPlayersData,
   BikeySummaryData,
+  SteamWorkshopModInfo,
   ModScanData,
   BanEntry,
   MissionEntry,
@@ -262,6 +263,14 @@ export class A3stClient {
 
   async saveModScanPaths(paths: ModScanPathEntry[]): Promise<ApiResponse<{ paths: ModScanPathEntry[]; message: string }>> {
     return this.put("/api/v1/settings/mod-scan-paths", { paths });
+  }
+
+  async fetchWorkshopModDetails(modIds: number[]): Promise<ApiResponse<{ mods: SteamWorkshopModInfo[] }>> {
+    return this.post("/api/v1/workshop/mod-details", { modIds });
+  }
+
+  async validateModPath(modPath: string): Promise<ApiResponse<{ valid: boolean }>> {
+    return this.post("/api/v1/mods/validate-path", { path: modPath });
   }
 
   // ---- Tasks ----

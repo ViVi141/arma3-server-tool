@@ -28,7 +28,7 @@ function openGithub() {
         <li>前端: Vue 3 + Element Plus + Pinia</li>
         <li>BattlEye RCon V2 协议</li>
         <li>SteamCMD 集成</li>
-        <li>跨平台 (Windows / Linux / macOS)</li>
+        <li>控制端跨平台（浏览器 / Electron）；Arma 3 专用服务器仅 Windows</li>
       </ul>
       <el-divider />
       <p>Copyright (C) 2026 ViVi141</p>

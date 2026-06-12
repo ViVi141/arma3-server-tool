@@ -128,6 +128,8 @@ export interface AutomationCommand {
   playerId?: string;
   playerGuid?: string;
   reason?: string;
+  missingOnly?: boolean;
+  modPaths?: string[];
 }
 
 export interface TaskPayload {
@@ -243,19 +245,39 @@ export interface BikeySummaryData {
   enabled: number;
   missingBikey: number;
   ready: number;
+  needsAttention?: number;
+  unsigned?: number;
+  unchecked?: number;
 }
+
+export interface SteamWorkshopModInfo {
+  modId: number;
+  title: string;
+  description: string;
+  fileSizeMb: string;
+  selected: boolean;
+}
+
+export type ModBikeyStatus = "unsigned" | "no_key" | "not_copied" | "ready";
 
 export interface ModMetaRow {
   workshopId: number;
   name: string;
+  dirName?: string;
   path: string;
   enabled: boolean;
   isServerMod: boolean;
   isClientMod?: boolean;
   isHcMod?: boolean;
   isLocalMod?: boolean;
+  inputLocalMod?: boolean;
   bikeyPresent?: boolean;
+  bikeyStatus?: ModBikeyStatus;
+  bikeyLabel?: string;
+  scanOrder?: number;
   sizeBytes?: number;
+  updatedAt?: string;
+  updatedTime?: string;
 }
 
 export interface ModScanData {
@@ -291,6 +313,7 @@ export interface ServerPathsData {
 export interface BikeyFileEntry {
   name: string;
   size: number;
+  fullPath?: string;
 }
 
 export interface SnapshotEntry {

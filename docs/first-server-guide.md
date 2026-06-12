@@ -1,10 +1,23 @@
 # 首次开服指南
 
-本文档说明使用 **Arma3ServerTools** 从零配置并启动 Arma 3 专用服务器的推荐步骤。
+本文档说明使用 **Arma3 Server Tools** 从零配置并启动 Arma 3 专用服务器的推荐步骤。
 
-配置保存与应用流程（v1.5+）见 **[config-workflow.md](config-workflow.md)**。
+配置保存与应用流程见 **[config-workflow.md](config-workflow.md)**（含 **v2 Web 界面对照**）。
 
-## 1. 环境要求
+## v2 快速路径（Vue + Node Service）
+
+1. 按 [v2-quickstart.md](v2-quickstart.md) 启动 `@a3st/service` 与 Web 前端（或 Electron 桌面版）。
+2. 连接页选择 **本机** → **连接**。
+3. **向导** 或 **基本** 页设置服务器目录（路径勿含中文）。
+4. **SteamCMD** 页安装 `arma3server`。
+5. 各设置页修改后点顶栏 **保存**，再点 **写入游戏配置**。
+6. **开服检查** → **启动**。
+
+模组：在 **模组** 页 **扫描刷新** → **导入模组**（Workshop / HTML / 本地）→ 勾选 **已选** / **服模** / **客模** / **HC** → 必要时 **Bikey 管理** 复制密钥。
+
+下文 **§1 起** 为 v1 WinForms（`Arma3ServerTools.exe`）步骤，业务顺序相同，按钮名称略有差异（如「应用到服务器目录」≈ v2「写入游戏配置」）。
+
+## 1. 环境要求（v1 WinForms）
 
 - Windows 10/11，**安装路径与服务器目录均不能包含中文**
 - [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)（框架依赖发布时）

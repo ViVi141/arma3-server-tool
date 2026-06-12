@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { createClient } from "@a3st/api-client";
+import { UI_COPY } from "@/constants/uiCopy";
 import { useConnectionsStore, type SavedConnection } from "@/stores/connections";
 
 const store = useConnectionsStore();
@@ -83,14 +84,14 @@ function selectConnection(id: string) {
 <template>
   <div class="connections-shell" data-testid="connections-page">
     <div class="connections-toolbar">
-      <span class="connections-title">远程主机</span>
-      <el-button size="small" type="primary" data-testid="btn-add-host" @click="showAdd = true">添加主机...</el-button>
+      <span class="connections-title">{{ UI_COPY.connectionTitle }}</span>
+      <el-button size="small" type="primary" data-testid="btn-add-host" @click="showAdd = true">{{ UI_COPY.addHost }}</el-button>
     </div>
 
     <div class="connections-body">
       <div v-if="!store.connections.length" class="connections-empty">
-        <p>尚未添加远程主机</p>
-        <p class="connections-empty-hint">添加被控服务地址后即可管理 Arma 3 服务器</p>
+        <p>{{ UI_COPY.connectionEmpty }}</p>
+        <p class="connections-empty-hint">{{ UI_COPY.connectionEmptyHint }}</p>
         <el-button size="small" type="primary" data-testid="btn-add-host-empty" @click="showAdd = true">添加主机</el-button>
       </div>
 
@@ -124,7 +125,7 @@ function selectConnection(id: string) {
       </el-scrollbar>
     </div>
 
-    <el-dialog v-model="showAdd" title="添加远程主机" width="400px">
+    <el-dialog v-model="showAdd" :title="UI_COPY.addHostDialog" width="400px">
       <el-form label-width="72px" label-position="left">
         <el-form-item label="名称">
           <el-input v-model="addForm.name" placeholder="我的服务器" />

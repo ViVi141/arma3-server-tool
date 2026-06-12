@@ -25,6 +25,7 @@ import {
   toSteamCmdSettingsView,
 } from "../settings/steamcmd-settings.js";
 import { applySteamCmdSettings } from "../settings/apply-steamcmd-settings.js";
+import { fetchWorkshopModDetails } from "../steamcmd/workshop-api.js";
 import { listMissionFiles, mergeMissionEntries } from "../missions/scanner.js";
 import { loadLocalBans, saveLocalBans, type LocalBanEntry } from "../bans/bans-service.js";
 import { runFullDiagnostics } from "../diagnostics/service.js";
@@ -228,6 +229,17 @@ export async function apiRoutes(app: FastifyInstance) {
     return envelope(true, view, null, "");
   });
 
+  app.post("/workshop/mod-details", async (req, reply) => {
+    const body = req.body as { modIds?: number[] } | null;
+    const modIds = body?.modIds ?? [];
+    if (!modIds.length) {
+      reply.status(400);
+      return envelope(false, null, "INVALID_BODY", "");
+    }
+    const mods = await fetchWorkshopModDetails(modIds);
+    return envelope(true, { mods }, null, "");
+  });
+
   app.put("/settings/steamcmd", async (req, reply) => {
     const body = req.body as {
       username?: string;
@@ -391,6 +403,16 @@ export async function apiRoutes(app: FastifyInstance) {
     return envelope(true, summary, null, uuid);
   });
 
+  app.post("/mods/validate-path", async (req, reply) => {
+    const body = req.body as { path?: string } | null;
+    const modPath = body?.path?.trim() ?? "";
+    if (!modPath) {
+      reply.status(400);
+      return envelope(false, null, "INVALID_BODY", "");
+    }
+    return envelope(true, { valid: isModDirectory(modPath) }, null, "");
+  });
+
   app.get("/servers/:uuid/mods/bikeys/files", async (req, reply) => {
     const { uuid } = req.params as { uuid: string };
     const config = app.configStore.load(uuid);
@@ -399,7 +421,7 @@ export async function apiRoutes(app: FastifyInstance) {
       return envelope(false, null, "NOT_FOUND", uuid);
     }
     const keysDir = path.join(config.server.serverDir, "keys");
-    const files: { name: string; size: number }[] = [];
+    const files: { name: string; size: number; fullPath: string }[] = [];
     if (fs.existsSync(keysDir)) {
       for (const file of fs.readdirSync(keysDir)) {
         if (!file.toLowerCase().endsWith(".bikey")) {
@@ -408,7 +430,7 @@ export async function apiRoutes(app: FastifyInstance) {
         const filePath = path.join(keysDir, file);
         try {
           const stat = fs.statSync(filePath);
-          files.push({ name: file, size: stat.size });
+          files.push({ name: file, size: stat.size, fullPath: filePath });
         } catch {
           // skip
         }
@@ -1104,17 +1126,19 @@ async function executeCommand(
       }
 
       if (scope === "all") {
-        const ids = new Set(disableIds);
+        const localMods = (config.mods?.localMods ?? []).map((entry) => ({
+          ...entry,
+          isServerMod: false,
+          isClientMod: false,
+          isHcMod: false,
+        }));
         config.mods = {
           ...config.mods,
-          enabledIds: (config.mods?.enabledIds ?? []).filter((id) => !ids.has(id)),
-          serverModIds: (config.mods?.serverModIds ?? []).filter((id) => !ids.has(id)),
-          clientModIds: (config.mods?.clientModIds ?? []).filter((id) => !ids.has(id)),
-          hcModIds: (config.mods?.hcModIds ?? []).filter((id) => !ids.has(id)),
+          serverModIds: [],
+          clientModIds: [],
+          hcModIds: [],
+          localMods,
         };
-        if (config?.startup?.parameters) {
-          config.startup.parameters = config.startup.parameters.replace(/-mod=[^ ]+/g, "").replace(/\s{2,}/g, " ").trim();
-        }
       } else {
         config = disableModsByScope(config, disableIds, scope);
       }
@@ -1173,9 +1197,18 @@ async function executeCommand(
       if (!modPaths.length) return fail("未配置模组扫描路径");
 
       const scanned = scanModsForConfig(app, config);
-      const enabledPaths = scanned.filter((m) => m.enabled).map((m) => m.path);
       const keysDir = path.join(config.server.serverDir, "keys");
-      const result = app.modScanner.copyBikeys(enabledPaths, keysDir);
+      const missingOnly = cmd.missingOnly === true;
+      const modPathsArg = cmd.modPaths as string[] | undefined;
+      let result: { copied: number; total: number; skipped: number };
+      if (modPathsArg?.length) {
+        result = app.modScanner.copyBikeys(modPathsArg, keysDir);
+      } else if (missingOnly) {
+        result = app.modScanner.copyMissingBikeys(scanned, keysDir);
+      } else {
+        const enabledPaths = scanned.filter((m) => m.enabled).map((m) => m.path);
+        result = app.modScanner.copyBikeys(enabledPaths, keysDir);
+      }
       return ok(`Bikey 复制完成：新增 ${result.copied}，已有 ${result.skipped}，共 ${result.total} 个`);
     }
     case "update_server": {
@@ -1498,6 +1531,7 @@ function buildModScanOptions(app: FastifyInstance, config: ServerConfigPackage) 
     hcModIds: config.mods?.hcModIds ?? [],
     localMods: config.mods?.localMods ?? [],
     enabledLocalPaths: config.mods?.enabledLocalPaths ?? [],
+    serverDir: config.server?.serverDir,
   };
 }
 

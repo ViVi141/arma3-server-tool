@@ -17,7 +17,7 @@ const MAIN_TABS: TabEntry[] = [
   { name: "dashboard", label: "概览" },
   { name: "basic", label: "基本" },
   { name: "mods", label: "模组" },
-  { name: "missions", label: "任务", advancedOnly: true },
+  { name: "missions", label: "地图任务", advancedOnly: true },
   { name: "rcon", label: "远程控制" },
   { name: "bans", label: "封禁" },
   { name: "steamcmd", label: "SteamCMD", advancedOnly: true },

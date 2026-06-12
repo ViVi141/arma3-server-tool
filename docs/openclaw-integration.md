@@ -1,6 +1,9 @@
 # OpenClaw 集成指南（复用已有 IM 通道）
 
-> 执行组件：`Arma3ServerTools.Agent.Host`（运行在 **开服机**，随安装包 `agent/` 目录部署）
+> **执行组件（开服机 HTTP API）**  
+> - **v2**：`@a3st/service`（`packages/service`，默认 `http://127.0.0.1:19580`）  
+> - **v1**：`Arma3ServerTools.Agent.Host`（随安装包 `agent/` 部署）  
+> 二者均暴露 `/api/v1/*`；以运行实例的 `GET /api/v1/actions` 为准。
 
 若你已部署 **OpenClaw**（或同类 Gateway + 多通道 Agent），**不必**在本仓库再接 NapCat / go-cqhttp。QQ、微信、Telegram、Discord 等由 OpenClaw 统一接入；开服工具提供 **HTTP 自动化 API**。
 

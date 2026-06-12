@@ -10,7 +10,7 @@ metadata:
 
 # Arma3 Server Tools（经 OpenClaw 复用 IM 通道）
 
-你已具备 **QQ / 微信 / Telegram 等通道**（由 OpenClaw Gateway 接入）。本 Skill 只负责调用 **本机** 上的 Arma3 Server Tools Agent API，不要在 Skill 里再实现 OneBot/QQ 协议。
+你已具备 **QQ / 微信 / Telegram 等通道**（由 OpenClaw Gateway 接入）。本 Skill 只负责调用开服机上的 **HTTP 自动化 API**（v2：`@a3st/service`；v1：`Agent.Host`），不要在 Skill 里再实现 OneBot/QQ 协议。
 
 **每次操作前先执行**（避免猜错 action 名）：
 
