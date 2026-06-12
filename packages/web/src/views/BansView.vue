@@ -4,6 +4,7 @@ import { ref, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import type { BanEntry } from "@a3st/api-client";
+import { resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
@@ -57,7 +58,7 @@ async function addBan() {
     if (!client) {
       return;
     }
-    await client.submitTask({
+    const res = await client.submitTask({
       serverUuid: props.serverUuid,
       commands: [{
         action: "local_ban_add" as const,
@@ -68,7 +69,12 @@ async function addBan() {
     showAdd.value = false;
     addForm.value = { guid: "", reason: "手动封禁" };
     await loadBans();
-    ElMessage.success("添加成功");
+    const msg = resolveTaskMessage(res.data as never, "封禁已添加");
+    if (taskSucceeded(res.data as never)) {
+      ElMessage.success(msg);
+    } else {
+      ElMessage.warning(msg);
+    }
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : "添加失败");
   }

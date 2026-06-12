@@ -4,6 +4,7 @@ import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import type { RconPlayerRow } from "@a3st/api-client";
 import { parseRconBans, parseRconMissions } from "@/utils/rcon-parse";
+import { resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
@@ -34,7 +35,12 @@ async function doAction(action: string, extra: Record<string, unknown> = {}) {
       serverUuid: props.serverUuid,
       commands: [{ action: action as never, ...extra }],
     });
-    ElMessage.success("已执行");
+    const msg = resolveTaskMessage(res.data as never, "操作完成");
+    if (taskSucceeded(res.data as never)) {
+      ElMessage.success(msg);
+    } else {
+      ElMessage.warning(msg);
+    }
     return res;
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : "操作失败");

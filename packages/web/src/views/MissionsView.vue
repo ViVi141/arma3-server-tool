@@ -6,6 +6,7 @@ import { useConnectionsStore } from "@/stores/connections";
 import { useConfigEditorRegistration } from "@/composables/configEditor";
 import type { MissionEntry } from "@a3st/api-client";
 import UploadView from "./UploadView.vue";
+import { resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
@@ -187,11 +188,11 @@ async function switchMission(template: string) {
         { action: "restart" },
       ],
     });
-    const taskResult = res.data as { success: boolean; message: string };
-    if (taskResult?.success) {
-      ElMessage.success(`任务已切换至 ${template}`);
+    const msg = resolveTaskMessage(res.data as never, `任务已切换至 ${template}`);
+    if (taskSucceeded(res.data as never)) {
+      ElMessage.success(msg);
     } else {
-      ElMessage.warning(taskResult?.message ?? "切换失败");
+      ElMessage.warning(msg);
     }
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : "操作失败");

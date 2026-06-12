@@ -19,7 +19,7 @@ const MAIN_TABS: TabEntry[] = [
   { name: "mods", label: "模组" },
   { name: "missions", label: "地图任务", advancedOnly: true },
   { name: "rcon", label: "远程控制" },
-  { name: "bans", label: "封禁" },
+  { name: "bans", label: "封禁文件" },
   { name: "steamcmd", label: "SteamCMD", advancedOnly: true },
 ];
 
@@ -28,7 +28,7 @@ const SETTINGS_TABS: TabEntry[] = [
   { name: "network", label: "网络", advancedOnly: true },
   { name: "security", label: "安全", advancedOnly: true },
   { name: "difficulty", label: "难度", advancedOnly: true },
-  { name: "log", label: "日志", advancedOnly: true },
+  { name: "log", label: "日志选项", advancedOnly: true },
 ];
 
 const TOOL_TABS: TabEntry[] = [
@@ -37,7 +37,6 @@ const TOOL_TABS: TabEntry[] = [
   { name: "snapshots", label: "快照" },
   { name: "logs", label: "RPT 日志" },
   { name: "preflight", label: "开服检查" },
-  { name: "wizard", label: "向导" },
   { name: "config", label: "配置包", advancedOnly: true },
   { name: "about", label: "关于" },
 ];

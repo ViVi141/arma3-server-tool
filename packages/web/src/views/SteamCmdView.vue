@@ -6,6 +6,7 @@ import { useConnectionsStore } from "@/stores/connections";
 import type { AutomationCommand, AsyncTaskResponse } from "@a3st/api-client";
 import TerminalOutput from "@/components/TerminalOutput.vue";
 import PathInput from "@/components/PathInput.vue";
+import { pollTaskSucceeded, resolvePollTaskMessage } from "@/utils/taskSteps";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
@@ -122,14 +123,13 @@ async function submitAsyncTask(commands: AutomationCommand[], label: string) {
     }
 
     const finalTask = await client.pollTask(taskId, 2000, 900000);
-    if (finalTask.status === "Succeeded") {
-      const steps = finalTask.data?.steps ?? [];
-      const lastStep = steps[steps.length - 1];
-      taskStatus.value = `${label}：完成`;
-      ElMessage.success(lastStep?.message ?? `${label} 完成`);
+    const msg = resolvePollTaskMessage(finalTask as never, `${label} 完成`);
+    if (pollTaskSucceeded(finalTask as never)) {
+      taskStatus.value = `${label}：${msg}`;
+      ElMessage.success(msg);
     } else {
       taskStatus.value = `${label}：失败`;
-      ElMessage.error(finalTask.error ?? `${label} 失败`);
+      ElMessage.error(msg);
     }
   } catch (e) {
     taskStatus.value = `${label}：失败`;
@@ -140,16 +140,8 @@ async function submitAsyncTask(commands: AutomationCommand[], label: string) {
   }
 }
 
-async function downloadSteamCmd() {
-  await submitAsyncTask([{ action: "update_server" }], "SteamCMD");
-}
-
-async function installDedicatedServer() {
+async function installOrUpdateServer() {
   await submitAsyncTask([{ action: "update_server" }], "安装/更新服务器");
-}
-
-async function updateServerFiles() {
-  await submitAsyncTask([{ action: "update_server" }], "更新服务器文件");
 }
 
 async function checkSteamCmd() {
@@ -206,13 +198,14 @@ async function stopSteamCmd() {
 <template>
 <ConsolePageLayout>
 <template #toolbar>
-  <el-button size="small" :loading="busy" @click="downloadSteamCmd">下载 SteamCMD</el-button>
-  <el-button size="small" type="primary" :loading="busy" @click="installDedicatedServer">安装/更新专用服务器</el-button>
-  <el-button size="small" :loading="busy" @click="updateServerFiles">更新服务器文件</el-button>
+  <el-button size="small" type="primary" :loading="busy" @click="installOrUpdateServer">安装/更新服务器</el-button>
   <el-button size="small" @click="stopSteamCmd" style="margin-left:auto;">停止 SteamCMD</el-button>
   <el-button size="small" @click="checkSteamCmd">刷新状态</el-button>
 </template>
-<template v-if="taskStatus" #hint>{{ taskStatus }}</template>
+<template #hint>
+  <span>通过 SteamCMD 下载/更新专用服务器与 SteamCMD 本身；下方终端可查看实时输出。</span>
+  <span v-if="taskStatus" class="task-hint">{{ taskStatus }}</span>
+</template>
   <fieldset><legend>Steam 账号</legend>
     <div class="row"><label>用户名</label><el-input v-model="steamUser" size="small"/></div>
     <div class="row"><label>密码</label><el-input v-model="steamPwd" type="password" size="small" show-password/></div>
@@ -239,4 +232,5 @@ legend{font-size:12px;font-weight:600;padding:0 4px}
 .row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .row label{width:120px;font-size:12px;color:var(--el-text-color-secondary);flex-shrink:0;text-align:right}
 .hint{font-size:12px;color:var(--el-text-color-secondary)}
+.task-hint{display:block;margin-top:4px;color:var(--el-text-color-secondary)}
 </style>

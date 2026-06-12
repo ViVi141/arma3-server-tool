@@ -165,6 +165,7 @@ export interface AsyncTaskResponse {
 export interface TaskStatus {
   taskId: string;
   status: "Pending" | "Running" | "Succeeded" | "Failed";
+  steps?: TaskStep[];
   data?: TaskData;
   error?: string;
   createdAt?: string;

@@ -6,6 +6,7 @@ import { ref, onMounted, computed } from "vue";
 import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import { asConfigString } from "@/utils/configStringField";
+import { resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
@@ -53,8 +54,13 @@ async function execAction(action: string) {
   try {
     const client = store.getClient();
     if (!client) return;
-    await client.submitTask({ serverUuid: props.serverUuid, commands: [{ action: action as never }] });
-    ElMessage.success(`${action} 执行成功`);
+    const res = await client.submitTask({ serverUuid: props.serverUuid, commands: [{ action: action as never }] });
+    const msg = resolveTaskMessage(res.data as never, `${action} 完成`);
+    if (taskSucceeded(res.data as never)) {
+      ElMessage.success(msg);
+    } else {
+      ElMessage.warning(msg);
+    }
   } catch (e) { ElMessage.error(e instanceof Error ? e.message : "执行失败"); }
 }
 </script>
@@ -80,6 +86,7 @@ async function execAction(action: string) {
         <div class="field-row"><label>最大内存(MB)</label><el-input-number v-model="sections.startup.maxMem" :min="0" :step="512" size="small" controls-position="right" /></div>
         <div class="field-row"><label>帧率上限</label><el-input-number v-model="sections.startup.limitFps" :min="1" :max="1000" size="small" controls-position="right" /></div>
         <div class="field-row"><label>视距</label><el-input-number v-model="sections.startup.viewDistance" :min="200" :step="100" size="small" controls-position="right" /></div>
+        <div class="field-row"><label>端口</label><el-input-number v-model="sections.startup.port" :min="1024" :max="65535" size="small" controls-position="right" /></div>
         <div class="field-row"><label>崩溃重启</label><el-switch v-model="sections.startup.restartOnCrash" size="small" /></div>
         <el-button size="small" @click="saveSection('startup')">保存启动参数</el-button>
       </fieldset>
@@ -88,7 +95,6 @@ async function execAction(action: string) {
       <fieldset><legend>服务器设置</legend>
         <div class="field-row"><label>服务器名</label><el-input v-model="sections.basic.hostname" size="small" /></div>
         <div class="field-row"><label>最大玩家</label><el-input-number v-model="sections.basic.maxPlayers" :min="1" :max="128" size="small" controls-position="right" /></div>
-        <div class="field-row"><label>端口</label><el-input-number v-model="sections.basic.port" :min="1024" :max="65535" size="small" controls-position="right" /></div>
         <div class="field-row"><label>密码</label><el-input v-model="sections.basic.password" type="password" show-password size="small" /></div>
         <div class="field-row"><label>管理员密码</label><el-input v-model="sections.basic.passwordAdmin" type="password" show-password size="small" /></div>
         <el-button size="small" @click="saveSection('basic')">保存服务器设置</el-button>

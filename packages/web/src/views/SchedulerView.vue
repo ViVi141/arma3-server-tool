@@ -6,6 +6,7 @@ import { useConnectionsStore } from "@/stores/connections";
 import { useConfigEditorRegistration } from "@/composables/configEditor";
 import { applyDefaults } from "@/utils/defaults";
 import type { CronJobEntry } from "@a3st/api-client";
+import { resolveTaskMessage } from "@/utils/taskSteps";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
@@ -128,7 +129,7 @@ async function syncCron() {
       serverUuid: props.serverUuid,
       commands: [{ action: "sync_cron_jobs" as const }],
     });
-    const msg = (res.data as { message?: string })?.message ?? "定时任务已同步";
+    const msg = resolveTaskMessage(res.data as never, "定时任务已同步");
     ElMessage.success(msg);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : "同步失败");

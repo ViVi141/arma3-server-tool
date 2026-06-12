@@ -6,6 +6,7 @@ import { useSettingsPage } from "@/composables/useSettingsPage";
 import { useConnectionsStore } from "@/stores/connections";
 import { ElMessage } from "element-plus";
 import { asConfigString } from "@/utils/configStringField";
+import { resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
@@ -26,8 +27,13 @@ async function act(action: string) {
     if (!client) {
       return;
     }
-    await client.submitTask({ serverUuid: props.serverUuid, commands: [{ action: action as never }] });
-    ElMessage.success("已执行");
+    const res = await client.submitTask({ serverUuid: props.serverUuid, commands: [{ action: action as never }] });
+    const msg = resolveTaskMessage(res.data as never, "操作完成");
+    if (taskSucceeded(res.data as never)) {
+      ElMessage.success(msg);
+    } else {
+      ElMessage.warning(msg);
+    }
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : "失败");
   }

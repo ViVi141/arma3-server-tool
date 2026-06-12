@@ -20,7 +20,8 @@ import type {
 import PathInput from "@/components/PathInput.vue";
 import { isElectron, openPath, pickDirectory, pickFile, readTextFile } from "@/utils/electron";
 import { bikeyStatusIcon, bikeyStatusHint, bikeyStatusLabel, formatBikeySummary } from "@/utils/modBikeyIcon";
-import { extractTaskSteps, lastTaskStep } from "@/utils/taskSteps";
+import { parseWorkshopIdsFromClipboard } from "@/utils/modClipboard";
+import { extractTaskSteps, lastTaskStep, resolvePollTaskMessage, resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
@@ -471,9 +472,9 @@ async function runDownload(modIds: number[]) {
   ElMessage.info("SteamCMD 已开始下载，请在终端查看进度");
   const finalTask = await client.pollTask(taskId, 2000, 900000);
   if (finalTask.status === "Failed") {
-    throw new Error(finalTask.error ?? "下载失败");
+    throw new Error(resolvePollTaskMessage(finalTask as never, "下载失败"));
   }
-  ElMessage.success("模组下载已完成");
+  ElMessage.success(resolvePollTaskMessage(finalTask as never, "模组下载已完成"));
   await doScan();
 }
 

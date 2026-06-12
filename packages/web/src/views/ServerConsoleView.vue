@@ -8,6 +8,7 @@ import { useUiSettingsStore } from "@/stores/uiSettings";
 import { useConfigSessionStore } from "@/stores/configSession";
 import { navGroups, resolveTabName } from "@/config/tab-registry";
 import { openPath, isElectron } from "@/utils/electron";
+import { resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 import { CONFIG_EDITOR_KEY, type ConfigEditorRegistration } from "@/composables/configEditor";
 import UnsavedChangesDialog from "@/components/UnsavedChangesDialog.vue";
 import NewServerDialog from "@/components/NewServerDialog.vue";
@@ -369,6 +370,14 @@ async function execSave() {
   }
 }
 
+const TASK_ACTION_FALLBACK: Record<string, string> = {
+  start: "已启动",
+  stop: "已停止",
+  restart: "已重启",
+  write_cfg: "游戏配置已写入",
+  preflight: UI_COPY.preflight + "完成",
+};
+
 async function execAction(action: string) {
   if (!selectedUuid.value) {
     return;
@@ -394,11 +403,17 @@ async function execAction(action: string) {
       return;
     }
     const res = await client.submitTask({ serverUuid: selectedUuid.value, commands: [{ action: action as never }] });
-    const d = res.data as { success?: boolean; message?: string } | undefined;
     if (action === "write_cfg") {
       await refreshSyncState();
     }
-    ElMessage[d?.success ? "success" : "warning"](d?.message ?? (action === "start" ? "已启动" : action === "stop" ? "已停止" : "已重启"));
+    const fallback = TASK_ACTION_FALLBACK[action] ?? "操作完成";
+    const msg = resolveTaskMessage(res.data as never, fallback);
+    const ok = taskSucceeded(res.data as never);
+    if (ok) {
+      ElMessage.success(msg);
+    } else {
+      ElMessage.warning(msg);
+    }
     await refreshStatus();
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : "操作失败");
@@ -622,7 +637,6 @@ async function reloadFromDisk(): Promise<void> {
           <LogsView v-else-if="activeTab === 'logs'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
           <PreflightView v-else-if="activeTab === 'preflight'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
           <ConfigEditor v-else-if="activeTab === 'config'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <SetupWizardView v-else-if="activeTab === 'wizard'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
           <AboutView v-else-if="activeTab === 'about'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
         </template>
       </div>
@@ -663,7 +677,6 @@ import SnapshotsView from "./SnapshotsView.vue";
 import LogsView from "./LogsView.vue";
 import PreflightView from "./PreflightView.vue";
 import ConfigEditor from "./ConfigEditor.vue";
-import SetupWizardView from "./SetupWizardView.vue";
 import AboutView from "./AboutView.vue";
 </script>
 

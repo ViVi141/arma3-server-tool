@@ -25,5 +25,5 @@ export const UI_COPY = {
   modsHcMod: "HC",
   modsHcModHint: "作为无头客户端（HC）模组加载",
   modsSignature: "签名",
-  modsSignatureHint: "Bikey 签名状态：就绪 / 未复制 / 无密钥 / 未签名",
+  modsSignatureHint: "Bikey 签名状态：验证通过 / 未复制 / 无密钥 / 未签名",
 } as const;
