@@ -1,4 +1,8 @@
 import { defineConfig } from "@playwright/test";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const webRoot = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   testDir: "./e2e",
@@ -7,12 +11,13 @@ export default defineConfig({
   use: {
     headless: true,
     viewport: { width: 1280, height: 720 },
+    baseURL: "http://localhost:5174",
   },
   webServer: {
     command: "npx vite --port 5174 --host",
     url: "http://localhost:5174",
-    cwd: "C:\\Users\\74738\\Desktop\\arma3-server-tool\\packages\\web",
+    cwd: webRoot,
     reuseExistingServer: true,
-    timeout: 10000,
+    timeout: 120000,
   },
 });

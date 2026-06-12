@@ -39,6 +39,36 @@ const switching = ref(false);
 const errorMsg = ref("");
 let trackDirty = false;
 
+const scanning = ref(false);
+
+async function scanMissionsFromDisk() {
+  scanning.value = true;
+  try {
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    const res = await client.scanMissions(props.serverUuid);
+    if (!res.success) {
+      throw new Error(res.error ?? "扫描失败");
+    }
+    const scanned = res.data.scanned ?? 0;
+    const list = res.data.missions ?? [];
+    missions.value = list.map((m) => ({
+      template: m.template,
+      difficulty: m.difficulty ?? 3,
+      whiteList: m.whiteList ?? false,
+      choose: m.choose ?? false,
+    }));
+    markDirty();
+    ElMessage.success(`已扫描 ${scanned} 个任务，列表已更新（需保存后写入配置）`);
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : "扫描失败");
+  } finally {
+    scanning.value = false;
+  }
+}
+
 async function loadConfig() {
   loading.value = true;
   errorMsg.value = "";
@@ -182,7 +212,12 @@ onMounted(() => {
     <el-alert v-if="errorMsg" :title="errorMsg" type="error" show-icon closable style="margin: 8px;" />
 
     <el-card v-loading="loading" style="margin: 8px;">
-      <template #header><span>任务列表</span></template>
+      <template #header>
+        <div class="mission-header">
+          <span>任务列表</span>
+          <el-button size="small" :loading="scanning" @click="scanMissionsFromDisk">扫描 MPMissions</el-button>
+        </div>
+      </template>
       <el-table v-if="missions.length" :data="missions" stripe size="small">
         <el-table-column prop="template" label="任务名称" min-width="180" />
         <el-table-column label="难度" width="120">
@@ -239,6 +274,7 @@ onMounted(() => {
 
 <style scoped>
 .form-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
+.mission-header { display: flex; align-items: center; justify-content: space-between; width: 100%; }
 .form-row.block { flex-direction: column; align-items: stretch; }
 .form-row label { width: 120px; color: var(--el-text-color-secondary); flex-shrink: 0; }
 .form-row.block label { width: auto; }

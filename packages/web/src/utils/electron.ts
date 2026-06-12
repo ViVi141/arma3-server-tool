@@ -20,3 +20,33 @@ export async function pickDirectory(): Promise<string | null> {
   }
   return result.filePaths[0];
 }
+
+export async function pickFile(
+  filters?: { name: string; extensions: string[] }[]
+): Promise<string | null> {
+  if (!window.electronAPI?.showOpenDialog) {
+    return null;
+  }
+  const options: { properties: string[]; filters?: { name: string; extensions: string[] }[] } = {
+    properties: ["openFile"],
+  };
+  if (filters && filters.length > 0) {
+    options.filters = filters;
+  }
+  const result = await window.electronAPI.showOpenDialog(options);
+  if (result.canceled || !result.filePaths.length) {
+    return null;
+  }
+  return result.filePaths[0];
+}
+
+export async function readTextFile(filePath: string): Promise<string | null> {
+  if (!filePath || !window.electronAPI?.readTextFile) {
+    return null;
+  }
+  try {
+    return await window.electronAPI.readTextFile(filePath);
+  } catch {
+    return null;
+  }
+}

@@ -218,6 +218,16 @@ export interface SteamCmdStatusData {
   currentOperation?: string;
 }
 
+export interface SteamCmdSettingsData {
+  username: string;
+  hasPassword: boolean;
+  workshopRoot: string;
+  serverInstallPath: string;
+  steamCmdDir: string;
+  workshopModCount: number;
+  message?: string;
+}
+
 export interface RconPlayerRow {
   num: number;
   guid: string;
@@ -241,12 +251,16 @@ export interface ModMetaRow {
   path: string;
   enabled: boolean;
   isServerMod: boolean;
+  isClientMod?: boolean;
+  isHcMod?: boolean;
+  isLocalMod?: boolean;
   bikeyPresent?: boolean;
   sizeBytes?: number;
 }
 
 export interface ModScanData {
   mods: ModMetaRow[];
+  scanPathCount?: number;
 }
 
 export interface BanEntry {
@@ -254,7 +268,29 @@ export interface BanEntry {
   ip?: string;
   reason?: string;
   date?: string;
+  time?: string;
   name?: string;
+}
+
+export interface LogFileEntry {
+  fileName: string;
+  filePath: string;
+  size: number;
+  lastModified: string;
+  kind: "rpt" | "battleye";
+}
+
+export interface ServerPathsData {
+  toolConfigDir: string;
+  dataConfigDir: string;
+  serverDir: string;
+  serverConfigDir: string;
+  logDir: string;
+}
+
+export interface BikeyFileEntry {
+  name: string;
+  size: number;
 }
 
 export interface SnapshotEntry {

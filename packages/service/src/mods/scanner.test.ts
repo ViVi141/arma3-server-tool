@@ -6,14 +6,14 @@ import * as os from "node:os";
 
 function createTempModDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-modtest-"));
-  // Create fake mods
   const mod1 = path.join(dir, "@cba");
+  fs.mkdirSync(path.join(mod1, "addons"), { recursive: true });
   fs.mkdirSync(path.join(mod1, "keys"), { recursive: true });
   fs.writeFileSync(path.join(mod1, "meta.cpp"), 'publishedid = 450814997;\n', "utf-8");
   fs.writeFileSync(path.join(mod1, "keys", "cba.bikey"), "fake", "utf-8");
 
   const mod2 = path.join(dir, "@ace");
-  fs.mkdirSync(mod2, { recursive: true });
+  fs.mkdirSync(path.join(mod2, "addons"), { recursive: true });
   fs.writeFileSync(path.join(mod2, "meta.cpp"), 'publishedid = 463939057;\n', "utf-8");
 
   return dir;
@@ -46,6 +46,42 @@ describe("ModScanner", () => {
     const scanner = new ModScanner();
     const result = scanner.scan({ modPaths: ["/does/not/exist"], enabledIds: [], serverModIds: [] });
     expect(result).toEqual([]);
+  });
+
+  it("recognizes workshop folders named by numeric id", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-workshop-id-"));
+    try {
+      const modDir = path.join(root, "450814997");
+      fs.mkdirSync(path.join(modDir, "addons"), { recursive: true });
+      const scanner = new ModScanner();
+      const result = scanner.scan({ modPaths: [root], enabledIds: [450814997], serverModIds: [] });
+      expect(result).toHaveLength(1);
+      expect(result[0].workshopId).toBe(450814997);
+      expect(result[0].enabled).toBe(true);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("includes explicit local mods", () => {
+    const modDir = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-local-mod-"));
+    try {
+      fs.mkdirSync(path.join(modDir, "addons"), { recursive: true });
+      const scanner = new ModScanner();
+      const result = scanner.scan({
+        modPaths: [],
+        enabledIds: [],
+        serverModIds: [],
+        localMods: [{ path: modDir, name: "My Local Mod", enabled: true }],
+        enabledLocalPaths: [modDir],
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0].isLocalMod).toBe(true);
+      expect(result[0].name).toBe("My Local Mod");
+      expect(result[0].enabled).toBe(true);
+    } finally {
+      fs.rmSync(modDir, { recursive: true, force: true });
+    }
   });
 
   it("copyBikeys copies .bikey files to server keys dir", () => {

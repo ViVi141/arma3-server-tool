@@ -7,7 +7,15 @@
     <title>Arma3 Server Tools</title>
     <script>
       (function () {
-        var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var mode = localStorage.getItem("a3st-theme-mode");
+        var dark = false;
+        if (mode === "dark") {
+          dark = true;
+        } else if (mode === "light") {
+          dark = false;
+        } else {
+          dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        }
         document.documentElement.dataset.theme = dark ? "dark" : "light";
         document.documentElement.style.colorScheme = dark ? "dark" : "light";
       })();

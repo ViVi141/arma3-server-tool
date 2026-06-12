@@ -15,15 +15,47 @@ import { runPreflightChecks } from "../preflight/checker.js";
 import { fetchRconPlayers, resolveRconOptions } from "../rcon/helpers.js";
 import { maybeAutoSnapshot } from "../config/auto-snapshot.js";
 import { evaluateSyncState } from "../config/sync-state.js";
-import { disableModsByScope, resolveModPaths, type ModDisableScope } from "../mods/enabler.js";
+import { disableModsByScope, type ModDisableScope } from "../mods/enabler.js";
+import { collectModPaths, ensureDefaultWorkshopScanPath, isModDirectory } from "../mods/paths.js";
+import type { ModMeta, LocalModEntry } from "../types/mods.js";
 import { startHeadlessClient, stopHeadlessClient } from "../process/headless.js";
 import type { UiSettings } from "../settings/ui-settings.js";
 import type { ModScanPathEntry } from "../mods/scan-path-store.js";
+import {
+  toSteamCmdSettingsView,
+} from "../settings/steamcmd-settings.js";
+import { applySteamCmdSettings } from "../settings/apply-steamcmd-settings.js";
+import { listMissionFiles, mergeMissionEntries } from "../missions/scanner.js";
+import { loadLocalBans, saveLocalBans, type LocalBanEntry } from "../bans/bans-service.js";
+import { runFullDiagnostics } from "../diagnostics/service.js";
+import {
+  deployMonitoringIfEnabled,
+  hasBundledMonitoringAssets,
+} from "../monitoring/deployment.js";
+import { ingestMonitoringMessage } from "../monitoring/ingest.js";
+import {
+  buildDailyHtmlReport,
+  buildPlayersCsv,
+  buildStatsCsv,
+} from "../monitoring/export.js";
+import {
+  detectRestartServer,
+  executeCronAction,
+  restartServer,
+  startServer,
+  stopServer,
+} from "../scheduling/server-lifecycle.js";
+import { validateServerPath } from "../utils/path-validation.js";
 
 export async function apiRoutes(app: FastifyInstance) {
   // ===================== Servers CRUD =====================
 
-  app.get("/servers", async () => {
+  app.get("/servers", async (req) => {
+    const query = req.query as { reload?: string };
+    const forceDisk = parseQueryBool(query.reload);
+    if (forceDisk && app.uiSettingsStore.load().allowExternalConfigRefresh) {
+      app.configStore.invalidateCache();
+    }
     const servers = app.configStore.listServers();
     return servers.map((s) => {
       const config = app.configStore.load(s.uuid);
@@ -51,7 +83,10 @@ export async function apiRoutes(app: FastifyInstance) {
   // Config read/write
   app.get("/servers/:uuid/config", async (req) => {
     const { uuid } = req.params as { uuid: string };
-    const config = app.configStore.load(uuid);
+    const query = req.query as { reload?: string };
+    const forceDisk =
+      parseQueryBool(query.reload) && app.uiSettingsStore.load().allowExternalConfigRefresh;
+    const config = app.configStore.load(uuid, { forceDisk });
     if (!config) {
       return envelope(false, null, "NOT_FOUND", uuid);
     }
@@ -79,6 +114,24 @@ export async function apiRoutes(app: FastifyInstance) {
       return envelope(false, null, "NOT_FOUND", uuid);
     }
     const patch = req.body as Record<string, unknown>;
+    const modsPatch = patch.mods;
+    if (modsPatch && typeof modsPatch === "object" && !Array.isArray(modsPatch)) {
+      const localMods = (modsPatch as { localMods?: unknown }).localMods;
+      if (Array.isArray(localMods)) {
+        for (const entry of localMods) {
+          const pathVal = (entry as LocalModEntry).path;
+          if (pathVal && !isModDirectory(pathVal)) {
+            reply.status(400);
+            return envelope(
+              false,
+              { message: `所选目录不是有效模组目录（需包含 addons 文件夹）: ${pathVal}` },
+              "INVALID_MOD_PATH",
+              uuid
+            );
+          }
+        }
+      }
+    }
     const merged = mergeConfigPackage(existing, patch);
     maybeAutoSnapshot(app, uuid, "save");
     app.configStore.save(uuid, merged);
@@ -117,7 +170,17 @@ export async function apiRoutes(app: FastifyInstance) {
   app.post("/servers", async (req, reply) => {
     const body = req.body as { configName?: string; serverDir?: string } | null;
     const uuid = randomUUID();
-    app.configStore.save(uuid, { formatVersion: 2 }, body?.configName ?? uuid);
+    const configName = body?.configName?.trim() || uuid;
+    const serverDir = body?.serverDir?.trim() ?? "";
+    const initialConfig: ServerConfigPackage = {
+      formatVersion: 2,
+      server: {
+        configName,
+        serverDir,
+        executable: "arma3server_x64.exe",
+      },
+    };
+    app.configStore.save(uuid, initialConfig, configName);
     reply.status(201);
     return envelope(true, { uuid }, null, uuid);
   });
@@ -160,13 +223,34 @@ export async function apiRoutes(app: FastifyInstance) {
   // ===================== SteamCMD =====================
 
   app.get("/settings/steamcmd", async () => {
-    return envelope(true, { steamCmdDir: app.dataDir }, null, "");
+    const settings = app.steamCmdSettingsStore.load();
+    const view = toSteamCmdSettingsView(settings, app.steamCmd.steamCmdDir);
+    return envelope(true, view, null, "");
   });
 
-  app.put("/settings/steamcmd", async (req) => {
-    const body = req.body as Record<string, unknown>;
-    // Settings persisted via service config in production
-    return envelope(true, { message: "SteamCMD 设置已保存", data: body }, null, "");
+  app.put("/settings/steamcmd", async (req, reply) => {
+    const body = req.body as {
+      username?: string;
+      password?: string;
+      workshopRoot?: string;
+      serverInstallPath?: string;
+    } | null;
+    if (!body) {
+      reply.status(400);
+      return envelope(false, null, "INVALID_BODY", "");
+    }
+    const merged = app.steamCmdSettingsStore.merge({
+      username: body.username,
+      password: body.password,
+      workshopRoot: body.workshopRoot,
+      serverInstallPath: body.serverInstallPath,
+    });
+    applySteamCmdSettings(app.steamCmd, merged);
+    if (merged.workshopRoot.trim()) {
+      ensureDefaultWorkshopScanPath(app.modScanPathStore, merged.workshopRoot);
+    }
+    const view = toSteamCmdSettingsView(merged, app.steamCmd.steamCmdDir);
+    return envelope(true, { message: "SteamCMD 设置已保存", ...view }, null, "");
   });
 
   app.get("/settings/ui", async () => {
@@ -177,7 +261,7 @@ export async function apiRoutes(app: FastifyInstance) {
     const body = req.body as Partial<UiSettings>;
     const current = app.uiSettingsStore.load();
     const merged: UiSettings = {
-      showAdvancedSettings: true,
+      showAdvancedSettings: body.showAdvancedSettings ?? current.showAdvancedSettings,
       allowExternalConfigRefresh: body.allowExternalConfigRefresh ?? current.allowExternalConfigRefresh,
       hasShownTrayMinimizeHint: body.hasShownTrayMinimizeHint ?? current.hasShownTrayMinimizeHint,
       autoSnapshotMode: body.autoSnapshotMode ?? current.autoSnapshotMode,
@@ -215,6 +299,11 @@ export async function apiRoutes(app: FastifyInstance) {
       return envelope(false, null, "INVALID_CREDENTIALS", "");
     }
     app.steamCmd.setCredentials(body.username, body.password);
+    const merged = app.steamCmdSettingsStore.merge({
+      username: body.username,
+      password: body.password,
+    });
+    applySteamCmdSettings(app.steamCmd, merged);
     return envelope(true, { message: "凭据已设置" }, null, "");
   });
 
@@ -240,13 +329,9 @@ export async function apiRoutes(app: FastifyInstance) {
     }
 
     const state = app.processManager.getState(uuid);
-    const modPaths = config.server?.modPaths ?? [];
+    const modPaths = collectModPaths(app, config);
     const scannedMods = modPaths.length > 0
-      ? app.modScanner.scan({
-          modPaths,
-          enabledIds: config.mods?.enabledIds ?? [],
-          serverModIds: config.mods?.serverModIds ?? [],
-        })
+      ? scanModsForConfig(app, config)
       : [];
 
     const result = runPreflightChecks(uuid, config, {
@@ -288,13 +373,9 @@ export async function apiRoutes(app: FastifyInstance) {
     }
 
     const modPaths = collectModPaths(app, config);
-    const mods = app.modScanner.scan({
-      modPaths,
-      enabledIds: config.mods?.enabledIds ?? [],
-      serverModIds: config.mods?.serverModIds ?? [],
-    });
+    const mods = scanModsForConfig(app, config);
 
-    return envelope(true, { mods }, null, uuid);
+    return envelope(true, { mods, scanPathCount: modPaths.length }, null, uuid);
   });
 
   app.get("/servers/:uuid/mods/bikeys", async (req, reply) => {
@@ -305,14 +386,90 @@ export async function apiRoutes(app: FastifyInstance) {
       return envelope(false, null, "NOT_FOUND", uuid);
     }
 
-    const modPaths = collectModPaths(app, config);
-    const summary = app.modScanner.summarizeBikeys({
-      modPaths,
-      enabledIds: config.mods?.enabledIds ?? [],
-      serverModIds: config.mods?.serverModIds ?? [],
-    });
+    const summary = app.modScanner.summarizeBikeys(buildModScanOptions(app, config));
 
     return envelope(true, summary, null, uuid);
+  });
+
+  app.get("/servers/:uuid/mods/bikeys/files", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const config = app.configStore.load(uuid);
+    if (!config?.server?.serverDir) {
+      reply.status(404);
+      return envelope(false, null, "NOT_FOUND", uuid);
+    }
+    const keysDir = path.join(config.server.serverDir, "keys");
+    const files: { name: string; size: number }[] = [];
+    if (fs.existsSync(keysDir)) {
+      for (const file of fs.readdirSync(keysDir)) {
+        if (!file.toLowerCase().endsWith(".bikey")) {
+          continue;
+        }
+        const filePath = path.join(keysDir, file);
+        try {
+          const stat = fs.statSync(filePath);
+          files.push({ name: file, size: stat.size });
+        } catch {
+          // skip
+        }
+      }
+    }
+    return envelope(true, { keysDir, files }, null, uuid);
+  });
+
+  app.get("/servers/:uuid/missions/scan", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const config = app.configStore.load(uuid);
+    if (!config?.server?.serverDir) {
+      reply.status(400);
+      return envelope(false, { message: "未设置服务器目录" }, "NO_SERVER_DIR", uuid);
+    }
+    const templates = listMissionFiles(config.server.serverDir);
+    const missions = mergeMissionEntries(templates, config.tasks?.missions ?? []);
+    return envelope(true, { missions, scanned: templates.length }, null, uuid);
+  });
+
+  app.get("/servers/:uuid/diagnostics", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const config = app.configStore.load(uuid);
+    if (!config) {
+      reply.status(404);
+      return envelope(false, null, "NOT_FOUND", uuid);
+    }
+    const state = app.processManager.getState(uuid);
+    const modPaths = collectModPaths(app, config);
+    const scannedMods = modPaths.length > 0 ? scanModsForConfig(app, config) : [];
+    const result = runFullDiagnostics(app, uuid, config, {
+      isRunning: state.isRunning,
+      scannedMods,
+    });
+    return envelope(true, result, null, uuid);
+  });
+
+  app.get("/servers/:uuid/paths", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const config = app.configStore.load(uuid);
+    if (!config) {
+      reply.status(404);
+      return envelope(false, null, "NOT_FOUND", uuid);
+    }
+    const serverDir = config.server?.serverDir ?? "";
+    return envelope(
+      true,
+      {
+        toolConfigDir: app.configStore.getServerConfigDir(uuid),
+        dataConfigDir: app.configStore.getConfigDir(),
+        serverDir,
+        serverConfigDir: serverDir
+          ? path.join(serverDir, "serverConfig", uuid)
+          : "",
+        logDir: serverDir
+          ? path.join(serverDir, "serverConfig", uuid, "Users", uuid)
+          : "",
+      },
+      null,
+      uuid
+    );
   });
 
   app.get("/servers/:uuid/dashboard", async (req) => {
@@ -334,7 +491,7 @@ export async function apiRoutes(app: FastifyInstance) {
 
     const monitoring = app.monitorDb.getSummary(uuid);
     const latestRpt = config.server?.serverDir
-      ? app.rptLogReader.listLogs(config.server.serverDir, "rpt")[0]?.fileName ?? null
+      ? app.rptLogReader.listLogs(config.server.serverDir, uuid, "rpt")[0]?.fileName ?? null
       : null;
 
     return envelope(
@@ -369,7 +526,7 @@ export async function apiRoutes(app: FastifyInstance) {
     if (!config?.server?.serverDir) {
       return envelope(true, { lines: ["[未设置服务器目录]"], totalLines: 0 }, null, uuid);
     }
-    const rptPath = app.rptLogReader.findActiveRpt(config.server.serverDir);
+    const rptPath = app.rptLogReader.findActiveRpt(config.server.serverDir, uuid);
     if (!rptPath) {
       return envelope(true, { lines: ["[未找到 RPT 日志]"], totalLines: 0 }, null, uuid);
     }
@@ -377,28 +534,56 @@ export async function apiRoutes(app: FastifyInstance) {
     return envelope(true, result, null, uuid);
   });
 
-  app.get("/servers/:uuid/logs", async (req) => {
+  app.get("/servers/:uuid/logs", async (req, reply) => {
     const { uuid } = req.params as { uuid: string };
     const query = req.query as { kind?: string };
-    const kind = query.kind ?? "all";
-    return envelope(true, { kind, serverDir: "", files: [] }, null, uuid);
-  });
-
-  app.get("/servers/:uuid/logs/read", async (req) => {
-    const { uuid } = req.params as { uuid: string };
-    const query = req.query as { kind?: string; tail?: string };
     const config = app.configStore.load(uuid);
     if (!config?.server?.serverDir) {
-      return envelope(true, { lines: ["[未设置服务器目录]"], totalLines: 0 }, null, uuid);
+      reply.status(400);
+      return envelope(false, { message: "未设置服务器目录" }, "NO_SERVER_DIR", uuid);
+    }
+    const kind = (query.kind ?? "all") as "rpt" | "battleye" | "all";
+    const files = app.rptLogReader.listLogs(config.server.serverDir, uuid, kind).map((item) => ({
+      fileName: item.fileName,
+      filePath: item.filePath,
+      size: item.size,
+      lastModified: item.lastModified.toISOString(),
+      kind: item.kind,
+    }));
+    return envelope(
+      true,
+      { kind, serverDir: config.server.serverDir, files },
+      null,
+      uuid
+    );
+  });
+
+  app.get("/servers/:uuid/logs/read", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const query = req.query as { kind?: string; tail?: string; file?: string };
+    const config = app.configStore.load(uuid);
+    if (!config?.server?.serverDir) {
+      reply.status(400);
+      return envelope(false, { message: "未设置服务器目录" }, "NO_SERVER_DIR", uuid);
     }
     const kind = (query.kind ?? "rpt") as "rpt" | "battleye" | "all";
     const maxLines = parseInt(query.tail ?? "200", 10);
-    const logs = app.rptLogReader.listLogs(config.server.serverDir, kind);
-    if (logs.length === 0) {
-      return envelope(true, { lines: ["[无日志文件]"], totalLines: 0 }, null, uuid);
+    const target = app.rptLogReader.resolveAllowedLogPath(
+      config.server.serverDir,
+      uuid,
+      kind,
+      query.file
+    );
+    if (!target) {
+      return envelope(true, { lines: ["[无日志文件]"], totalLines: 0, fileName: "" }, null, uuid);
     }
-    const result = app.rptLogReader.readLog(logs[0].filePath, maxLines);
-    return envelope(true, result, null, uuid);
+    const result = app.rptLogReader.readLog(target, maxLines);
+    return envelope(
+      true,
+      { ...result, fileName: path.basename(target), filePath: target },
+      null,
+      uuid
+    );
   });
 
   // ===================== Monitoring =====================
@@ -432,11 +617,23 @@ export async function apiRoutes(app: FastifyInstance) {
         continue;
       }
       const config = app.configStore.load(s.uuid);
+      if (!config) {
+        continue;
+      }
       let playerCount = 0;
-      if (config) {
-        const online = await countOnlinePlayers(config);
-        if (online !== null) {
-          playerCount = online;
+      const online = await countOnlinePlayers(config);
+      if (online !== null) {
+        playerCount = online;
+        const players = await fetchRconPlayers(config);
+        for (const player of players) {
+          if (player.guid) {
+            app.monitorDb.recordPlayer({
+              playerGuid: player.guid,
+              playerName: player.name ?? player.guid,
+              serverUuid: s.uuid,
+              lastSeen: new Date().toISOString(),
+            });
+          }
         }
       }
       app.monitorDb.recordStats(s.uuid, playerCount);
@@ -445,10 +642,81 @@ export async function apiRoutes(app: FastifyInstance) {
     return envelope(true, { collected: count }, null, "");
   });
 
+  app.post("/servers/:uuid/monitoring/ingest", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const body = req.body as { message?: string } | string | null;
+    const message = typeof body === "string" ? body : body?.message;
+    if (!message) {
+      reply.status(400);
+      return envelope(false, null, "INVALID_BODY", uuid);
+    }
+    ingestMonitoringMessage(app.monitorDb, uuid, message);
+    return envelope(true, { message: "监控数据已入库" }, null, uuid);
+  });
+
+  app.post("/servers/:uuid/monitoring/sync-players", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const config = app.configStore.load(uuid);
+    if (!config) {
+      reply.status(404);
+      return envelope(false, null, "NOT_FOUND", uuid);
+    }
+    const players = await fetchRconPlayers(config);
+    for (const player of players) {
+      if (player.guid) {
+        app.monitorDb.recordPlayer({
+          playerGuid: player.guid,
+          playerName: player.name ?? player.guid,
+          serverUuid: uuid,
+          lastSeen: new Date().toISOString(),
+        });
+      }
+    }
+    return envelope(true, { synced: players.length }, null, uuid);
+  });
+
+  app.get("/servers/:uuid/monitoring/export/html", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const config = app.configStore.load(uuid);
+    if (!config) {
+      reply.status(404);
+      return envelope(false, null, "NOT_FOUND", uuid);
+    }
+    const stats = app.monitorDb.getStats(uuid, 24);
+    const manifest = app.configStore.listServers().find((item) => item.uuid === uuid);
+    const html = buildDailyHtmlReport(manifest?.configName ?? uuid, uuid, stats);
+    reply.header("Content-Type", "text/html; charset=utf-8");
+    return envelope(true, { html }, null, uuid);
+  });
+
+  app.get("/servers/:uuid/monitoring/export/csv", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const query = req.query as { kind?: string };
+    const kind = query.kind ?? "stats";
+    if (kind === "players") {
+      const csv = buildPlayersCsv(app.monitorDb.listPlayers(uuid));
+      reply.header("Content-Type", "text/csv; charset=utf-8");
+      return envelope(true, { csv }, null, uuid);
+    }
+    const csv = buildStatsCsv(app.monitorDb.getStats(uuid, 24));
+    reply.header("Content-Type", "text/csv; charset=utf-8");
+    return envelope(true, { csv }, null, uuid);
+  });
+
+  app.get("/servers/:uuid/monitoring/assets", async (req) => {
+    const { uuid } = req.params as { uuid: string };
+    return envelope(
+      true,
+      { hasBundledAssets: hasBundledMonitoringAssets(app.dataDir) },
+      null,
+      uuid
+    );
+  });
+
   // ===================== Scheduled Tasks =====================
 
   app.get("/schedule", async () => {
-    return envelope(true, [], null, "");
+    return envelope(true, { jobs: app.scheduler.list() }, null, "");
   });
 
   app.post("/schedule/restart", async (req) => {
@@ -501,36 +769,66 @@ export async function apiRoutes(app: FastifyInstance) {
     const { uuid, snapshotId } = req.params as { uuid: string; snapshotId: string };
     const ok = app.snapshotStore.restore(uuid, snapshotId);
     if (!ok) return envelope(false, null, "NOT_FOUND", uuid);
+    app.configStore.invalidateCache(uuid);
     return envelope(true, { message: "快照已恢复" }, null, uuid);
   });
 
   // ===================== Bans =====================
 
-  app.get("/bans", async () => {
-    return envelope(true, loadLocalBans(app.dataDir), null, "");
+  app.get("/servers/:uuid/bans", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const config = app.configStore.load(uuid);
+    if (!config?.server?.serverDir) {
+      reply.status(400);
+      return envelope(false, { message: "未设置服务器目录" }, "NO_SERVER_DIR", uuid);
+    }
+    const bans = loadLocalBans(config.server.serverDir, uuid);
+    return envelope(true, bans, null, uuid);
+  });
+
+  app.put("/servers/:uuid/bans", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const config = app.configStore.load(uuid);
+    if (!config?.server?.serverDir) {
+      reply.status(400);
+      return envelope(false, { message: "未设置服务器目录" }, "NO_SERVER_DIR", uuid);
+    }
+    const body = req.body as LocalBanEntry[] | null;
+    if (!Array.isArray(body)) {
+      reply.status(400);
+      return envelope(false, null, "INVALID_BAN", uuid);
+    }
+    const result = saveLocalBans(config.server.serverDir, uuid, body);
+    if (!result.success) {
+      reply.status(400);
+      return envelope(false, { message: result.message }, "SAVE_BANS_FAILED", uuid);
+    }
+    return envelope(true, { message: result.message, count: body.length }, null, uuid);
+  });
+
+  app.get("/bans", async (req, reply) => {
+    const query = req.query as { serverUuid?: string };
+    if (!query.serverUuid) {
+      reply.status(400);
+      return envelope(false, { message: "请提供 serverUuid 参数" }, "MISSING_UUID", "");
+    }
+    const config = app.configStore.load(query.serverUuid);
+    if (!config?.server?.serverDir) {
+      reply.status(400);
+      return envelope(false, { message: "未设置服务器目录" }, "NO_SERVER_DIR", query.serverUuid);
+    }
+    return envelope(true, loadLocalBans(config.server.serverDir, query.serverUuid), null, query.serverUuid);
   });
 
   app.post("/bans", async (req, reply) => {
-    const body = req.body as BanEntry | BanEntry[] | null;
-    if (Array.isArray(body)) {
-      saveLocalBans(app.dataDir, body);
-      return envelope(true, { message: "封禁列表已保存", count: body.length }, null, "");
-    }
-    if (!body?.guid && !body?.ip) {
-      reply.status(400);
-      return envelope(false, null, "INVALID_BAN", "");
-    }
-    const bans = loadLocalBans(app.dataDir);
-    bans.push({ ...body, date: body.date ?? new Date().toISOString(), reason: body.reason ?? "手动封禁" });
-    saveLocalBans(app.dataDir, bans);
-    return envelope(true, { message: "封禁已添加" }, null, "");
+    reply.status(400);
+    return envelope(false, { message: "请使用 PUT /servers/:uuid/bans" }, "DEPRECATED", "");
   });
 
-  app.delete("/bans/:guid", async (req) => {
+  app.delete("/bans/:guid", async (req, reply) => {
     const { guid } = req.params as { guid: string };
-    const bans = loadLocalBans(app.dataDir).filter((b) => b.guid !== guid);
-    saveLocalBans(app.dataDir, bans);
-    return envelope(true, { message: "封禁已移除" }, null, guid);
+    reply.status(400);
+    return envelope(false, { message: "请使用 PUT /servers/:uuid/bans" }, "DEPRECATED", guid);
   });
 
   // ===================== File Uploads =====================
@@ -568,12 +866,15 @@ export async function apiRoutes(app: FastifyInstance) {
       writeCfgAfter: writeCfg,
     } as never);
 
-    return envelope(true, {
+    if (!result.success) {
+      reply.status(400);
+    }
+    return envelope(result.success, {
       success: result.success,
       message: result.message,
       modCount: ids.length,
       requiresSteamCmd: true,
-    }, null, uuid);
+    }, result.success ? null : result.message, uuid);
   });
 
   app.post("/servers/:uuid/files/mission-pbo", async (req, reply) => {
@@ -725,64 +1026,36 @@ async function executeCommand(
     }
     case "start": {
       if (!config) return fail("未找到服务器配置");
-      const serverDir = config.server?.serverDir;
-      if (!serverDir) return fail("未设置服务器目录");
-      if (!serverCfgExists(serverDir, uuid)) {
-        return fail("尚未写入游戏配置，请先执行「写入服务器」");
-      }
-      const executable = getServerExecutablePath(config);
-      if (!fs.existsSync(executable)) {
-        return fail(`找不到可执行文件: ${executable}`);
-      }
-      const args = splitCommandLine(buildStartCommandLine(uuid, config));
-      app.processManager.register(uuid, {
-        executable,
-        args,
-        cwd: serverDir,
-      });
-      await app.processManager.start(uuid);
-      return ok("服务器已启动");
+      return startServer(app, uuid, config);
     }
     case "stop": {
-      app.processManager.kill(uuid);
+      await stopServer(app, uuid);
       return ok("服务器已停止");
     }
     case "restart": {
-      app.processManager.kill(uuid);
-      await new Promise((r) => setTimeout(r, 2000));
-      if (!config) return fail("未找到服务器配置");
-      const serverDir = config.server?.serverDir;
-      if (!serverDir) return fail("未设置服务器目录");
-      if (!serverCfgExists(serverDir, uuid)) {
-        return fail("尚未写入游戏配置，请先执行「写入服务器」");
-      }
-      const executable = getServerExecutablePath(config);
-      if (!fs.existsSync(executable)) {
-        return fail(`找不到可执行文件: ${executable}`);
-      }
-      const args = splitCommandLine(buildStartCommandLine(uuid, config));
-      app.processManager.register(uuid, {
-        executable,
-        args,
-        cwd: serverDir,
-      });
-      await app.processManager.start(uuid);
-      return ok("服务器已重启");
+      return restartServer(app, uuid);
     }
 
     // ------- Config -------
     case "save": {
-      // Already persisted via PATCH/PUT — this is a manual trigger
+      if (!config) return fail("未找到配置");
+      app.configStore.save(uuid, config);
       return ok("配置已保存");
     }
+    case "apply":
     case "write_cfg": {
       if (!config) return fail("未找到服务器配置");
       maybeAutoSnapshot(app, uuid, "write");
+      const deployResult = deployMonitoringIfEnabled(app.dataDir, config);
       const result = writeAll(uuid, config);
       if (!result.success) {
         return fail(result.message);
       }
-      return ok(result.message);
+      let message = result.message;
+      if (deployResult.message && deployResult.message !== "监控未启用，跳过部署") {
+        message = `${message}；${deployResult.message}`;
+      }
+      return ok(message);
     }
 
     // ------- Mission -------
@@ -852,28 +1125,27 @@ async function executeCommand(
     case "scan_mods": {
       if (!config) return fail("未找到配置");
       const modPaths = collectModPaths(app, config);
-      const result = app.modScanner.scan({
-        modPaths,
-        enabledIds: config.mods?.enabledIds ?? [],
-        serverModIds: config.mods?.serverModIds ?? [],
-      });
-      return ok(`扫描完成，发现 ${result.length} 个模组`);
+      if (!modPaths.length) {
+        return fail("未配置模组扫描路径。请在「扫描路径」或 SteamCMD 页设置 Workshop 根目录。");
+      }
+      const result = scanModsForConfig(app, config);
+      return ok(`扫描完成，发现 ${result.length} 个模组（${modPaths.length} 个路径）`);
     }
     case "download_mods": {
       const ids = cmd.modIds as number[] | undefined;
-      if (!ids?.length) return fail("缺少 modIds");
-      // Start download in background (non-blocking)
-      app.steamCmd.downloadWorkshopMods(ids).then(() => {
-        app.log.info(`模组下载完成: ${ids.length} 个`);
-      }).catch((e: Error) => {
-        app.log.error(`模组下载失败: ${e.message}`);
-      });
-      return ok(`开始下载 ${ids.length} 个模组（SteamCMD）`);
+      if (!ids?.length) {
+        return fail("缺少 modIds");
+      }
+      return runSteamCmdModDownload(app, ids);
     }
     case "import_mods_html": {
-      if (!config) return fail("未找到配置");
+      if (!config) {
+        return fail("未找到配置");
+      }
       const ids = cmd.modIds as number[] | undefined;
-      if (!ids?.length) return fail("未能从 HTML 解析模组 ID");
+      if (!ids?.length) {
+        return fail("未能从 HTML 解析模组 ID");
+      }
 
       const mergedIds = [...new Set([...(config.mods?.enabledIds ?? []), ...ids])];
       config.mods = {
@@ -889,22 +1161,18 @@ async function executeCommand(
         }
       }
 
-      app.steamCmd.downloadWorkshopMods(ids).catch((e: Error) => {
-        app.log.error(`模组下载失败: ${e.message}`);
-      });
-
-      return ok(`已导入 ${ids.length} 个模组 ID，SteamCMD 下载已排队`);
+      const downloadResult = await runSteamCmdModDownload(app, ids);
+      if (!downloadResult.success) {
+        return downloadResult;
+      }
+      return ok(`已导入 ${ids.length} 个模组 ID。${downloadResult.message}`);
     }
     case "copy_bikeys": {
       if (!config?.server?.serverDir) return fail("未设置服务器目录");
       const modPaths = collectModPaths(app, config);
       if (!modPaths.length) return fail("未配置模组扫描路径");
 
-      const scanned = app.modScanner.scan({
-        modPaths,
-        enabledIds: config.mods?.enabledIds ?? [],
-        serverModIds: config.mods?.serverModIds ?? [],
-      });
+      const scanned = scanModsForConfig(app, config);
       const enabledPaths = scanned.filter((m) => m.enabled).map((m) => m.path);
       const keysDir = path.join(config.server.serverDir, "keys");
       const result = app.modScanner.copyBikeys(enabledPaths, keysDir);
@@ -912,20 +1180,113 @@ async function executeCommand(
     }
     case "update_server": {
       const targetDir = config?.server?.serverDir;
-      app.steamCmd.ensureInstalled()
-        .then(() => app.steamCmd.updateServer(targetDir))
-        .catch((e: Error) => app.steamCmd.emit("output", `更新失败: ${e.message}`));
-      return ok("服务器更新已排队");
+      if (!targetDir) {
+        return fail("未设置服务器目录");
+      }
+      try {
+        await app.steamCmd.ensureInstalled();
+        await app.steamCmd.updateServer(targetDir);
+        return ok("服务器文件更新完成");
+      } catch (e: unknown) {
+        return fail(e instanceof Error ? e.message : "更新失败");
+      }
     }
 
     // ------- Preflight -------
     case "preflight": {
       if (!config) return fail("未找到服务器配置");
-      const issues = [];
-      if (config.server?.serverDir && !fs.existsSync(config.server.serverDir)) {
-        issues.push("服务器目录不存在");
+      const state = app.processManager.getState(uuid);
+      const modPaths = collectModPaths(app, config);
+      const scannedMods = modPaths.length > 0 ? scanModsForConfig(app, config) : [];
+      const result = runPreflightChecks(uuid, config, {
+        isRunning: state.isRunning,
+        scannedMods,
+      });
+      if (result.hasBlockingErrors) {
+        const first = result.issues.find((item) => item.severity === "error");
+        return fail(first?.message ?? "启动前检查未通过");
       }
-      return ok(issues.length ? `发现 ${issues.length} 个问题` : "体检通过");
+      return ok(`启动前检查通过（${result.issues.length} 项）`);
+    }
+
+    case "ensure_steamcmd": {
+      try {
+        await app.steamCmd.ensureInstalled();
+        return ok("SteamCMD 已就绪");
+      } catch (e: unknown) {
+        return fail(e instanceof Error ? e.message : "SteamCMD 初始化失败");
+      }
+    }
+    case "stop_steamcmd": {
+      app.steamCmd.kill();
+      return ok("SteamCMD 已停止");
+    }
+    case "steamcmd_status": {
+      return ok(
+        JSON.stringify({
+          isRunning: app.steamCmd.isRunning,
+          isInstalled: app.steamCmd.isInstalled,
+        })
+      );
+    }
+    case "install_dedicated_server": {
+      const targetDir = config?.server?.serverDir;
+      if (!targetDir) {
+        return fail("未设置服务器目录");
+      }
+      try {
+        await app.steamCmd.ensureInstalled();
+        await app.steamCmd.updateServer(targetDir);
+        return ok("专用服务器安装/更新完成");
+      } catch (e: unknown) {
+        return fail(e instanceof Error ? e.message : "安装失败");
+      }
+    }
+    case "create_server": {
+      const configName = String(cmd.configName ?? cmd.serverName ?? randomUUID()).trim();
+      const serverDir = String(cmd.serverDir ?? "").trim();
+      if (serverDir) {
+        const validation = validateServerPath(serverDir);
+        if (!validation.valid) {
+          return fail(validation.message);
+        }
+      }
+      const newUuid = randomUUID();
+      const initialConfig: ServerConfigPackage = {
+        formatVersion: 2,
+        server: {
+          configName,
+          serverDir,
+          executable: "arma3server_x64.exe",
+        },
+      };
+      app.configStore.save(newUuid, initialConfig, configName);
+      return ok(`已创建服务器配置 ${configName} (${newUuid})`);
+    }
+    case "first_server_setup": {
+      if (!config) {
+        return fail("未找到服务器配置");
+      }
+      const serverDir = config.server?.serverDir?.trim();
+      if (!serverDir) {
+        return fail("未设置服务器目录");
+      }
+      try {
+        await app.steamCmd.ensureInstalled();
+        await app.steamCmd.updateServer(serverDir);
+        const deployResult = deployMonitoringIfEnabled(app.dataDir, config);
+        const writeResult = writeAll(uuid, config);
+        if (!writeResult.success) {
+          return fail(writeResult.message);
+        }
+        let message = `首服准备完成：${writeResult.message}`;
+        if (deployResult.message) {
+          message = `${message}；${deployResult.message}`;
+        }
+        return ok(message);
+      } catch (e: unknown) {
+        return fail(e instanceof Error ? e.message : "首服准备失败");
+      }
     }
 
     // ------- RCon -------
@@ -988,13 +1349,20 @@ async function executeCommand(
     }
 
     // ------- Logs -------
-    case "read_logs": {
+    case "read_logs":
+    case "read_rpt": {
       if (!config?.server?.serverDir) return fail("未设置服务器目录");
-      const kind = (cmd.logKind ?? "rpt") as "rpt" | "battleye" | "all";
-      const logs = app.rptLogReader.listLogs(config.server.serverDir, kind);
-      if (logs.length === 0) return ok("无日志文件");
-      const result = app.rptLogReader.readLog(logs[0].filePath, 200);
-      return ok(`日志 (${logs[0].fileName}): ${result.lines.join("\\n").slice(0, 2000)}`);
+      const kind = cmd.action === "read_rpt"
+        ? "rpt"
+        : ((cmd.logKind ?? "rpt") as "rpt" | "battleye" | "all");
+      const target = app.rptLogReader.resolveAllowedLogPath(
+        config.server.serverDir,
+        uuid,
+        kind
+      );
+      if (!target) return ok("无日志文件");
+      const result = app.rptLogReader.readLog(target, 200);
+      return ok(`日志 (${path.basename(target)}): ${result.lines.join("\n").slice(0, 2000)}`);
     }
 
     // ------- Help -------
@@ -1004,19 +1372,25 @@ async function executeCommand(
 
     // ------- Local Bans -------
     case "local_ban_add": {
+      if (!config?.server?.serverDir) return fail("未设置服务器目录");
       const guid = cmd.playerGuid as string;
       const reason = cmd.reason as string;
       if (!guid) return fail("缺少 playerGuid");
-      const bans = loadLocalBans(app.dataDir);
-      bans.push({ guid, reason: reason ?? "手动封禁", date: new Date().toISOString() });
-      saveLocalBans(app.dataDir, bans);
+      const bans = loadLocalBans(config.server.serverDir, uuid);
+      bans.push({ guid, time: "永久封禁", reason: reason ?? "手动封禁" });
+      const result = saveLocalBans(config.server.serverDir, uuid, bans);
+      if (!result.success) return fail(result.message);
       return ok(`已封禁 ${guid}`);
     }
     case "local_ban_remove": {
+      if (!config?.server?.serverDir) return fail("未设置服务器目录");
       const guid = cmd.playerGuid as string;
       if (!guid) return fail("缺少 playerGuid");
-      const bans = loadLocalBans(app.dataDir).filter((b: BanEntry) => b.guid !== guid);
-      saveLocalBans(app.dataDir, bans);
+      const bans = loadLocalBans(config.server.serverDir, uuid).filter(
+        (item) => item.guid.toLowerCase() !== guid.toLowerCase()
+      );
+      const result = saveLocalBans(config.server.serverDir, uuid, bans);
+      if (!result.success) return fail(result.message);
       return ok(`已解封 ${guid}`);
     }
 
@@ -1042,31 +1416,11 @@ async function executeCommand(
       const schedulerCfg = config.scheduler ?? {};
 
       if (schedulerCfg.restartCron) {
-        const cronExpr = schedulerCfg.restartCron;
         app.scheduler.add({
           name: `${uuid}-restart`,
-          schedule: cronExpr,
+          schedule: schedulerCfg.restartCron,
           handler: async () => {
-            app.processManager.kill(uuid);
-            await new Promise((r) => setTimeout(r, 2000));
-            const latest = app.configStore.load(uuid);
-            if (!latest?.server?.serverDir) {
-              return;
-            }
-            if (!serverCfgExists(latest.server.serverDir, uuid)) {
-              return;
-            }
-            const executable = getServerExecutablePath(latest);
-            if (!fs.existsSync(executable)) {
-              return;
-            }
-            const args = splitCommandLine(buildStartCommandLine(uuid, latest));
-            app.processManager.register(uuid, {
-              executable,
-              args,
-              cwd: latest.server.serverDir,
-            });
-            await app.processManager.start(uuid);
+            await executeCronAction(app, uuid, "restart");
           },
         });
         count += 1;
@@ -1088,6 +1442,17 @@ async function executeCommand(
             const online = await countOnlinePlayers(latest);
             if (online !== null) {
               app.monitorDb.recordStats(uuid, online);
+              const players = await fetchRconPlayers(latest);
+              for (const player of players) {
+                if (player.guid) {
+                  app.monitorDb.recordPlayer({
+                    playerGuid: player.guid,
+                    playerName: player.name ?? player.guid,
+                    serverUuid: uuid,
+                    lastSeen: new Date().toISOString(),
+                  });
+                }
+              }
             }
           },
         });
@@ -1103,33 +1468,12 @@ async function executeCommand(
         if (!enabled) {
           continue;
         }
-        const actionText = String(job.actionText ?? job.action ?? "restart").toLowerCase();
+        const actionText = String(job.actionText ?? job.action ?? "restart");
         app.scheduler.add({
           name: `${uuid}-cron-${taskId}`,
           schedule: job.cron,
           handler: async () => {
-            if (actionText.includes("restart")) {
-              app.processManager.kill(uuid);
-              await new Promise((r) => setTimeout(r, 2000));
-              const latest = app.configStore.load(uuid);
-              if (!latest?.server?.serverDir) {
-                return;
-              }
-              if (!serverCfgExists(latest.server.serverDir, uuid)) {
-                return;
-              }
-              const executable = getServerExecutablePath(latest);
-              if (!fs.existsSync(executable)) {
-                return;
-              }
-              const args = splitCommandLine(buildStartCommandLine(uuid, latest));
-              app.processManager.register(uuid, {
-                executable,
-                args,
-                cwd: latest.server.serverDir,
-              });
-              await app.processManager.start(uuid);
-            }
+            await executeCronAction(app, uuid, actionText);
           },
         });
         count += 1;
@@ -1143,35 +1487,41 @@ async function executeCommand(
   }
 }
 
-// ---- Local Ban helpers ----
-
-interface BanEntry {
-  guid?: string;
-  ip?: string;
-  reason?: string;
-  date?: string;
-  name?: string;
+function buildModScanOptions(app: FastifyInstance, config: ServerConfigPackage) {
+  const modPaths = collectModPaths(app, config);
+  return {
+    modPaths,
+    scanPathEntries: app.modScanPathStore.list(),
+    enabledIds: config.mods?.enabledIds ?? [],
+    serverModIds: config.mods?.serverModIds ?? [],
+    clientModIds: config.mods?.clientModIds ?? [],
+    hcModIds: config.mods?.hcModIds ?? [],
+    localMods: config.mods?.localMods ?? [],
+    enabledLocalPaths: config.mods?.enabledLocalPaths ?? [],
+  };
 }
 
-function bansFilePath(dataDir: string): string {
-  return path.join(dataDir, "bans.json");
+function scanModsForConfig(app: FastifyInstance, config: ServerConfigPackage): ModMeta[] {
+  return app.modScanner.scan(buildModScanOptions(app, config));
 }
 
-function loadLocalBans(dataDir: string): BanEntry[] {
-  const fp = bansFilePath(dataDir);
-  if (!fs.existsSync(fp)) return [];
+async function runSteamCmdModDownload(
+  app: FastifyInstance,
+  modIds: number[]
+): Promise<{ success: boolean; message: string }> {
+  const settings = app.steamCmdSettingsStore.load();
+  if (!settings.username || !settings.password) {
+    return fail("请先配置 SteamCMD 账号（SteamCMD 页 → Steam 账号 → 保存凭据）");
+  }
+  applySteamCmdSettings(app.steamCmd, settings);
+
   try {
-    return JSON.parse(fs.readFileSync(fp, "utf-8"));
-  } catch { return []; }
-}
-
-function saveLocalBans(dataDir: string, bans: BanEntry[]): void {
-  fs.writeFileSync(bansFilePath(dataDir), JSON.stringify(bans, null, 2), "utf-8");
-}
-
-function collectModPaths(app: FastifyInstance, config: ServerConfigPackage): string[] {
-  const globalPaths = app.modScanPathStore.list().map((entry) => entry.modulePath);
-  return resolveModPaths(config, globalPaths);
+    await app.steamCmd.ensureInstalled();
+    await app.steamCmd.downloadWorkshopMods(modIds);
+    return ok(`SteamCMD 已开始下载 ${modIds.length} 个模组，请在 SteamCMD 页查看输出`);
+  } catch (e: unknown) {
+    return fail(e instanceof Error ? e.message : "模组下载失败");
+  }
 }
 
 function ok(message: string) {

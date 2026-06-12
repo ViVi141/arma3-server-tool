@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { ElMessage } from "element-plus";
+import PathInput from "@/components/PathInput.vue";
 import { useConnectionsStore } from "@/stores/connections";
 import { useRouter } from "vue-router";
 import type { AsyncTaskResponse } from "@a3st/api-client";
@@ -145,7 +146,7 @@ function goToServer() {
           <el-input v-model="configName" placeholder="我的服务器" />
         </el-form-item>
         <el-form-item label="服务器目录">
-          <el-input v-model="serverDir" placeholder="C:\\arma3_server" />
+          <PathInput v-model="serverDir" mode="directory" placeholder="C:\arma3_server" />
         </el-form-item>
         <el-form-item label="Workshop ID">
           <el-input v-model="workshopIds" type="textarea" :rows="2" placeholder="450814997, 463939057（可选）" />

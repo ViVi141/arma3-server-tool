@@ -21,6 +21,7 @@ const ACTION_OPTIONS = [
   { value: "restart", label: "重启服务器" },
   { value: "stop", label: "停止服务器" },
   { value: "start", label: "启动服务器" },
+  { value: "detect", label: "检测并重启" },
 ];
 
 function scheduler(): Record<string, unknown> {
@@ -149,7 +150,7 @@ onMounted(() => {
       <el-button size="small" :loading="syncing" @click="syncCron">保存并同步到调度器</el-button>
       <el-button size="small" @click="addCronRow">添加任务</el-button>
       <el-button size="small" :disabled="!selectedRows.length" @click="removeSelected(selectedRows)">删除选中</el-button>
-      <span class="hint-inline">修改后先点顶栏「保存」，或直接用「保存并同步」</span>
+      <span class="hint-inline">修改后先点顶栏「保存」，或使用「保存并同步到调度器」</span>
     </template>
       <fieldset>
         <legend>内置计划</legend>

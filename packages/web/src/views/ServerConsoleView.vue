@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed, provide } from "vue";
+import { ref, onMounted, onUnmounted, watch, computed, provide } from "vue";
+import { UI_COPY } from "@/constants/uiCopy";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
@@ -9,6 +10,7 @@ import { navGroups, resolveTabName } from "@/config/tab-registry";
 import { openPath, isElectron } from "@/utils/electron";
 import { CONFIG_EDITOR_KEY, type ConfigEditorRegistration } from "@/composables/configEditor";
 import UnsavedChangesDialog from "@/components/UnsavedChangesDialog.vue";
+import NewServerDialog from "@/components/NewServerDialog.vue";
 import type { ServerSummary, ServerStatus, ServerSyncState } from "@a3st/api-client";
 
 const route = useRoute();
@@ -17,6 +19,7 @@ const store = useConnectionsStore();
 const uiSettings = useUiSettingsStore();
 const configSession = useConfigSessionStore();
 const unsavedDialog = ref<InstanceType<typeof UnsavedChangesDialog> | null>(null);
+const showNewServerDialog = ref(false);
 const activeEditor = ref<ConfigEditorRegistration | null>(null);
 
 provide(CONFIG_EDITOR_KEY, {
@@ -39,8 +42,10 @@ const status = ref<ServerStatus | null>(null);
 const syncState = ref<ServerSyncState | null>(null);
 const isRunning = ref(false);
 const statusText = ref("已停止");
+const serverRunningCache = ref<Record<string, boolean>>({});
+let statusPollTimer: ReturnType<typeof setInterval> | null = null;
 
-const groups = computed(() => navGroups());
+const groups = computed(() => navGroups(uiSettings.showAdvancedSettings));
 
 const activeTab = ref("dashboard");
 
@@ -58,15 +63,15 @@ const statusBarDir = computed(() => {
 const syncStatusText = computed(() => {
   if (configSession.isDirty(selectedUuid.value)) {
     const label = activeEditor.value?.label ?? "当前页";
-    return `${label} · 未保存`;
+    return `${label} · ${UI_COPY.dirtySuffix}`;
   }
   if (syncState.value?.cfgStale) {
-    return "需写入服务器";
+    return UI_COPY.syncStale;
   }
   if (syncState.value?.cfgWritten) {
-    return "已同步";
+    return UI_COPY.syncWritten;
   }
-  return "未写入 cfg";
+  return UI_COPY.syncPending;
 });
 
 const hasDirtyChanges = computed(() => {
@@ -84,7 +89,27 @@ onMounted(async () => {
   }
   activeTab.value = resolveTabName(route.params.tab);
   await loadServers();
+  statusPollTimer = setInterval(() => {
+    refreshStatus();
+  }, 5000);
 });
+
+onUnmounted(() => {
+  if (statusPollTimer) {
+    clearInterval(statusPollTimer);
+    statusPollTimer = null;
+  }
+});
+
+function serverDotClass(uuid: string): string {
+  if (!(uuid in serverRunningCache.value)) {
+    return "status-dot status-dot--unknown";
+  }
+  if (serverRunningCache.value[uuid]) {
+    return "status-dot status-dot--running";
+  }
+  return "status-dot";
+}
 
 watch(() => route.params.connectionId, async () => {
   store.setActive(connectionId());
@@ -107,14 +132,15 @@ watch(activeTab, (tab) => {
   }
 });
 
-async function loadServers() {
+async function loadServers(forceReload = false) {
   loading.value = true;
   try {
     const client = store.getClient();
     if (!client) {
       return;
     }
-    servers.value = await client.listServers();
+    const reload = forceReload && uiSettings.allowExternalConfigRefresh;
+    servers.value = await client.listServers(reload);
     const stillExists = servers.value.some((s) => s.uuid === selectedUuid.value);
     if (!stillExists) {
       selectedUuid.value = "";
@@ -171,20 +197,21 @@ async function navigateToTab(next: string): Promise<void> {
   activeTab.value = next;
 }
 
-async function createServer() {
+function createServer() {
+  showNewServerDialog.value = true;
+}
+
+async function onNewServerConfirm(payload: { configName: string; serverDir: string }) {
   try {
-    const { value: name } = await ElMessageBox.prompt("请输入配置名称", "新建服务器", {
-      confirmButtonText: "创建",
-      cancelButtonText: "取消",
-    });
-    if (!name?.trim()) {
-      return;
-    }
     const client = store.getClient();
     if (!client) {
       return;
     }
-    const res = await client.createServer(name.trim());
+    const serverDir = payload.serverDir.trim();
+    const res = await client.createServer(
+      payload.configName,
+      serverDir.length > 0 ? serverDir : undefined
+    );
     if (!res.success) {
       throw new Error(res.error ?? "创建失败");
     }
@@ -192,9 +219,6 @@ async function createServer() {
     await selectServer(res.data.uuid);
     ElMessage.success("服务器已创建");
   } catch (e: unknown) {
-    if (e === "cancel") {
-      return;
-    }
     ElMessage.error(e instanceof Error ? e.message : "创建失败");
   }
 }
@@ -298,7 +322,12 @@ async function refreshStatus() {
     }
     status.value = await client.serverStatus(selectedUuid.value);
     isRunning.value = status.value.isRunning;
-    statusText.value = status.value.isRunning ? `运行中 · PID ${status.value.pid}` : "已停止";
+    serverRunningCache.value[selectedUuid.value] = status.value.isRunning;
+    if (status.value.isRunning) {
+      statusText.value = `运行中 · PID ${status.value.pid}`;
+    } else {
+      statusText.value = "已停止";
+    }
   } catch {
     /* ignore */
   }
@@ -385,48 +414,115 @@ async function saveGlobalUiSettings(): Promise<void> {
   ElMessage.success("全局设置已保存");
 }
 
-async function openServerDir(): Promise<void> {
-  const dir = selectedServer.value?.serverDir;
-  if (!dir) {
-    ElMessage.warning("未设置服务器目录");
+async function openPathTarget(label: string, target?: string): Promise<void> {
+  if (!target) {
+    ElMessage.warning(`未设置${label}`);
     return;
   }
   if (isElectron()) {
-    await openPath(dir);
+    await openPath(target);
     return;
   }
-  ElMessage.info(`服务器目录: ${dir}`);
+  ElMessage.info(`${label}: ${target}`);
+}
+
+async function openServerDir(): Promise<void> {
+  await openPathTarget("服务器目录", selectedServer.value?.serverDir);
+}
+
+async function openToolConfigDir(): Promise<void> {
+  if (!selectedUuid.value) {
+    return;
+  }
+  const client = store.getClient();
+  if (!client) {
+    return;
+  }
+  const res = await client.getServerPaths(selectedUuid.value);
+  if (res.success) {
+    await openPathTarget("工具配置目录", res.data.toolConfigDir);
+  }
+}
+
+async function openServerConfigDir(): Promise<void> {
+  if (!selectedUuid.value) {
+    return;
+  }
+  const client = store.getClient();
+  if (!client) {
+    return;
+  }
+  const res = await client.getServerPaths(selectedUuid.value);
+  if (res.success) {
+    await openPathTarget("服务器配置目录", res.data.serverConfigDir);
+  }
+}
+
+async function openLogDir(): Promise<void> {
+  if (!selectedUuid.value) {
+    return;
+  }
+  const client = store.getClient();
+  if (!client) {
+    return;
+  }
+  const res = await client.getServerPaths(selectedUuid.value);
+  if (res.success) {
+    await openPathTarget("日志目录", res.data.logDir);
+  }
+}
+
+async function reloadFromDisk(): Promise<void> {
+  if (!uiSettings.allowExternalConfigRefresh) {
+    ElMessage.info("请先在全局设置中启用「读盘模式」");
+    return;
+  }
+  await loadServers(true);
+  if (activeEditor.value) {
+    await activeEditor.value.discard();
+  }
+  await refreshSyncState();
+  ElMessage.success("已从磁盘重新加载");
 }
 </script>
 
 <template>
-  <div class="main-layout">
-    <aside class="server-panel">
+  <div class="main-layout" data-testid="console-shell">
+    <aside class="server-panel" data-testid="server-panel">
       <div class="panel-header">
         <span class="panel-title">服务器</span>
         <el-button size="small" text @click="$router.push('/connections')">连接</el-button>
       </div>
       <div class="panel-actions">
-        <el-button size="small" @click="createServer">新建</el-button>
+        <el-button size="small" data-testid="btn-new-server" @click="createServer">新建配置</el-button>
         <el-button size="small" :disabled="!selectedUuid" @click="renameServer">重命名</el-button>
         <el-button size="small" :disabled="!selectedUuid" @click="cloneServer">复制</el-button>
         <el-button size="small" type="danger" :disabled="!selectedUuid" @click="deleteServer">删除</el-button>
       </div>
       <el-input v-model="searchText" placeholder="筛选..." size="small" clearable class="panel-search" />
-      <div class="server-list" v-loading="loading">
+      <div class="server-list" v-loading="loading" data-testid="server-list">
         <div
           v-for="s in servers.filter(s => !searchText || s.configName.toLowerCase().includes(searchText.toLowerCase()))"
           :key="s.uuid"
           :class="['server-item', { active: s.uuid === selectedUuid }]"
+          :data-testid="'server-item-' + s.uuid"
+          tabindex="0"
           @click="selectServer(s.uuid)"
+          @keydown.enter="selectServer(s.uuid)"
         >
+          <span :class="serverDotClass(s.uuid)" aria-hidden="true" />
           <div class="server-name">{{ s.configName }}</div>
         </div>
-        <el-empty v-if="!loading && servers.length === 0" description="无服务器配置" :image-size="32" />
+        <div v-if="!loading && servers.length === 0" class="server-empty">
+          <p>尚无服务器配置</p>
+          <el-button size="small" type="primary" data-testid="btn-new-server-empty" @click="createServer">
+            新建配置
+          </el-button>
+        </div>
       </div>
     </aside>
 
-    <nav class="nav-panel">
+    <nav class="nav-panel" data-testid="nav-panel">
       <template v-for="group in groups" :key="group.label || 'main'">
         <div v-if="group.label" class="nav-group-label">{{ group.label }}</div>
         <button
@@ -434,6 +530,7 @@ async function openServerDir(): Promise<void> {
           :key="tab.name"
           type="button"
           class="nav-item"
+          :data-testid="'nav-' + tab.name"
           :class="{ active: activeTab === tab.name, dirty: tab.name === activeTab && hasDirtyChanges }"
           :disabled="!selectedUuid"
           @click="navigateToTab(tab.name)"
@@ -446,21 +543,25 @@ async function openServerDir(): Promise<void> {
     <div class="main-area">
       <div class="action-bar">
         <div class="action-left">
-          <el-button size="small" type="success" :disabled="isRunning || !selectedUuid" @click="execAction('start')">启动</el-button>
-          <el-button size="small" type="warning" :disabled="!isRunning" @click="execAction('restart')">重启</el-button>
-          <el-button size="small" type="danger" :disabled="!isRunning" @click="execAction('stop')">停止</el-button>
+          <el-button size="small" type="success" data-testid="btn-start" :disabled="isRunning || !selectedUuid" @click="execAction('start')">启动</el-button>
+          <el-button size="small" type="warning" data-testid="btn-restart" :disabled="!isRunning" @click="execAction('restart')">重启</el-button>
+          <el-button size="small" type="danger" data-testid="btn-stop" :disabled="!isRunning" @click="execAction('stop')">停止</el-button>
           <span class="sep" />
-          <el-button size="small" :type="hasDirtyChanges ? 'primary' : 'default'" :disabled="!selectedUuid" @click="execSave">
-            保存<span v-if="hasDirtyChanges">*</span>
+          <el-button size="small" data-testid="btn-save" :type="hasDirtyChanges ? 'primary' : 'default'" :disabled="!selectedUuid" @click="execSave">
+            {{ UI_COPY.saveShort }}<span v-if="hasDirtyChanges">*</span>
           </el-button>
-          <el-button size="small" :disabled="!selectedUuid" @click="execAction('write_cfg')">写入服务器</el-button>
-          <el-button size="small" :disabled="!selectedUuid" @click="execAction('preflight')">体检</el-button>
+          <el-button size="small" data-testid="btn-write-cfg" :disabled="!selectedUuid" @click="execAction('write_cfg')">{{ UI_COPY.writeGameCfg }}</el-button>
+          <el-button size="small" data-testid="btn-preflight" :disabled="!selectedUuid" @click="execAction('preflight')">{{ UI_COPY.preflight }}</el-button>
           <span class="sep" />
           <el-popover trigger="click" width="300" popper-class="global-popover">
             <template #reference>
               <el-button size="small">全局设置</el-button>
             </template>
             <div class="global-settings">
+              <div class="row">
+                <span>显示高级设置</span>
+                <el-switch v-model="uiSettings.showAdvancedSettings" size="small" />
+              </div>
               <div class="row">
                 <span>读盘模式</span>
                 <el-switch v-model="uiSettings.allowExternalConfigRefresh" size="small" />
@@ -480,6 +581,18 @@ async function openServerDir(): Promise<void> {
               <el-button size="small" type="primary" @click="saveGlobalUiSettings">保存</el-button>
             </div>
           </el-popover>
+          <el-button size="small" :disabled="!selectedUuid" @click="reloadFromDisk">读盘刷新</el-button>
+          <el-dropdown v-if="selectedUuid" trigger="click">
+            <el-button size="small">打开目录</el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="openServerDir">服务器目录</el-dropdown-item>
+                <el-dropdown-item @click="openToolConfigDir">工具配置目录</el-dropdown-item>
+                <el-dropdown-item @click="openServerConfigDir">服务器配置目录</el-dropdown-item>
+                <el-dropdown-item @click="openLogDir">日志目录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
         <div class="action-right">
           <span class="status-badge" :class="isRunning ? 'running' : 'stopped'">{{ statusText }}</span>
@@ -508,12 +621,13 @@ async function openServerDir(): Promise<void> {
           <SnapshotsView v-else-if="activeTab === 'snapshots'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
           <LogsView v-else-if="activeTab === 'logs'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
           <PreflightView v-else-if="activeTab === 'preflight'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+          <ConfigEditor v-else-if="activeTab === 'config'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
           <SetupWizardView v-else-if="activeTab === 'wizard'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
           <AboutView v-else-if="activeTab === 'about'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
         </template>
       </div>
 
-      <div class="status-bar">
+      <div class="status-bar" data-testid="status-bar">
         <span class="status-bar-left">
           <span class="status-bar-label">目录</span>
           <a href="#" class="dir-link" @click.prevent="openServerDir">{{ statusBarDir }}</a>
@@ -526,6 +640,7 @@ async function openServerDir(): Promise<void> {
     </div>
 
     <UnsavedChangesDialog ref="unsavedDialog" />
+    <NewServerDialog v-model="showNewServerDialog" @confirm="onNewServerConfirm" />
   </div>
 </template>
 
@@ -547,6 +662,7 @@ import SchedulerView from "./SchedulerView.vue";
 import SnapshotsView from "./SnapshotsView.vue";
 import LogsView from "./LogsView.vue";
 import PreflightView from "./PreflightView.vue";
+import ConfigEditor from "./ConfigEditor.vue";
 import SetupWizardView from "./SetupWizardView.vue";
 import AboutView from "./AboutView.vue";
 </script>
@@ -604,12 +720,26 @@ import AboutView from "./AboutView.vue";
 }
 
 .server-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 8px;
   cursor: pointer;
   border-radius: 0;
   margin-bottom: 1px;
   font-size: 12px;
   color: var(--a3st-text);
+}
+
+.server-empty {
+  padding: 16px 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--a3st-text-dim);
+}
+
+.server-empty p {
+  margin-bottom: 8px;
 }
 
 .server-item:hover {
@@ -677,7 +807,7 @@ import AboutView from "./AboutView.vue";
 }
 
 .dirty-mark {
-  color: var(--a3st-warning);
+  color: var(--a3st-dirty);
   margin-left: 2px;
 }
 
@@ -729,11 +859,11 @@ import AboutView from "./AboutView.vue";
 }
 
 .status-badge.running {
-  color: var(--a3st-success);
+  color: var(--a3st-running);
 }
 
 .status-badge.stopped {
-  color: var(--a3st-text-dim);
+  color: var(--a3st-stopped);
 }
 
 .content-area {

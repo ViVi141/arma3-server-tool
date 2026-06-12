@@ -5,6 +5,7 @@ import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import type { AutomationCommand, AsyncTaskResponse } from "@a3st/api-client";
 import TerminalOutput from "@/components/TerminalOutput.vue";
+import PathInput from "@/components/PathInput.vue";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
@@ -25,7 +26,63 @@ const apiToken = computed(() => store.active?.token ?? "");
 onMounted(() => {
   loadStatus();
   loadConfig();
+  loadSteamCmdSettings();
 });
+
+async function loadSteamCmdSettings() {
+  try {
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    const res = await client.getSteamCmdSettings();
+    if (!res.success) {
+      return;
+    }
+    const data = res.data;
+    workshopRoot.value = data.workshopRoot ?? "";
+    if (data.serverInstallPath) {
+      serverInstallPath.value = data.serverInstallPath;
+    }
+    steamUser.value = data.username ?? "";
+    workshopCount.value = String(data.workshopModCount ?? 0);
+  } catch {
+    /* ignore */
+  }
+}
+
+async function saveSteamCmdSettings() {
+  try {
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    const body: {
+      workshopRoot: string;
+      serverInstallPath: string;
+      username?: string;
+      password?: string;
+    } = {
+      workshopRoot: workshopRoot.value.trim(),
+      serverInstallPath: serverInstallPath.value.trim(),
+    };
+    if (steamUser.value.trim()) {
+      body.username = steamUser.value.trim();
+    }
+    if (steamPwd.value) {
+      body.password = steamPwd.value;
+    }
+    const res = await client.saveSteamCmdSettings(body);
+    if (!res.success) {
+      throw new Error(res.error ?? "保存失败");
+    }
+    workshopCount.value = String(res.data.workshopModCount ?? 0);
+    steamPwd.value = "";
+    ElMessage.success("SteamCMD 设置已保存");
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : "保存失败");
+  }
+}
 
 async function loadConfig() {
   try {
@@ -162,10 +219,11 @@ async function stopSteamCmd() {
     <el-button size="small" @click="saveCredentials">保存凭据</el-button>
   </fieldset>
   <fieldset><legend>路径</legend>
-    <div class="row"><label>Workshop 根</label><el-input v-model="workshopRoot" size="small" placeholder="留空使用默认"/></div>
-    <div class="row"><label>服务器安装</label><el-input v-model="serverInstallPath" size="small" placeholder="从基本配置读取"/></div>
+    <div class="row"><label>Workshop 根</label><PathInput v-model="workshopRoot" mode="directory" placeholder="留空使用默认"/></div>
+    <div class="row"><label>服务器安装</label><PathInput v-model="serverInstallPath" mode="directory" placeholder="从基本配置读取"/></div>
     <div class="row"><label>Workshop 内容</label><span class="hint">{{workshopCount}} 个模组</span></div>
     <div class="row"><label>SteamCMD 状态</label><span class="hint">{{statusText}}</span></div>
+    <el-button size="small" type="primary" @click="saveSteamCmdSettings">保存路径</el-button>
   </fieldset>
   <fieldset><legend>当前服务器</legend>
     <div class="row"><label>服务器目录</label><span class="hint">{{currentServerDir}}</span></div>

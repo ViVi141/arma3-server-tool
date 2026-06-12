@@ -34,7 +34,7 @@ export class UiSettingsStore {
     try {
       const raw = JSON.parse(fs.readFileSync(this.filePath, "utf-8")) as Partial<UiSettings>;
       return {
-        showAdvancedSettings: true,
+        showAdvancedSettings: raw.showAdvancedSettings ?? DEFAULTS.showAdvancedSettings,
         allowExternalConfigRefresh: raw.allowExternalConfigRefresh ?? DEFAULTS.allowExternalConfigRefresh,
         hasShownTrayMinimizeHint: raw.hasShownTrayMinimizeHint ?? DEFAULTS.hasShownTrayMinimizeHint,
         autoSnapshotMode: raw.autoSnapshotMode ?? DEFAULTS.autoSnapshotMode,

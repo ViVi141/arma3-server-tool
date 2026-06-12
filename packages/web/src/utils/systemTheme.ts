@@ -1,8 +1,51 @@
 export type AppTheme = "light" | "dark";
+export type ThemeMode = "system" | "light" | "dark";
+
+const STORAGE_KEY = "a3st-theme-mode";
+
+let systemDark = false;
+let electronRemove: (() => void) | null = null;
+let mqRemove: (() => void) | null = null;
+
+export function getThemeMode(): ThemeMode {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored === "light" || stored === "dark" || stored === "system") {
+    return stored;
+  }
+  return "system";
+}
+
+export function setThemeMode(mode: ThemeMode): void {
+  localStorage.setItem(STORAGE_KEY, mode);
+  applyThemeFromMode(mode);
+}
 
 export function applyAppTheme(theme: AppTheme): void {
   document.documentElement.dataset.theme = theme;
   document.documentElement.style.colorScheme = theme;
+}
+
+function resolveSystemDark(): boolean {
+  return systemDark;
+}
+
+export function applyThemeFromMode(mode: ThemeMode): void {
+  if (mode === "light") {
+    applyAppTheme("light");
+    return;
+  }
+  if (mode === "dark") {
+    applyAppTheme("dark");
+    return;
+  }
+  applyAppTheme(resolveSystemDark() ? "dark" : "light");
+}
+
+function onSystemDarkChanged(dark: boolean): void {
+  systemDark = dark;
+  if (getThemeMode() === "system") {
+    applyAppTheme(dark ? "dark" : "light");
+  }
 }
 
 export function initSystemTheme(): () => void {
@@ -10,27 +53,35 @@ export function initSystemTheme(): () => void {
 
   if (window.electronAPI?.getThemeDark && window.electronAPI?.onThemeChanged) {
     window.electronAPI.getThemeDark().then((dark) => {
-      applyAppTheme(dark ? "dark" : "light");
+      onSystemDarkChanged(dark);
+      applyThemeFromMode(getThemeMode());
     });
-    const remove = window.electronAPI.onThemeChanged((dark) => {
-      applyAppTheme(dark ? "dark" : "light");
+    electronRemove = window.electronAPI.onThemeChanged((dark) => {
+      onSystemDarkChanged(dark);
     });
-    cleaners.push(remove);
-    return () => {
-      for (const clean of cleaners) {
-        clean();
+    cleaners.push(() => {
+      if (electronRemove) {
+        electronRemove();
+        electronRemove = null;
       }
+    });
+  } else {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    systemDark = mq.matches;
+    const onChange = (event: MediaQueryListEvent) => {
+      onSystemDarkChanged(event.matches);
     };
+    mq.addEventListener("change", onChange);
+    mqRemove = () => mq.removeEventListener("change", onChange);
+    cleaners.push(() => {
+      if (mqRemove) {
+        mqRemove();
+        mqRemove = null;
+      }
+    });
   }
 
-  const mq = window.matchMedia("(prefers-color-scheme: dark)");
-  applyAppTheme(mq.matches ? "dark" : "light");
-
-  const onChange = (event: MediaQueryListEvent) => {
-    applyAppTheme(event.matches ? "dark" : "light");
-  };
-  mq.addEventListener("change", onChange);
-  cleaners.push(() => mq.removeEventListener("change", onChange));
+  applyThemeFromMode(getThemeMode());
 
   return () => {
     for (const clean of cleaners) {

@@ -2,70 +2,74 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Arma3 Server Tools Web UI", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("http://localhost:5173");
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
   });
 
-  test("loads the connections page", async ({ page }) => {
-    await expect(page.locator("h2")).toContainText("连接管理");
+  test("loads connections page", async ({ page }) => {
+    await expect(page.getByTestId("connections-page")).toBeVisible();
+    await expect(page.getByText("远程主机")).toBeVisible();
   });
 
-  test("shows localhost default connection", async ({ page }) => {
-    await expect(page.locator("text=本机")).toBeVisible();
-    await expect(page.locator("text=127.0.0.1:19580")).toBeVisible();
-    // Should show a "连接" button
-    await expect(page.locator("text=连接").first()).toBeVisible();
+  test("shows default local connection", async ({ page }) => {
+    await expect(page.getByTestId("connection-row-local")).toBeVisible();
+    await expect(page.getByText("本机")).toBeVisible();
+    await expect(page.getByText("127.0.0.1:19580")).toBeVisible();
   });
 
-  test("can click connect button into local connection", async ({ page }) => {
-    // Click the "连接" button in the table row
-    await page.locator("button:has-text('连接')").first().click();
-    await page.waitForTimeout(3000);
-    // Should navigate to dashboard
-    await expect(page).toHaveURL(/\/console\/local/);
+  test("connect navigates to console", async ({ page }) => {
+    await page.getByTestId("btn-connect").first().click();
+    await page.waitForURL(/\/console\/local\//, { timeout: 15000 });
+    await expect(page.getByTestId("console-shell")).toBeVisible();
+    await expect(page.getByTestId("server-panel")).toBeVisible();
+    await expect(page.getByTestId("nav-panel")).toBeVisible();
   });
 
-  test("dashboard shows after connecting", async ({ page }) => {
-    await page.locator("button:has-text('连接')").first().click();
-    await page.waitForTimeout(3000);
-    // Dashboard with server info should be visible
-    await expect(page.locator("text=服务器").first()).toBeVisible();
+  test("console toolbar has core actions", async ({ page }) => {
+    await page.getByTestId("btn-connect").first().click();
+    await page.waitForURL(/\/console\/local\//, { timeout: 15000 });
+    await expect(page.getByTestId("btn-start")).toBeVisible();
+    await expect(page.getByTestId("btn-save")).toBeVisible();
+    await expect(page.getByTestId("btn-write-cfg")).toHaveText("写入游戏配置");
+    await expect(page.getByTestId("btn-preflight")).toHaveText("开服检查");
+    await expect(page.getByTestId("status-bar")).toBeVisible();
   });
 
-  test("sidebar navigation works", async ({ page }) => {
-    await page.locator("button:has-text('连接')").first().click();
-    await page.waitForTimeout(2000);
+  test("sidebar navigation switches tabs", async ({ page }) => {
+    await page.getByTestId("btn-connect").first().click();
+    await page.waitForURL(/\/console\/local\//, { timeout: 15000 });
 
-    // Click through sidebar links
-    const navItems = ["模组", "任务", "上传PBO", "SteamCMD", "日志", "配置"];
-    for (const item of navItems) {
-      await page.click(`text=${item}`);
-      await page.waitForTimeout(500);
+    const tabs = ["mods", "missions", "steamcmd", "logs", "preflight"];
+    for (const tab of tabs) {
+      await page.getByTestId(`nav-${tab}`).click();
+      await expect(page.getByTestId(`nav-${tab}`)).toHaveClass(/active/);
     }
   });
 
-  test("can add a connection with custom baseUrl", async ({ page }) => {
-    await page.click("text=+ 添加主机");
-    await page.waitForTimeout(500);
-
-    await page.fill('input[placeholder="我的服务器"]', "Test Server");
-    await page.fill('input[placeholder="http://127.0.0.1:19580"]', "http://10.0.0.1:19580");
-
-    await page.locator(".el-dialog button:has-text('添加')").click();
-    await page.waitForTimeout(1000);
-
-    // Should navigate to the new server's dashboard
-    await expect(page).toHaveURL(/\/console\//);
+  test("theme mode select is available", async ({ page }) => {
+    const select = page.getByTestId("theme-mode-select");
+    await expect(select).toBeVisible();
+    await select.selectOption("dark");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await select.selectOption("light");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await select.selectOption("system");
   });
 
-  test("mods page has mod list table and input", async ({ page }) => {
-    await page.locator("button:has-text('连接')").first().click();
-    await page.waitForTimeout(2000);
+  test("add connection dialog", async ({ page }) => {
+    await page.getByTestId("btn-add-host").click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByPlaceholder("我的服务器").fill("E2E Test");
+    await page.getByPlaceholder("http://127.0.0.1:19580").fill("http://127.0.0.1:19580");
+    await page.getByRole("button", { name: "取消" }).click();
+    await expect(page.getByRole("dialog")).not.toBeVisible();
+  });
 
-    await page.click("text=模组");
-    await page.waitForTimeout(1000);
-
-    await expect(page.locator("text=模组管理")).toBeVisible();
-    await expect(page.locator("text=扫描模组")).toBeVisible();
-    await expect(page.locator("text=添加模组")).toBeVisible();
+  test("mods page loads from navigation", async ({ page }) => {
+    await page.getByTestId("btn-connect").first().click();
+    await page.waitForURL(/\/console\/local\//, { timeout: 15000 });
+    await page.getByTestId("nav-mods").click();
+    await expect(page.getByText("扫描刷新")).toBeVisible();
+    await expect(page.getByText("添加模组")).toBeVisible();
   });
 });

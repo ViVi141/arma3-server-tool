@@ -2,7 +2,7 @@
 
 :root {
   --a3st-font: "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
-  --a3st-font-mono: Consolas, "Courier New", monospace;
+  --a3st-font-mono: "Cascadia Mono", "Cascadia Code", Consolas, "Courier New", monospace;
   --el-font-size-base: 12px;
   --el-component-size: 26px;
   --el-component-size-small: 22px;
@@ -28,7 +28,10 @@
   --a3st-text-on-selected: #1e1e1e;
   --a3st-accent: #0078d4;
   --a3st-accent-hover: #106ebe;
-  --a3st-success: #107c10;
+  --a3st-success: #3d6b3d;
+  --a3st-running: #3d6b3d;
+  --a3st-stopped: #9e9e9e;
+  --a3st-dirty: #986f0b;
   --a3st-danger: #c42b1c;
   --a3st-warning: #986f0b;
   --a3st-titlebar: #f3f3f3;
@@ -98,7 +101,10 @@
   --a3st-text-on-selected: #ffffff;
   --a3st-accent: #0078d4;
   --a3st-accent-hover: #1a86d9;
-  --a3st-success: #4ec9b0;
+  --a3st-success: #6b8f5e;
+  --a3st-running: #6b8f5e;
+  --a3st-stopped: #6e6e6e;
+  --a3st-dirty: #cca700;
   --a3st-danger: #f48771;
   --a3st-warning: #cca700;
   --a3st-titlebar: #323233;
@@ -506,6 +512,13 @@ fieldset legend {
   width: 180px;
 }
 
+.row .path-input,
+.field-row .path-input,
+.form-row .path-input {
+  flex: 1;
+  min-width: 0;
+}
+
 .stat-tile {
   display: flex;
   justify-content: space-between;
@@ -539,4 +552,45 @@ fieldset legend {
 .notice-bar--info {
   border-left-color: var(--a3st-accent);
   background: var(--a3st-notice-info-bg);
+}
+
+/* ── 运行状态灯（服务器列表签名元素） ── */
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--a3st-stopped);
+}
+
+.status-dot--running {
+  background: var(--a3st-running);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--a3st-running) 40%, transparent);
+}
+
+.status-dot--unknown {
+  background: transparent;
+  border: 1px solid var(--a3st-border);
+}
+
+/* ── 键盘焦点与减少动效 ── */
+
+.nav-item:focus-visible,
+.server-item:focus-visible,
+.title-link:focus-visible,
+.dir-link:focus-visible {
+  outline: 2px solid var(--a3st-accent);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import { UI_COPY } from "@/constants/uiCopy";
 import { ref } from "vue";
 import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
@@ -12,8 +13,9 @@ const issues = ref<PreflightIssue[]>([]);
 const loading = ref(false);
 const hasRun = ref(false);
 const hasBlockingErrors = ref(false);
+const checkMode = ref<"preflight" | "diagnostics">("preflight");
 
-async function runPreflight() {
+async function runCheck() {
   loading.value = true;
   hasRun.value = true;
   try {
@@ -21,7 +23,12 @@ async function runPreflight() {
     if (!client) {
       return;
     }
-    const res = await client.preflight(props.serverUuid);
+    let res;
+    if (checkMode.value === "diagnostics") {
+      res = await client.getDiagnostics(props.serverUuid);
+    } else {
+      res = await client.preflight(props.serverUuid);
+    }
     if (!res.success) {
       throw new Error(res.error ?? "体检失败");
     }
@@ -30,7 +37,7 @@ async function runPreflight() {
     if (hasBlockingErrors.value) {
       ElMessage.warning("存在阻塞性问题，请先修复后再启动");
     } else {
-      ElMessage.success("体检完成");
+      ElMessage.success(checkMode.value === "diagnostics" ? "全量体检完成" : "开服检查完成");
     }
   } catch (e: unknown) {
     issues.value = [{
@@ -61,8 +68,12 @@ function severityTag(severity: PreflightIssue["severity"]): "success" | "warning
 <template>
   <ConsolePageLayout>
     <template #toolbar>
-      <span class="preflight-title">开服体检</span>
-      <el-button type="primary" :loading="loading" @click="runPreflight">
+      <span class="preflight-title" data-testid="preflight-page">{{ UI_COPY.preflight }}</span>
+      <el-radio-group v-model="checkMode" size="small">
+        <el-radio-button value="preflight">开服检查</el-radio-button>
+        <el-radio-button value="diagnostics">全量体检</el-radio-button>
+      </el-radio-group>
+      <el-button type="primary" :loading="loading" @click="runCheck">
         {{ hasRun ? "重新检查" : "开始检查" }}
       </el-button>
     </template>
@@ -86,7 +97,7 @@ function severityTag(severity: PreflightIssue["severity"]): "success" | "warning
         <el-table-column prop="message" label="详情" />
       </el-table>
     </el-card>
-    <el-empty v-else description="点击「开始检查」运行开服体检" />
+    <el-empty v-else description="选择检查类型后点击「开始检查」" />
   </ConsolePageLayout>
 </template>
 

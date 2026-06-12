@@ -26,8 +26,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getAppPath: (): Promise<string> => ipcRenderer.invoke("app:path"),
 
   openPath: (targetPath: string): Promise<string> => ipcRenderer.invoke("shell:openPath", targetPath),
-  showOpenDialog: (options: { properties: string[] }): Promise<{ canceled: boolean; filePaths: string[] }> =>
+  showOpenDialog: (options: {
+    properties: string[];
+    filters?: { name: string; extensions: string[] }[];
+  }): Promise<{ canceled: boolean; filePaths: string[] }> =>
     ipcRenderer.invoke("dialog:openFile", options),
+
+  readTextFile: (filePath: string): Promise<string> => ipcRenderer.invoke("fs:readTextFile", filePath),
 
   getThemeDark: (): Promise<boolean> => ipcRenderer.invoke("theme:shouldUseDarkColors"),
   onThemeChanged: (callback: (dark: boolean) => void): (() => void) => {

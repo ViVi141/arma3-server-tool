@@ -121,8 +121,20 @@ async function banPerm() {
 }
 
 async function syncPlayers() {
-  await doAction("rcon_players");
-  ElMessage.success("已同步到玩家库");
+  try {
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    const res = await client.syncMonitoringPlayers(props.serverUuid);
+    if (res.success) {
+      ElMessage.success(`已同步 ${res.data.synced ?? 0} 名玩家到玩家库`);
+    } else {
+      ElMessage.warning(res.error ?? "同步失败");
+    }
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : "同步失败");
+  }
 }
 
 async function changePwd() {

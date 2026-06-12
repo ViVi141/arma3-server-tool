@@ -1,11 +1,13 @@
 import { spawn, execSync, type ChildProcess } from "node:child_process";
 import * as path from "node:path";
 import * as fs from "node:fs";
+import { finished } from "node:stream/promises";
 import { EventEmitter } from "node:events";
 
 const STEAMCMD_URL = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip";
 const STEAMCMD_ZIP = "steamcmd.zip";
 const STEAMCMD_EXE = "steamcmd.exe";
+const BOOTSTRAP_MARKER = path.join("public", "steambootstrapper_english.txt");
 const APP_ID_ARMA3_SERVER = "233780";
 
 export interface SteamCmdOptions {
@@ -19,6 +21,8 @@ export class SteamCmdManager extends EventEmitter {
   private installDir: string;
   private _username = "";
   private _password = "";
+  private _workshopRoot = "";
+  private _serverInstallPath = "";
 
   constructor(installDir: string) {
     super();
@@ -30,12 +34,30 @@ export class SteamCmdManager extends EventEmitter {
     this._password = password;
   }
 
+  setWorkshopRoot(workshopRoot: string): void {
+    this._workshopRoot = workshopRoot.trim();
+  }
+
+  setServerInstallPath(serverInstallPath: string): void {
+    this._serverInstallPath = serverInstallPath.trim();
+  }
+
+  get workshopRoot(): string {
+    return this._workshopRoot;
+  }
+
+  get serverInstallPath(): string {
+    return this._serverInstallPath;
+  }
+
   get hasCredentials(): boolean {
     return !!(this._username && this._password);
   }
 
   get isInstalled(): boolean {
-    return fs.existsSync(path.join(this.installDir, STEAMCMD_EXE));
+    const exePath = path.join(this.installDir, STEAMCMD_EXE);
+    const bootstrapPath = path.join(this.installDir, BOOTSTRAP_MARKER);
+    return fs.existsSync(exePath) && fs.existsSync(bootstrapPath);
   }
 
   get isRunning(): boolean {
@@ -47,28 +69,116 @@ export class SteamCmdManager extends EventEmitter {
   }
 
   async ensureInstalled(): Promise<void> {
-    if (this.isInstalled) return;
+    if (this.isInstalled) {
+      return;
+    }
     fs.mkdirSync(this.installDir, { recursive: true });
     this.emit("progress", "下载 SteamCMD...");
     const zipPath = path.join(this.installDir, STEAMCMD_ZIP);
     const response = await fetch(STEAMCMD_URL);
-    if (!response.ok || !response.body) throw new Error(`下载 SteamCMD 失败: HTTP ${response.status}`);
+    if (!response.ok || !response.body) {
+      throw new Error(`下载 SteamCMD 失败: HTTP ${response.status}`);
+    }
     const reader = response.body.getReader();
     const writer = fs.createWriteStream(zipPath);
     const total = parseInt(response.headers.get("content-length") ?? "0", 10);
     let received = 0;
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
       received += value.length;
       writer.write(value);
-      if (total > 0) this.emit("progress", `下载 SteamCMD... ${Math.round((received / total) * 100)}%`);
+      if (total > 0) {
+        this.emit("progress", `下载 SteamCMD... ${Math.round((received / total) * 100)}%`);
+      }
     }
-    writer.close();
+    writer.end();
+    await finished(writer);
+
     this.emit("progress", "解压 SteamCMD...");
-    execSync(`powershell -NoProfile -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${this.installDir}' -Force"`, { stdio: "ignore" });
-    fs.unlinkSync(zipPath);
+    const zipArg = zipPath.replace(/'/g, "''");
+    const destArg = this.installDir.replace(/'/g, "''");
+    try {
+      execSync(
+        `powershell -NoProfile -Command "Expand-Archive -Path '${zipArg}' -DestinationPath '${destArg}' -Force"`,
+        { stdio: "pipe" }
+      );
+    } catch (err) {
+      throw new Error(`解压 SteamCMD 失败: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (!fs.existsSync(path.join(this.installDir, STEAMCMD_EXE))) {
+      throw new Error("解压完成但未找到 steamcmd.exe，请检查网络或手动下载 SteamCMD。");
+    }
+    if (fs.existsSync(zipPath)) {
+      fs.unlinkSync(zipPath);
+    }
+
+    if (!this.isInstalled) {
+      this.emit("progress", "初始化 SteamCMD...");
+      await this.runBootstrapUpdate();
+      if (!this.isInstalled) {
+        throw new Error(
+          "SteamCMD 初始化未完成，缺少 public 资源文件。请确认可访问 Steam CDN 后重试。"
+        );
+      }
+    }
+
     this.emit("progress", "SteamCMD 安装完成");
+  }
+
+  private async runBootstrapUpdate(): Promise<void> {
+    const timeoutMs = 180000;
+    const exePath = path.join(this.installDir, STEAMCMD_EXE);
+    await new Promise<void>((resolve, reject) => {
+      let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+      let settled = false;
+
+      const finish = (err?: Error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
+        this.process = null;
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      };
+
+      this.process = spawn(exePath, ["+quit"], { cwd: this.installDir, stdio: ["ignore", "pipe", "pipe"] });
+      let output = "";
+      const onData = (data: Buffer) => {
+        const text = data.toString();
+        output += text;
+        this.emit("output", text);
+      };
+      this.process.stdout?.on("data", onData);
+      this.process.stderr?.on("data", onData);
+      this.process.on("error", (err) => finish(err));
+      this.process.on("exit", () => {
+        if (this.isInstalled) {
+          this.emit("complete", output);
+          finish();
+          return;
+        }
+        finish(new Error(`SteamCMD 初始化未完成\n${output.slice(-500)}`));
+      });
+
+      timeoutHandle = setTimeout(() => {
+        this.kill();
+        if (this.isInstalled) {
+          finish();
+          return;
+        }
+        finish(new Error("SteamCMD 初始化超时，请检查网络连接。"));
+      }, timeoutMs);
+    });
   }
 
   /** 安装/更新 Arma 3 专用服务器 */
@@ -85,7 +195,10 @@ export class SteamCmdManager extends EventEmitter {
   /** 下载 Workshop 模组 */
   async downloadWorkshopMods(modIds: number[], onOutput?: (line: string) => void): Promise<void> {
     await this.ensureInstalled();
-    const args: string[] = [];
+    const installDir = this._workshopRoot || this.installDir;
+    const args: string[] = [
+      "+force_install_dir", installDir,
+    ];
     for (const id of modIds) {
       args.push("+workshop_download_item", APP_ID_ARMA3_SERVER, String(id));
     }
@@ -94,7 +207,11 @@ export class SteamCmdManager extends EventEmitter {
   }
 
   /** 运行 SteamCMD 命令 */
-  private async runSteamCmd(customArgs: string[], onOutput?: (line: string) => void): Promise<void> {
+  private async runSteamCmd(
+    customArgs: string[],
+    onOutput?: (line: string) => void,
+    retryCount = 0
+  ): Promise<void> {
     const args: string[] = [];
     if (this._username && this._password) {
       args.push("+login", this._username, this._password);
@@ -117,11 +234,43 @@ export class SteamCmdManager extends EventEmitter {
       this.process!.stderr?.on("data", onData);
       this.process!.on("exit", (code) => {
         this.process = null;
-        if (code === 0) { this.emit("complete", output); resolve(); }
-        else { reject(new Error(`SteamCMD 退出代码: ${code}\n${output.slice(-500)}`)); }
+        if (code === 0 || this.isSteamCmdOutputSuccess(output, customArgs)) {
+          this.emit("complete", output);
+          resolve();
+          return;
+        }
+        if (retryCount < 1 && this.shouldRetrySteamCmd(code, output)) {
+          this.emit("output", "[提示] SteamCMD 自更新完成，正在重试...\n");
+          setTimeout(() => {
+            this.runSteamCmd(customArgs, onOutput, retryCount + 1).then(resolve).catch(reject);
+          }, 2000);
+          return;
+        }
+        reject(new Error(`SteamCMD 退出代码: ${code}\n${output.slice(-500)}`));
       });
-      this.process!.on("error", (err) => { this.process = null; reject(err); });
+      this.process!.on("error", (err) => {
+        this.process = null;
+        reject(err);
+      });
     });
+  }
+
+  private isSteamCmdOutputSuccess(output: string, customArgs: string[]): boolean {
+    if (/Success!\s+App\s+['"]233780['"]/i.test(output)) {
+      return true;
+    }
+    const isAppUpdate = customArgs.includes("+app_update");
+    if (isAppUpdate && /fully installed|already up to date/i.test(output)) {
+      return true;
+    }
+    return false;
+  }
+
+  private shouldRetrySteamCmd(exitCode: number | null, output: string): boolean {
+    if (exitCode === 7 && /Update complete, launching/i.test(output)) {
+      return true;
+    }
+    return false;
   }
 
   /** 检查 Steam 是否需要 Guard 验证 */

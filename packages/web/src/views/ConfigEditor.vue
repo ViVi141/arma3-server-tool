@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import PathInput from "@/components/PathInput.vue";
+import { UI_COPY } from "@/constants/uiCopy";
 import { ref, onMounted, computed } from "vue";
 import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
+import { asConfigString } from "@/utils/configStringField";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
@@ -59,15 +62,15 @@ async function execAction(action: string) {
 <template>
   <ConsolePageLayout v-loading="loading">
     <template #toolbar>
-      <el-button size="small" type="primary" @click="execAction('write_cfg')">写入服务器</el-button>
-      <el-button size="small" @click="execAction('save')">保存</el-button>
+      <el-button size="small" type="primary" @click="execAction('write_cfg')">{{ UI_COPY.writeGameCfg }}</el-button>
+      <el-button size="small" @click="execAction('save')">{{ UI_COPY.saveShort }}</el-button>
       <el-button size="small" @click="loadConfig">刷新</el-button>
     </template>
       <!-- 基本 -->
       <fieldset><legend>基本</legend>
         <div class="field-row"><label>配置名称</label><el-input v-model="sections.server.configName" size="small" /></div>
-        <div class="field-row"><label>服务器目录</label><el-input v-model="sections.server.serverDir" size="small" /></div>
-        <div class="field-row"><label>可执行文件</label><el-input v-model="sections.server.executable" size="small" /></div>
+        <div class="field-row"><label>服务器目录</label><PathInput :model-value="asConfigString(sections.server.serverDir)" mode="directory" @update:model-value="(v) => { sections.server.serverDir = v }" /></div>
+        <div class="field-row"><label>可执行文件</label><PathInput :model-value="asConfigString(sections.server.executable)" mode="file" :file-filters="[{ name: '可执行文件', extensions: ['exe'] }]" @update:model-value="(v) => { sections.server.executable = v }" /></div>
       </fieldset>
 
       <!-- 启动参数 -->
@@ -124,6 +127,7 @@ fieldset { border: 1px solid var(--el-border-color-light); padding: 8px 12px; ma
 legend { font-size: 12px; font-weight: 600; padding: 0 4px; }
 .field-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .field-row label { width: 100px; font-size: 12px; color: var(--el-text-color-secondary); flex-shrink: 0; text-align: right; }
-.field-row .el-input { flex: 1; }
+.field-row .el-input,
+.field-row .path-input { flex: 1; min-width: 0; }
 .raw { font-size: 11px; white-space: pre-wrap; background: var(--el-fill-color-light); padding: 8px; border-radius: 2px; margin: 0; }
 </style>

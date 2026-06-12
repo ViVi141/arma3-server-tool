@@ -18,17 +18,17 @@ export const useUiSettingsStore = defineStore("uiSettings", {
     async loadFromApi(client: A3stClient): Promise<void> {
       const res = await client.getUiSettings();
       if (res.success) {
+        this.showAdvancedSettings = res.data.showAdvancedSettings ?? DEFAULTS.showAdvancedSettings;
         this.allowExternalConfigRefresh = res.data.allowExternalConfigRefresh;
         this.hasShownTrayMinimizeHint = res.data.hasShownTrayMinimizeHint;
         this.autoSnapshotMode = res.data.autoSnapshotMode;
         this.autoSnapshotAsync = res.data.autoSnapshotAsync;
       }
-      this.showAdvancedSettings = true;
       this.loaded = true;
     },
     async saveToApi(client: A3stClient): Promise<void> {
       const payload: UiSettings = {
-        showAdvancedSettings: true,
+        showAdvancedSettings: this.showAdvancedSettings,
         allowExternalConfigRefresh: this.allowExternalConfigRefresh,
         hasShownTrayMinimizeHint: this.hasShownTrayMinimizeHint,
         autoSnapshotMode: this.autoSnapshotMode,
@@ -36,8 +36,8 @@ export const useUiSettingsStore = defineStore("uiSettings", {
       };
       await client.saveUiSettings(payload);
     },
-    setShowAdvanced(_value: boolean): void {
-      this.showAdvancedSettings = true;
+    setShowAdvanced(value: boolean): void {
+      this.showAdvancedSettings = value;
     },
     setAutoSnapshotMode(mode: AutoSnapshotMode): void {
       this.autoSnapshotMode = mode;

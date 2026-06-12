@@ -81,17 +81,17 @@ function selectConnection(id: string) {
 </script>
 
 <template>
-  <div class="connections-shell">
+  <div class="connections-shell" data-testid="connections-page">
     <div class="connections-toolbar">
       <span class="connections-title">远程主机</span>
-      <el-button size="small" type="primary" @click="showAdd = true">添加...</el-button>
+      <el-button size="small" type="primary" data-testid="btn-add-host" @click="showAdd = true">添加主机...</el-button>
     </div>
 
     <div class="connections-body">
       <div v-if="!store.connections.length" class="connections-empty">
         <p>尚未添加远程主机</p>
         <p class="connections-empty-hint">添加被控服务地址后即可管理 Arma 3 服务器</p>
-        <el-button size="small" type="primary" @click="showAdd = true">添加主机</el-button>
+        <el-button size="small" type="primary" data-testid="btn-add-host-empty" @click="showAdd = true">添加主机</el-button>
       </div>
 
       <el-scrollbar v-else class="connections-scroll">
@@ -100,6 +100,7 @@ function selectConnection(id: string) {
           :key="conn.id"
           class="connection-row"
           :class="{ selected: selectedId === conn.id }"
+          :data-testid="'connection-row-' + conn.id"
           @click="selectConnection(conn.id)"
           @dblclick="connect(conn)"
         >
@@ -111,6 +112,7 @@ function selectConnection(id: string) {
             <el-button
               size="small"
               type="primary"
+              data-testid="btn-connect"
               :loading="connectingId === conn.id"
               @click.stop="connect(conn)"
             >

@@ -15,11 +15,16 @@ import type {
   PreflightData,
   LogData,
   SteamCmdStatusData,
+  SteamCmdSettingsData,
   DashboardData,
   RconPlayersData,
   BikeySummaryData,
   ModScanData,
   BanEntry,
+  MissionEntry,
+  LogFileEntry,
+  ServerPathsData,
+  BikeyFileEntry,
   SnapshotEntry,
   MonitoringStatsPoint,
   MonitoringPlayerRow,
@@ -111,8 +116,9 @@ export class A3stClient {
 
   // ---- Servers ----
 
-  async listServers(): Promise<ServerSummary[]> {
-    const r = await this.f(`${this.baseUrl}/api/v1/servers`, { headers: this.headers() });
+  async listServers(reload = false): Promise<ServerSummary[]> {
+    const qs = reload ? "?reload=true" : "";
+    const r = await this.f(`${this.baseUrl}/api/v1/servers${qs}`, { headers: this.headers() });
     return r.json();
   }
 
@@ -133,8 +139,9 @@ export class A3stClient {
     return this.get(`/api/v1/servers/${uuid}/mods/bikeys`);
   }
 
-  async getConfig(uuid: string): Promise<ApiResponse<ArmaServerConfig>> {
-    return this.get(`/api/v1/servers/${uuid}/config`);
+  async getConfig(uuid: string, reload = false): Promise<ApiResponse<ArmaServerConfig>> {
+    const qs = reload ? "?reload=true" : "";
+    return this.get(`/api/v1/servers/${uuid}/config${qs}`);
   }
 
   async patchConfig(uuid: string, patch: Partial<ArmaServerConfig>, writeCfg = false): Promise<ApiResponse<ArmaServerConfig>> {
@@ -167,16 +174,50 @@ export class A3stClient {
     return this.get(`/api/v1/servers/${uuid}/mods`);
   }
 
-  async getBans(): Promise<ApiResponse<BanEntry[]>> {
-    return this.get("/api/v1/bans");
+  async getBans(uuid: string): Promise<ApiResponse<BanEntry[]>> {
+    return this.get(`/api/v1/servers/${uuid}/bans`);
   }
 
-  async saveBans(bans: BanEntry[]): Promise<ApiResponse<{ message: string; count: number }>> {
-    return this.post("/api/v1/bans", bans);
+  async saveBans(uuid: string, bans: BanEntry[]): Promise<ApiResponse<{ message: string; count: number }>> {
+    return this.put(`/api/v1/servers/${uuid}/bans`, bans);
   }
 
-  async removeBan(guid: string): Promise<ApiResponse<{ message: string }>> {
-    return this.deleteReq(`/api/v1/bans/${encodeURIComponent(guid)}`);
+  async getBikeyFiles(uuid: string): Promise<ApiResponse<{ keysDir: string; files: BikeyFileEntry[] }>> {
+    return this.get(`/api/v1/servers/${uuid}/mods/bikeys/files`);
+  }
+
+  async scanMissions(uuid: string): Promise<ApiResponse<{ missions: MissionEntry[]; scanned: number }>> {
+    return this.get(`/api/v1/servers/${uuid}/missions/scan`);
+  }
+
+  async getDiagnostics(uuid: string): Promise<ApiResponse<PreflightData>> {
+    return this.get(`/api/v1/servers/${uuid}/diagnostics`);
+  }
+
+  async listLogFiles(
+    uuid: string,
+    kind: "rpt" | "battleye" | "all" = "all"
+  ): Promise<ApiResponse<{ files: LogFileEntry[]; serverDir: string }>> {
+    return this.get(`/api/v1/servers/${uuid}/logs?kind=${kind}`);
+  }
+
+  async syncMonitoringPlayers(uuid: string): Promise<ApiResponse<{ synced: number }>> {
+    return this.post(`/api/v1/servers/${uuid}/monitoring/sync-players`);
+  }
+
+  async exportMonitoringHtml(uuid: string): Promise<ApiResponse<{ html: string }>> {
+    return this.get(`/api/v1/servers/${uuid}/monitoring/export/html`);
+  }
+
+  async exportMonitoringCsv(
+    uuid: string,
+    kind: "stats" | "players" = "stats"
+  ): Promise<ApiResponse<{ csv: string }>> {
+    return this.get(`/api/v1/servers/${uuid}/monitoring/export/csv?kind=${kind}`);
+  }
+
+  async getServerPaths(uuid: string): Promise<ApiResponse<ServerPathsData>> {
+    return this.get(`/api/v1/servers/${uuid}/paths`);
   }
 
   async listSnapshots(uuid: string): Promise<ApiResponse<SnapshotEntry[]>> {
@@ -309,14 +350,39 @@ export class A3stClient {
 
   // ---- Logs ----
 
-  async readLogs(uuid: string, logKind: "rpt" | "battleye" | "all" = "rpt"): Promise<ApiResponse<LogData>> {
-    return this.get(`/api/v1/servers/${uuid}/logs/read?kind=${logKind}`);
+  async readLogs(
+    uuid: string,
+    logKind: "rpt" | "battleye" | "all" = "rpt",
+    options?: { tail?: number; file?: string }
+  ): Promise<ApiResponse<LogData>> {
+    const qs = new URLSearchParams();
+    qs.set("kind", logKind);
+    if (options?.tail) {
+      qs.set("tail", String(options.tail));
+    }
+    if (options?.file) {
+      qs.set("file", options.file);
+    }
+    return this.get(`/api/v1/servers/${uuid}/logs/read?${qs.toString()}`);
   }
 
   // ---- SteamCMD ----
 
   async steamCmdStatus(): Promise<ApiResponse<SteamCmdStatusData>> {
     return this.get("/api/v1/steamcmd/status");
+  }
+
+  async getSteamCmdSettings(): Promise<ApiResponse<SteamCmdSettingsData>> {
+    return this.get("/api/v1/settings/steamcmd");
+  }
+
+  async saveSteamCmdSettings(body: {
+    username?: string;
+    password?: string;
+    workshopRoot?: string;
+    serverInstallPath?: string;
+  }): Promise<ApiResponse<SteamCmdSettingsData>> {
+    return this.put("/api/v1/settings/steamcmd", body);
   }
 
   async stopSteamCmd(): Promise<ApiResponse<null>> {

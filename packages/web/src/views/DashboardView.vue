@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import { UI_COPY } from "@/constants/uiCopy";
 import { ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { useConnectionsStore } from "@/stores/connections";
@@ -74,9 +75,7 @@ function goTab(tab: string) {
 }
 </script>
 <template>
-  <ConsolePageLayout>
-    <template #hint>进程控制请使用工具栏「启动 / 重启 / 停止」。</template>
-
+  <ConsolePageLayout data-testid="dashboard-page">
     <div class="stat-grid">
       <div class="stat-tile"><span class="stat-tile__label">运行状态</span><span class="stat-tile__value">{{ runningText() }}</span></div>
       <div class="stat-tile"><span class="stat-tile__label">进程 PID</span><span class="stat-tile__value">{{ status?.pid ?? '-' }}</span></div>
@@ -89,12 +88,12 @@ function goTab(tab: string) {
     </div>
 
     <div v-if="dashboard && !dashboard.cfgWritten" class="notice-bar">
-      尚未写入游戏配置 — 启动前请先保存各设置页，并点击「写入服务器」。
+      尚未写入游戏配置 — 请先在各设置页保存，再点击工具栏「{{ UI_COPY.writeGameCfg }}」。
     </div>
 
     <div class="quick-actions">
-      <el-button size="small" :loading="loading" @click="loadStatus">刷新</el-button>
-      <el-button size="small" @click="goTab('preflight')">启动前检查</el-button>
+      <el-button size="small" :loading="loading" @click="loadStatus">刷新状态</el-button>
+      <el-button size="small" data-testid="dashboard-preflight" @click="goTab('preflight')">{{ UI_COPY.preflight }}</el-button>
       <el-button size="small" @click="goTab('snapshots')">配置快照</el-button>
       <el-button size="small" @click="goTab('logs')">RPT 日志</el-button>
       <el-button size="small" @click="goTab('about')">关于</el-button>

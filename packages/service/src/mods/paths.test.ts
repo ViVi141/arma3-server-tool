@@ -1,0 +1,81 @@
+import { describe, it, expect } from "vitest";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
+import { expandScanTargets, isModDirectory, resolveEffectiveScanRoot } from "./paths.js";
+
+describe("mod paths", () => {
+  it("detects a mod directory by addons folder", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-moddir-"));
+    try {
+      fs.mkdirSync(path.join(dir, "addons"));
+      expect(isModDirectory(dir)).toBe(true);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("treats a mod folder itself as one scan target", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-modroot-"));
+    try {
+      const modDir = path.join(root, "@cba");
+      fs.mkdirSync(path.join(modDir, "addons"), { recursive: true });
+      const targets = expandScanTargets([modDir], []);
+      expect(targets).toHaveLength(1);
+      expect(targets[0].modPath).toBe(modDir);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("scans workshop content subdirectories with addons", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-workshop-"));
+    try {
+      fs.mkdirSync(path.join(root, "450814997", "addons"), { recursive: true });
+      fs.mkdirSync(path.join(root, "463939057", "addons"), { recursive: true });
+      const targets = expandScanTargets([root], []);
+      expect(targets).toHaveLength(2);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not treat steamapps as a mod when scanning workshop root", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-steamroot-"));
+    try {
+      const contentPath = path.join(root, "steamapps", "workshop", "content", "107410");
+      fs.mkdirSync(path.join(contentPath, "450814997", "addons"), { recursive: true });
+      fs.mkdirSync(path.join(root, "steamapps", "config"), { recursive: true });
+
+      expect(resolveEffectiveScanRoot(root)).toBe(contentPath);
+
+      const targets = expandScanTargets([root], []);
+      expect(targets).toHaveLength(1);
+      expect(targets[0].modPath).toContain("450814997");
+      expect(targets.some((item) => item.modPath.toLowerCase().endsWith("steamapps"))).toBe(false);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not redirect when scan path is already workshop content", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-contentroot-"));
+    try {
+      const contentPath = path.join(root, "steamapps", "workshop", "content", "107410");
+      fs.mkdirSync(path.join(contentPath, "450814997", "addons"), { recursive: true });
+      fs.mkdirSync(path.join(contentPath, "463939057", "addons"), { recursive: true });
+      // 模拟误创建的嵌套空目录
+      fs.mkdirSync(
+        path.join(contentPath, "steamapps", "workshop", "content", "107410"),
+        { recursive: true }
+      );
+
+      expect(resolveEffectiveScanRoot(contentPath)).toBe(contentPath);
+
+      const targets = expandScanTargets([contentPath], []);
+      expect(targets).toHaveLength(2);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});

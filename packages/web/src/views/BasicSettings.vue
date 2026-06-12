@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import PathInput from "@/components/PathInput.vue";
+import { UI_COPY } from "@/constants/uiCopy";
 import { useSettingsPage } from "@/composables/useSettingsPage";
 import { useConnectionsStore } from "@/stores/connections";
 import { ElMessage } from "element-plus";
+import { asConfigString } from "@/utils/configStringField";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
@@ -33,11 +36,11 @@ async function act(action: string) {
 
 <template>
   <ConsolePageLayout v-loading="loading">
-    <template #hint>修改后使用顶栏「保存」写入配置包；「写入服务器」才会生成 game cfg。</template>
+    <template #hint>修改后点顶栏「{{ UI_COPY.saveShort }}」写入配置包；「{{ UI_COPY.writeGameCfg }}」后才会生成游戏 cfg 文件。</template>
       <fieldset><legend>基础</legend>
         <div class="row"><label>配置名称</label><el-input v-model="srv().configName" size="small"/></div>
-        <div class="row"><label>服务器目录</label><el-input v-model="srv().serverDir" size="small"/></div>
-        <div class="row"><label>可执行文件</label><el-input v-model="srv().executable" size="small"/></div>
+        <div class="row"><label>服务器目录</label><PathInput :model-value="asConfigString(srv().serverDir)" mode="directory" placeholder="D:\arma3_server" @update:model-value="(v) => { srv().serverDir = v }"/></div>
+        <div class="row"><label>可执行文件</label><PathInput :model-value="asConfigString(srv().executable)" mode="file" :file-filters="[{ name: '可执行文件', extensions: ['exe'] }]" placeholder="arma3server_x64.exe 或完整路径" @update:model-value="(v) => { srv().executable = v }"/></div>
         <div class="row"><label>x64</label><el-switch v-model="srv().x64" size="small"/></div>
       </fieldset>
       <fieldset><legend>服务器</legend>
@@ -82,8 +85,8 @@ async function act(action: string) {
         <div class="row"><label>任务投票人数</label><el-input-number v-model="b().voteMissionPlayers" :min="0" :max="100" size="small" controls-position="right"/></div>
       </fieldset>
       <fieldset><legend>文件 / 杂项</legend>
-        <div class="row"><label>PID 文件</label><el-input v-model="b().pidFile" size="small"/></div>
-        <div class="row"><label>Ranking 文件</label><el-input v-model="b().rankingFile" size="small"/></div>
+        <div class="row"><label>PID 文件</label><PathInput :model-value="asConfigString(b().pidFile)" mode="file" placeholder="可选" @update:model-value="(v) => { b().pidFile = v }"/></div>
+        <div class="row"><label>Ranking 文件</label><PathInput :model-value="asConfigString(b().rankingFile)" mode="file" placeholder="可选" @update:model-value="(v) => { b().rankingFile = v }"/></div>
       </fieldset>
       <fieldset><legend>附加参数 (Base64 编码)</legend>
         <div class="row"><label>server.cfg 附加</label><el-input v-model="b().serverCfgArgs" type="textarea" :rows="2" size="small"/></div>

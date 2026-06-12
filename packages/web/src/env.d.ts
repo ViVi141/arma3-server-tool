@@ -22,7 +22,11 @@ interface ElectronAPI {
   restartService: () => Promise<{ running: boolean; pid?: number }>;
   openFile: (options: { filters: { name: string; extensions: string[] }[] }) => Promise<string | undefined>;
   openPath: (targetPath: string) => Promise<string>;
-  showOpenDialog: (options: { properties: string[] }) => Promise<{ canceled: boolean; filePaths: string[] }>;
+  showOpenDialog: (options: {
+    properties: string[];
+    filters?: { name: string; extensions: string[] }[];
+  }) => Promise<{ canceled: boolean; filePaths: string[] }>;
+  readTextFile: (filePath: string) => Promise<string>;
   getAppVersion: () => Promise<string>;
   getAppPath: () => Promise<string>;
   getThemeDark: () => Promise<boolean>;

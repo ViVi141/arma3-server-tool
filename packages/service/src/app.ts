@@ -13,6 +13,8 @@ import { RptLogReader } from "./logs/index.js";
 import { sseManager } from "./api/sse.js";
 import { UiSettingsStore } from "./settings/ui-settings.js";
 import { ModScanPathStore } from "./mods/scan-path-store.js";
+import { SteamCmdSettingsStore } from "./settings/steamcmd-settings.js";
+import { applySteamCmdSettings } from "./settings/apply-steamcmd-settings.js";
 
 export interface ServiceOptions {
   port: number;
@@ -34,6 +36,9 @@ export async function createService(options: ServiceOptions) {
   const rptLogReader = new RptLogReader();
   const uiSettingsStore = new UiSettingsStore(options.dataDir);
   const modScanPathStore = new ModScanPathStore(options.dataDir);
+  const steamCmdSettingsStore = new SteamCmdSettingsStore(options.dataDir);
+
+  applySteamCmdSettings(steamCmd, steamCmdSettingsStore.load());
 
   // Decorate
   app.decorate("configStore", configStore);
@@ -46,6 +51,7 @@ export async function createService(options: ServiceOptions) {
   app.decorate("rptLogReader", rptLogReader);
   app.decorate("uiSettingsStore", uiSettingsStore);
   app.decorate("modScanPathStore", modScanPathStore);
+  app.decorate("steamCmdSettingsStore", steamCmdSettingsStore);
   app.decorate("asyncTaskManager", asyncTaskManager);
   app.decorate("dataDir", options.dataDir);
 

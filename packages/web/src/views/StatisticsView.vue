@@ -133,20 +133,39 @@ async function exportCsv() {
     if (!client) {
       return;
     }
-    const res = await client.getMonitoringStats(props.serverUuid, 24);
-    const stats = res.data.stats ?? [];
-    const lines = ["时间,在线,FPS"];
-    for (const point of stats) {
-      lines.push(`${point.timestamp},${point.playerCount},${point.serverFps ?? 0}`);
+    const res = await client.exportMonitoringCsv(props.serverUuid, "stats");
+    if (!res.success) {
+      throw new Error(res.error ?? "导出失败");
     }
-    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    const blob = new Blob([res.data.csv], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `stats_${props.serverUuid}.csv`;
     a.click();
     ElMessage.success("CSV 已导出");
-  } catch {
-    ElMessage.error("导出失败");
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : "导出失败");
+  }
+}
+
+async function exportHtml() {
+  try {
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    const res = await client.exportMonitoringHtml(props.serverUuid);
+    if (!res.success) {
+      throw new Error(res.error ?? "导出失败");
+    }
+    const blob = new Blob([res.data.html], { type: "text/html;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `report_${props.serverUuid}.html`;
+    a.click();
+    ElMessage.success("HTML 日报已导出");
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : "导出失败");
   }
 }
 </script>
@@ -159,6 +178,7 @@ async function exportCsv() {
           <template #toolbar>
             <el-button size="small" @click="loadData" :loading="loading">刷新统计</el-button>
             <el-button size="small" @click="exportCsv">导出 CSV...</el-button>
+            <el-button size="small" @click="exportHtml">导出 HTML 日报...</el-button>
           </template>
           <div class="stats-body">
           <el-row :gutter="8" style="margin-bottom:8px;">

@@ -10,13 +10,16 @@ export interface CronJobDef {
 
 export class Scheduler {
   private jobs: Map<string, Cron> = new Map();
+  private schedules: Map<string, string> = new Map();
 
   add(def: CronJobDef): void {
+    this.remove(def.name);
     const job = new Cron(def.schedule, () => {
       def.handler();
     });
 
     this.jobs.set(def.name, job);
+    this.schedules.set(def.name, def.schedule);
   }
 
   remove(name: string): void {
@@ -24,14 +27,24 @@ export class Scheduler {
     if (job) {
       job.stop();
       this.jobs.delete(name);
+      this.schedules.delete(name);
     }
   }
 
   clear(): void {
-    for (const [name, job] of this.jobs) {
+    for (const [, job] of this.jobs) {
       job.stop();
     }
     this.jobs.clear();
+    this.schedules.clear();
+  }
+
+  list(): { name: string; schedule: string }[] {
+    const items: { name: string; schedule: string }[] = [];
+    for (const [name, schedule] of this.schedules.entries()) {
+      items.push({ name, schedule });
+    }
+    return items;
   }
 }
 

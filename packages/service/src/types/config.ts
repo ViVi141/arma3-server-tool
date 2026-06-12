@@ -1,3 +1,5 @@
+import type { LocalModEntry } from "./mods.js";
+
 export interface ServerConfigPackage {
   formatVersion: number;
   server?: ServerConfigSection;
@@ -50,6 +52,8 @@ export interface ModsConfigSection {
   hcModIds?: number[];
   autoCopyBikey?: boolean;
   modPaths?: string[];
+  localMods?: LocalModEntry[];
+  enabledLocalPaths?: string[];
 }
 
 export interface BasicConfigSection {

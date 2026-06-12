@@ -223,6 +223,10 @@ function registerIpcHandlers(): void {
     const result = await dialog.showOpenDialog(options);
     return result;
   });
+
+  ipcMain.handle("fs:readTextFile", (_event, filePath: string) => {
+    return fs.readFileSync(filePath, "utf-8");
+  });
 }
 
 function createWindow(): void {

@@ -13,6 +13,21 @@ const addForm = ref({ guid: "", reason: "手动封禁" });
 const showAdd = ref(false);
 const selected = ref<BanEntry[]>([]);
 
+function banKey(entry: BanEntry): string {
+  return (entry.guid ?? entry.ip ?? "").trim();
+}
+
+function normalizeBan(entry: BanEntry): BanEntry {
+  return {
+    guid: entry.guid ?? entry.ip ?? "",
+    ip: entry.ip,
+    reason: entry.reason ?? "",
+    time: entry.time ?? entry.date ?? "",
+    date: entry.date ?? entry.time ?? "",
+    name: entry.name,
+  };
+}
+
 async function loadBans() {
   loading.value = true;
   try {
@@ -20,9 +35,9 @@ async function loadBans() {
     if (!client) {
       return;
     }
-    const res = await client.getBans();
+    const res = await client.getBans(props.serverUuid);
     if (res.success) {
-      bans.value = res.data ?? [];
+      bans.value = (res.data ?? []).map(normalizeBan);
     }
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : "读取失败");
@@ -34,7 +49,7 @@ async function loadBans() {
 onMounted(loadBans);
 
 async function addBan() {
-  if (!addForm.value.guid) {
+  if (!addForm.value.guid.trim()) {
     return;
   }
   try {
@@ -46,7 +61,7 @@ async function addBan() {
       serverUuid: props.serverUuid,
       commands: [{
         action: "local_ban_add" as const,
-        playerGuid: addForm.value.guid,
+        playerGuid: addForm.value.guid.trim(),
         reason: addForm.value.reason,
       }],
     });
@@ -59,21 +74,13 @@ async function addBan() {
   }
 }
 
-async function removeBan(guid?: string) {
-  if (!guid) {
+async function removeBan(entry: BanEntry) {
+  const key = banKey(entry);
+  if (!key) {
     return;
   }
-  try {
-    const client = store.getClient();
-    if (!client) {
-      return;
-    }
-    await client.removeBan(guid);
-    await loadBans();
-    ElMessage.success("已移除");
-  } catch (e: unknown) {
-    ElMessage.error(e instanceof Error ? e.message : "移除失败");
-  }
+  bans.value = bans.value.filter((row) => banKey(row) !== key);
+  await saveLocal();
 }
 
 async function saveLocal() {
@@ -82,8 +89,16 @@ async function saveLocal() {
     if (!client) {
       return;
     }
-    await client.saveBans(bans.value);
-    ElMessage.success("已保存");
+    const payload = bans.value.map((row) => ({
+      guid: row.guid ?? row.ip ?? "",
+      time: row.time ?? row.date ?? "",
+      reason: row.reason ?? "",
+      name: row.name,
+      ip: row.ip,
+    }));
+    await client.saveBans(props.serverUuid, payload);
+    ElMessage.success("已保存到 bans.txt");
+    await loadBans();
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : "保存失败");
   }
@@ -94,8 +109,11 @@ function removeSelected() {
     ElMessage.warning("请先选择要删除的封禁");
     return;
   }
-  const row = selected.value[0];
-  removeBan(row.guid ?? row.ip);
+  for (const row of selected.value) {
+    const key = banKey(row);
+    bans.value = bans.value.filter((item) => banKey(item) !== key);
+  }
+  saveLocal();
 }
 </script>
 <template>
@@ -116,9 +134,9 @@ function removeSelected() {
 <el-table :data="bans" stripe size="small" @selection-change="(rows: BanEntry[]) => { selected = rows; }">
   <el-table-column type="selection" width="36"/>
   <el-table-column prop="guid" label="GUID/IP/UID" width="200"/>
-  <el-table-column prop="date" label="到期日期" width="160"><template #default="{row}">{{(row.date??'').slice(0,10)}}</template></el-table-column>
+  <el-table-column prop="date" label="到期日期" width="160"><template #default="{row}">{{(row.date ?? row.time ?? '').slice(0,10)}}</template></el-table-column>
   <el-table-column prop="reason" label="原因" min-width="120"/>
-  <el-table-column label="操作" width="80"><template #default="{row}"><el-button size="small" @click="removeBan(row.guid ?? row.ip)">删除</el-button></template></el-table-column>
+  <el-table-column label="操作" width="80"><template #default="{row}"><el-button size="small" @click="removeBan(row)">删除</el-button></template></el-table-column>
 </el-table>
 <el-empty v-if="!bans.length" description="无封禁记录，点击「读取本地」加载"/>
 </ConsolePageLayout>
