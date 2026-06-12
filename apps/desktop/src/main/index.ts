@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, Tray, Menu, nativeImage, dialog, ipcMain, shell, nativeTheme } from "electron";
 import { spawn, type ChildProcess } from "child_process";
 import path from "path";
 import fs from "fs";
@@ -175,7 +175,24 @@ function getServiceStatus(): { running: boolean; pid?: number } {
   return { running: false };
 }
 
+function themeBackgroundColor(): string {
+  if (nativeTheme.shouldUseDarkColors) {
+    return "#1e1e1e";
+  }
+  return "#ffffff";
+}
+
+function syncWindowTheme(): void {
+  if (!mainWindow) {
+    return;
+  }
+  mainWindow.setBackgroundColor(themeBackgroundColor());
+  mainWindow.webContents.send("theme:changed", nativeTheme.shouldUseDarkColors);
+}
+
 function registerIpcHandlers(): void {
+  ipcMain.handle("theme:shouldUseDarkColors", () => nativeTheme.shouldUseDarkColors);
+
   ipcMain.handle("service:status", () => getServiceStatus());
 
   ipcMain.handle("service:settings:get", () => loadSettings());
@@ -215,7 +232,7 @@ function createWindow(): void {
     minWidth: 780,
     minHeight: 500,
     title: "Arma3 Server Tools",
-    backgroundColor: "#1e1e1e",
+    backgroundColor: themeBackgroundColor(),
     webPreferences: {
       preload: getPreloadPath(),
       contextIsolation: true,
@@ -307,6 +324,8 @@ if (!gotLock) {
     }
 
     registerIpcHandlers();
+    nativeTheme.themeSource = "system";
+    nativeTheme.on("updated", syncWindowTheme);
     startService();
     createWindow();
     createTray();

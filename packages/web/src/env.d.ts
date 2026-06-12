@@ -25,6 +25,8 @@ interface ElectronAPI {
   showOpenDialog: (options: { properties: string[] }) => Promise<{ canceled: boolean; filePaths: string[] }>;
   getAppVersion: () => Promise<string>;
   getAppPath: () => Promise<string>;
+  getThemeDark: () => Promise<boolean>;
+  onThemeChanged: (callback: (dark: boolean) => void) => () => void;
 }
 
 interface ImportMetaEnv {

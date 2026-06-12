@@ -618,7 +618,7 @@ import AboutView from "./AboutView.vue";
 
 .server-item.active {
   background: var(--a3st-bg-selected);
-  color: #ffffff;
+  color: var(--a3st-text-on-selected);
 }
 
 .server-name {
@@ -791,7 +791,7 @@ import AboutView from "./AboutView.vue";
 }
 
 .dir-link {
-  color: #ffffff;
+  color: var(--a3st-statusbar-text);
   text-decoration: none;
   max-width: 420px;
   overflow: hidden;

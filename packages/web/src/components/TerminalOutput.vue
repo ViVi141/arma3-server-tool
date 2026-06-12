@@ -109,15 +109,15 @@ function clearLog() {
 .terminal-output {
   height: 300px;
   overflow-y: auto;
-  background: #1e1e1e;
-  color: #d4d4d4;
-  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  background: var(--a3st-terminal-bg);
+  color: var(--a3st-terminal-text);
+  font-family: var(--a3st-font-mono);
   font-size: 12px;
   line-height: 1.5;
   padding: 8px;
 }
 .terminal-empty {
-  color: #666;
+  color: var(--a3st-text-dim);
   text-align: center;
   padding: 40px 0;
 }
@@ -126,9 +126,9 @@ function clearLog() {
   word-break: break-all;
 }
 .time {
-  color: #888;
+  color: var(--a3st-text-dim);
   margin-right: 8px;
   user-select: none;
 }
-.text { color: #d4d4d4; }
+.text { color: var(--a3st-terminal-text); }
 </style>

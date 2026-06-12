@@ -28,4 +28,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   openPath: (targetPath: string): Promise<string> => ipcRenderer.invoke("shell:openPath", targetPath),
   showOpenDialog: (options: { properties: string[] }): Promise<{ canceled: boolean; filePaths: string[] }> =>
     ipcRenderer.invoke("dialog:openFile", options),
+
+  getThemeDark: (): Promise<boolean> => ipcRenderer.invoke("theme:shouldUseDarkColors"),
+  onThemeChanged: (callback: (dark: boolean) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, dark: boolean) => {
+      callback(dark);
+    };
+    ipcRenderer.on("theme:changed", handler);
+    return () => {
+      ipcRenderer.removeListener("theme:changed", handler);
+    };
+  },
 });

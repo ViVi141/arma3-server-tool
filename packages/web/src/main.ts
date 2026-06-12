@@ -5,6 +5,9 @@ import "element-plus/dist/index.css";
 import "@/styles/desktop-theme.css";
 import App from "./App.vue";
 import { router } from "./router";
+import { initSystemTheme } from "@/utils/systemTheme";
+
+initSystemTheme();
 
 const app = createApp(App);
 app.use(createPinia());
