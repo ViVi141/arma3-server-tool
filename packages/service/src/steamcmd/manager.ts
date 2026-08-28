@@ -9,6 +9,7 @@ import {
   buildWorkshopDownloadArguments,
   redactPasswordInArguments,
 } from "./arguments.js";
+import { sanitizeSteamCmdOutput } from "./output-sanitize.js";
 import {
   normalizeWorkshopRoot,
   type SteamCmdPathContext,
@@ -256,8 +257,9 @@ export class SteamCmdManager extends EventEmitter {
 
     let combined = "";
     const exitCode = await this.runCapturedProcess(argumentsString, (chunk) => {
-      combined += chunk;
-      onOutput?.(chunk);
+      const clean = sanitizeSteamCmdOutput(chunk);
+      combined += clean;
+      onOutput?.(clean);
     });
 
     const captureResult: SessionRunCapture = {
@@ -292,9 +294,10 @@ export class SteamCmdManager extends EventEmitter {
       argumentsString,
       this.installDir,
       (chunk) => {
-        this.appendSessionOutput(chunk);
-        this.emit("output", chunk);
-        onChunk(chunk);
+        const clean = sanitizeSteamCmdOutput(chunk);
+        this.appendSessionOutput(clean);
+        this.emit("output", clean);
+        onChunk(clean);
       },
       this.installDir,
     );
@@ -382,7 +385,7 @@ export class SteamCmdManager extends EventEmitter {
     if (this.sessionOutput.trim()) {
       return tailTextLines(this.sessionOutput, maxLines);
     }
-    return this.readLatestSessionLogTail(maxLines);
+    return sanitizeSteamCmdOutput(this.readLatestSessionLogTail(maxLines));
   }
 
   private readLatestSessionLogTail(maxLines: number): string {

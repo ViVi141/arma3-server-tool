@@ -16,7 +16,7 @@ import { fetchRconPlayers, resolveRconOptions, countOnlinePlayers } from "../rco
 import { maybeAutoSnapshot } from "../config/auto-snapshot.js";
 import { evaluateSyncState } from "../config/sync-state.js";
 import { disableModsByScope, type ModDisableScope } from "../mods/enabler.js";
-import { collectModPaths, ensureDefaultWorkshopScanPath, isModDirectory, resolveWorkshopInstallRootFromScanPaths } from "../mods/paths.js";
+import { collectModPaths, ensureDefaultWorkshopScanPath, isModDirectory, normalizeModScanPathEntries, resolveWorkshopInstallRootFromScanPaths } from "../mods/paths.js";
 import {
   buildModScanOptions,
   scanModsForConfig,
@@ -31,6 +31,7 @@ import {
   toSteamCmdSettingsView,
 } from "../settings/steamcmd-settings.js";
 import { applySteamCmdSettings } from "../settings/apply-steamcmd-settings.js";
+import { resolveConfiguredPath } from "../util/user-path.js";
 import { fetchWorkshopModDetails } from "../steamcmd/workshop-api.js";
 import { listMissionFiles, mergeMissionEntries } from "../missions/scanner.js";
 import { loadLocalBans, saveLocalBans, type LocalBanEntry } from "../bans/bans-service.js";
@@ -262,8 +263,12 @@ export async function apiRoutes(app: FastifyInstance) {
     const merged = app.steamCmdSettingsStore.merge({
       username: body.username,
       password: body.password,
-      workshopRoot: body.workshopRoot,
-      serverInstallPath: body.serverInstallPath,
+      workshopRoot: body.workshopRoot !== undefined
+        ? (body.workshopRoot.trim() ? resolveConfiguredPath(body.workshopRoot) : "")
+        : undefined,
+      serverInstallPath: body.serverInstallPath !== undefined
+        ? (body.serverInstallPath.trim() ? resolveConfiguredPath(body.serverInstallPath) : "")
+        : undefined,
     });
     applySteamCmdSettings(
       app.steamCmd,
@@ -305,8 +310,9 @@ export async function apiRoutes(app: FastifyInstance) {
       reply.status(400);
       return envelope(false, null, "INVALID_PATHS", "");
     }
-    app.modScanPathStore.save(body.paths);
-    const scanPaths = body.paths.map((entry) => entry.modulePath).filter(Boolean);
+    const normalizedPaths = normalizeModScanPathEntries(body.paths);
+    app.modScanPathStore.save(normalizedPaths);
+    const scanPaths = normalizedPaths.map((entry) => entry.modulePath).filter(Boolean);
     const current = app.steamCmdSettingsStore.load();
     let settings = current;
     if (!current.workshopRoot.trim()) {
@@ -316,7 +322,7 @@ export async function apiRoutes(app: FastifyInstance) {
       }
     }
     applySteamCmdSettings(app.steamCmd, settings, scanPaths);
-    return envelope(true, { paths: body.paths, message: "模组扫描路径已保存" }, null, "");
+    return envelope(true, { paths: normalizedPaths, message: "模组扫描路径已保存" }, null, "");
   });
 
   app.get("/steamcmd/status", async () => {

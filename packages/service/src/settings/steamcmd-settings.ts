@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { resolveConfiguredPath } from "../util/user-path.js";
 
 export interface SteamCmdSettings {
   username: string;
@@ -61,23 +62,23 @@ export class SteamCmdSettingsStore {
 }
 
 export function ensureWorkshopContentDirectory(workshopRoot: string): void {
-  const trimmed = workshopRoot.trim();
-  if (!trimmed) {
+  const resolvedRoot = resolveConfiguredPath(workshopRoot);
+  if (!resolvedRoot) {
     return;
   }
   try {
-    fs.mkdirSync(path.join(trimmed, WORKSHOP_CONTENT_REL), { recursive: true });
+    fs.mkdirSync(path.join(resolvedRoot, WORKSHOP_CONTENT_REL), { recursive: true });
   } catch {
     // best effort
   }
 }
 
 export function countWorkshopMods(workshopRoot: string): number {
-  const trimmed = workshopRoot.trim();
-  if (!trimmed) {
+  const resolvedRoot = resolveConfiguredPath(workshopRoot);
+  if (!resolvedRoot) {
     return 0;
   }
-  const contentDir = path.join(trimmed, WORKSHOP_CONTENT_REL);
+  const contentDir = path.join(resolvedRoot, WORKSHOP_CONTENT_REL);
   if (!fs.existsSync(contentDir)) {
     return 0;
   }

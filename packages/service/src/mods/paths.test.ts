@@ -4,12 +4,12 @@ import * as path from "node:path";
 import * as os from "node:os";
 import {
   expandScanTargets,
-  expandUserPath,
   isModDirectory,
   resolveEffectiveScanRoot,
   resolveWorkshopInstallRootFromScanPath,
   resolveWorkshopInstallRootFromScanPaths,
 } from "./paths.js";
+import { resolveConfiguredPath } from "../util/user-path.js";
 
 describe("mod paths", () => {
   it("detects a mod directory by addons folder", () => {
@@ -99,8 +99,25 @@ describe("mod paths", () => {
       const relativeFromHome = path.relative(home, contentPath).split(path.sep).join("/");
       const tildePath = "~/" + relativeFromHome;
 
-      expect(expandUserPath(tildePath)).toBe(contentPath);
+      expect(resolveConfiguredPath(tildePath)).toBe(contentPath);
       expect(resolveWorkshopInstallRootFromScanPath(tildePath)).toBe(root);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("scans mods from tilde-prefixed workshop content path", () => {
+    const home = os.homedir();
+    const root = fs.mkdtempSync(path.join(home, "a3st-linux-scan-"));
+    try {
+      const contentPath = path.join(root, "steamapps", "workshop", "content", "107410");
+      fs.mkdirSync(path.join(contentPath, "450814997", "addons"), { recursive: true });
+      const relativeFromHome = path.relative(home, contentPath).split(path.sep).join("/");
+      const tildePath = "~/" + relativeFromHome;
+
+      const targets = expandScanTargets([tildePath], [{ modulePath: tildePath, remark: "" }]);
+      expect(targets).toHaveLength(1);
+      expect(targets[0].modPath).toContain("450814997");
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

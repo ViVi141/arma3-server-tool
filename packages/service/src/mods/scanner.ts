@@ -4,6 +4,7 @@ import type { LocalModEntry, ModMeta } from "../types/mods.js";
 import type { ModRoleEntry } from "../types/config.js";
 import type { ModScanPathEntry } from "./scan-path-store.js";
 import { expandScanTargets, isModDirectory } from "./paths.js";
+import { resolveConfiguredPath } from "../util/user-path.js";
 import {
   copyBikeysForMods,
   inspectMod,
@@ -48,10 +49,11 @@ export class ModScanner {
     }
 
     for (const local of options.localMods ?? []) {
-      if (!local.path || !fs.existsSync(local.path)) {
+      const localPath = local.path ? resolveConfiguredPath(local.path) : "";
+      if (!localPath || !fs.existsSync(localPath)) {
         continue;
       }
-      const meta = this.buildModMeta(local.path, options, seenPaths, localByPath, enabledLocal, local);
+      const meta = this.buildModMeta(localPath, options, seenPaths, localByPath, enabledLocal, local);
       if (meta) {
         meta.scanOrder = results.length;
         results.push(meta);

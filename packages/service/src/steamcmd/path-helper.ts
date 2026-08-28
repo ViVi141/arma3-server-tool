@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import { resolveWorkshopInstallRootFromScanPath } from "../mods/paths.js";
+import { resolveConfiguredPath } from "../util/user-path.js";
 
 /** Mirrors legacy IAppPaths fields used by SteamCmdPathHelper / SteamCmdBootstrapper. */
 export interface SteamCmdPathContext {
@@ -42,7 +43,10 @@ export function normalizeWorkshopRoot(
     return preferredExtensionDirectory;
   }
 
-  const fullWorkshopRoot = path.resolve(workshopRoot.trim());
+  const fullWorkshopRoot = resolveConfiguredPath(workshopRoot);
+  if (!fullWorkshopRoot) {
+    return preferredExtensionDirectory;
+  }
   if (isBlockedInstallDirectory(ctx, fullWorkshopRoot)) {
     return preferredExtensionDirectory;
   }

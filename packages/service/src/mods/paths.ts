@@ -1,31 +1,17 @@
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import type { FastifyInstance } from "fastify";
 import type { ServerConfigPackage } from "../types/config.js";
 import { resolveModPaths } from "./enabler.js";
 import type { ModScanPathEntry } from "./scan-path-store.js";
 import { ensureWorkshopContentDirectory } from "../settings/steamcmd-settings.js";
+import { expandUserPath, resolveConfiguredPath } from "../util/user-path.js";
+
+export { expandUserPath } from "../util/user-path.js";
 
 const WORKSHOP_APP_ID = "107410";
 const WORKSHOP_CONTENT_REL = path.join("steamapps", "workshop", "content", WORKSHOP_APP_ID);
 const WORKSHOP_CONTENT_SUFFIX = `${path.sep}workshop${path.sep}content${path.sep}${WORKSHOP_APP_ID}`.toLowerCase();
-
-/** 展开 Linux/macOS 常见的 ~/ 前缀路径。 */
-export function expandUserPath(input: string): string {
-  const trimmed = input.trim();
-  if (trimmed === "~") {
-    return os.homedir();
-  }
-  if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
-    return path.join(os.homedir(), trimmed.slice(2));
-  }
-  return trimmed;
-}
-
-function resolveConfiguredPath(input: string): string {
-  return path.resolve(expandUserPath(input));
-}
 
 export function isModDirectory(dirPath: string): boolean {
   return fs.existsSync(path.join(dirPath, "addons"));
@@ -123,7 +109,7 @@ export function ensureDefaultWorkshopScanPath(
   store: { list: () => ModScanPathEntry[]; save: (entries: ModScanPathEntry[]) => void },
   workshopRoot: string
 ): void {
-  const trimmed = workshopRoot.trim();
+  const trimmed = resolveConfiguredPath(workshopRoot);
   if (!trimmed) {
     return;
   }
@@ -154,7 +140,9 @@ export function collectModPaths(app: FastifyInstance, config: ServerConfigPackag
     ensureDefaultWorkshopScanPath(app.modScanPathStore, settings.workshopRoot);
   }
 
-  const globalPaths = app.modScanPathStore.list().map((entry) => entry.modulePath);
+  const globalPaths = app.modScanPathStore.list().map((entry) => {
+    return resolveConfiguredPath(entry.modulePath);
+  }).filter(Boolean);
   const resolved = resolveModPaths(config, globalPaths);
 
   const localPaths = (config.mods?.localMods ?? []).map((entry) => entry.path).filter(Boolean);
@@ -177,11 +165,24 @@ export interface ExpandedScanTarget {
   prefix?: string;
 }
 
+export function normalizeModScanPathEntries(entries: ModScanPathEntry[]): ModScanPathEntry[] {
+  return entries.map((entry) => {
+    const modulePath = entry.modulePath.trim()
+      ? resolveConfiguredPath(entry.modulePath)
+      : "";
+    return {
+      ...entry,
+      modulePath,
+    };
+  });
+}
+
 export function expandScanTargets(scanRoots: string[], scanPathEntries: ModScanPathEntry[]): ExpandedScanTarget[] {
   const prefixByRoot = new Map<string, string>();
   for (const entry of scanPathEntries) {
     if (entry.modulePath) {
-      prefixByRoot.set(entry.modulePath.toLowerCase(), entry.prefix ?? "");
+      const normalizedEntryPath = resolveConfiguredPath(entry.modulePath);
+      prefixByRoot.set(normalizedEntryPath.toLowerCase(), entry.prefix ?? "");
     }
   }
 
@@ -189,11 +190,12 @@ export function expandScanTargets(scanRoots: string[], scanPathEntries: ModScanP
   const seen = new Set<string>();
 
   for (const root of scanRoots) {
-    if (!root || !fs.existsSync(root)) {
+    const configuredRoot = resolveConfiguredPath(root);
+    if (!configuredRoot || !fs.existsSync(configuredRoot)) {
       continue;
     }
 
-    const effectiveRoot = resolveEffectiveScanRoot(root);
+    const effectiveRoot = resolveEffectiveScanRoot(configuredRoot);
 
     if (isModDirectory(effectiveRoot)) {
       const realPath = fs.realpathSync(effectiveRoot);
@@ -204,7 +206,9 @@ export function expandScanTargets(scanRoots: string[], scanPathEntries: ModScanP
       continue;
     }
 
-    const prefix = prefixByRoot.get(root.toLowerCase()) ?? prefixByRoot.get(effectiveRoot.toLowerCase()) ?? "";
+    const prefix = prefixByRoot.get(configuredRoot.toLowerCase())
+      ?? prefixByRoot.get(effectiveRoot.toLowerCase())
+      ?? "";
     let entries: fs.Dirent[];
     try {
       entries = fs.readdirSync(effectiveRoot, { withFileTypes: true });
