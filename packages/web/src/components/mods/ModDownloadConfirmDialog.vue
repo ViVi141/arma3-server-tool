@@ -15,7 +15,31 @@ const emit = defineEmits<{
 
 const loading = ref(false);
 const rows = ref<SteamWorkshopModInfo[]>([]);
-const statusText = ref("正在从 Steam API 加载模组信息...");
+const statusText = ref("正在加载 Workshop 模组信息...");
+
+function updateStatusLabel(status?: SteamWorkshopModInfo["updateStatus"]): string {
+  switch (status) {
+    case "missing":
+      return "未安装";
+    case "up_to_date":
+      return "已最新";
+    case "outdated":
+      return "有更新";
+    default:
+      return "未知";
+  }
+}
+
+function sourceLabel(source?: SteamWorkshopModInfo["source"]): string {
+  switch (source) {
+    case "api":
+      return "Steam API";
+    case "html":
+      return "Workshop 页面";
+    default:
+      return "回退";
+  }
+}
 
 watch(
   () => props.visible,
@@ -24,7 +48,7 @@ watch(
       return;
     }
     loading.value = true;
-    statusText.value = "正在从 Steam API 加载模组信息...";
+    statusText.value = "正在加载 Workshop 模组信息（API 不可用时将解析 Workshop 页面）...";
     try {
       rows.value = await props.fetchDetails(props.modIds);
       if (rows.value.length) {
@@ -40,6 +64,7 @@ watch(
         description: "",
         fileSizeMb: "-",
         selected: true,
+        source: "fallback",
       }));
     } finally {
       loading.value = false;
@@ -62,7 +87,7 @@ function confirm() {
   <el-dialog
     :model-value="visible"
     title="确认需要更新/下载的模组"
-    width="900px"
+    width="980px"
     destroy-on-close
     @update:model-value="emit('update:visible', $event)"
   >
@@ -73,10 +98,24 @@ function confirm() {
           <el-checkbox v-model="row.selected" />
         </template>
       </el-table-column>
-      <el-table-column prop="title" label="模组名称" min-width="180" show-overflow-tooltip />
+      <el-table-column prop="title" label="模组名称" min-width="160" show-overflow-tooltip />
       <el-table-column prop="modId" label="Workshop ID" width="120" align="center" />
       <el-table-column prop="fileSizeMb" label="大小" width="90" align="center" />
-      <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
+      <el-table-column label="远程更新" width="140" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.timeUpdatedLabel ?? "-" }}</template>
+      </el-table-column>
+      <el-table-column label="本地更新" width="140" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.localUpdatedLabel ?? "-" }}</template>
+      </el-table-column>
+      <el-table-column label="状态" width="88" align="center">
+        <template #default="{ row }">
+          <span>{{ updateStatusLabel(row.updateStatus) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="来源" width="100" align="center">
+        <template #default="{ row }">{{ sourceLabel(row.source) }}</template>
+      </el-table-column>
+      <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
     </el-table>
     <template #footer>
       <el-button @click="close">取消</el-button>

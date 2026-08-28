@@ -20,6 +20,7 @@ import type {
   RconPlayersData,
   BikeySummaryData,
   SteamWorkshopModInfo,
+  WorkshopLocalModRef,
   ModScanData,
   BanEntry,
   MissionEntry,
@@ -265,8 +266,11 @@ export class A3stClient {
     return this.put("/api/v1/settings/mod-scan-paths", { paths });
   }
 
-  async fetchWorkshopModDetails(modIds: number[]): Promise<ApiResponse<{ mods: SteamWorkshopModInfo[] }>> {
-    return this.post("/api/v1/workshop/mod-details", { modIds });
+  async fetchWorkshopModDetails(
+    modIds: number[],
+    localMods?: WorkshopLocalModRef[]
+  ): Promise<ApiResponse<{ mods: SteamWorkshopModInfo[] }>> {
+    return this.post("/api/v1/workshop/mod-details", { modIds, localMods });
   }
 
   async validateModPath(modPath: string): Promise<ApiResponse<{ valid: boolean }>> {

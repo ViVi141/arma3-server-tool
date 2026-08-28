@@ -238,13 +238,13 @@ export async function apiRoutes(app: FastifyInstance) {
   });
 
   app.post("/workshop/mod-details", async (req, reply) => {
-    const body = req.body as { modIds?: number[] } | null;
+    const body = req.body as { modIds?: number[]; localMods?: { modId: number; path?: string; updatedAt?: string }[] } | null;
     const modIds = body?.modIds ?? [];
     if (!modIds.length) {
       reply.status(400);
       return envelope(false, null, "INVALID_BODY", "");
     }
-    const mods = await fetchWorkshopModDetails(modIds);
+    const mods = await fetchWorkshopModDetails(modIds, body?.localMods ?? []);
     return envelope(true, { mods }, null, "");
   });
 

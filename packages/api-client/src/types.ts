@@ -268,6 +268,18 @@ export interface SteamWorkshopModInfo {
   description: string;
   fileSizeMb: string;
   selected: boolean;
+  timeUpdated?: number;
+  timeUpdatedLabel?: string;
+  localUpdatedAt?: string;
+  localUpdatedLabel?: string;
+  updateStatus?: "missing" | "up_to_date" | "outdated" | "unknown";
+  source?: "api" | "html" | "fallback";
+}
+
+export interface WorkshopLocalModRef {
+  modId: number;
+  path?: string;
+  updatedAt?: string;
 }
 
 export type ModBikeyStatus = "unsigned" | "no_key" | "not_copied" | "ready";
@@ -290,6 +302,8 @@ export interface ModMetaRow {
   sizeBytes?: number;
   updatedAt?: string;
   updatedTime?: string;
+  remoteUpdatedLabel?: string;
+  updateStatus?: "missing" | "up_to_date" | "outdated" | "unknown";
 }
 
 export interface ModScanData {

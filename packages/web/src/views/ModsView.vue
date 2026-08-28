@@ -45,6 +45,9 @@ interface ModRow {
   bikeyHint: string;
   scanOrder: number;
   updatedTime: string;
+  updatedAt?: string;
+  remoteUpdatedLabel?: string;
+  updateStatus?: "missing" | "up_to_date" | "outdated" | "unknown";
 }
 
 const modList = ref<ModRow[]>([]);
@@ -75,6 +78,8 @@ const bikeyKeysDir = ref("");
 const bikeyListFiles = ref<{ name: string; fullPath: string }[]>([]);
 
 const steamCmdReady = ref(false);
+const checkingUpdates = ref(false);
+const autoCheckUpdates = ref(false);
 
 function goToSteamCmd() {
   if (!uiSettings.showAdvancedSettings) {
@@ -102,7 +107,46 @@ function mapModRow(m: ModMetaRow): ModRow {
     bikeyHint: bikeyStatusHint(status),
     scanOrder: m.scanOrder ?? 0,
     updatedTime: m.updatedTime ?? "-",
+    updatedAt: m.updatedAt,
+    remoteUpdatedLabel: m.remoteUpdatedLabel,
+    updateStatus: m.updateStatus,
   };
+}
+
+function updateStatusLabel(status?: ModRow["updateStatus"]): string {
+  switch (status) {
+    case "missing":
+      return "未安装";
+    case "up_to_date":
+      return "已最新";
+    case "outdated":
+      return "有更新";
+    default:
+      return "未知";
+  }
+}
+
+function updateStatusTagType(status?: ModRow["updateStatus"]): "success" | "warning" | "info" | "danger" {
+  switch (status) {
+    case "up_to_date":
+      return "success";
+    case "outdated":
+      return "warning";
+    case "missing":
+      return "info";
+    default:
+      return "danger";
+  }
+}
+
+function buildLocalModRefs(rows: ModRow[] = modList.value) {
+  return rows
+    .filter((row) => row.workshopId > 0)
+    .map((row) => ({
+      modId: row.workshopId,
+      path: row.path || undefined,
+      updatedAt: row.updatedAt,
+    }));
 }
 
 async function loadSteamCmdStatus() {
@@ -220,6 +264,9 @@ async function doScan() {
     await loadBikeySummary();
     if (autoCopyBikey.value) {
       await copyBikeys({ missingOnly: false, silent: true });
+    }
+    if (autoCheckUpdates.value) {
+      await checkModUpdates({ silent: true });
     }
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : "扫描失败");
@@ -446,11 +493,66 @@ async function fetchWorkshopDetails(modIds: number[]): Promise<SteamWorkshopModI
   if (!client) {
     return [];
   }
-  const res = await client.fetchWorkshopModDetails(modIds);
+  const res = await client.fetchWorkshopModDetails(modIds, buildLocalModRefs());
   if (!res.success) {
     throw new Error(res.error ?? "加载模组信息失败");
   }
   return res.data.mods;
+}
+
+async function checkModUpdates(options?: { silent?: boolean; modIds?: number[] }) {
+  const ids =
+    options?.modIds ??
+    modList.value.filter((row) => row.workshopId > 0).map((row) => row.workshopId);
+  if (!ids.length) {
+    if (!options?.silent) {
+      ElMessage.info("没有可检查的 Workshop 模组");
+    }
+    return;
+  }
+
+  checkingUpdates.value = true;
+  try {
+    const client = store.getClient();
+    if (!client) {
+      return;
+    }
+    const res = await client.fetchWorkshopModDetails(ids, buildLocalModRefs());
+    if (!res.success) {
+      throw new Error(res.error ?? "检查更新失败");
+    }
+
+    let outdatedCount = 0;
+    for (const item of res.data.mods) {
+      const row = modList.value.find((m) => m.workshopId === item.modId);
+      if (!row) {
+        continue;
+      }
+      if (item.title && !row.name.startsWith("workshop_")) {
+        row.name = item.title;
+      }
+      row.remoteUpdatedLabel = item.timeUpdatedLabel ?? "-";
+      row.updateStatus = item.updateStatus;
+      if (item.updateStatus === "outdated") {
+        row.updateSelected = true;
+        outdatedCount += 1;
+      }
+    }
+
+    if (!options?.silent) {
+      ElMessage.success(
+        outdatedCount > 0
+          ? `发现 ${outdatedCount} 个模组有更新，已自动勾选`
+          : "所有已安装模组均为最新"
+      );
+    }
+  } catch (e: unknown) {
+    if (!options?.silent) {
+      ElMessage.error(e instanceof Error ? e.message : "检查更新失败");
+    }
+  } finally {
+    checkingUpdates.value = false;
+  }
 }
 
 function openDownloadConfirm(modIds: number[]) {
@@ -785,6 +887,7 @@ const filteredList = computed(() => {
   <ConsolePageLayout :padded="false">
     <template #toolbar>
       <el-button size="small" :loading="scanning" @click="doScan">扫描刷新</el-button>
+      <el-button size="small" :loading="checkingUpdates" @click="checkModUpdates()">检查更新</el-button>
       <el-dropdown size="small" @command="onGetMods">
         <el-button size="small">
           获取模组<el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -826,6 +929,7 @@ const filteredList = computed(() => {
             <el-option value="selected" label="仅已选择" />
             <el-option value="unselected" label="仅未选择" />
           </el-select>
+          <el-checkbox v-model="autoCheckUpdates" size="small">扫描后自动检查 Workshop 更新</el-checkbox>
         </div>
 
         <div class="mods-bar">
@@ -890,7 +994,22 @@ const filteredList = computed(() => {
               </template>
             </el-table-column>
             <el-table-column prop="path" label="路径" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="updatedTime" label="更新时间" width="140" show-overflow-tooltip />
+            <el-table-column label="远程更新" width="140" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.remoteUpdatedLabel ?? "-" }}</template>
+            </el-table-column>
+            <el-table-column prop="updatedTime" label="本地更新" width="140" show-overflow-tooltip />
+            <el-table-column label="状态" width="88" align="center">
+              <template #default="{ row }">
+                <el-tag
+                  v-if="row.workshopId > 0 && row.updateStatus"
+                  size="small"
+                  :type="updateStatusTagType(row.updateStatus)"
+                >
+                  {{ updateStatusLabel(row.updateStatus) }}
+                </el-tag>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
           </el-table>
         </div>
 
