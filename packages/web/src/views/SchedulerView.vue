@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
 import DeployOpsBar from "@/components/console/DeployOpsBar.vue";
+import SettingsViewLayout from "@/components/console/SettingsViewLayout.vue";
 import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { ref, onMounted, watch } from "vue";
 import { ElMessage } from "element-plus";
@@ -148,7 +149,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <ConsolePageLayout v-loading="loading">
+  <ConsolePageLayout v-loading="loading" :padded="false">
     <DeployOpsBar />
     <template #toolbar>
       <el-button size="small" :loading="syncing" @click="syncCron">保存并同步到调度器</el-button>
@@ -156,6 +157,7 @@ onMounted(() => {
       <el-button size="small" :disabled="!selectedRows.length" @click="removeSelected(selectedRows)">删除选中</el-button>
       <span class="hint-inline">修改后先点顶栏「保存」，或使用「保存并同步到调度器」</span>
     </template>
+    <SettingsViewLayout kicker="DEPLOY / 02 · CRON" title="定时任务">
       <ArkTechPanel title="内置计划" code="CRON-01">
         <div class="form-row">
           <label>重启计划</label>
@@ -205,6 +207,7 @@ onMounted(() => {
         </el-table>
         <p class="hint">Cron 表达式格式：分 时 日 月 周。</p>
       </ArkTechPanel>
+    </SettingsViewLayout>
   </ConsolePageLayout>
 </template>
 

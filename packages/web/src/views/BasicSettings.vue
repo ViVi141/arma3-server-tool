@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import SettingsViewLayout from "@/components/console/SettingsViewLayout.vue";
 import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import PathInput from "@/components/PathInput.vue";
 import { UI_COPY } from "@/constants/uiCopy";
@@ -42,8 +43,12 @@ async function act(action: string) {
 </script>
 
 <template>
-  <ConsolePageLayout v-loading="loading">
-    <template #hint>修改后点顶栏「{{ UI_COPY.saveShort }}」写入配置包；「{{ UI_COPY.writeGameCfg }}」后才会生成游戏 cfg 文件。</template>
+  <ConsolePageLayout v-loading="loading" :padded="false">
+    <SettingsViewLayout
+      kicker="CONFIG / 05 · BASIC"
+      title="基本设置"
+      :hint="`修改后点顶栏「${UI_COPY.saveShort}」写入配置包；「${UI_COPY.writeGameCfg}」后才会生成游戏 cfg 文件。`"
+    >
       <ArkTechPanel title="基础" code="CFG-01">
         <div class="form-row"><label>配置名称</label><el-input v-model="srv().configName" size="small"/></div>
         <div class="form-row"><label>服务器目录</label><PathInput :model-value="asConfigString(srv().serverDir)" mode="directory" placeholder="D:\arma3_server" @update:model-value="(v) => { srv().serverDir = v }"/></div>
@@ -106,6 +111,7 @@ async function act(action: string) {
         <div class="form-row"><label>启动参数附加</label><el-input v-model="st().startArgs" type="textarea" :rows="2" size="small"/></div>
         <div class="form-row"><label>Profile 附加</label><el-input v-model="b().profileArgs" type="textarea" :rows="2" size="small"/></div>
       </ArkTechPanel>
+    </SettingsViewLayout>
   </ConsolePageLayout>
 </template>
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import SettingsViewLayout from "@/components/console/SettingsViewLayout.vue";
 import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { useSettingsPage } from "@/composables/useSettingsPage";
 
@@ -9,7 +10,8 @@ const b = () => (cfg.value.basic ?? {}) as Record<string, unknown>;
 </script>
 
 <template>
-  <ConsolePageLayout v-loading="loading">
+  <ConsolePageLayout v-loading="loading" :padded="false">
+    <SettingsViewLayout kicker="CONFIG / 05 · NET" title="网络">
     <ArkTechPanel title="basic.cfg 网络参数" code="NET-01">
       <div class="form-row"><label>MaxMsgSend</label><el-input-number v-model="b().maxMsgSend" :min="64" :max="512" size="small" controls-position="right"/></div>
       <div class="form-row"><label>MaxSizeGuaranteed</label><el-input-number v-model="b().maxSizeGuaranteed" :min="128" :max="1024" size="small" controls-position="right"/></div>
@@ -32,6 +34,7 @@ const b = () => (cfg.value.basic ?? {}) as Record<string, unknown>;
       <div class="form-row"><label>Loopback</label><el-switch v-model="b().loopback" size="small"/></div>
       <div class="form-row"><label>带宽算法</label><el-switch v-model="b().bandwidthAlg" size="small"/></div>
     </ArkTechPanel>
+    </SettingsViewLayout>
   </ConsolePageLayout>
 </template>
 

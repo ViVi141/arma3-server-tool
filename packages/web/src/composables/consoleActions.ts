@@ -7,6 +7,7 @@ export interface ConsoleActionsContext {
   hasDirtyChanges: Ref<boolean>;
   instanceLabel: ComputedRef<string>;
   cfgWritten: ComputedRef<boolean>;
+  openWizard: () => void;
 }
 
 export const CONSOLE_ACTIONS_KEY: InjectionKey<ConsoleActionsContext> = Symbol("consoleActions");

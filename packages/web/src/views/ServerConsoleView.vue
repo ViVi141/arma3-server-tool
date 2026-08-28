@@ -591,6 +591,7 @@ provide(CONSOLE_ACTIONS_KEY, {
   hasDirtyChanges,
   instanceLabel,
   cfgWritten,
+  openWizard: openFirstServerWizard,
 });
 </script>
 

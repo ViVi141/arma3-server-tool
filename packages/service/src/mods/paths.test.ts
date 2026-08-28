@@ -2,7 +2,14 @@ import { describe, it, expect } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { expandScanTargets, isModDirectory, resolveEffectiveScanRoot } from "./paths.js";
+import {
+  expandScanTargets,
+  expandUserPath,
+  isModDirectory,
+  resolveEffectiveScanRoot,
+  resolveWorkshopInstallRootFromScanPath,
+  resolveWorkshopInstallRootFromScanPaths,
+} from "./paths.js";
 
 describe("mod paths", () => {
   it("detects a mod directory by addons folder", () => {
@@ -53,6 +60,47 @@ describe("mod paths", () => {
       expect(targets).toHaveLength(1);
       expect(targets[0].modPath).toContain("450814997");
       expect(targets.some((item) => item.modPath.toLowerCase().endsWith("steamapps"))).toBe(false);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("derives workshop install root from workshop content scan path", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-download-root-"));
+    try {
+      const contentPath = path.join(root, "steamapps", "workshop", "content", "107410");
+      fs.mkdirSync(path.join(contentPath, "450814997", "addons"), { recursive: true });
+
+      expect(resolveWorkshopInstallRootFromScanPath(contentPath)).toBe(root);
+      expect(resolveWorkshopInstallRootFromScanPath(root)).toBe(root);
+      expect(resolveWorkshopInstallRootFromScanPaths([contentPath])).toBe(root);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not derive workshop install root from a local mod directory", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-local-mod-"));
+    try {
+      const modDir = path.join(root, "@cba");
+      fs.mkdirSync(path.join(modDir, "addons"), { recursive: true });
+      expect(resolveWorkshopInstallRootFromScanPath(modDir)).toBeNull();
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("expands tilde-prefixed scan paths for workshop root derivation", () => {
+    const home = os.homedir();
+    const root = fs.mkdtempSync(path.join(home, "a3st-tilde-test-"));
+    try {
+      const contentPath = path.join(root, "steamapps", "workshop", "content", "107410");
+      fs.mkdirSync(path.join(contentPath, "450814997", "addons"), { recursive: true });
+      const relativeFromHome = path.relative(home, contentPath).split(path.sep).join("/");
+      const tildePath = "~/" + relativeFromHome;
+
+      expect(expandUserPath(tildePath)).toBe(contentPath);
+      expect(resolveWorkshopInstallRootFromScanPath(tildePath)).toBe(root);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

@@ -3,7 +3,6 @@ import type { ConsoleMode } from "@/config/console-modes";
 import type { TabEntry } from "@/config/tab-registry";
 import type { ServerSummary } from "@a3st/api-client";
 import { getThemeMode, setThemeMode, type ThemeMode } from "@/utils/systemTheme";
-import { getVisualTheme, setVisualTheme, type VisualTheme } from "@/utils/visualTheme";
 import { ref, onMounted } from "vue";
 
 defineProps<{
@@ -37,21 +36,14 @@ defineEmits<{
 }>();
 
 const themeMode = ref<ThemeMode>("system");
-const visualTheme = ref<VisualTheme>("ark");
 
 onMounted(() => {
   themeMode.value = getThemeMode();
-  visualTheme.value = getVisualTheme();
 });
 
 function onThemeModeChange(mode: ThemeMode) {
   themeMode.value = mode;
   setThemeMode(mode);
-}
-
-function onVisualThemeChange(theme: VisualTheme) {
-  visualTheme.value = theme;
-  setVisualTheme(theme);
 }
 </script>
 
@@ -128,17 +120,6 @@ function onVisualThemeChange(theme: VisualTheme) {
       </p>
 
       <div class="shell-v2__topbar-right">
-        <label class="shell-v2__picker">
-          <span>壳层</span>
-          <select
-            data-testid="visual-theme-select"
-            :value="visualTheme"
-            @change="onVisualThemeChange(($event.target as HTMLSelectElement).value as VisualTheme)"
-          >
-            <option value="ark">ark</option>
-            <option value="classic">classic</option>
-          </select>
-        </label>
         <label class="shell-v2__picker">
           <span>明暗</span>
           <select

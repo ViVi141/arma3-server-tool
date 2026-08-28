@@ -10,6 +10,7 @@ declare module 'vue' {
     ArkTechPanel: typeof import('./src/components/console/ArkTechPanel.vue')['default']
     ConsolePageLayout: typeof import('./src/components/ConsolePageLayout.vue')['default']
     ConsoleShell: typeof import('./src/components/console/ConsoleShell.vue')['default']
+    DashboardDeployTrack: typeof import('./src/components/dashboard/DashboardDeployTrack.vue')['default']
     DashboardHero: typeof import('./src/components/dashboard/DashboardHero.vue')['default']
     DeployOpsBar: typeof import('./src/components/console/DeployOpsBar.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
@@ -52,6 +53,7 @@ declare module 'vue' {
     PathInput: typeof import('./src/components/PathInput.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SettingsViewLayout: typeof import('./src/components/console/SettingsViewLayout.vue')['default']
     TerminalOutput: typeof import('./src/components/TerminalOutput.vue')['default']
     UnsavedChangesDialog: typeof import('./src/components/UnsavedChangesDialog.vue')['default']
   }

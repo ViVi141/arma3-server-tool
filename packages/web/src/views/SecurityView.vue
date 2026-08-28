@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import SettingsViewLayout from "@/components/console/SettingsViewLayout.vue";
 import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { useSettingsPage } from "@/composables/useSettingsPage";
 
@@ -10,7 +11,8 @@ const be = () => (cfg.value.battleye ?? {}) as Record<string, unknown>;
 </script>
 
 <template>
-  <ConsolePageLayout v-loading="loading">
+  <ConsolePageLayout v-loading="loading" :padded="false">
+    <SettingsViewLayout kicker="CONFIG / 05 · SEC" title="安全">
     <ArkTechPanel title="BattlEye" code="SEC-01">
       <div class="form-row"><label>BattlEye</label><el-switch v-model="b().battlEye" size="small"/></div>
       <div class="form-row"><label>签名验证</label><el-select v-model="b().verifySignatures" size="small"><el-option :value="0" label="关闭"/><el-option :value="1" label="警告"/><el-option :value="2" label="禁止"/></el-select></div>
@@ -50,6 +52,7 @@ const be = () => (cfg.value.battleye ?? {}) as Record<string, unknown>;
       <div class="form-row"><label>最大 SetPos 数</label><el-input-number v-model="b().maxSetPosCount" :min="0" :max="1000" size="small" controls-position="right"/></div>
       <div class="form-row"><label>SetPos 秒数窗口</label><el-input-number v-model="b().maxSetPosSeconds" :min="0" :max="999" size="small" controls-position="right"/></div>
     </ArkTechPanel>
+    </SettingsViewLayout>
   </ConsolePageLayout>
 </template>
 

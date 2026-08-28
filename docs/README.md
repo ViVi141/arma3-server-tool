@@ -10,6 +10,7 @@
 | 文档 | 说明 |
 |------|------|
 | [v2-quickstart.md](v2-quickstart.md) | **首选** — 安装、双进程开发、Electron |
+| [architecture-v2.md](architecture-v2.md) | v2 分层、ConsoleShell、classic/ark 视觉主题 |
 | [linux-server.md](linux-server.md) | Linux 开服机（Service + SteamCMD + 浏览器） |
 | [desktop-clean-machine-test.md](desktop-clean-machine-test.md) | Electron 干净机实测与打包冒烟 |
 | [config-workflow.md](config-workflow.md) | 配置包 vs 游戏 cfg；含 **v2 Web 按钮对照** |

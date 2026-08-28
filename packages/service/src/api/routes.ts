@@ -16,7 +16,7 @@ import { fetchRconPlayers, resolveRconOptions, countOnlinePlayers } from "../rco
 import { maybeAutoSnapshot } from "../config/auto-snapshot.js";
 import { evaluateSyncState } from "../config/sync-state.js";
 import { disableModsByScope, type ModDisableScope } from "../mods/enabler.js";
-import { collectModPaths, ensureDefaultWorkshopScanPath, isModDirectory } from "../mods/paths.js";
+import { collectModPaths, ensureDefaultWorkshopScanPath, isModDirectory, resolveWorkshopInstallRootFromScanPaths } from "../mods/paths.js";
 import {
   buildModScanOptions,
   scanModsForConfig,
@@ -265,7 +265,11 @@ export async function apiRoutes(app: FastifyInstance) {
       workshopRoot: body.workshopRoot,
       serverInstallPath: body.serverInstallPath,
     });
-    applySteamCmdSettings(app.steamCmd, merged);
+    applySteamCmdSettings(
+      app.steamCmd,
+      merged,
+      app.modScanPathStore.list().map((entry) => entry.modulePath),
+    );
     if (merged.workshopRoot.trim()) {
       ensureDefaultWorkshopScanPath(app.modScanPathStore, merged.workshopRoot);
     }
@@ -302,6 +306,16 @@ export async function apiRoutes(app: FastifyInstance) {
       return envelope(false, null, "INVALID_PATHS", "");
     }
     app.modScanPathStore.save(body.paths);
+    const scanPaths = body.paths.map((entry) => entry.modulePath).filter(Boolean);
+    const current = app.steamCmdSettingsStore.load();
+    let settings = current;
+    if (!current.workshopRoot.trim()) {
+      const derivedRoot = resolveWorkshopInstallRootFromScanPaths(scanPaths);
+      if (derivedRoot) {
+        settings = app.steamCmdSettingsStore.merge({ workshopRoot: derivedRoot });
+      }
+    }
+    applySteamCmdSettings(app.steamCmd, settings, scanPaths);
     return envelope(true, { paths: body.paths, message: "模组扫描路径已保存" }, null, "");
   });
 
@@ -323,7 +337,11 @@ export async function apiRoutes(app: FastifyInstance) {
       username: body.username,
       password: body.password,
     });
-    applySteamCmdSettings(app.steamCmd, merged);
+    applySteamCmdSettings(
+      app.steamCmd,
+      merged,
+      app.modScanPathStore.list().map((entry) => entry.modulePath),
+    );
     return envelope(true, { message: "凭据已设置" }, null, "");
   });
 
@@ -1531,7 +1549,8 @@ async function runSteamCmdModDownload(
   if (!settings.username || !settings.password) {
     return fail("请先配置 SteamCMD 账号（SteamCMD 页 → Steam 账号 → 保存凭据）");
   }
-  applySteamCmdSettings(app.steamCmd, settings);
+  const scanPaths = app.modScanPathStore.list().map((entry) => entry.modulePath);
+  applySteamCmdSettings(app.steamCmd, settings, scanPaths);
 
   try {
     await app.steamCmd.ensureInstalled();

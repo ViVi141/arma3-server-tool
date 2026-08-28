@@ -44,7 +44,7 @@ interface SessionRunCapture {
 export class SteamCmdManager extends EventEmitter {
   private activeCapture: ConsoleCaptureHandle | null = null;
   private installDir: string;
-  private pathContext: SteamCmdPathContext;
+  private _pathContext: SteamCmdPathContext;
   private sessionLogDir: string;
   private _username = "";
   private _password = "";
@@ -56,7 +56,7 @@ export class SteamCmdManager extends EventEmitter {
   constructor(installDir: string, pathContext?: SteamCmdPathContext) {
     super();
     this.installDir = installDir;
-    this.pathContext = pathContext ?? {
+    this._pathContext = pathContext ?? {
       applicationBase: installDir,
       userDataDirectory: installDir,
     };
@@ -70,7 +70,7 @@ export class SteamCmdManager extends EventEmitter {
   }
 
   setWorkshopRoot(workshopRoot: string): void {
-    this._workshopRoot = normalizeWorkshopRoot(this.pathContext, workshopRoot);
+    this._workshopRoot = normalizeWorkshopRoot(this._pathContext, workshopRoot);
   }
 
   setServerInstallPath(serverInstallPath: string): void {
@@ -79,6 +79,10 @@ export class SteamCmdManager extends EventEmitter {
 
   get workshopRoot(): string {
     return this._workshopRoot;
+  }
+
+  get pathContext(): SteamCmdPathContext {
+    return this._pathContext;
   }
 
   get serverInstallPath(): string {
@@ -212,7 +216,7 @@ export class SteamCmdManager extends EventEmitter {
       throw new Error("没有要下载的 Workshop 模组 ID。");
     }
 
-    const workshopRoot = normalizeWorkshopRoot(this.pathContext, this._workshopRoot);
+    const workshopRoot = normalizeWorkshopRoot(this._pathContext, this._workshopRoot);
     if (!workshopRoot.trim()) {
       throw new Error(
         "SteamCMD 程序目录未配置。请在「工具 → SteamCMD 设置」中填写，或点「下载 SteamCMD」使用工具内置目录。"

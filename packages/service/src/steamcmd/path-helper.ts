@@ -1,4 +1,5 @@
 import * as path from "node:path";
+import { resolveWorkshopInstallRootFromScanPath } from "../mods/paths.js";
 
 /** Mirrors legacy IAppPaths fields used by SteamCmdPathHelper / SteamCmdBootstrapper. */
 export interface SteamCmdPathContext {
@@ -9,6 +10,26 @@ export interface SteamCmdPathContext {
 /** Same as SteamCmdBootstrapper.GetBundledDirectory. */
 export function getBundledDirectory(userDataDirectory: string): string {
   return path.join(userDataDirectory, "extension");
+}
+
+/** 优先使用已配置的 Workshop 根；未配置时从模组扫描路径推导；仍无则回落到内置 extension 目录。 */
+export function resolveWorkshopRootForDownload(
+  ctx: SteamCmdPathContext,
+  configuredWorkshopRoot: string,
+  scanPaths: readonly string[],
+): string {
+  if (configuredWorkshopRoot.trim()) {
+    return normalizeWorkshopRoot(ctx, configuredWorkshopRoot);
+  }
+
+  for (const scanPath of scanPaths) {
+    const derived = resolveWorkshopInstallRootFromScanPath(scanPath);
+    if (derived) {
+      return normalizeWorkshopRoot(ctx, derived);
+    }
+  }
+
+  return normalizeWorkshopRoot(ctx, "");
 }
 
 /** Same as SteamCmdPathHelper.NormalizeWorkshopRoot. */

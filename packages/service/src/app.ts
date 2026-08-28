@@ -41,7 +41,11 @@ export async function createService(options: ServiceOptions) {
   const modScanPathStore = new ModScanPathStore(options.dataDir);
   const steamCmdSettingsStore = new SteamCmdSettingsStore(options.dataDir);
 
-  applySteamCmdSettings(steamCmd, steamCmdSettingsStore.load());
+  applySteamCmdSettings(
+    steamCmd,
+    steamCmdSettingsStore.load(),
+    modScanPathStore.list().map((entry) => entry.modulePath),
+  );
 
   // Decorate
   app.decorate("configStore", configStore);

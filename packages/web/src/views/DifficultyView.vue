@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import SettingsViewLayout from "@/components/console/SettingsViewLayout.vue";
 import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { useSettingsPage } from "@/composables/useSettingsPage";
 
@@ -10,7 +11,8 @@ const tri0 = (a: string[]) => a.map((s, i) => ({ value: i + "", label: s }));
 </script>
 
 <template>
-  <ConsolePageLayout v-loading="loading">
+  <ConsolePageLayout v-loading="loading" :padded="false">
+    <SettingsViewLayout kicker="CONFIG / 05 · DIFF" title="难度">
     <ArkTechPanel title="界面 (三态: 从不/有限/始终)" code="DIFF-01">
       <div class="form-row"><label>小队指示器</label><el-select v-model="b().groupIndicators" size="small"><el-option v-for="o in tri0(['从不','有限距离','始终'])" :key="o.value" :value="o.value" :label="o.label"/></el-select></div>
       <div class="form-row"><label>友军标签</label><el-select v-model="b().friendlyTags" size="small"><el-option v-for="o in tri0(['从不','有限距离','始终'])" :key="o.value" :value="o.value" :label="o.label"/></el-select></div>
@@ -46,6 +48,7 @@ const tri0 = (a: string[]) => a.map((s, i) => ({ value: i + "", label: s }));
       <div class="form-row"><label>AI 技能</label><el-input-number v-model="b().skillAi" :min="0" :max="1" :step="0.1" size="small" controls-position="right"/></div>
       <div class="form-row"><label>AI 精度</label><el-input-number v-model="b().precisionAi" :min="0" :max="1" :step="0.1" size="small" controls-position="right"/></div>
     </ArkTechPanel>
+    </SettingsViewLayout>
   </ConsolePageLayout>
 </template>
 

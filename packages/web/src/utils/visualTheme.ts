@@ -1,14 +1,17 @@
-/** 界面壳层：classic = VS Code 工具风；ark = ark-ui moderate */
+/** 界面壳层：classic = VS Code 工具风；ark = 演示用工业风（默认已停用） */
 export type VisualTheme = "classic" | "ark";
 
 const STORAGE_KEY = "a3st-visual-theme";
 
 export function getVisualTheme(): VisualTheme {
   const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === "classic" || stored === "ark") {
-    return stored;
+  if (stored === "classic") {
+    return "classic";
   }
-  return "ark";
+  if (stored === "ark") {
+    localStorage.setItem(STORAGE_KEY, "classic");
+  }
+  return "classic";
 }
 
 export function setVisualTheme(theme: VisualTheme): void {

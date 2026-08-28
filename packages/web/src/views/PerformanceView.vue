@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import SettingsViewLayout from "@/components/console/SettingsViewLayout.vue";
 import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { useSettingsPage } from "@/composables/useSettingsPage";
 
@@ -9,7 +10,8 @@ const s = () => (cfg.value.startup ?? {}) as Record<string, unknown>;
 </script>
 
 <template>
-  <ConsolePageLayout v-loading="loading">
+  <ConsolePageLayout v-loading="loading" :padded="false">
+    <SettingsViewLayout kicker="CONFIG / 05 · PERF" title="性能">
     <ArkTechPanel title="CPU / 内存" code="PERF-01">
       <div class="form-row"><label>CPU 核心数</label><el-input-number v-model="s().cpuCount" :min="0" :max="128" size="small" controls-position="right"/></div>
       <div class="form-row"><label>额外线程数</label><el-input-number v-model="s().exThreads" :min="0" :max="32" size="small" controls-position="right"/></div>
@@ -30,6 +32,7 @@ const s = () => (cfg.value.startup ?? {}) as Record<string, unknown>;
       <div class="form-row"><label>忽略任务加载错误</label><el-switch v-model="s().ignoreMissionLoadErrors" size="small"/></div>
       <div class="form-row"><label>消息队列阈值(字节)</label><el-input-number v-model="s().queueSizeLogG" :min="0" :max="99999999" size="small" controls-position="right"/></div>
     </ArkTechPanel>
+    </SettingsViewLayout>
   </ConsolePageLayout>
 </template>
 

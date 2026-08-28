@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import SettingsViewLayout from "@/components/console/SettingsViewLayout.vue";
+import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { ref, onMounted, onUnmounted } from "vue";
 import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
@@ -212,19 +214,20 @@ async function exportHtml() {
       </el-tab-pane>
 
       <el-tab-pane label="监控设置" name="settings">
-        <ConsolePageLayout>
-          <fieldset>
-            <legend>采集开关</legend>
-            <div class="row">
+        <ConsolePageLayout :padded="false">
+          <SettingsViewLayout kicker="LOGS / 04 · MON" title="监控设置">
+          <ArkTechPanel title="采集开关" code="MON-01">
+            <div class="form-row">
               <label>启用监控</label>
               <el-switch v-model="monitoringEnabled" />
             </div>
-            <div class="row">
+            <div class="form-row">
               <el-button size="small" type="primary" :loading="savingMonitoring" @click="saveMonitoringConfig">保存</el-button>
               <el-button size="small" @click="collectNow">立即采集</el-button>
             </div>
             <p class="hint">启用后配合「定时」页的监控 Cron 与「同步到调度器」自动采集在线数据。</p>
-          </fieldset>
+          </ArkTechPanel>
+          </SettingsViewLayout>
         </ConsolePageLayout>
       </el-tab-pane>
     </el-tabs>
@@ -242,9 +245,6 @@ async function exportHtml() {
 .ov { display: flex; justify-content: space-between; padding: 5px 8px; background: var(--a3st-bg-panel); border: 1px solid var(--a3st-border-subtle); font-size: 12px; }
 .ov-l { color: var(--a3st-text-muted); }
 .ov-v { font-weight: 600; font-family: var(--a3st-font-mono); }
-fieldset { border: 1px solid var(--a3st-border); background: var(--a3st-bg-panel); padding: 8px 10px; }
-legend { font-size: 11px; font-weight: 600; color: var(--a3st-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
-.row label { width: 100px; color: var(--a3st-text-muted); }
+.form-row label { width: 100px; }
 .hint { font-size: 11px; color: var(--a3st-text-dim); margin-top: 8px; }
 </style>

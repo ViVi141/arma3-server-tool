@@ -1,4 +1,5 @@
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import type { FastifyInstance } from "fastify";
 import type { ServerConfigPackage } from "../types/config.js";
@@ -9,6 +10,22 @@ import { ensureWorkshopContentDirectory } from "../settings/steamcmd-settings.js
 const WORKSHOP_APP_ID = "107410";
 const WORKSHOP_CONTENT_REL = path.join("steamapps", "workshop", "content", WORKSHOP_APP_ID);
 const WORKSHOP_CONTENT_SUFFIX = `${path.sep}workshop${path.sep}content${path.sep}${WORKSHOP_APP_ID}`.toLowerCase();
+
+/** 展开 Linux/macOS 常见的 ~/ 前缀路径。 */
+export function expandUserPath(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed === "~") {
+    return os.homedir();
+  }
+  if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
+    return path.join(os.homedir(), trimmed.slice(2));
+  }
+  return trimmed;
+}
+
+function resolveConfiguredPath(input: string): string {
+  return path.resolve(expandUserPath(input));
+}
 
 export function isModDirectory(dirPath: string): boolean {
   return fs.existsSync(path.join(dirPath, "addons"));
@@ -21,33 +38,85 @@ export function isWorkshopContentRoot(root: string): boolean {
 
 /** 若根路径是 Steam/SteamCMD 安装目录，则落到 workshop/content/107410。 */
 export function resolveEffectiveScanRoot(root: string): string {
-  if (!root || !fs.existsSync(root)) {
+  if (!root) {
     return root;
   }
-  if (isModDirectory(root)) {
-    return root;
+  const normalized = resolveConfiguredPath(root);
+  if (!fs.existsSync(normalized)) {
+    return normalized;
   }
-  if (isWorkshopContentRoot(root)) {
-    return root;
+  if (isModDirectory(normalized)) {
+    return normalized;
+  }
+  if (isWorkshopContentRoot(normalized)) {
+    return normalized;
   }
 
-  const contentUnderRoot = path.join(root, WORKSHOP_CONTENT_REL);
+  const contentUnderRoot = path.join(normalized, WORKSHOP_CONTENT_REL);
   if (fs.existsSync(contentUnderRoot)) {
     return contentUnderRoot;
   }
 
-  if (path.basename(root).toLowerCase() === "steamapps") {
-    const contentUnderSteamapps = path.join(root, "workshop", "content", WORKSHOP_APP_ID);
+  if (path.basename(normalized).toLowerCase() === "steamapps") {
+    const contentUnderSteamapps = path.join(normalized, "workshop", "content", WORKSHOP_APP_ID);
     if (fs.existsSync(contentUnderSteamapps)) {
       return contentUnderSteamapps;
     }
   }
 
-  return root;
+  return normalized;
 }
 
 export function workshopContentPath(workshopRoot: string): string {
   return path.join(workshopRoot.trim(), WORKSHOP_CONTENT_REL);
+}
+
+/** 从模组扫描路径反推 SteamCMD force_install_dir 所需的 Steam 库根目录。 */
+export function resolveWorkshopInstallRootFromScanPath(scanPath: string): string | null {
+  if (!scanPath?.trim()) {
+    return null;
+  }
+
+  const normalized = resolveConfiguredPath(scanPath);
+  if (isModDirectory(normalized)) {
+    return null;
+  }
+
+  if (isWorkshopContentRoot(normalized)) {
+    return path.dirname(path.dirname(path.dirname(path.dirname(normalized))));
+  }
+
+  const marker = `${path.sep}steamapps${path.sep}workshop${path.sep}content${path.sep}${WORKSHOP_APP_ID}`;
+  const lower = normalized.replace(/\//g, path.sep).toLowerCase();
+  const markerIndex = lower.indexOf(marker);
+  if (markerIndex > 0) {
+    return normalized.slice(0, markerIndex);
+  }
+
+  if (path.basename(normalized).toLowerCase() === "steamapps") {
+    return path.dirname(normalized);
+  }
+
+  const contentUnderRoot = path.join(normalized, WORKSHOP_CONTENT_REL);
+  if (fs.existsSync(contentUnderRoot)) {
+    return normalized;
+  }
+
+  if (fs.existsSync(path.join(normalized, "steamapps"))) {
+    return normalized;
+  }
+
+  return null;
+}
+
+export function resolveWorkshopInstallRootFromScanPaths(scanPaths: readonly string[]): string | null {
+  for (const scanPath of scanPaths) {
+    const root = resolveWorkshopInstallRootFromScanPath(scanPath);
+    if (root) {
+      return root;
+    }
+  }
+  return null;
 }
 
 export function ensureDefaultWorkshopScanPath(

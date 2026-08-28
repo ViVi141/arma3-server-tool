@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import SettingsViewLayout from "@/components/console/SettingsViewLayout.vue";
+import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { ref, computed, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
@@ -195,42 +197,49 @@ async function stopSteamCmd() {
   }
 }
 </script>
+
 <template>
-<ConsolePageLayout>
-<template #toolbar>
-  <el-button size="small" type="primary" :loading="busy" @click="installOrUpdateServer">安装/更新服务器</el-button>
-  <el-button size="small" @click="stopSteamCmd" style="margin-left:auto;">停止 SteamCMD</el-button>
-  <el-button size="small" @click="checkSteamCmd">刷新状态</el-button>
+  <ConsolePageLayout :padded="false">
+    <template #toolbar>
+      <el-button size="small" type="primary" :loading="busy" @click="installOrUpdateServer">安装/更新服务器</el-button>
+      <el-button size="small" style="margin-left: auto;" @click="stopSteamCmd">停止 SteamCMD</el-button>
+      <el-button size="small" @click="checkSteamCmd">刷新状态</el-button>
+    </template>
+    <template #hint>
+      <span>通过 SteamCMD 下载/更新专用服务器与 SteamCMD 本身；下方终端可查看实时输出。</span>
+      <span v-if="taskStatus" class="task-hint">{{ taskStatus }}</span>
+    </template>
+
+    <SettingsViewLayout kicker="WORKSHOP / 03 · STM" title="SteamCMD">
+    <ArkTechPanel title="Steam 账号" code="STM-01">
+      <div class="form-row"><label>用户名</label><el-input v-model="steamUser" size="small"/></div>
+      <div class="form-row"><label>密码</label><el-input v-model="steamPwd" type="password" size="small" show-password/></div>
+      <el-button size="small" @click="saveCredentials">保存凭据</el-button>
+    </ArkTechPanel>
+
+    <ArkTechPanel title="路径" code="STM-02">
+      <div class="form-row"><label>Workshop 根</label><PathInput v-model="workshopRoot" mode="directory" placeholder="留空使用默认"/></div>
+      <div class="form-row"><label>服务器安装</label><PathInput v-model="serverInstallPath" mode="directory" placeholder="从基本配置读取"/></div>
+      <div class="form-row"><label>Workshop 内容</label><span class="hint">{{ workshopCount }} 个模组</span></div>
+      <div class="form-row"><label>SteamCMD 状态</label><span class="hint">{{ statusText }}</span></div>
+      <el-button size="small" type="primary" @click="saveSteamCmdSettings">保存路径</el-button>
+    </ArkTechPanel>
+
+    <ArkTechPanel title="当前服务器">
+      <div class="form-row"><label>服务器目录</label><span class="hint">{{ currentServerDir }}</span></div>
+    </ArkTechPanel>
+
+    <ArkTechPanel title="输出流" code="STM-03">
+      <p class="panel-note">SteamCMD 后台运行 + console_log 实时同步</p>
+      <TerminalOutput url="/api/v1/steamcmd/stream" :base-url="baseUrl" :token="apiToken" />
+    </ArkTechPanel>
+    </SettingsViewLayout>
+  </ConsolePageLayout>
 </template>
-<template #hint>
-  <span>通过 SteamCMD 下载/更新专用服务器与 SteamCMD 本身；下方终端可查看实时输出。</span>
-  <span v-if="taskStatus" class="task-hint">{{ taskStatus }}</span>
-</template>
-  <fieldset><legend>Steam 账号</legend>
-    <div class="row"><label>用户名</label><el-input v-model="steamUser" size="small"/></div>
-    <div class="row"><label>密码</label><el-input v-model="steamPwd" type="password" size="small" show-password/></div>
-    <el-button size="small" @click="saveCredentials">保存凭据</el-button>
-  </fieldset>
-  <fieldset><legend>路径</legend>
-    <div class="row"><label>Workshop 根</label><PathInput v-model="workshopRoot" mode="directory" placeholder="留空使用默认"/></div>
-    <div class="row"><label>服务器安装</label><PathInput v-model="serverInstallPath" mode="directory" placeholder="从基本配置读取"/></div>
-    <div class="row"><label>Workshop 内容</label><span class="hint">{{workshopCount}} 个模组</span></div>
-    <div class="row"><label>SteamCMD 状态</label><span class="hint">{{statusText}}</span></div>
-    <el-button size="small" type="primary" @click="saveSteamCmdSettings">保存路径</el-button>
-  </fieldset>
-  <fieldset><legend>当前服务器</legend>
-    <div class="row"><label>服务器目录</label><span class="hint">{{currentServerDir}}</span></div>
-  </fieldset>
-  <fieldset><legend>输出流（SteamCMD 后台运行 + console_log 实时同步）</legend>
-    <TerminalOutput url="/api/v1/steamcmd/stream" :base-url="baseUrl" :token="apiToken" />
-  </fieldset>
-</ConsolePageLayout>
-</template>
+
 <style scoped>
-fieldset{border:1px solid var(--el-border-color-light);padding:8px 12px;margin-bottom:8px}
-legend{font-size:12px;font-weight:600;padding:0 4px}
-.row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.row label{width:120px;font-size:12px;color:var(--el-text-color-secondary);flex-shrink:0;text-align:right}
-.hint{font-size:12px;color:var(--el-text-color-secondary)}
-.task-hint{display:block;margin-top:4px;color:var(--el-text-color-secondary)}
+.form-row label { width: 120px; }
+.hint { font-size: 13px; color: var(--el-text-color-secondary); }
+.task-hint { display: block; margin-top: 4px; color: var(--el-text-color-secondary); }
+.panel-note { margin: 0 0 8px; font-size: 12px; color: var(--a3st-text-muted); }
 </style>

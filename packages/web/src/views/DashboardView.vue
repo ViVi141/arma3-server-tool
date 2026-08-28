@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
 import DashboardHero from "@/components/dashboard/DashboardHero.vue";
+import DashboardDeployTrack from "@/components/dashboard/DashboardDeployTrack.vue";
 import { UI_COPY } from "@/constants/uiCopy";
 import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
@@ -114,6 +115,13 @@ function goTab(tab: string) {
     <DashboardHero :status="status" :dashboard="dashboard" :loading="loading" />
 
     <div class="dash-body">
+      <DashboardDeployTrack
+        :connection-id="connectionId"
+        :server-uuid="serverUuid"
+        :status="status"
+        :dashboard="dashboard"
+      />
+
       <section class="dash-modules" aria-labelledby="dash-modules-title">
         <header class="dash-modules__head">
           <p class="dash-modules__kicker">QUICK ROUTES</p>
