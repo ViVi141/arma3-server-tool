@@ -8,12 +8,33 @@ export function isLinux(): boolean {
   return process.platform === "linux";
 }
 
-/** Default dedicated server binary name after Steam app 233780 install. */
-export function defaultServerExecutable(): string {
+/** Dedicated server binary file name for the given bitness. */
+export function serverExecutableName(x64: boolean): string {
   if (isLinux()) {
+    if (x64) {
+      return "arma3server_x64";
+    }
     return "arma3server";
   }
-  return "arma3server_x64.exe";
+  if (x64) {
+    return "arma3server_x64.exe";
+  }
+  return "arma3server.exe";
+}
+
+export function isKnownServerExecutable(fileName: string): boolean {
+  const base = path.basename(fileName.replace(/\\/g, "/")).toLowerCase();
+  return (
+    base === "arma3server" ||
+    base === "arma3server_x64" ||
+    base === "arma3server.exe" ||
+    base === "arma3server_x64.exe"
+  );
+}
+
+/** Default dedicated server binary name after Steam app 233780 install. */
+export function defaultServerExecutable(): string {
+  return serverExecutableName(true);
 }
 
 export function defaultServerDir(): string {

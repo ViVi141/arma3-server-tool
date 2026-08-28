@@ -11,7 +11,10 @@ import {
   combineModListSegments,
   stripModParameters,
 } from "../mods/mod-command-line.js";
-import { defaultServerExecutable } from "../platform/index.js";
+import {
+  isKnownServerExecutable,
+  serverExecutableName,
+} from "../platform/index.js";
 import { splitCommandLine as splitCommandLineFromPlatform } from "../platform/argv.js";
 
 export const CONFIG_FOLDER = "a3st_serverconfig";
@@ -737,9 +740,14 @@ export function buildHeadlessClientCommandLine(
 
 export function getServerExecutablePath(config: ServerConfigPackage): string {
   const serverDir = str(config.server?.serverDir).trim();
-  const executable = str(config.server?.executable, defaultServerExecutable());
+  const x64 = config.server?.x64 !== false;
+  const executable = str(config.server?.executable, "").trim();
   if (path.isAbsolute(executable)) {
     return executable;
   }
-  return path.join(serverDir, executable);
+  const fileName =
+    executable && !isKnownServerExecutable(executable)
+      ? executable
+      : serverExecutableName(x64);
+  return path.join(serverDir, fileName);
 }

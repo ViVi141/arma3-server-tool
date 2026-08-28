@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { CONFIG_FOLDER } from "../config/game-config-writer.js";
 
 export interface RptLogEntry {
   fileName: string;
@@ -9,7 +10,96 @@ export interface RptLogEntry {
   kind: "rpt" | "battleye";
 }
 
-const SERVER_CONFIG_FOLDER = "serverConfig";
+const BATTLEYE_EXCLUDED = new Set(["bans.txt", "beserver_x64.cfg", "beserver.cfg"]);
+
+function profileSearchDirs(serverDir: string, serverUuid: string): string[] {
+  if (!serverUuid) {
+    return [serverDir];
+  }
+  return [
+    serverDir,
+    path.join(serverDir, CONFIG_FOLDER, serverUuid),
+    path.join(serverDir, CONFIG_FOLDER, serverUuid, "Users", serverUuid),
+  ];
+}
+
+function battleyeSearchDirs(serverDir: string, serverUuid: string): string[] {
+  const dirs = [path.join(serverDir, "BattlEye")];
+  if (serverUuid) {
+    const profileRoot = path.join(serverDir, CONFIG_FOLDER, serverUuid);
+    dirs.push(path.join(profileRoot, "BattlEye"));
+    dirs.push(path.join(profileRoot, "Users", serverUuid, "BattlEye"));
+  }
+  return dirs;
+}
+
+function isRptLogFileName(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".rpt")) {
+    return true;
+  }
+  if (lower.startsWith("server_console") && lower.endsWith(".log")) {
+    return true;
+  }
+  if (lower.startsWith("server_") && lower.endsWith(".log")) {
+    return true;
+  }
+  return false;
+}
+
+function isBattlEyeLogFileName(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  if (BATTLEYE_EXCLUDED.has(lower)) {
+    return false;
+  }
+  if (lower.startsWith("beserver")) {
+    return false;
+  }
+  return lower.endsWith(".log") || lower.endsWith(".txt");
+}
+
+function collectFiles(
+  directory: string,
+  kind: "rpt" | "battleye",
+  results: RptLogEntry[],
+  seen: Set<string>,
+  fileFilter: (fileName: string) => boolean
+): void {
+  if (!fs.existsSync(directory)) {
+    return;
+  }
+  for (const file of fs.readdirSync(directory)) {
+    if (!fileFilter(file)) {
+      continue;
+    }
+    const filePath = path.join(directory, file);
+    let realPath = filePath;
+    try {
+      realPath = fs.realpathSync(filePath);
+    } catch {
+      continue;
+    }
+    if (seen.has(realPath)) {
+      continue;
+    }
+    seen.add(realPath);
+    try {
+      const stat = fs.statSync(filePath);
+      if (!stat.isFile()) {
+        continue;
+      }
+      results.push({
+        fileName: file,
+        filePath,
+        size: stat.size,
+        lastModified: stat.mtime,
+        kind,
+      });
+    } catch {
+      // skip locked
+    }
+  }
+}
 
 export class RptLogReader {
   listLogs(
@@ -22,66 +112,24 @@ export class RptLogReader {
       return results;
     }
 
-    const searchDirs: { dir: string; kind: "rpt" | "battleye" }[] = [];
+    const seen = new Set<string>();
+
     if (kind === "rpt" || kind === "all") {
-      searchDirs.push({ dir: serverDir, kind: "rpt" });
-      searchDirs.push({
-        dir: path.join(serverDir, SERVER_CONFIG_FOLDER, serverUuid, "Users", serverUuid),
-        kind: "rpt",
-      });
-    }
-    if (kind === "battleye" || kind === "all") {
-      searchDirs.push({ dir: path.join(serverDir, "BattlEye"), kind: "battleye" });
-      searchDirs.push({
-        dir: path.join(serverDir, SERVER_CONFIG_FOLDER, serverUuid, "BattlEye"),
-        kind: "battleye",
+      for (const dir of profileSearchDirs(serverDir, serverUuid)) {
+        collectFiles(dir, "rpt", results, seen, isRptLogFileName);
+      }
+      collectFiles(path.join(serverDir, "logs"), "rpt", results, seen, (fileName) => {
+        const lower = fileName.toLowerCase();
+        if (serverUuid && lower === `server_${serverUuid.toLowerCase()}.log`) {
+          return true;
+        }
+        return lower.startsWith("server_") && lower.endsWith(".log");
       });
     }
 
-    const seen = new Set<string>();
-    for (const item of searchDirs) {
-      if (!fs.existsSync(item.dir)) {
-        continue;
-      }
-      for (const file of fs.readdirSync(item.dir)) {
-        const lower = file.toLowerCase();
-        if (item.kind === "rpt" && !lower.endsWith(".rpt")) {
-          continue;
-        }
-        if (item.kind === "battleye") {
-          if (lower === "bans.txt" || lower.startsWith("beserver")) {
-            continue;
-          }
-          if (!lower.endsWith(".log") && !lower.endsWith(".txt")) {
-            continue;
-          }
-        }
-        const filePath = path.join(item.dir, file);
-        let realPath = filePath;
-        try {
-          realPath = fs.realpathSync(filePath);
-        } catch {
-          continue;
-        }
-        if (seen.has(realPath)) {
-          continue;
-        }
-        seen.add(realPath);
-        try {
-          const stat = fs.statSync(filePath);
-          if (!stat.isFile()) {
-            continue;
-          }
-          results.push({
-            fileName: file,
-            filePath,
-            size: stat.size,
-            lastModified: stat.mtime,
-            kind: item.kind,
-          });
-        } catch {
-          // skip locked
-        }
+    if (kind === "battleye" || kind === "all") {
+      for (const dir of battleyeSearchDirs(serverDir, serverUuid)) {
+        collectFiles(dir, "battleye", results, seen, isBattlEyeLogFileName);
       }
     }
 
@@ -123,6 +171,10 @@ export class RptLogReader {
     if (logs.length === 0) {
       return null;
     }
+    const rptFile = logs.find((item) => item.fileName.toLowerCase().endsWith(".rpt"));
+    if (rptFile) {
+      return rptFile.filePath;
+    }
     return logs[0].filePath;
   }
 
@@ -139,7 +191,16 @@ export class RptLogReader {
     if (!fileName) {
       return logs[0].filePath;
     }
-    const match = logs.find((item) => item.fileName.toLowerCase() === fileName.toLowerCase());
+    const normalized = path.normalize(fileName);
+    const match = logs.find((item) => {
+      if (item.fileName.toLowerCase() === fileName.toLowerCase()) {
+        return true;
+      }
+      if (path.normalize(item.filePath) === normalized) {
+        return true;
+      }
+      return path.basename(fileName).toLowerCase() === item.fileName.toLowerCase();
+    });
     if (match) {
       return match.filePath;
     }

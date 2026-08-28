@@ -97,4 +97,29 @@ describe("RptLogReader", () => {
   it("findActiveRpt returns null when no rpt files", () => {
     expect(reader.findActiveRpt(tmpDir, TEST_UUID)).toBeNull();
   });
+
+  it("listLogs finds rpt under a3st_serverconfig profile dirs", () => {
+    const profileRoot = path.join(tmpDir, "a3st_serverconfig", TEST_UUID);
+    touch(path.join(profileRoot, "arma3server_2026.rpt"), "profile rpt");
+
+    const logs = reader.listLogs(tmpDir, TEST_UUID, "rpt");
+    expect(logs).toHaveLength(1);
+    expect(logs[0].fileName).toBe("arma3server_2026.rpt");
+  });
+
+  it("listLogs finds service capture log under logs/", () => {
+    touch(path.join(tmpDir, "logs", `server_${TEST_UUID}.log`), "startup line");
+
+    const logs = reader.listLogs(tmpDir, TEST_UUID, "rpt");
+    expect(logs).toHaveLength(1);
+    expect(logs[0].fileName).toBe(`server_${TEST_UUID}.log`);
+  });
+
+  it("resolveAllowedLogPath matches full file path from UI", () => {
+    const logPath = path.join(tmpDir, "logs", `server_${TEST_UUID}.log`);
+    touch(logPath, "line1");
+
+    const resolved = reader.resolveAllowedLogPath(tmpDir, TEST_UUID, "rpt", logPath);
+    expect(resolved).toBe(logPath);
+  });
 });

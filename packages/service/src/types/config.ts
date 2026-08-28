@@ -27,6 +27,7 @@ export interface ServerConfigSection {
   configName?: string;
   serverDir?: string;
   executable?: string;
+  x64?: boolean;
   modPaths?: string[];
 }
 

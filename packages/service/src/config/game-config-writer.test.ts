@@ -10,6 +10,7 @@ import {
   buildHeadlessClientCommandLine,
   splitCommandLine,
   getConfigRoot,
+  getServerExecutablePath,
 } from "./game-config-writer.js";
 import type { ServerConfigPackage } from "../types/config.js";
 
@@ -231,5 +232,19 @@ describe("GameConfigWriter", () => {
     expect(cmd).toContain("-noPause");
     expect(cmd).toContain("-noSound");
     expect(cmd).toContain("@hcmod");
+  });
+
+  it("getServerExecutablePath uses x64 flag for default executable names", () => {
+    const x64Path = getServerExecutablePath({
+      formatVersion: 2,
+      server: { serverDir: "C:\\arma3", executable: "arma3server", x64: true },
+    });
+    expect(x64Path).toBe(path.join("C:\\arma3", "arma3server_x64.exe"));
+
+    const x32Path = getServerExecutablePath({
+      formatVersion: 2,
+      server: { serverDir: "C:\\arma3", executable: "arma3server_x64.exe", x64: false },
+    });
+    expect(x32Path).toBe(path.join("C:\\arma3", "arma3server.exe"));
   });
 });

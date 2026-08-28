@@ -9,13 +9,13 @@ export interface LocalBanEntry {
   ip?: string;
 }
 
-const SERVER_CONFIG_FOLDER = "serverConfig";
+import { CONFIG_FOLDER } from "../config/game-config-writer.js";
 
 export function getBanFilePaths(serverDir: string, serverUuid: string): string[] {
   return [
     path.join(serverDir, "bans.txt"),
-    path.join(serverDir, SERVER_CONFIG_FOLDER, serverUuid, "BattlEye", "bans.txt"),
-    path.join(serverDir, SERVER_CONFIG_FOLDER, serverUuid, "Users", serverUuid, "bans.txt"),
+    path.join(serverDir, CONFIG_FOLDER, serverUuid, "BattlEye", "bans.txt"),
+    path.join(serverDir, CONFIG_FOLDER, serverUuid, "Users", serverUuid, "bans.txt"),
   ];
 }
 

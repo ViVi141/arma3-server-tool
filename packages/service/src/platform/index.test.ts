@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   defaultServerExecutable,
+  serverExecutableName,
   steamCmdEntryName,
   steamCmdDownloadUrl,
   STEAMCMD_LINUX_URL,
@@ -18,11 +19,14 @@ describe("platform", () => {
     if (process.platform === "linux") {
       expect(steamCmdDownloadUrl()).toBe(STEAMCMD_LINUX_URL);
       expect(steamCmdEntryName()).toBe("steamcmd.sh");
-      expect(defaultServerExecutable()).toBe("arma3server");
+      expect(defaultServerExecutable()).toBe("arma3server_x64");
+      expect(serverExecutableName(true)).toBe("arma3server_x64");
+      expect(serverExecutableName(false)).toBe("arma3server");
     } else {
       expect(steamCmdDownloadUrl()).toBe(STEAMCMD_WIN_URL);
       expect(steamCmdEntryName()).toBe("steamcmd.exe");
       expect(defaultServerExecutable()).toBe("arma3server_x64.exe");
+      expect(serverExecutableName(false)).toBe("arma3server.exe");
     }
   });
 });

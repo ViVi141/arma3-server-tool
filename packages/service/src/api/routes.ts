@@ -9,6 +9,7 @@ import {
   buildStartCommandLine,
   serverCfgExists,
   getServerExecutablePath,
+  CONFIG_FOLDER,
 } from "../config/game-config-writer.js";
 import { runPreflightChecks } from "../preflight/checker.js";
 import { fetchRconPlayers, resolveRconOptions, countOnlinePlayers } from "../rcon/helpers.js";
@@ -490,10 +491,10 @@ export async function apiRoutes(app: FastifyInstance) {
         dataConfigDir: app.configStore.getConfigDir(),
         serverDir,
         serverConfigDir: serverDir
-          ? path.join(serverDir, "serverConfig", uuid)
+          ? path.join(serverDir, CONFIG_FOLDER, uuid)
           : "",
         logDir: serverDir
-          ? path.join(serverDir, "serverConfig", uuid, "Users", uuid)
+          ? path.join(serverDir, "logs")
           : "",
       },
       null,
