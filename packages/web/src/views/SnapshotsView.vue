@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import DeployOpsBar from "@/components/console/DeployOpsBar.vue";
 import { ref, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
@@ -68,6 +69,7 @@ async function restoreSnapshot(id: string) {
 
 <template>
   <ConsolePageLayout>
+    <DeployOpsBar />
     <template #toolbar>
       <span class="snapshots-title">配置快照</span>
       <el-input v-model="label" placeholder="快照备注" style="max-width: 300px;" />

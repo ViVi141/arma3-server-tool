@@ -45,6 +45,12 @@ const ALL_TAB_ENTRIES: TabEntry[] = [...MAIN_TABS, ...SETTINGS_TABS, ...TOOL_TAB
 
 const TAB_NAMES = new Set(ALL_TAB_ENTRIES.map((t) => t.name));
 
+const TAB_BY_NAME = new Map(ALL_TAB_ENTRIES.map((t) => [t.name, t]));
+
+export function getTabEntry(name: string): TabEntry | undefined {
+  return TAB_BY_NAME.get(name);
+}
+
 function filterVisibleTabs(tabs: TabEntry[], showAdvanced: boolean): TabEntry[] {
   const visible: TabEntry[] = [];
   for (const tab of tabs) {

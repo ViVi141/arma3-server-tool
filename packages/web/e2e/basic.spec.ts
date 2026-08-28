@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { connectConsole, ensureTestServer } from "./helpers";
+import { connectConsole, ensureTestServer, navigateConsoleTab } from "./helpers";
 
 test.describe("Arma3 Server Tools Web UI", () => {
   test.beforeEach(async ({ page }) => {
@@ -27,9 +27,12 @@ test.describe("Arma3 Server Tools Web UI", () => {
 
   test("console toolbar has core actions", async ({ page }) => {
     await ensureTestServer(page);
+    await expect(page.getByTestId("dashboard-hero")).toBeVisible();
     await expect(page.getByTestId("btn-start")).toBeVisible();
     await expect(page.getByTestId("btn-save")).toBeVisible();
     await expect(page.getByTestId("btn-write-cfg")).toHaveText("写入游戏配置");
+    await navigateConsoleTab(page, "preflight");
+    await expect(page.getByTestId("deploy-ops-bar")).toBeVisible();
     await expect(page.getByTestId("btn-preflight")).toHaveText("开服检查");
     await expect(page.getByTestId("status-bar")).toBeVisible();
   });
@@ -39,8 +42,8 @@ test.describe("Arma3 Server Tools Web UI", () => {
 
     const tabs = ["basic", "mods", "rcon", "logs", "preflight"];
     for (const tab of tabs) {
-      await page.getByTestId(`nav-${tab}`).click();
-      await expect(page.getByTestId(`nav-${tab}`)).toHaveClass(/active/);
+      await navigateConsoleTab(page, tab);
+      await expect(page.getByTestId(`nav-${tab}`)).toHaveClass(/is-active/);
     }
   });
 
@@ -65,7 +68,7 @@ test.describe("Arma3 Server Tools Web UI", () => {
 
   test("mods page loads from navigation", async ({ page }) => {
     await ensureTestServer(page);
-    await page.getByTestId("nav-mods").click();
+    await navigateConsoleTab(page, "mods");
     await expect(page.getByText("扫描刷新")).toBeVisible();
     await expect(page.getByText("获取模组")).toBeVisible();
   });

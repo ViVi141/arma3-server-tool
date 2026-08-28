@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import DeployOpsBar from "@/components/console/DeployOpsBar.vue";
+import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { ref, onMounted, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
@@ -147,26 +149,25 @@ onMounted(() => {
 
 <template>
   <ConsolePageLayout v-loading="loading">
+    <DeployOpsBar />
     <template #toolbar>
       <el-button size="small" :loading="syncing" @click="syncCron">保存并同步到调度器</el-button>
       <el-button size="small" @click="addCronRow">添加任务</el-button>
       <el-button size="small" :disabled="!selectedRows.length" @click="removeSelected(selectedRows)">删除选中</el-button>
       <span class="hint-inline">修改后先点顶栏「保存」，或使用「保存并同步到调度器」</span>
     </template>
-      <fieldset>
-        <legend>内置计划</legend>
-        <div class="row">
+      <ArkTechPanel title="内置计划" code="CRON-01">
+        <div class="form-row">
           <label>重启计划</label>
           <el-input v-model="scheduler().restartCron" size="small" placeholder="0 4 * * *" />
         </div>
-        <div class="row">
+        <div class="form-row">
           <label>监控采集</label>
           <el-input v-model="scheduler().monitoringCron" size="small" placeholder="*/5 * * * *" />
         </div>
-      </fieldset>
+      </ArkTechPanel>
 
-      <fieldset>
-        <legend>自定义 Cron 任务</legend>
+      <ArkTechPanel title="自定义 Cron 任务" code="CRON-02">
         <el-table
           :data="cronRows"
           stripe
@@ -203,15 +204,12 @@ onMounted(() => {
           </el-table-column>
         </el-table>
         <p class="hint">Cron 表达式格式：分 时 日 月 周。</p>
-      </fieldset>
+      </ArkTechPanel>
   </ConsolePageLayout>
 </template>
 
 <style scoped>
 .hint-inline { font-size: 11px; color: var(--el-text-color-secondary); margin-left: 8px; }
-fieldset { border: 1px solid var(--el-border-color-light); padding: 8px 12px; margin-bottom: 8px; }
-legend { font-size: 12px; font-weight: 600; padding: 0 4px; }
-.row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.row label { width: 120px; font-size: 12px; color: var(--el-text-color-secondary); flex-shrink: 0; text-align: right; }
+.form-row label { width: 120px; }
 .hint { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 8px; }
 </style>

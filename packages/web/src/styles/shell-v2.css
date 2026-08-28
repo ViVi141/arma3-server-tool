@@ -1,0 +1,468 @@
+/**
+ * P0 控制台壳层 — ark 舞台 + 左 rail + 顶栏实例切换
+ */
+
+.shell-v2 {
+  --shell-ink: #080a0b;
+  --shell-paper: #f4f6f6;
+  --shell-signal: #18d1ff;
+  --shell-state: #c8eb21;
+  --shell-panel: rgb(8 10 11 / 88%);
+  --shell-rule: rgb(8 10 11 / 18%);
+  --shell-display: "Arial Narrow", "Roboto Condensed", "DIN Condensed", sans-serif;
+  --shell-mono: "Cascadia Mono", "IBM Plex Mono", Consolas, monospace;
+  --shell-fs-base: 13px;
+  --shell-fs-sm: 12px;
+  --shell-fs-xs: 11px;
+
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--shell-paper);
+  color: var(--shell-ink);
+  font-size: var(--shell-fs-base);
+  line-height: 1.45;
+}
+
+[data-visual="classic"] .shell-v2 {
+  --shell-paper: var(--a3st-bg);
+  --shell-ink: var(--a3st-text);
+  --shell-signal: var(--a3st-accent);
+  --shell-panel: var(--a3st-titlebar);
+  --shell-rule: var(--a3st-border-subtle);
+}
+
+.shell-v2__topbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 3.25rem;
+  padding: 0 16px;
+  background: var(--shell-panel);
+  color: #fff;
+  border-bottom: 1px solid rgb(255 255 255 / 12%);
+}
+
+.shell-v2__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.shell-v2__mark {
+  position: relative;
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--shell-signal);
+}
+
+.shell-v2__wordmark strong,
+.shell-v2__wordmark small {
+  display: block;
+}
+
+.shell-v2__wordmark strong {
+  font-family: var(--shell-display);
+  font-size: 1.35rem;
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+}
+
+.shell-v2__wordmark small {
+  margin-top: 2px;
+  font-family: var(--shell-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: rgb(255 255 255 / 60%);
+}
+
+.shell-v2__instance {
+  min-width: 0;
+  flex: 1;
+  max-width: 280px;
+}
+
+.shell-v2__instance-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 280px;
+  padding: 7px 12px;
+  border: 1px solid rgb(255 255 255 / 28%);
+  background: rgb(255 255 255 / 6%);
+  color: inherit;
+  font: inherit;
+  font-family: var(--shell-mono);
+  font-size: var(--shell-fs-sm);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-align: left;
+}
+
+.shell-v2__instance-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell-v2__instance-caret {
+  opacity: 0.6;
+  font-size: 10px;
+}
+
+.shell-v2__relay {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-family: var(--shell-mono);
+  font-size: var(--shell-fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 78%);
+  white-space: nowrap;
+}
+
+.shell-v2__pulse {
+  width: 7px;
+  height: 7px;
+  background: var(--shell-state);
+  animation: shell-v2-pulse 1.8s ease-out infinite;
+}
+
+@keyframes shell-v2-pulse {
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-v2__pulse {
+    animation: none;
+  }
+}
+
+.shell-v2__topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.shell-v2__picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--shell-fs-xs);
+  color: rgb(255 255 255 / 55%);
+}
+
+.shell-v2__picker select {
+  font: inherit;
+  font-family: var(--shell-mono);
+  font-size: var(--shell-fs-xs);
+  padding: 3px 5px;
+  border: 1px solid rgb(255 255 255 / 22%);
+  background: rgb(0 0 0 / 35%);
+  color: #fff;
+  border-radius: 0;
+}
+
+.shell-v2__link {
+  font-family: var(--shell-mono);
+  font-size: var(--shell-fs-xs);
+  letter-spacing: 0.06em;
+  color: var(--shell-signal);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.shell-v2__link:hover {
+  text-decoration: underline;
+}
+
+.shell-v2__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.shell-v2__rail {
+  width: 4.75rem;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--shell-paper);
+  border-right: 1px solid var(--shell-rule);
+}
+
+.shell-v2__rail-item {
+  position: relative;
+  min-height: 5rem;
+  padding: 0.55rem 0.4rem;
+  border: 0;
+  border-bottom: 1px solid var(--shell-rule);
+  background: transparent;
+  color: var(--a3st-text-muted);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font: inherit;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-v2__rail-item::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0.22rem;
+  background: var(--shell-signal);
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform 180ms ease;
+}
+
+.shell-v2__rail-item.is-active {
+  background: var(--shell-ink);
+  color: #fff;
+}
+
+.shell-v2__rail-item.is-active::before {
+  transform: scaleY(1);
+}
+
+.shell-v2__rail-item:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.shell-v2__rail-index {
+  font-family: var(--shell-mono);
+  color: var(--shell-signal);
+  writing-mode: horizontal-tb;
+}
+
+.shell-v2__rail-label {
+  writing-mode: vertical-rl;
+}
+
+.shell-v2__stage {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--a3st-bg);
+}
+
+.shell-v2__subnav {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--shell-rule);
+  background: rgb(8 10 11 / 3%);
+}
+
+.shell-v2__subnav-item {
+  padding: 9px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font: inherit;
+  font-family: var(--shell-mono);
+  font-size: var(--shell-fs-sm);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--a3st-text-muted);
+  cursor: pointer;
+}
+
+.shell-v2__subnav-item:hover:not(:disabled) {
+  color: var(--a3st-text);
+  background: var(--a3st-bg-hover);
+}
+
+.shell-v2__subnav-item.is-active {
+  color: var(--shell-signal);
+  border-bottom-color: var(--shell-signal);
+}
+
+.shell-v2__subnav-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.shell-v2__dirty {
+  color: var(--a3st-dirty);
+  margin-left: 2px;
+}
+
+.shell-v2__actions {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--shell-rule);
+  background: rgb(8 10 11 / 3%);
+}
+
+.shell-v2__content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell-v2__baseline {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 1.65rem;
+  padding: 0 12px;
+  font-family: var(--shell-mono);
+  font-size: var(--shell-fs-xs);
+  letter-spacing: 0.05em;
+  background: var(--shell-ink);
+  color: rgb(255 255 255 / 68%);
+  border-top: 1px solid rgb(24 209 255 / 30%);
+}
+
+.shell-v2__baseline-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.shell-v2__baseline-tag {
+  color: rgb(255 255 255 / 42%);
+  letter-spacing: 0.1em;
+}
+
+.shell-v2__baseline-link {
+  color: rgb(255 255 255 / 88%);
+  text-decoration: none;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shell-v2__baseline-link:hover {
+  text-decoration: underline;
+}
+
+.shell-v2__baseline-sep {
+  opacity: 0.45;
+}
+
+.shell-v2__baseline-right {
+  flex-shrink: 0;
+  color: var(--shell-signal);
+  opacity: 0.85;
+}
+
+[data-visual="ark"] .shell-v2__actions .el-button {
+  font-family: var(--shell-mono);
+  font-size: var(--shell-fs-sm);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 0;
+}
+
+[data-visual="ark"] .shell-v2__actions .el-button--primary {
+  background: var(--shell-signal);
+  border-color: var(--shell-signal);
+  color: var(--shell-ink);
+}
+
+.shell-v2__action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.shell-v2__action-label {
+  font-family: var(--shell-mono);
+  font-size: var(--shell-fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--a3st-text-dim);
+  margin-right: 2px;
+}
+
+.shell-v2__action-sep {
+  display: inline-block;
+  width: 1px;
+  height: 16px;
+  background: var(--shell-rule);
+  margin: 0 6px;
+  vertical-align: middle;
+}
+
+.shell-v2__content-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--a3st-text-dim);
+  font-size: 14px;
+}
+
+.shell-v2__content-empty-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.shell-v2__page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+[data-visual="ark"] .shell-v2__instance-row .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 0;
+  transform: rotate(45deg);
+}
+
+[data-visual="ark"] .shell-v2__instance-row .status-dot--running {
+  background: var(--shell-state);
+}
+
+@media (max-width: 800px) {
+  .shell-v2__relay {
+    display: none;
+  }
+
+  .shell-v2__rail {
+    width: 3.5rem;
+  }
+
+  .shell-v2__rail-label {
+    font-size: 0.55rem;
+  }
+}

@@ -2,26 +2,34 @@
 import { ref, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { getThemeMode, setThemeMode, type ThemeMode } from "@/utils/systemTheme";
+import { getVisualTheme, setVisualTheme, type VisualTheme } from "@/utils/visualTheme";
 
 const route = useRoute();
 const isConsole = () => route.path.startsWith("/console/");
 const isMobile = import.meta.env.VITE_APP_MODE === "mobile";
 
 const themeMode = ref<ThemeMode>("system");
+const visualTheme = ref<VisualTheme>("ark");
 
 onMounted(() => {
   themeMode.value = getThemeMode();
+  visualTheme.value = getVisualTheme();
 });
 
 function onThemeModeChange(mode: ThemeMode) {
   themeMode.value = mode;
   setThemeMode(mode);
 }
+
+function onVisualThemeChange(theme: VisualTheme) {
+  visualTheme.value = theme;
+  setVisualTheme(theme);
+}
 </script>
 
 <template>
   <div class="app-shell">
-    <div class="title-bar">
+    <div v-if="!isConsole()" class="title-bar">
       <div class="title-bar-left">
         <span class="app-mark" aria-hidden="true" />
         <span class="app-name">Arma3 Server Tools</span>
@@ -30,7 +38,19 @@ function onThemeModeChange(mode: ThemeMode) {
       <div class="title-bar-center" />
       <div class="title-bar-right">
         <label v-if="!isMobile" class="theme-picker">
-          <span class="theme-picker__label">外观</span>
+          <span class="theme-picker__label">壳层</span>
+          <select
+            data-testid="visual-theme-select"
+            class="theme-picker__select"
+            :value="visualTheme"
+            @change="onVisualThemeChange(($event.target as HTMLSelectElement).value as VisualTheme)"
+          >
+            <option value="ark">ark</option>
+            <option value="classic">classic</option>
+          </select>
+        </label>
+        <label v-if="!isMobile" class="theme-picker">
+          <span class="theme-picker__label">明暗</span>
           <select
             data-testid="theme-mode-select"
             class="theme-picker__select"
@@ -56,6 +76,14 @@ function onThemeModeChange(mode: ThemeMode) {
           class="title-link"
         >
           被控设置
+        </router-link>
+        <router-link
+          v-if="!isMobile"
+          to="/demo"
+          class="title-link"
+          data-testid="nav-style-demo"
+        >
+          风格演示
         </router-link>
       </div>
     </div>

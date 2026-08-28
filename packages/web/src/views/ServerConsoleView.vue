@@ -1,12 +1,23 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed, provide } from "vue";
+import { getVisualTheme } from "@/utils/visualTheme";
+import { CONSOLE_ACTIONS_KEY } from "@/composables/consoleActions";
 import { UI_COPY } from "@/constants/uiCopy";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import { useUiSettingsStore } from "@/stores/uiSettings";
 import { useConfigSessionStore } from "@/stores/configSession";
-import { navGroups, resolveTabName } from "@/config/tab-registry";
+import {
+  consoleModes,
+  modeForTab,
+  defaultTabForMode,
+  subTabsForMode,
+  modeShowsProcActions,
+  modeShowsCfgActions,
+} from "@/config/console-modes";
+import { resolveTabName } from "@/config/tab-registry";
+import ConsoleShell from "@/components/console/ConsoleShell.vue";
 import { openPath, isElectron } from "@/utils/electron";
 import { resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 import { CONFIG_EDITOR_KEY, type ConfigEditorRegistration } from "@/composables/configEditor";
@@ -48,9 +59,56 @@ const statusText = ref("已停止");
 const serverRunningCache = ref<Record<string, boolean>>({});
 let statusPollTimer: ReturnType<typeof setInterval> | null = null;
 
-const groups = computed(() => navGroups(uiSettings.showAdvancedSettings));
-
 const activeTab = ref("dashboard");
+
+const modes = computed(() => consoleModes(uiSettings.showAdvancedSettings));
+
+const activeModeId = computed(() => modeForTab(activeTab.value));
+
+const subTabs = computed(() => subTabsForMode(activeModeId.value, uiSettings.showAdvancedSettings));
+
+const showProcActions = computed(() => modeShowsProcActions(activeModeId.value));
+
+const showCfgActions = computed(() => modeShowsCfgActions(activeModeId.value));
+
+const showProcInToolbar = computed(() => {
+  if (!showProcActions.value) {
+    return false;
+  }
+  if (getVisualTheme() === "ark") {
+    return false;
+  }
+  return true;
+});
+
+const showDeployCfgInToolbar = computed(() => {
+  if (getVisualTheme() === "ark" && activeModeId.value === "deploy") {
+    return false;
+  }
+  return true;
+});
+
+const showSaveInToolbar = computed(() => {
+  if (!showCfgActions.value) {
+    return false;
+  }
+  if (getVisualTheme() === "ark" && activeModeId.value === "overview") {
+    return false;
+  }
+  return true;
+});
+
+const showWriteCfgInToolbar = computed(() => {
+  if (!showCfgActions.value) {
+    return false;
+  }
+  if (getVisualTheme() === "ark") {
+    if (activeModeId.value === "overview" || activeModeId.value === "deploy") {
+      return false;
+    }
+  }
+  return true;
+});
 
 const selectedServer = computed(() => {
   return servers.value.find((s) => s.uuid === selectedUuid.value) ?? null;
@@ -187,6 +245,17 @@ async function confirmLeaveCurrent(): Promise<boolean> {
   }
   configSession.markClean(selectedUuid.value);
   return true;
+}
+
+async function navigateToMode(modeId: string): Promise<void> {
+  if (modeId === activeModeId.value) {
+    return;
+  }
+  const ok = await confirmLeaveCurrent();
+  if (!ok) {
+    return;
+  }
+  activeTab.value = defaultTabForMode(modeId, uiSettings.showAdvancedSettings);
 }
 
 async function navigateToTab(next: string): Promise<void> {
@@ -510,81 +579,88 @@ async function reloadFromDisk(): Promise<void> {
   await refreshSyncState();
   ElMessage.success("已从磁盘重新加载");
 }
+
+const instanceLabel = computed(() => selectedServer.value?.configName ?? "INSTANCE");
+
+const cfgWritten = computed(() => syncState.value?.cfgWritten === true);
+
+provide(CONSOLE_ACTIONS_KEY, {
+  execAction,
+  execSave,
+  isRunning,
+  hasDirtyChanges,
+  instanceLabel,
+  cfgWritten,
+});
 </script>
 
 <template>
-  <div class="main-layout" data-testid="console-shell">
-    <aside class="server-panel" data-testid="server-panel">
-      <div class="panel-header">
-        <span class="panel-title">服务器</span>
-        <el-button size="small" text @click="$router.push('/connections')">连接</el-button>
-      </div>
-      <div class="panel-actions">
-        <el-button size="small" type="primary" data-testid="btn-first-server-wizard" @click="openFirstServerWizard">
-          {{ UI_COPY.firstServerWizard }}
-        </el-button>
-        <el-button size="small" data-testid="btn-new-server" @click="createServer">新建配置</el-button>
-        <el-button size="small" :disabled="!selectedUuid" @click="renameServer">重命名</el-button>
-        <el-button size="small" :disabled="!selectedUuid" @click="cloneServer">复制</el-button>
-        <el-button size="small" type="danger" :disabled="!selectedUuid" @click="deleteServer">删除</el-button>
-      </div>
-      <el-input v-model="searchText" placeholder="筛选..." size="small" clearable class="panel-search" />
-      <div class="server-list" v-loading="loading" data-testid="server-list">
-        <div
-          v-for="s in servers.filter(s => !searchText || s.configName.toLowerCase().includes(searchText.toLowerCase()))"
-          :key="s.uuid"
-          :class="['server-item', { active: s.uuid === selectedUuid }]"
-          :data-testid="'server-item-' + s.uuid"
-          tabindex="0"
-          @click="selectServer(s.uuid)"
-          @keydown.enter="selectServer(s.uuid)"
-        >
-          <span :class="serverDotClass(s.uuid)" aria-hidden="true" />
-          <div class="server-name">{{ s.configName }}</div>
-        </div>
-        <div v-if="!loading && servers.length === 0" class="server-empty" data-testid="server-empty-state">
-          <p>{{ UI_COPY.firstServerEmptyHint }}</p>
-          <el-button size="small" type="primary" data-testid="btn-first-server-wizard-empty" @click="openFirstServerWizard">
-            {{ UI_COPY.firstServerWizard }}
-          </el-button>
-          <el-button size="small" data-testid="btn-new-server-empty" @click="createServer">
-            新建配置
-          </el-button>
-        </div>
-      </div>
-    </aside>
-
-    <nav class="nav-panel" data-testid="nav-panel">
-      <template v-for="group in groups" :key="group.label || 'main'">
-        <div v-if="group.label" class="nav-group-label">{{ group.label }}</div>
-        <button
-          v-for="tab in group.tabs"
-          :key="tab.name"
-          type="button"
-          class="nav-item"
-          :data-testid="'nav-' + tab.name"
-          :class="{ active: activeTab === tab.name, dirty: tab.name === activeTab && hasDirtyChanges }"
-          :disabled="!selectedUuid"
-          @click="navigateToTab(tab.name)"
-        >
-          {{ tab.label }}<span v-if="tab.name === activeTab && hasDirtyChanges" class="dirty-mark">*</span>
-        </button>
-      </template>
-    </nav>
-
-    <div class="main-area">
-      <div class="action-bar">
-        <div class="action-left">
-          <el-button size="small" type="success" data-testid="btn-start" :disabled="isRunning || !selectedUuid" @click="execAction('start')">启动</el-button>
+  <ConsoleShell
+    :modes="modes"
+    :active-mode-id="activeModeId"
+    :active-tab="activeTab"
+    :sub-tabs="subTabs"
+    :has-dirty-changes="hasDirtyChanges"
+    :selected-uuid="selectedUuid"
+    :servers="servers"
+    :loading="loading"
+    :search-text="searchText"
+    :is-running="isRunning"
+    :status-text="statusText"
+    :status-bar-dir="statusBarDir"
+    :sync-status-text="syncStatusText"
+    :server-dot-class="serverDotClass"
+    @update:search-text="searchText = $event"
+    @navigate-mode="navigateToMode"
+    @navigate-tab="navigateToTab"
+    @select-server="selectServer"
+    @create-server="createServer"
+    @open-wizard="openFirstServerWizard"
+    @rename="renameServer"
+    @clone="cloneServer"
+    @delete="deleteServer"
+    @open-dir="openServerDir"
+  >
+    <template #actions>
+      <template v-if="selectedUuid">
+        <span v-if="showProcInToolbar" class="shell-v2__action-group">
+          <span class="shell-v2__action-label">PROC</span>
+          <el-button size="small" type="success" data-testid="btn-start" :disabled="isRunning" @click="execAction('start')">启动</el-button>
           <el-button size="small" type="warning" data-testid="btn-restart" :disabled="!isRunning" @click="execAction('restart')">重启</el-button>
           <el-button size="small" type="danger" data-testid="btn-stop" :disabled="!isRunning" @click="execAction('stop')">停止</el-button>
-          <span class="sep" />
-          <el-button size="small" data-testid="btn-save" :type="hasDirtyChanges ? 'primary' : 'default'" :disabled="!selectedUuid" @click="execSave">
+        </span>
+        <span v-if="showProcInToolbar && showSaveInToolbar" class="shell-v2__action-sep" />
+        <span v-if="showSaveInToolbar || showWriteCfgInToolbar" class="shell-v2__action-group">
+          <span class="shell-v2__action-label">CFG</span>
+          <el-button
+            v-if="showSaveInToolbar"
+            size="small"
+            data-testid="btn-save"
+            :type="hasDirtyChanges ? 'primary' : 'default'"
+            @click="execSave"
+          >
             {{ UI_COPY.saveShort }}<span v-if="hasDirtyChanges">*</span>
           </el-button>
-          <el-button size="small" data-testid="btn-write-cfg" :disabled="!selectedUuid" @click="execAction('write_cfg')">{{ UI_COPY.writeGameCfg }}</el-button>
-          <el-button size="small" data-testid="btn-preflight" :disabled="!selectedUuid" @click="execAction('preflight')">{{ UI_COPY.preflight }}</el-button>
-          <span class="sep" />
+          <el-button
+            v-if="showWriteCfgInToolbar"
+            size="small"
+            data-testid="btn-write-cfg"
+            @click="execAction('write_cfg')"
+          >
+            {{ UI_COPY.writeGameCfg }}
+          </el-button>
+          <el-button
+            v-if="activeModeId === 'deploy' && showDeployCfgInToolbar"
+            size="small"
+            data-testid="btn-preflight"
+            @click="execAction('preflight')"
+          >
+            {{ UI_COPY.preflight }}
+          </el-button>
+        </span>
+        <span class="shell-v2__action-sep" />
+        <span class="shell-v2__action-group">
+          <span class="shell-v2__action-label">SYS</span>
           <el-popover trigger="click" width="300" popper-class="global-popover">
             <template #reference>
               <el-button size="small">全局设置</el-button>
@@ -613,8 +689,8 @@ async function reloadFromDisk(): Promise<void> {
               <el-button size="small" type="primary" @click="saveGlobalUiSettings">保存</el-button>
             </div>
           </el-popover>
-          <el-button size="small" :disabled="!selectedUuid" @click="reloadFromDisk">读盘刷新</el-button>
-          <el-dropdown v-if="selectedUuid" trigger="click">
+          <el-button size="small" @click="reloadFromDisk">读盘刷新</el-button>
+          <el-dropdown trigger="click">
             <el-button size="small">打开目录</el-button>
             <template #dropdown>
               <el-dropdown-menu>
@@ -625,61 +701,47 @@ async function reloadFromDisk(): Promise<void> {
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-        </div>
-        <div class="action-right">
-          <span class="status-badge" :class="isRunning ? 'running' : 'stopped'">{{ statusText }}</span>
-        </div>
-      </div>
-
-      <div class="content-area">
-        <div v-if="!selectedUuid" class="content-empty" data-testid="content-empty-state">
-          <p>{{ UI_COPY.firstServerEmptyHint }}</p>
-          <div class="content-empty-actions">
-            <el-button type="primary" size="small" data-testid="btn-first-server-wizard-main" @click="openFirstServerWizard">
-              {{ UI_COPY.firstServerWizard }}
-            </el-button>
-            <el-button size="small" @click="createServer">新建配置</el-button>
-          </div>
-        </div>
-        <template v-else>
-          <DashboardView v-if="activeTab === 'dashboard'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <BasicSettings v-else-if="activeTab === 'basic'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <PerformanceView v-else-if="activeTab === 'performance'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <NetworkView v-else-if="activeTab === 'network'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <DifficultyView v-else-if="activeTab === 'difficulty'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <SecurityView v-else-if="activeTab === 'security'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <LogSettingsView v-else-if="activeTab === 'log'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <ModsView v-else-if="activeTab === 'mods'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <RconView v-else-if="activeTab === 'rcon'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <BansView v-else-if="activeTab === 'bans'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <MissionsView v-else-if="activeTab === 'missions'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <SteamCmdView v-else-if="activeTab === 'steamcmd'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <StatisticsView v-else-if="activeTab === 'statistics'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <SchedulerView v-else-if="activeTab === 'scheduler'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <SnapshotsView v-else-if="activeTab === 'snapshots'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <LogsView v-else-if="activeTab === 'logs'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <PreflightView v-else-if="activeTab === 'preflight'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <ConfigEditor v-else-if="activeTab === 'config'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-          <AboutView v-else-if="activeTab === 'about'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
-        </template>
-      </div>
-
-      <div class="status-bar" data-testid="status-bar">
-        <span class="status-bar-left">
-          <span class="status-bar-label">目录</span>
-          <a href="#" class="dir-link" @click.prevent="openServerDir">{{ statusBarDir }}</a>
-          <span class="status-bar-sep">|</span>
-          <span class="status-bar-label">配置</span>
-          <span>{{ syncStatusText }}</span>
         </span>
-        <span class="status-bar-right">Arma3 Server Tools v2.0</span>
+      </template>
+    </template>
+
+    <div v-if="!selectedUuid" class="shell-v2__content-empty" data-testid="content-empty-state">
+      <p>{{ UI_COPY.firstServerEmptyHint }}</p>
+      <div class="shell-v2__content-empty-actions">
+        <el-button type="primary" size="small" data-testid="btn-first-server-wizard-main" @click="openFirstServerWizard">
+          {{ UI_COPY.firstServerWizard }}
+        </el-button>
+        <el-button size="small" data-testid="btn-new-server-empty" @click="createServer">新建配置</el-button>
       </div>
     </div>
+    <template v-else>
+      <div class="shell-v2__page">
+      <DashboardView v-if="activeTab === 'dashboard'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <BasicSettings v-else-if="activeTab === 'basic'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <PerformanceView v-else-if="activeTab === 'performance'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <NetworkView v-else-if="activeTab === 'network'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <DifficultyView v-else-if="activeTab === 'difficulty'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <SecurityView v-else-if="activeTab === 'security'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <LogSettingsView v-else-if="activeTab === 'log'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <ModsView v-else-if="activeTab === 'mods'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <RconView v-else-if="activeTab === 'rcon'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <BansView v-else-if="activeTab === 'bans'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <MissionsView v-else-if="activeTab === 'missions'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <SteamCmdView v-else-if="activeTab === 'steamcmd'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <StatisticsView v-else-if="activeTab === 'statistics'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <SchedulerView v-else-if="activeTab === 'scheduler'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <SnapshotsView v-else-if="activeTab === 'snapshots'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <LogsView v-else-if="activeTab === 'logs'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <PreflightView v-else-if="activeTab === 'preflight'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <ConfigEditor v-else-if="activeTab === 'config'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <AboutView v-else-if="activeTab === 'about'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      </div>
+    </template>
+  </ConsoleShell>
 
-    <UnsavedChangesDialog ref="unsavedDialog" />
-    <NewServerDialog v-model="showNewServerDialog" @confirm="onNewServerConfirm" />
-    <FirstServerWizard v-model="showFirstServerWizard" @completed="onFirstServerWizardCompleted" />
-  </div>
+  <UnsavedChangesDialog ref="unsavedDialog" />
+  <NewServerDialog v-model="showNewServerDialog" @confirm="onNewServerConfirm" />
+  <FirstServerWizard v-model="showFirstServerWizard" @completed="onFirstServerWizardCompleted" />
 </template>
 
 <script lang="ts">
@@ -705,283 +767,6 @@ import AboutView from "./AboutView.vue";
 </script>
 
 <style scoped>
-.main-layout {
-  display: flex;
-  height: 100%;
-  background: var(--a3st-bg);
-}
-
-.server-panel {
-  width: 188px;
-  min-width: 160px;
-  border-right: 1px solid var(--a3st-border-subtle);
-  display: flex;
-  flex-direction: column;
-  background: var(--a3st-bg-panel);
-  flex-shrink: 0;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--a3st-border-subtle);
-}
-
-.panel-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  padding: 4px 6px;
-  border-bottom: 1px solid var(--a3st-border-subtle);
-}
-
-.panel-title {
-  font-weight: 600;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--a3st-text-muted);
-}
-
-.panel-search {
-  padding: 4px 6px;
-}
-
-.server-list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 2px 4px;
-}
-
-.server-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-radius: 0;
-  margin-bottom: 1px;
-  font-size: 12px;
-  color: var(--a3st-text);
-}
-
-.server-empty {
-  padding: 16px 10px;
-  text-align: center;
-  font-size: 12px;
-  color: var(--a3st-text-dim);
-}
-
-.server-empty p {
-  margin-bottom: 8px;
-}
-
-.server-item:hover {
-  background: var(--a3st-bg-hover);
-}
-
-.server-item.active {
-  background: var(--a3st-bg-selected);
-  color: var(--a3st-text-on-selected);
-}
-
-.server-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nav-panel {
-  width: 132px;
-  min-width: 120px;
-  border-right: 1px solid var(--a3st-border-subtle);
-  background: var(--a3st-bg-panel);
-  flex-shrink: 0;
-  overflow-y: auto;
-  padding: 4px 0;
-}
-
-.nav-group-label {
-  padding: 8px 10px 3px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--a3st-text-dim);
-}
-
-.nav-item {
-  display: block;
-  width: 100%;
-  padding: 4px 10px 4px 12px;
-  border: none;
-  background: transparent;
-  color: var(--a3st-text-muted);
-  font-family: inherit;
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
-  border-left: 2px solid transparent;
-}
-
-.nav-item:hover:not(:disabled) {
-  background: var(--a3st-bg-hover);
-  color: var(--a3st-text);
-}
-
-.nav-item.active {
-  background: var(--a3st-bg-active);
-  color: var(--a3st-text);
-  border-left-color: var(--a3st-accent);
-}
-
-.nav-item:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.dirty-mark {
-  color: var(--a3st-dirty);
-  margin-left: 2px;
-}
-
-.main-area {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.action-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 3px 8px;
-  background: var(--a3st-toolbar);
-  border-bottom: 1px solid var(--a3st-border-subtle);
-  flex-shrink: 0;
-  flex-wrap: wrap;
-  gap: 2px;
-  min-height: 30px;
-}
-
-.action-left {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  flex-wrap: wrap;
-}
-
-.sep {
-  width: 1px;
-  height: 16px;
-  background: var(--a3st-border);
-  margin: 0 4px;
-}
-
-.action-right {
-  display: flex;
-  align-items: center;
-}
-
-.status-badge {
-  font-size: 11px;
-  padding: 1px 8px;
-  border-radius: 0;
-  font-family: var(--a3st-font-mono);
-}
-
-.status-badge.running {
-  color: var(--a3st-running);
-}
-
-.status-badge.stopped {
-  color: var(--a3st-stopped);
-}
-
-.content-area {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  background: var(--a3st-bg);
-}
-
-.content-empty p {
-  margin: 0 0 12px;
-  font-size: 13px;
-  color: var(--a3st-text-dim);
-}
-
-.content-empty-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-}
-
-.content-empty {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--a3st-text-dim);
-  font-size: 12px;
-}
-
-.status-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 8px;
-  height: 22px;
-  background: var(--a3st-statusbar);
-  color: var(--a3st-statusbar-text);
-  font-size: 11px;
-  flex-shrink: 0;
-}
-
-.status-bar-left {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.status-bar-label {
-  opacity: 0.85;
-}
-
-.status-bar-sep {
-  opacity: 0.5;
-  margin: 0 2px;
-}
-
-.status-bar-right {
-  flex-shrink: 0;
-  opacity: 0.9;
-}
-
-.dir-link {
-  color: var(--a3st-statusbar-text);
-  text-decoration: none;
-  max-width: 420px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dir-link:hover {
-  text-decoration: underline;
-}
-
 .global-settings .row {
   display: flex;
   align-items: center;

@@ -7,7 +7,11 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    ArkTechPanel: typeof import('./src/components/console/ArkTechPanel.vue')['default']
     ConsolePageLayout: typeof import('./src/components/ConsolePageLayout.vue')['default']
+    ConsoleShell: typeof import('./src/components/console/ConsoleShell.vue')['default']
+    DashboardHero: typeof import('./src/components/dashboard/DashboardHero.vue')['default']
+    DeployOpsBar: typeof import('./src/components/console/DeployOpsBar.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCard: typeof import('element-plus/es')['ElCard']

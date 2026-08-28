@@ -953,7 +953,15 @@ const filteredList = computed(() => {
           </el-button>
         </div>
 
-        <div class="mods-table-wrap">
+        <div class="mods-archive-head">
+          <div>
+            <p class="mods-archive-kicker">WORKSHOP / SYNC</p>
+            <h2 class="mods-archive-title">MOD ARCHIVE</h2>
+          </div>
+          <span class="mods-archive-count">{{ filteredList.length }} ENTRIES</span>
+        </div>
+
+        <div class="mods-table-wrap mods-archive-table">
           <el-table :data="filteredList" stripe size="small" height="100%">
             <el-table-column label="序号" width="52" align="center">
               <template #default="{ $index }">{{ $index + 1 }}</template>

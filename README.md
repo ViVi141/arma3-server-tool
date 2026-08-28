@@ -92,6 +92,7 @@ npm run dev:web         # 前端 http://localhost:5173
 
 - [docs/README.md](docs/README.md) — 文档索引（**请先读 v2 章节**）
 - [docs/v2-quickstart.md](docs/v2-quickstart.md) — v2 安装与开发
+- [docs/architecture-v2.md](docs/architecture-v2.md) — v2 分层与前后端边界
 - [docs/config-workflow.md](docs/config-workflow.md) — 配置保存/写入/启停语义
 - [docs/agent-capabilities.md](docs/agent-capabilities.md) — API 能力说明
 - [docs/agent-channels.md](docs/agent-channels.md) — 任务格式与端点

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
+import DeployOpsBar from "@/components/console/DeployOpsBar.vue";
 import { UI_COPY } from "@/constants/uiCopy";
 import { ref } from "vue";
 import { ElMessage } from "element-plus";
@@ -67,6 +68,7 @@ function severityTag(severity: PreflightIssue["severity"]): "success" | "warning
 
 <template>
   <ConsolePageLayout>
+    <DeployOpsBar />
     <template #toolbar>
       <span class="preflight-title" data-testid="preflight-page">{{ UI_COPY.preflight }}</span>
       <el-radio-group v-model="checkMode" size="small">

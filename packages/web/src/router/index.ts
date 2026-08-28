@@ -12,6 +12,26 @@ const routes: RouteRecordRaw[] = [
     name: "connections",
     component: () => import("../views/ConnectionsView.vue"),
   },
+  {
+    path: "/demo",
+    name: "demo-index",
+    component: () => import("../views/demo/StyleDemoIndexView.vue"),
+  },
+  {
+    path: "/demo/refined",
+    name: "demo-refined",
+    component: () => import("../views/demo/StyleDemoRefinedView.vue"),
+  },
+  {
+    path: "/demo/modern",
+    name: "demo-modern",
+    component: () => import("../views/demo/StyleDemoModernView.vue"),
+  },
+  {
+    path: "/demo/ark",
+    name: "demo-ark",
+    component: () => import("../views/demo/StyleDemoArkView.vue"),
+  },
   ...(isMobile
     ? []
     : [

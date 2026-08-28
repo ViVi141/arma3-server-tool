@@ -18,6 +18,16 @@ const addForm = ref({
   token: "",
 });
 
+function connectionTag(conn: SavedConnection): string {
+  if (conn.id === "local") {
+    return "LOCAL";
+  }
+  if (/192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\./.test(conn.baseUrl)) {
+    return "LAN";
+  }
+  return "NODE";
+}
+
 async function testConnection(baseUrl: string, token?: string): Promise<boolean> {
   const client = createClient(baseUrl.trim().replace(/\/+$/, ""), token);
   try {
@@ -82,55 +92,68 @@ function selectConnection(id: string) {
 </script>
 
 <template>
-  <div class="connections-shell" data-testid="connections-page">
+  <div class="conn-page connections-shell" data-testid="connections-page">
+    <header class="conn-page__hero">
+      <p class="conn-page__kicker">OPERATOR / 主机连接</p>
+      <h1 class="conn-page__title">Nodes</h1>
+      <p class="conn-page__sub">
+        选择被控 service 节点进入控制台。本地、局域网与远程均通过同一 HTTP API 连接。
+      </p>
+    </header>
+
     <div class="connections-toolbar">
-      <span class="connections-title">{{ UI_COPY.connectionTitle }}</span>
-      <el-button size="small" type="primary" data-testid="btn-add-host" @click="showAdd = true">{{ UI_COPY.addHost }}</el-button>
+      <span class="connections-title conn-page__toolbar-title">{{ UI_COPY.connectionTitle }}</span>
+      <el-button size="small" type="primary" data-testid="btn-add-host" @click="showAdd = true">
+        {{ UI_COPY.addHost }}
+      </el-button>
     </div>
 
     <div class="connections-body">
-      <el-alert
-        type="info"
-        show-icon
-        :closable="false"
-        class="connections-remote-hint"
+      <p
+        class="conn-page__hint"
         data-testid="remote-connection-hint"
-        title="远程连接"
-        description="开服机运行 @a3st/service 后，在此添加 http://<IP>:19580 与 API Token。双机 + OpenClaw 见 docs/deployment-ab-openclaw.md；Electron 桌面版可在「被控设置」开启远程监听。"
-      />
+      >
+        远程：开服机运行 @a3st/service 后添加 http://&lt;IP&gt;:19580 与 Token。双机见 docs/deployment-ab-openclaw.md；Electron 可在「被控设置」开启 0.0.0.0 监听。
+      </p>
+
       <div v-if="!store.connections.length" class="connections-empty">
         <p>{{ UI_COPY.connectionEmpty }}</p>
         <p class="connections-empty-hint">{{ UI_COPY.connectionEmptyHint }}</p>
-        <el-button size="small" type="primary" data-testid="btn-add-host-empty" @click="showAdd = true">添加主机</el-button>
+        <el-button size="small" type="primary" data-testid="btn-add-host-empty" @click="showAdd = true">
+          添加主机
+        </el-button>
       </div>
 
       <el-scrollbar v-else class="connections-scroll">
-        <div
-          v-for="conn in store.connections"
-          :key="conn.id"
-          class="connection-row"
-          :class="{ selected: selectedId === conn.id }"
-          :data-testid="'connection-row-' + conn.id"
-          @click="selectConnection(conn.id)"
-          @dblclick="connect(conn)"
-        >
-          <div class="connection-main">
-            <div class="connection-name">{{ conn.name }}</div>
-            <div class="connection-url">{{ conn.baseUrl }}</div>
-          </div>
-          <div class="connection-actions">
-            <el-button
-              size="small"
-              type="primary"
-              data-testid="btn-connect"
-              :loading="connectingId === conn.id"
-              @click.stop="connect(conn)"
-            >
-              连接
-            </el-button>
-            <el-button size="small" @click.stop="doRemove(conn.id)">移除</el-button>
-          </div>
-        </div>
+        <ul class="conn-archive">
+          <li
+            v-for="conn in store.connections"
+            :key="conn.id"
+            class="conn-archive__row"
+            :class="{ 'is-selected': selectedId === conn.id }"
+            :data-testid="'connection-row-' + conn.id"
+            @click="selectConnection(conn.id)"
+            @dblclick="connect(conn)"
+          >
+            <span class="conn-archive__tag">{{ connectionTag(conn) }}</span>
+            <div class="conn-archive__body">
+              <div class="conn-archive__name">{{ conn.name }}</div>
+              <div class="conn-archive__url">{{ conn.baseUrl }}</div>
+            </div>
+            <div class="conn-archive__actions">
+              <el-button
+                size="small"
+                type="primary"
+                data-testid="btn-connect"
+                :loading="connectingId === conn.id"
+                @click.stop="connect(conn)"
+              >
+                连接
+              </el-button>
+              <el-button size="small" @click.stop="doRemove(conn.id)">移除</el-button>
+            </div>
+          </li>
+        </ul>
       </el-scrollbar>
     </div>
 
@@ -155,7 +178,7 @@ function selectConnection(id: string) {
 </template>
 
 <style scoped>
-.connections-shell {
+.conn-page {
   height: 100%;
   min-height: 0;
   display: flex;
@@ -189,55 +212,6 @@ function selectConnection(id: string) {
   flex-direction: column;
 }
 
-.connections-remote-hint {
-  margin: 8px 10px 0;
-  flex-shrink: 0;
-}
-
-.connections-scroll {
-  flex: 1;
-  min-height: 0;
-}
-
-.connection-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--a3st-border-subtle);
-  cursor: default;
-}
-
-.connection-row:hover {
-  background: var(--a3st-bg-hover);
-}
-
-.connection-row.selected {
-  background: var(--a3st-bg-active);
-  border-left: 2px solid var(--a3st-accent);
-  padding-left: 10px;
-}
-
-.connection-name {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--a3st-text);
-}
-
-.connection-url {
-  font-size: 11px;
-  font-family: var(--a3st-font-mono);
-  color: var(--a3st-text-dim);
-  margin-top: 2px;
-}
-
-.connection-actions {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
 .connections-scroll {
   flex: 1;
   min-height: 0;
@@ -258,5 +232,13 @@ function selectConnection(id: string) {
   color: var(--a3st-text-dim);
   font-size: 11px;
   margin-bottom: 4px;
+}
+
+[data-visual="classic"] .conn-archive__tag {
+  display: none;
+}
+
+[data-visual="classic"] .conn-archive__row {
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 </style>
