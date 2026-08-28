@@ -53,6 +53,7 @@ import {
 } from "../scheduling/server-lifecycle.js";
 import { syncCronJobsForServer } from "../scheduling/cron-sync.js";
 import { validateServerPath } from "../utils/path-validation.js";
+import { defaultServerExecutable } from "../platform/index.js";
 
 export async function apiRoutes(app: FastifyInstance) {
   // ===================== Servers CRUD =====================
@@ -184,7 +185,7 @@ export async function apiRoutes(app: FastifyInstance) {
       server: {
         configName,
         serverDir,
-        executable: "arma3server_x64.exe",
+        executable: defaultServerExecutable(),
       },
     };
     app.configStore.save(uuid, initialConfig, configName);
@@ -1357,7 +1358,7 @@ async function executeCommand(
         server: {
           configName,
           serverDir,
-          executable: "arma3server_x64.exe",
+          executable: defaultServerExecutable(),
         },
       };
       app.configStore.save(newUuid, initialConfig, configName);

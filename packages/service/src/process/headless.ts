@@ -3,7 +3,9 @@ import type { ServerConfigPackage } from "../types/config.js";
 import {
   buildHeadlessClientCommandLine,
   getServerExecutablePath,
+  splitCommandLine,
 } from "../config/game-config-writer.js";
+import { isWindows } from "../platform/index.js";
 import { scanModsForConfig } from "../mods/mod-config-sync.js";
 import type { FastifyInstance } from "fastify";
 
@@ -45,13 +47,13 @@ export function startHeadlessClient(
   };
 
   let proc: ChildProcess;
-  if (process.platform === "win32") {
+  if (isWindows()) {
     proc = spawn(executable, [commandLine], {
       ...spawnOpts,
       windowsVerbatimArguments: true,
     });
   } else {
-    proc = spawn(executable, [commandLine], spawnOpts);
+    proc = spawn(executable, splitCommandLine(commandLine), spawnOpts);
   }
 
   hcProcesses.set(uuid, proc);

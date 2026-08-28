@@ -1,10 +1,11 @@
 # Agent 自动化能力详解
 
-> 执行核心：`Arma3ServerTools.Application.Automation.ServerAutomationService`  
-> 网络入口：`Arma3ServerTools.Agent.Host`（Kestrel HTTP + 可选 Inbox 文件）  
+> **v2 执行组件（当前主线）**：`@a3st/service`（`packages/service`，Fastify + Node.js）  
+> **v1 归档**：`Arma3ServerTools.Agent.Host` + `ServerAutomationService`（`legacy/`）  
+> **权威列表**：运行中 Service 的 `GET /api/v1/actions`  
 > IM（QQ 等）：由 **OpenClaw 部署在 B 机** 接入，见 [deployment-ab-openclaw.md](deployment-ab-openclaw.md)
 
-本文说明 **当前版本实际具备的能力**、**每个动作在磁盘与进程上的效果**、**前置条件与限制**。
+本文说明 **HTTP API 与 task action 的实际行为**、**磁盘/进程效果**、**前置条件与限制**。下文「工具配置包 / 写入游戏配置」语义与 [config-workflow.md](config-workflow.md) 一致。
 
 ---
 
@@ -14,10 +15,11 @@
 |------|----------|
 | **OpenClaw（B 机）** | QQ/微信等通道、自然语言理解、多轮确认、按用户/群做权限、把意图交给 Skill |
 | **Skill + `a3st-invoke.ps1`（B 机）** | 把对话转成任务 JSON、带 Bearer Token 调 A 机 HTTP |
-| **Agent.Host（A 机）** | 监听 HTTP（及可选 Inbox）、串行执行任务、写日志 |
-| **Application 层（A 机）** | 与 WinForms 共用：`ServerConfigService`、`ServerProcessService`、`IGameConfigWriter`、`ISteamCmdService`、`ModEnablerService`、`ModScannerService`、`BikeyService`、`IRconService` 等 |
+| **`@a3st/service`（A 机，v2）** | Fastify `/api/v1/*`、异步任务队列、SSE（SteamCMD 进度） |
+| **Service 模块（A 机）** | `ConfigStore`、`ProcessManager`、`game-config-writer`、`SteamCmdManager`、`ModScanner`、`BikeyService`、`RconClient`、`Scheduler`、`MonitoringDb` 等（`packages/service/src/`） |
+| **v1 等价层** | `legacy/` 中 C# Application + Agent.Host；action 名大体兼容 |
 
-**不包含**：在 A 机上直接收 QQ 协议、在 B 机上启动 `arma3server.exe`、远程桌面代点 WinForms。
+**不包含**：在 A 机上直接收 QQ 协议、在 B 机上启动 `arma3server.exe`、远程代点 Web/Electron UI。
 
 ---
 
@@ -28,9 +30,11 @@
 | GET | `/api/v1/health` | 无 | 探活；返回服务名、`remoteAccessEnabled`、`publicBaseUrl` 等元信息 |
 | GET | `/api/v1/servers` | Bearer | 列出工具内已保存的**所有服务器配置**（名称、UUID、文件等摘要） |
 | GET | `/api/v1/servers/{uuid}/status` | Bearer | 单服**运行态**：是否在跑、PID、当前任务模板名（配置首项）、已勾选为服模的模组数量 |
-| POST | `/api/v1/task` | Bearer | 按 JSON **顺序执行**多条命令（见下文 `action`）；全局互斥锁，同一时刻只跑一个任务 |
+| POST | `/api/v1/task` | Bearer | 按 JSON **顺序执行**多条命令（见下文 `action`）；任务管理器串行执行 |
+| GET | `/api/v1/tasks/{taskId}` | Bearer | 查询异步任务状态（`async: true` 时） |
+| PATCH | `/api/v1/servers/{uuid}/config` | Bearer | 嵌套合并配置包；`?writeCfg=true` 同时写入游戏 cfg |
 
-远程部署时 A 机需 `remoteAccessEnabled` + 防火墙 + 可选 `allowedCallerIps`，见 [deployment-ab-openclaw.md](deployment-ab-openclaw.md)。
+远程部署：A 机 Service 监听 `0.0.0.0`（Electron **被控设置** 或 `HOST` 环境变量）+ 防火墙 + Bearer Token；双机拓扑见 [deployment-ab-openclaw.md](deployment-ab-openclaw.md)。
 
 ---
 
@@ -92,16 +96,16 @@
 - `processService.Start`：要求游戏目录已存在 `a3st_serverconfig/{uuid}/server.cfg`，**不再**自动 `WriteAll`。  
 - **不**自动 `save` 工具配置包（v1.5+）。
 
-**注意**：改配置后须先 `save`（工具包）+ `write_cfg`（游戏 cfg），或 GUI「应用到服务器目录」，再 `start`。自动化不会替你点 WinForms 各 Tab。
+**注意**：改配置后须先 `save`（配置包）+ `write_cfg`（游戏 cfg），或 Web 顶栏 **写入游戏配置**，再 `start`。
 
 ### 4.4 `restart`（重启）
 
 顺序等价：`stop` → `write_cfg`（仅写游戏 cfg）→ `start`。  
 若刚通过 `PUT /config` 或 GUI 改了设置，应先 `save` 再 `restart`，否则 `write_cfg` 使用的是磁盘上已保存的配置包。
 
-### 4.5 `write_cfg` / `apply`（应用到服务器目录）
+### 4.5 `write_cfg` / `apply`（写入游戏配置）
 
-- `SaveAndWrite`：先保存 A3ST 配置包，再写入 `server.cfg`、`basic.cfg`、Profile、BattlEye 等（与 GUI「写入服务器」一致）。  
+- 保存配置包并写入 `server.cfg`、`basic.cfg`、Profile、BattlEye 等（与 Web **写入游戏配置** 一致）。  
 - **不**启停进程（除非后续另有 `start`/`restart`）。
 
 ### 4.6 `switch_mission`（切换任务）
@@ -213,7 +217,8 @@
 | 项 | 说明 |
 |----|------|
 | **任务串行** | `ExecuteTaskAsync` 内全局锁；多路 QQ/脚本同时下命令会排队，避免双写。 |
-| **与 WinForms** | 不建议同一台机同时用 GUI 与 Agent 抢同一服；易状态不一致。 |
+| **与 Web 控制台** | 不建议同一台机同时用浏览器/Electron 与自动化脚本抢写同一服；易状态不一致。 |
+| **SteamCMD** | 全局互斥；长任务请 `async: true` + 轮询 `GET /tasks/{id}` 或 SSE `/api/v1/sse/steamcmd` |
 | **鉴权** | HTTP 使用 Bearer `apiToken`；远程时务必 **TLS 或专线/VPN** + **IP 白名单**（仅 B）。 |
 | **QQ 权限** | 谁能在群里「重启服」应在 **OpenClaw** 侧配置；Agent 不识别 QQ 号。 |
 | **敏感信息** | 不要把 `apiToken`、Steam 密码、RCon 明文打进公网 LLM 或群公告。 |
@@ -236,14 +241,22 @@
 
 **AI 易踩坑（完整表）**：见 [ai-agent-pitfalls.md](ai-agent-pitfalls.md)。
 
-**仍建议后续迭代**：
+**v2 已具备（相对 v1 文档滞后项）**：
+
+| 能力 | 端点 / action |
+|------|----------------|
+| 配置 PATCH 合并 | `PATCH /api/v1/servers/{uuid}/config` |
+| 监控导出 | `GET .../monitoring/export/html`、`.../export/csv` |
+| 首服一键 | task `first_server_setup`（SteamCMD + 写 cfg + 可选监控部署） |
+| SteamCMD | `ensure_steamcmd`、`install_dedicated_server`、`GET /steamcmd/status` |
+
+**仍建议注意**：
 
 | 方向 | 说明 |
 |------|------|
-| JSON Merge **PATCH** 配置 | 已支持 `PATCH /api/v1/servers/{uuid}/config`（嵌套对象合并；数组整段替换） |
-| 大 HTML 勿塞进 task JSON | 用 `POST .../mod-list-html` 或 Inbox，避免 IM/模型截断 |
-| 监控 CSV/HTML **导出** REST | Application 有导出服务，未单独挂端点 |
-| RCon 运行时改密 | GUI 有，Agent 未暴露 |
+| 大 HTML 勿塞进 task JSON | 用 `POST .../mod-list-html`，避免 IM/模型截断 |
+| RCon 运行时改密 | Web **远程控制** 页可改；task 侧仍以配置包为准 |
+| v1 Inbox 文件任务 | v2 仅 HTTP；OpenClaw 走 `a3st-invoke.ps1` |
 
 ---
 
@@ -259,4 +272,4 @@
 
 ---
 
-*若行为与代码不一致，以 `src/Arma3ServerTools.Application/Automation/ServerAutomationService.cs` 为准。*
+*若行为与代码不一致，以 v2 `packages/service/src/api/routes.ts`（task 分支）与 `GET /api/v1/actions` 为准；v1 见 `legacy/`。*

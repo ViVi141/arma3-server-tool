@@ -89,6 +89,15 @@ function selectConnection(id: string) {
     </div>
 
     <div class="connections-body">
+      <el-alert
+        type="info"
+        show-icon
+        :closable="false"
+        class="connections-remote-hint"
+        data-testid="remote-connection-hint"
+        title="远程连接"
+        description="开服机运行 @a3st/service 后，在此添加 http://<IP>:19580 与 API Token。双机 + OpenClaw 见 docs/deployment-ab-openclaw.md；Electron 桌面版可在「被控设置」开启远程监听。"
+      />
       <div v-if="!store.connections.length" class="connections-empty">
         <p>{{ UI_COPY.connectionEmpty }}</p>
         <p class="connections-empty-hint">{{ UI_COPY.connectionEmptyHint }}</p>
@@ -176,10 +185,18 @@ function selectConnection(id: string) {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.connections-remote-hint {
+  margin: 8px 10px 0;
+  flex-shrink: 0;
 }
 
 .connections-scroll {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .connection-row {
@@ -219,6 +236,11 @@ function selectConnection(id: string) {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
+}
+
+.connections-scroll {
+  flex: 1;
+  min-height: 0;
 }
 
 .connections-empty {

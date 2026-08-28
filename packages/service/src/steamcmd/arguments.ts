@@ -41,9 +41,13 @@ export function buildDedicatedServerUpdateArguments(
   password: string,
   installDir: string,
 ): string {
+  const isLinux = process.platform === "linux";
+  const appUpdate = isLinux
+    ? `+app_update ${ARMA3_DEDICATED_APP_ID} validate`
+    : `+app_update ${ARMA3_DEDICATED_APP_ID} -beta creatordlc validate`;
   return (
     `+force_install_dir "${installDir}" +login ${quoteSteamCmdArgument(username)} ${quoteSteamCmdArgument(password)}`
-    + ` +app_update ${ARMA3_DEDICATED_APP_ID} -beta creatordlc validate +quit`
+    + ` ${appUpdate} +quit`
   );
 }
 

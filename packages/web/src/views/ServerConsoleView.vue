@@ -12,6 +12,7 @@ import { resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 import { CONFIG_EDITOR_KEY, type ConfigEditorRegistration } from "@/composables/configEditor";
 import UnsavedChangesDialog from "@/components/UnsavedChangesDialog.vue";
 import NewServerDialog from "@/components/NewServerDialog.vue";
+import FirstServerWizard from "@/components/FirstServerWizard.vue";
 import type { ServerSummary, ServerStatus, ServerSyncState } from "@a3st/api-client";
 
 const route = useRoute();
@@ -21,6 +22,7 @@ const uiSettings = useUiSettingsStore();
 const configSession = useConfigSessionStore();
 const unsavedDialog = ref<InstanceType<typeof UnsavedChangesDialog> | null>(null);
 const showNewServerDialog = ref(false);
+const showFirstServerWizard = ref(false);
 const activeEditor = ref<ConfigEditorRegistration | null>(null);
 
 provide(CONFIG_EDITOR_KEY, {
@@ -200,6 +202,15 @@ async function navigateToTab(next: string): Promise<void> {
 
 function createServer() {
   showNewServerDialog.value = true;
+}
+
+function openFirstServerWizard() {
+  showFirstServerWizard.value = true;
+}
+
+async function onFirstServerWizardCompleted(uuid: string) {
+  await loadServers();
+  await selectServer(uuid);
 }
 
 async function onNewServerConfirm(payload: { configName: string; serverDir: string }) {
@@ -509,6 +520,9 @@ async function reloadFromDisk(): Promise<void> {
         <el-button size="small" text @click="$router.push('/connections')">连接</el-button>
       </div>
       <div class="panel-actions">
+        <el-button size="small" type="primary" data-testid="btn-first-server-wizard" @click="openFirstServerWizard">
+          {{ UI_COPY.firstServerWizard }}
+        </el-button>
         <el-button size="small" data-testid="btn-new-server" @click="createServer">新建配置</el-button>
         <el-button size="small" :disabled="!selectedUuid" @click="renameServer">重命名</el-button>
         <el-button size="small" :disabled="!selectedUuid" @click="cloneServer">复制</el-button>
@@ -528,9 +542,12 @@ async function reloadFromDisk(): Promise<void> {
           <span :class="serverDotClass(s.uuid)" aria-hidden="true" />
           <div class="server-name">{{ s.configName }}</div>
         </div>
-        <div v-if="!loading && servers.length === 0" class="server-empty">
-          <p>尚无服务器配置</p>
-          <el-button size="small" type="primary" data-testid="btn-new-server-empty" @click="createServer">
+        <div v-if="!loading && servers.length === 0" class="server-empty" data-testid="server-empty-state">
+          <p>{{ UI_COPY.firstServerEmptyHint }}</p>
+          <el-button size="small" type="primary" data-testid="btn-first-server-wizard-empty" @click="openFirstServerWizard">
+            {{ UI_COPY.firstServerWizard }}
+          </el-button>
+          <el-button size="small" data-testid="btn-new-server-empty" @click="createServer">
             新建配置
           </el-button>
         </div>
@@ -615,8 +632,14 @@ async function reloadFromDisk(): Promise<void> {
       </div>
 
       <div class="content-area">
-        <div v-if="!selectedUuid" class="content-empty">
-          <span>请从左侧选择或新建服务器配置</span>
+        <div v-if="!selectedUuid" class="content-empty" data-testid="content-empty-state">
+          <p>{{ UI_COPY.firstServerEmptyHint }}</p>
+          <div class="content-empty-actions">
+            <el-button type="primary" size="small" data-testid="btn-first-server-wizard-main" @click="openFirstServerWizard">
+              {{ UI_COPY.firstServerWizard }}
+            </el-button>
+            <el-button size="small" @click="createServer">新建配置</el-button>
+          </div>
         </div>
         <template v-else>
           <DashboardView v-if="activeTab === 'dashboard'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
@@ -655,6 +678,7 @@ async function reloadFromDisk(): Promise<void> {
 
     <UnsavedChangesDialog ref="unsavedDialog" />
     <NewServerDialog v-model="showNewServerDialog" @confirm="onNewServerConfirm" />
+    <FirstServerWizard v-model="showFirstServerWizard" @completed="onFirstServerWizardCompleted" />
   </div>
 </template>
 
@@ -886,6 +910,18 @@ import AboutView from "./AboutView.vue";
   display: flex;
   flex-direction: column;
   background: var(--a3st-bg);
+}
+
+.content-empty p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--a3st-text-dim);
+}
+
+.content-empty-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
 }
 
 .content-empty {

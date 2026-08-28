@@ -34,5 +34,12 @@ Invoke-Step "Run tests" { npm test }
 Invoke-Step "Build service" { npm run build:service }
 Invoke-Step "Build web" { npm run build:web }
 
+if ($env:A3ST_SKIP_E2E -ne "1") {
+    Invoke-Step "E2E web (Playwright)" { powershell -ExecutionPolicy Bypass -File scripts/ci-e2e.ps1 }
+} else {
+    Write-Host ""
+    Write-Host "==> E2E web (skipped, A3ST_SKIP_E2E=1)" -ForegroundColor DarkGray
+}
+
 Write-Host ""
 Write-Host "Local CI passed." -ForegroundColor Green

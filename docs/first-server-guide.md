@@ -6,9 +6,9 @@
 
 ## v2 快速路径（Vue + Node Service）
 
-1. 按 [v2-quickstart.md](v2-quickstart.md) 启动 `@a3st/service` 与 Web 前端（或 Electron 桌面版）。
+1. 按 [v2-quickstart.md](v2-quickstart.md)（Windows / 开发）或 [linux-server.md](linux-server.md)（Linux 开服机）启动 Service 与 Web。
 2. 连接页选择 **本机** → **连接**。
-3. **向导** 或 **基本** 页设置服务器目录（路径勿含中文）。
+3. **首服向导** 或 **基本** 页设置服务器目录（路径勿含中文）。
 4. **SteamCMD** 页安装 `arma3server`。
 5. 各设置页修改后点顶栏 **保存**，再点 **写入游戏配置**。
 6. **开服检查** → **启动**。

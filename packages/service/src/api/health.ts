@@ -1,15 +1,20 @@
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
+import { getServicePlatformInfo } from "../platform/index.js";
 
 export async function healthRoutes(app: FastifyInstance) {
   app.get("/health", async (_req, _reply) => {
-    const settings = { remoteAccessEnabled: false };
+    const platform = getServicePlatformInfo();
     return {
       success: true,
       service: "Arma3ServerTools.Service",
       version: "2.0.0-alpha",
       remoteAccessEnabled: false,
       publicBaseUrl: `http://127.0.0.1:${(app.server.address() as { port: number })?.port ?? 19580}`,
+      platform: platform.os,
+      defaultServerExecutable: platform.serverExecutable,
+      defaultServerDir: platform.serverDirExample,
+      steamCmdBinary: platform.steamCmdBinary,
     };
   });
 

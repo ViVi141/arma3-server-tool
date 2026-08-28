@@ -11,6 +11,8 @@ import {
   combineModListSegments,
   stripModParameters,
 } from "../mods/mod-command-line.js";
+import { defaultServerExecutable } from "../platform/index.js";
+import { splitCommandLine as splitCommandLineFromPlatform } from "../platform/argv.js";
 
 export const CONFIG_FOLDER = "a3st_serverconfig";
 
@@ -596,31 +598,7 @@ export function writeAll(uuid: string, config: ServerConfigPackage): WriteResult
 }
 
 export function splitCommandLine(line: string): string[] {
-  const args: string[] = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') {
-      inQuotes = !inQuotes;
-      continue;
-    }
-    if (c === " " && !inQuotes) {
-      if (current.length > 0) {
-        args.push(current);
-        current = "";
-      }
-      continue;
-    }
-    current += c;
-  }
-
-  if (current.length > 0) {
-    args.push(current);
-  }
-
-  return args;
+  return splitCommandLineFromPlatform(line);
 }
 
 export function buildStartCommandLine(
@@ -759,7 +737,7 @@ export function buildHeadlessClientCommandLine(
 
 export function getServerExecutablePath(config: ServerConfigPackage): string {
   const serverDir = str(config.server?.serverDir).trim();
-  const executable = str(config.server?.executable, "arma3server_x64.exe");
+  const executable = str(config.server?.executable, defaultServerExecutable());
   if (path.isAbsolute(executable)) {
     return executable;
   }

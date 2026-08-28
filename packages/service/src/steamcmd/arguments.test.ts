@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as path from "node:path";
 import {
+  buildDedicatedServerUpdateArguments,
   buildWorkshopDownloadArguments,
   countDistinctModIds,
   quoteSteamCmdArgument,
@@ -49,6 +50,21 @@ describe("buildWorkshopDownloadArguments", () => {
       `+force_install_dir "${workshopRoot}" +login "user" "pass" +workshop_download_item 107410 111 +workshop_download_item 107410 222 +quit`,
     );
     expect(countDistinctModIds([111, 111, 0, 222])).toBe(2);
+  });
+});
+
+describe("buildDedicatedServerUpdateArguments", () => {
+  it("uses platform-specific app_update flags", () => {
+    const args = buildDedicatedServerUpdateArguments("user", "pass", "/opt/arma3");
+    expect(args).toContain('+force_install_dir "/opt/arma3"');
+    expect(args).toContain('+login "user" "pass"');
+    if (process.platform === "linux") {
+      expect(args).toContain("+app_update 233780 validate");
+      expect(args).not.toContain("creatordlc");
+    } else {
+      expect(args).toContain("-beta creatordlc validate");
+    }
+    expect(args.endsWith("+quit")).toBe(true);
   });
 });
 

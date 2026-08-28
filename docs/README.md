@@ -10,6 +10,8 @@
 | 文档 | 说明 |
 |------|------|
 | [v2-quickstart.md](v2-quickstart.md) | **首选** — 安装、双进程开发、Electron |
+| [linux-server.md](linux-server.md) | Linux 开服机（Service + SteamCMD + 浏览器） |
+| [desktop-clean-machine-test.md](desktop-clean-machine-test.md) | Electron 干净机实测与打包冒烟 |
 | [config-workflow.md](config-workflow.md) | 配置包 vs 游戏 cfg；含 **v2 Web 按钮对照** |
 | [agent-capabilities.md](agent-capabilities.md) | Task `action` 行为 |
 | [agent-channels.md](agent-channels.md) | HTTP API、任务 JSON |
@@ -23,6 +25,8 @@
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/ci-local.ps1
 ```
+
+含 Playwright E2E（自动拉起临时 Service）。跳过 E2E：`$env:A3ST_SKIP_E2E=1` 后再跑上述命令。
 
 ---
 

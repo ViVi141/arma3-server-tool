@@ -35,6 +35,15 @@ export function isUdpPortInUse(port: number): boolean {
     }
   }
 
+  if (process.platform === "linux") {
+    try {
+      const output = execSync("ss -uln", { encoding: "utf-8", stdio: "pipe", timeout: 3000 });
+      return output.includes(`:${port} `);
+    } catch {
+      return false;
+    }
+  }
+
   return false;
 }
 

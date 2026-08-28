@@ -4,7 +4,8 @@ import * as fs from "node:fs";
 import { EventEmitter } from "node:events";
 import type { ServerConfigPackage } from "../types/config.js";
 import type { ServerProcessState } from "../types/server.js";
-import { getServerExecutablePath } from "../config/game-config-writer.js";
+import { getServerExecutablePath, splitCommandLine } from "../config/game-config-writer.js";
+import { isWindows } from "../platform/index.js";
 import { isProcessRunning, verifyProcessIdentity } from "./identity.js";
 
 export interface SpawnOptions {
@@ -46,13 +47,13 @@ export class ProcessManager extends EventEmitter {
 
       let proc: ChildProcess;
       if (opts.commandLine !== undefined) {
-        if (process.platform === "win32") {
+        if (isWindows()) {
           proc = spawn(opts.executable, [opts.commandLine], {
             ...spawnOpts,
             windowsVerbatimArguments: true,
           });
         } else {
-          proc = spawn(opts.executable, [opts.commandLine], spawnOpts);
+          proc = spawn(opts.executable, splitCommandLine(opts.commandLine), spawnOpts);
         }
       } else {
         proc = spawn(opts.executable, opts.args ?? [], spawnOpts);

@@ -1,13 +1,29 @@
 # 已知问题与用户反馈记录
 
-> 更新日期：2026-06-01  
-> 关联：[README.md](README.md) · [CHANGELOG.md](CHANGELOG.md) · [config-workflow.md](config-workflow.md)
+> 更新日期：2026-08-28  
+> 关联：[README.md](README.md) · [CHANGELOG.md](CHANGELOG.md) · [config-workflow.md](config-workflow.md) · [smoke-checklist.md](smoke-checklist.md)
 
 本文记录用户反馈的问题及处理状态。
 
 ---
 
-## 打开问题
+## v2 主线状态（2.0.0-alpha）
+
+| 项 | 状态 | 说明 |
+|----|------|------|
+| 核心开服流程 | 可用 | Windows / **Linux** 开服机；保存 → 写入游戏配置 → 开服检查 → 启动 |
+| 首服向导 | 已提供 | Web 控制台 **首服向导**（多步创建配置包） |
+| 正式安装包 | 进行中 | Electron 可 `pack:desktop`；WinForms 安装包仍见 `legacy/` |
+| Agent 文档 | 已更新 v2 | 以 `GET /api/v1/actions` 为准；v1 见 `legacy/` |
+| E2E 测试 | 已纳入 CI | Playwright + 临时 Service（`scripts/ci-e2e.ps1`） |
+
+### v2 打开问题
+
+（当前无未关闭项）
+
+---
+
+## 打开问题（全版本）
 
 （当前无未关闭项）
 
@@ -45,5 +61,6 @@
 
 | 日期 | 说明 |
 |------|------|
+| 2026-08-28 | 增加 v2 alpha 状态表；首服向导与 smoke 清单 v2 章节 |
 | 2026-06-01 | 增加 v1.5.0 升级说明 |
 | 2026-05-27 | ISSUE-01～04 记录；均已修复或改进 |

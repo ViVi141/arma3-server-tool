@@ -24,6 +24,10 @@ export interface HealthData {
   version: string;
   remoteAccessEnabled: boolean;
   publicBaseUrl?: string;
+  platform?: string;
+  defaultServerExecutable?: string;
+  defaultServerDir?: string;
+  steamCmdBinary?: string;
 }
 
 // ---- Actions (capability discovery) ----
@@ -89,6 +93,10 @@ export type TaskAction =
   | "import_mods_html"
   | "scan_mods"
   | "update_server"
+  | "ensure_steamcmd"
+  | "install_dedicated_server"
+  | "first_server_setup"
+  | "create_server"
   | "preflight"
   | "sync_cron_jobs"
   | "rcon_players"

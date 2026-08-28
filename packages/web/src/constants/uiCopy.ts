@@ -12,6 +12,8 @@ export const UI_COPY = {
   connectionTitle: "主机连接",
   connectionEmpty: "尚未添加主机",
   connectionEmptyHint: "添加本机或被控服务地址后即可管理 Arma 3 服务器",
+  firstServerWizard: "首服向导",
+  firstServerEmptyHint: "尚无服务器配置，可使用首服向导从零创建",
   addHost: "添加主机...",
   addHostDialog: "添加主机",
   modsImport: "导入模组",

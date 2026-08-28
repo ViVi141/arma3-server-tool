@@ -10,6 +10,7 @@ import {
 import { collectModPaths } from "../mods/paths.js";
 import { getServerKeysDirectory } from "../mods/bikey-service.js";
 import type { FastifyInstance } from "fastify";
+import { resolveSteamCmdPath } from "../platform/index.js";
 
 export interface DiagnosticIssue {
   category: string;
@@ -60,8 +61,8 @@ function checkSteamCmd(app: FastifyInstance, issues: DiagnosticIssue[]): void {
     });
   }
 
-  const steamCmdExe = path.join(root, "steamcmd.exe");
-  if (fs.existsSync(steamCmdExe)) {
+  const steamCmdEntry = resolveSteamCmdPath(root);
+  if (fs.existsSync(steamCmdEntry)) {
     issues.push({
       category: "SteamCMD",
       severity: "info",
@@ -71,7 +72,7 @@ function checkSteamCmd(app: FastifyInstance, issues: DiagnosticIssue[]): void {
     issues.push({
       category: "SteamCMD",
       severity: "warning",
-      message: `未找到 steamcmd.exe: ${steamCmdExe}`,
+      message: `未找到 SteamCMD: ${steamCmdEntry}`,
     });
   }
 }

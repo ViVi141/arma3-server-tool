@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { connectConsole, ensureTestServer } from "./helpers";
 
 test.describe("Arma3 Server Tools Web UI", () => {
   test.beforeEach(async ({ page }) => {
@@ -18,16 +19,14 @@ test.describe("Arma3 Server Tools Web UI", () => {
   });
 
   test("connect navigates to console", async ({ page }) => {
-    await page.getByTestId("btn-connect").first().click();
-    await page.waitForURL(/\/console\/local\//, { timeout: 15000 });
+    await connectConsole(page);
     await expect(page.getByTestId("console-shell")).toBeVisible();
     await expect(page.getByTestId("server-panel")).toBeVisible();
     await expect(page.getByTestId("nav-panel")).toBeVisible();
   });
 
   test("console toolbar has core actions", async ({ page }) => {
-    await page.getByTestId("btn-connect").first().click();
-    await page.waitForURL(/\/console\/local\//, { timeout: 15000 });
+    await ensureTestServer(page);
     await expect(page.getByTestId("btn-start")).toBeVisible();
     await expect(page.getByTestId("btn-save")).toBeVisible();
     await expect(page.getByTestId("btn-write-cfg")).toHaveText("写入游戏配置");
@@ -36,10 +35,9 @@ test.describe("Arma3 Server Tools Web UI", () => {
   });
 
   test("sidebar navigation switches tabs", async ({ page }) => {
-    await page.getByTestId("btn-connect").first().click();
-    await page.waitForURL(/\/console\/local\//, { timeout: 15000 });
+    await ensureTestServer(page);
 
-    const tabs = ["mods", "missions", "steamcmd", "logs", "preflight"];
+    const tabs = ["basic", "mods", "rcon", "logs", "preflight"];
     for (const tab of tabs) {
       await page.getByTestId(`nav-${tab}`).click();
       await expect(page.getByTestId(`nav-${tab}`)).toHaveClass(/active/);
@@ -66,10 +64,33 @@ test.describe("Arma3 Server Tools Web UI", () => {
   });
 
   test("mods page loads from navigation", async ({ page }) => {
-    await page.getByTestId("btn-connect").first().click();
-    await page.waitForURL(/\/console\/local\//, { timeout: 15000 });
+    await ensureTestServer(page);
     await page.getByTestId("nav-mods").click();
     await expect(page.getByText("扫描刷新")).toBeVisible();
     await expect(page.getByText("获取模组")).toBeVisible();
+  });
+
+  test("first server wizard opens from toolbar", async ({ page }) => {
+    await connectConsole(page);
+    await page.getByTestId("btn-first-server-wizard").click();
+    const dialog = page.getByTestId("first-server-wizard");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "首服向导" })).toBeVisible();
+    await page.getByRole("button", { name: "取消" }).click();
+    await expect(dialog).not.toBeVisible();
+  });
+
+  test("first server wizard has steamcmd step", async ({ page }) => {
+    await connectConsole(page);
+    await page.getByTestId("btn-first-server-wizard").click();
+    for (let i = 0; i < 4; i++) {
+      await page.getByTestId("wizard-next").click();
+    }
+    await expect(page.getByTestId("wizard-steamcmd-step")).toBeVisible();
+    await page.getByRole("button", { name: "取消" }).click();
+  });
+
+  test("connections page shows remote hint", async ({ page }) => {
+    await expect(page.getByTestId("remote-connection-hint")).toBeVisible();
   });
 });

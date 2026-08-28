@@ -14,11 +14,18 @@ import {
   type SteamCmdPathContext,
 } from "./path-helper.js";
 import { ensureWorkshopContentDirectory } from "../settings/steamcmd-settings.js";
+import {
+  isLinux,
+  isWindows,
+  resolveSteamCmdPath,
+  steamCmdArchiveFileName,
+  steamCmdBootstrapRelativePath,
+  steamCmdDownloadUrl,
+  steamCmdEntryName,
+} from "../platform/index.js";
+import { killProcessTree } from "../process/identity.js";
 
-const STEAMCMD_URL = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip";
-const STEAMCMD_ZIP = "steamcmd.zip";
-const STEAMCMD_EXE = "steamcmd.exe";
-const BOOTSTRAP_MARKER = path.join("public", "steambootstrapper_english.txt");
+const BOOTSTRAP_MARKER = steamCmdBootstrapRelativePath();
 const SESSION_OUTPUT_MAX_CHARS = 500000;
 
 export interface SteamCmdOptions {
@@ -83,9 +90,9 @@ export class SteamCmdManager extends EventEmitter {
   }
 
   get isInstalled(): boolean {
-    const exePath = path.join(this.installDir, STEAMCMD_EXE);
+    const entryPath = resolveSteamCmdPath(this.installDir);
     const bootstrapPath = path.join(this.installDir, BOOTSTRAP_MARKER);
-    return fs.existsSync(exePath) && fs.existsSync(bootstrapPath);
+    return fs.existsSync(entryPath) && fs.existsSync(bootstrapPath);
   }
 
   get isRunning(): boolean {
@@ -102,13 +109,14 @@ export class SteamCmdManager extends EventEmitter {
     }
     fs.mkdirSync(this.installDir, { recursive: true });
     this.emit("progress", "下载 SteamCMD...");
-    const zipPath = path.join(this.installDir, STEAMCMD_ZIP);
-    const response = await fetch(STEAMCMD_URL);
+    const archiveName = steamCmdArchiveFileName();
+    const archivePath = path.join(this.installDir, archiveName);
+    const response = await fetch(steamCmdDownloadUrl());
     if (!response.ok || !response.body) {
       throw new Error(`下载 SteamCMD 失败: HTTP ${response.status}`);
     }
     const reader = response.body.getReader();
-    const writer = fs.createWriteStream(zipPath);
+    const writer = fs.createWriteStream(archivePath);
     const total = parseInt(response.headers.get("content-length") ?? "0", 10);
     let received = 0;
     while (true) {
@@ -126,21 +134,23 @@ export class SteamCmdManager extends EventEmitter {
     await finished(writer);
 
     this.emit("progress", "解压 SteamCMD...");
-    const zipArg = zipPath.replace(/'/g, "''");
-    const destArg = this.installDir.replace(/'/g, "''");
-    try {
-      execSync(
-        `powershell -NoProfile -Command "Expand-Archive -Path '${zipArg}' -DestinationPath '${destArg}' -Force"`,
-        { stdio: "pipe" }
-      );
-    } catch (err) {
-      throw new Error(`解压 SteamCMD 失败: ${err instanceof Error ? err.message : String(err)}`);
+    if (isWindows()) {
+      await this.extractSteamCmdWindowsArchive(archivePath, this.installDir);
+    } else if (isLinux()) {
+      await this.extractSteamCmdLinuxArchive(archivePath, this.installDir);
+    } else {
+      throw new Error(`当前平台 (${process.platform}) 不支持自动安装 SteamCMD，请手动安装。`);
     }
-    if (!fs.existsSync(path.join(this.installDir, STEAMCMD_EXE))) {
-      throw new Error("解压完成但未找到 steamcmd.exe，请检查网络或手动下载 SteamCMD。");
+
+    const entryPath = resolveSteamCmdPath(this.installDir);
+    if (!fs.existsSync(entryPath)) {
+      throw new Error(`解压完成但未找到 ${steamCmdEntryName()}，请检查网络或手动下载 SteamCMD。`);
     }
-    if (fs.existsSync(zipPath)) {
-      fs.unlinkSync(zipPath);
+    if (isLinux()) {
+      fs.chmodSync(entryPath, 0o755);
+    }
+    if (fs.existsSync(archivePath)) {
+      fs.unlinkSync(archivePath);
     }
 
     if (!this.isInstalled) {
@@ -249,7 +259,7 @@ export class SteamCmdManager extends EventEmitter {
     const captureResult: SessionRunCapture = {
       console: combined,
       exitCode,
-      exePath: path.join(this.installDir, STEAMCMD_EXE),
+      exePath: resolveSteamCmdPath(this.installDir),
       argumentsString,
     };
     this.writeSessionLogFile(sessionLogPath, captureResult, flags);
@@ -272,7 +282,7 @@ export class SteamCmdManager extends EventEmitter {
     argumentsString: string,
     onChunk: (chunk: string) => void,
   ): Promise<number | null> {
-    const exePath = path.join(this.installDir, STEAMCMD_EXE);
+    const exePath = resolveSteamCmdPath(this.installDir);
     const capture = await spawnConsoleCapture(
       exePath,
       argumentsString,
@@ -312,7 +322,7 @@ export class SteamCmdManager extends EventEmitter {
       `参数: ${safeArgs}`,
       `退出码: ${capture.exitCode ?? "null"}`,
       `成功: ${success}`,
-      `捕获: ${process.platform === "win32" ? "静默运行 + console_log.txt" : "stdout/stderr 管道"}`,
+      `捕获: ${isWindows() ? "静默运行 + console_log.txt" : "stdout/stderr 管道"}`,
       "",
       "--- console ---",
       capture.console.trimEnd(),
@@ -422,11 +432,30 @@ export class SteamCmdManager extends EventEmitter {
       this.activeCapture = null;
     }
     if (pid) {
-      try {
-        execSync(`taskkill /PID ${pid} /T /F 2>nul`, { stdio: "ignore" });
-      } catch {
-        /* ignore */
-      }
+      killProcessTree(pid);
+    }
+  }
+
+  private async extractSteamCmdWindowsArchive(archivePath: string, destDir: string): Promise<void> {
+    const zipArg = archivePath.replace(/'/g, "''");
+    const destArg = destDir.replace(/'/g, "''");
+    try {
+      execSync(
+        `powershell -NoProfile -Command "Expand-Archive -Path '${zipArg}' -DestinationPath '${destArg}' -Force"`,
+        { stdio: "pipe" }
+      );
+    } catch (err) {
+      throw new Error(`解压 SteamCMD 失败: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  private async extractSteamCmdLinuxArchive(archivePath: string, destDir: string): Promise<void> {
+    const tarArg = archivePath.replace(/'/g, "'\\''");
+    const destArg = destDir.replace(/'/g, "'\\''");
+    try {
+      execSync(`tar -xzf '${tarArg}' -C '${destArg}'`, { stdio: "pipe" });
+    } catch (err) {
+      throw new Error(`解压 SteamCMD 失败: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 }

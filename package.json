@@ -19,6 +19,9 @@
     "build:service": "npm -w @a3st/service run build",
     "build:all": "npm run build:service && npm run build:web",
     "test": "npm -w @a3st/service run test",
+    "test:e2e": "powershell -ExecutionPolicy Bypass -File scripts/ci-e2e.ps1",
+    "smoke:desktop": "powershell -ExecutionPolicy Bypass -File scripts/smoke-desktop-unpacked.ps1",
+    "zip:desktop": "powershell -ExecutionPolicy Bypass -File scripts/zip-desktop-unpacked.ps1",
     "typecheck": "npm -w @a3st/api-client run typecheck && npm -w @a3st/service run typecheck",
     "start:service": "node packages/service/dist/index.js",
     "clean": "npm -w @a3st/web run clean 2>/dev/null; npm -w @a3st/service run clean 2>/dev/null; rm -rf packages/service/dist packages/web/dist"

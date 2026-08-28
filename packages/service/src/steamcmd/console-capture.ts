@@ -3,6 +3,8 @@ import { createInterface } from "node:readline";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { Readable } from "node:stream";
+import { isWindows } from "../platform/index.js";
+import { splitCommandLine } from "../platform/argv.js";
 
 export interface ConsoleCaptureHandle {
   pid: number;
@@ -24,7 +26,7 @@ export async function spawnConsoleCapture(
   onData: (chunk: string) => void,
   steamCmdInstallDir: string,
 ): Promise<ConsoleCaptureHandle> {
-  if (process.platform === "win32") {
+  if (isWindows()) {
     return spawnWindowsCaptured(exePath, argumentsString, cwd, steamCmdInstallDir, onData);
   }
   return spawnPipeCapture(exePath, argumentsString, cwd, onData);
@@ -112,7 +114,8 @@ function spawnPipeCapture(
   onData: (chunk: string) => void,
 ): Promise<ConsoleCaptureHandle> {
   return new Promise((resolve, reject) => {
-    const child = spawn(exePath, [argumentsString], {
+    const args = splitCommandLine(argumentsString);
+    const child = spawn(exePath, args, {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
     });
