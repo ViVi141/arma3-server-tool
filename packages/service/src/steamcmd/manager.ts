@@ -11,6 +11,10 @@ import {
 } from "./arguments.js";
 import { sanitizeSteamCmdOutput } from "./output-sanitize.js";
 import {
+  hasWorkshopDownloadFailure,
+  resolveWorkshopDownloadMissingIds,
+} from "./workshop-download-result.js";
+import {
   normalizeWorkshopRoot,
   type SteamCmdPathContext,
 } from "./path-helper.js";
@@ -226,13 +230,75 @@ export class SteamCmdManager extends EventEmitter {
 
     ensureWorkshopContentDirectory(workshopRoot);
 
-    const argumentsString = buildWorkshopDownloadArguments(
+    const uniqueIds = dedupePositiveIds(modIds);
+    const batchArgs = buildWorkshopDownloadArguments(
       this._username,
       this._password,
       workshopRoot,
-      modIds,
+      uniqueIds,
     );
-    return this.runSteamCmdArguments(argumentsString, onOutput, { isWorkshop: true });
+    try {
+      await this.runSteamCmdArguments(batchArgs, onOutput, {
+        isWorkshop: true,
+        emitComplete: false,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const hint = `[提示] 批量下载未完全成功，将检查失败项并单独重试。详情: ${msg.slice(0, 200)}\n`;
+      this.appendSessionOutput(hint);
+      this.emit("output", hint);
+      onOutput?.(hint);
+    }
+
+    let remaining = resolveWorkshopDownloadMissingIds(uniqueIds, this.sessionOutput);
+    const maxSoloAttempts = 3;
+    for (let attempt = 1; attempt <= maxSoloAttempts && remaining.length > 0; attempt++) {
+      const hint =
+        `[重试] 批量下载有 ${remaining.length} 个模组未完成（常见于体积较大的 Workshop 项，如 CUP Terrains），`
+        + `将单独重试第 ${attempt}/${maxSoloAttempts} 次: ${remaining.join(", ")}\n`;
+      this.appendSessionOutput(hint);
+      this.emit("output", hint);
+      onOutput?.(hint);
+
+      const nextFailed: number[] = [];
+      for (const modId of remaining) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 1500));
+        const soloArgs = buildWorkshopDownloadArguments(
+          this._username,
+          this._password,
+          workshopRoot,
+          [modId],
+          { validate: true },
+        );
+        try {
+          await this.runSteamCmdArguments(soloArgs, onOutput, {
+            isWorkshop: true,
+            emitComplete: false,
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          const failHint = `[失败] 模组 ${modId} 单独下载出错: ${msg}\n`;
+          this.appendSessionOutput(failHint);
+          this.emit("output", failHint);
+          onOutput?.(failHint);
+        }
+
+        const stillMissing = resolveWorkshopDownloadMissingIds([modId], this.sessionOutput);
+        if (stillMissing.length > 0) {
+          nextFailed.push(modId);
+        }
+      }
+      remaining = nextFailed;
+    }
+
+    if (remaining.length > 0) {
+      throw new Error(
+        `以下 Workshop 模组下载失败（超时或未完成）: ${remaining.join(", ")}。`
+        + `大体积模组（如 CUP Terrains - Core / 583496184）可稍后再单独下载，或检查磁盘空间与网络。`,
+      );
+    }
+
+    this.emit("complete", this.sessionOutput);
   }
 
   private requireCredentials(): void {
@@ -245,7 +311,11 @@ export class SteamCmdManager extends EventEmitter {
   private async runSteamCmdArguments(
     argumentsString: string,
     onOutput?: (line: string) => void,
-    flags: { isWorkshop?: boolean; isAppUpdate?: boolean } = {},
+    flags: {
+      isWorkshop?: boolean;
+      isAppUpdate?: boolean;
+      emitComplete?: boolean;
+    } = {},
     retryCount = 0,
   ): Promise<void> {
     if (this.activeCapture !== null) {
@@ -254,6 +324,7 @@ export class SteamCmdManager extends EventEmitter {
 
     const sessionLogPath = this.createSessionLogPath();
     this.sessionOutput = "";
+    const shouldEmitComplete = flags.emitComplete !== false;
 
     let combined = "";
     const exitCode = await this.runCapturedProcess(argumentsString, (chunk) => {
@@ -270,8 +341,14 @@ export class SteamCmdManager extends EventEmitter {
     };
     this.writeSessionLogFile(sessionLogPath, captureResult, flags);
 
+    if (flags.isWorkshop && hasWorkshopDownloadFailure(combined)) {
+      return;
+    }
+
     if (exitCode === 0 || this.isSteamCmdOutputSuccess(combined, flags)) {
-      this.emit("complete", combined);
+      if (shouldEmitComplete) {
+        this.emit("complete", combined);
+      }
       return;
     }
     if (retryCount < 1 && this.shouldRetrySteamCmd(exitCode, combined)) {
@@ -352,8 +429,11 @@ export class SteamCmdManager extends EventEmitter {
     if (flags.isAppUpdate && /fully installed|already up to date/i.test(output)) {
       return true;
     }
-    if (flags.isWorkshop && /Success\.\s+Downloaded item/i.test(output)) {
-      return true;
+    if (flags.isWorkshop) {
+      if (hasWorkshopDownloadFailure(output)) {
+        return false;
+      }
+      return /Success\.\s+Downloaded item/i.test(output);
     }
     return false;
   }
@@ -471,6 +551,19 @@ function formatSessionLogStamp(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+function dedupePositiveIds(modIds: readonly number[]): number[] {
+  const seen = new Set<number>();
+  const result: number[] = [];
+  for (const modId of modIds) {
+    if (modId === 0 || seen.has(modId)) {
+      continue;
+    }
+    seen.add(modId);
+    result.push(modId);
+  }
+  return result;
 }
 
 function tailTextLines(text: string, maxLines: number): string {

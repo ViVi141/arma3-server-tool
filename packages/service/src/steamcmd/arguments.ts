@@ -12,12 +12,13 @@ export function quoteSteamCmdArgument(value: string | null | undefined): string 
   return `"${escaped}"`;
 }
 
-/** Same as SteamCmdService.BuildWorkshopDownloadArguments. */
+/** Same as SteamCmdService.BuildWorkshopDownloadArguments (+ optional validate). */
 export function buildWorkshopDownloadArguments(
   username: string,
   password: string,
   workshopRoot: string,
   modIds: readonly number[],
+  options: { validate?: boolean } = {},
 ): string {
   let builder = `+force_install_dir "${workshopRoot}" +login ${quoteSteamCmdArgument(username)} ${quoteSteamCmdArgument(password)}`;
 
@@ -28,7 +29,11 @@ export function buildWorkshopDownloadArguments(
       continue;
     }
     seen.add(modId);
-    builder += ` +workshop_download_item ${ARMA3_WORKSHOP_APP_ID} ${modId}`;
+    if (options.validate) {
+      builder += ` +workshop_download_item ${ARMA3_WORKSHOP_APP_ID} ${modId} validate`;
+    } else {
+      builder += ` +workshop_download_item ${ARMA3_WORKSHOP_APP_ID} ${modId}`;
+    }
   }
 
   builder += " +quit";
