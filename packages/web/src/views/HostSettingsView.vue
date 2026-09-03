@@ -1,10 +1,25 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { ElMessage } from "element-plus";
-import { isElectron as inDesktopShell } from "@/utils/electron";
+import { isElectron as inDesktopShell, isElectronShellWithoutBridge } from "@/utils/electron";
 
 const isElectron = inDesktopShell();
+const bridgeBroken = isElectronShellWithoutBridge();
+
+const modeAlertTitle = computed(() => {
+  if (bridgeBroken) {
+    return "桌面桥接未就绪";
+  }
+  return "当前为 Web 模式";
+});
+
+const modeAlertDescription = computed(() => {
+  if (bridgeBroken) {
+    return "检测到 Electron 外壳，但 preload 未注入，被控设置不可用。请安装最新版 Setup（v2.0.0-alpha.4+），不要用浏览器打开 :19580。";
+  }
+  return "被控端需通过 Electron 桌面版启动；纯浏览器无法改本机 Token/端口。";
+});
 
 const localPort = ref("19580");
 const localToken = ref("");
@@ -75,18 +90,23 @@ onMounted(loadSettings);
 <template>
   <ConsolePageLayout :padded="false">
     <div class="host-settings-inner">
-      <div class="host-settings-header">被控服务</div>
+      <div class="host-settings-header">
+        <span>被控服务</span>
+        <router-link to="/connections" class="host-settings-back" data-testid="nav-back-connections">
+          ← 返回主机连接
+        </router-link>
+      </div>
       <p class="hint">
       配置 Node.js 被控服务（@a3st/service）的 HTTP 监听参数。修改后会自动重启 Service。
     </p>
 
     <el-alert
       v-if="!isElectron"
-      type="info"
+      :type="bridgeBroken ? 'warning' : 'info'"
       show-icon
       :closable="false"
-      title="当前为 Web 模式"
-      description="被控端需通过 npm run dev:service 或 Electron 桌面版启动。"
+      :title="modeAlertTitle"
+      :description="modeAlertDescription"
       style="margin-bottom: 12px;"
     />
 
@@ -126,12 +146,29 @@ onMounted(loadSettings);
 }
 
 .host-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--a3st-text-muted);
   margin-bottom: 8px;
+}
+
+.host-settings-back {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--a3st-accent, var(--el-color-primary));
+  text-decoration: none;
+}
+
+.host-settings-back:hover {
+  text-decoration: underline;
 }
 
 .hint {

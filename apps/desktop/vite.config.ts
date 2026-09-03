@@ -29,11 +29,14 @@ export default defineConfig({
         vite: {
           build: {
             outDir: "dist-electron",
+            // Electron preload 必须是 CJS；ESM import 在打包后会静默失败，导致无 electronAPI。
+            lib: {
+              entry: "src/preload/index.ts",
+              formats: ["cjs"],
+              fileName: () => "preload.cjs",
+            },
             rollupOptions: {
               external: ["electron"],
-              output: {
-                entryFileNames: "preload.js",
-              },
             },
           },
         },

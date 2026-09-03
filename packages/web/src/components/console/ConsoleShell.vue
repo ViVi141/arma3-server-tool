@@ -132,7 +132,7 @@ function onThemeModeChange(mode: ThemeMode) {
             <option value="dark">深</option>
           </select>
         </label>
-        <router-link to="/connections" class="shell-v2__link" data-testid="nav-connections">连接</router-link>
+        <router-link to="/connections" class="shell-v2__link" data-testid="nav-connections">登出</router-link>
       </div>
     </header>
 

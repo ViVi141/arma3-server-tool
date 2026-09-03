@@ -1,190 +1,249 @@
-import { app as n, nativeTheme as h, dialog as g, ipcMain as c, shell as E, BrowserWindow as A, nativeImage as w, Tray as j, Menu as D } from "electron";
-import { spawn as N } from "child_process";
-import s from "path";
-import u from "fs";
-const d = !n.isPackaged, l = {
+import { app as n, nativeTheme as g, dialog as v, ipcMain as l, shell as I, BrowserWindow as N, nativeImage as x, Tray as _, Menu as C } from "electron";
+import { spawn as O } from "child_process";
+import R from "http";
+import r from "path";
+import c from "fs";
+import { fileURLToPath as $ } from "url";
+const j = r.dirname($(import.meta.url)), h = !n.isPackaged, p = {
   port: 19580,
   host: "127.0.0.1",
   apiToken: "",
   remoteAccessEnabled: !1
 };
-let r = null, t = null, a = null;
-function p() {
-  return s.join(n.getPath("userData"), "service-settings.json");
+let i = null, f = null, o = null, u = null;
+function w() {
+  return r.join(n.getPath("userData"), "service-settings.json");
 }
-function F() {
-  return s.join(n.getPath("userData"), "a3st-data");
+function S() {
+  return r.join(n.getPath("userData"), "a3st-data");
 }
 function T() {
   try {
-    const o = u.readFileSync(p(), "utf-8"), e = JSON.parse(o);
+    const t = c.readFileSync(w(), "utf-8"), e = JSON.parse(t);
     return {
-      port: e.port ?? l.port,
-      host: e.host ?? l.host,
-      apiToken: e.apiToken ?? l.apiToken,
-      remoteAccessEnabled: e.remoteAccessEnabled ?? l.remoteAccessEnabled
+      port: e.port ?? p.port,
+      host: e.host ?? p.host,
+      apiToken: e.apiToken ?? p.apiToken,
+      remoteAccessEnabled: e.remoteAccessEnabled ?? p.remoteAccessEnabled
     };
   } catch {
-    return { ...l };
+    return { ...p };
   }
 }
-function I(o) {
-  u.mkdirSync(s.dirname(p()), { recursive: !0 }), u.writeFileSync(p(), JSON.stringify(o, null, 2), "utf-8");
+function U(t) {
+  c.mkdirSync(r.dirname(w()), { recursive: !0 }), c.writeFileSync(w(), JSON.stringify(t, null, 2), "utf-8");
 }
-function v() {
-  return d ? s.resolve(n.getAppPath(), "..", "..") : s.dirname(n.getPath("exe"));
-}
-function f() {
-  return d ? s.join(v(), "packages", "service") : s.join(process.resourcesPath, "service");
-}
-function C() {
-  return s.join(f(), "dist", "index.js");
+function k() {
+  return h ? r.resolve(n.getAppPath(), "..", "..") : r.dirname(n.getPath("exe"));
 }
 function P() {
-  return d ? s.join(v(), "packages", "web", "dist", "index.html") : s.join(process.resourcesPath, "web", "index.html");
+  return h ? r.join(k(), "packages", "service") : r.join(process.resourcesPath, "service");
 }
-function O() {
-  return d ? s.join(v(), "apps", "desktop", "build", "icon.ico") : s.join(process.resourcesPath, "assets", "icon.ico");
+function B() {
+  return r.join(P(), "dist", "index.js");
 }
-function _() {
-  return s.join(n.getAppPath(), "dist-electron", "preload.js");
+function E() {
+  return h ? r.join(k(), "packages", "web", "dist", "index.html") : r.join(process.resourcesPath, "web", "index.html");
 }
-function R(o) {
-  const e = T(), i = e.remoteAccessEnabled ? "0.0.0.0" : e.host, S = F();
-  u.mkdirSync(S, { recursive: !0 });
-  const k = {
+function L() {
+  return r.join(process.resourcesPath, "web");
+}
+function M(t, e) {
+  const s = Date.now() + e;
+  return new Promise((a) => {
+    const d = () => {
+      if (Date.now() > s) {
+        a(!1);
+        return;
+      }
+      const m = R.get(`http://127.0.0.1:${t}/api/v1/health`, (y) => {
+        if (y.resume(), y.statusCode === 200) {
+          a(!0);
+          return;
+        }
+        setTimeout(d, 250);
+      });
+      m.on("error", () => {
+        setTimeout(d, 250);
+      }), m.setTimeout(1500, () => {
+        m.destroy();
+      });
+    };
+    d();
+  });
+}
+function q() {
+  return h ? r.join(k(), "apps", "desktop", "build", "icon.ico") : r.join(process.resourcesPath, "assets", "icon.ico");
+}
+function H() {
+  const t = [
+    r.join(j, "preload.cjs"),
+    r.join(j, "preload.js"),
+    r.join(n.getAppPath(), "dist-electron", "preload.cjs"),
+    r.join(n.getAppPath(), "dist-electron", "preload.js")
+  ];
+  for (const e of t) {
+    const s = e.includes("app.asar") ? e.replace("app.asar", "app.asar.unpacked") : e;
+    if (c.existsSync(s))
+      return s;
+    if (c.existsSync(e))
+      return e;
+  }
+  return console.error("Preload script not found. Tried:", t.join(" | ")), t[0];
+}
+function z(t) {
+  const e = T(), s = e.remoteAccessEnabled ? "0.0.0.0" : e.host, a = S();
+  c.mkdirSync(a, { recursive: !0 });
+  const d = {
     ...process.env,
     PORT: String(e.port),
-    HOST: i,
-    DATA_DIR: S,
+    HOST: s,
+    DATA_DIR: a,
     API_TOKEN: e.apiToken
   };
-  return d ? {
+  return h || (d.WEB_ROOT = L()), h ? {
     executable: "node",
-    args: [o],
-    cwd: f(),
-    env: k
+    args: [t],
+    cwd: P(),
+    env: d
   } : {
     executable: process.execPath,
-    args: [o],
-    cwd: f(),
+    args: [t],
+    cwd: P(),
     env: {
-      ...k,
+      ...d,
       ELECTRON_RUN_AS_NODE: "1"
     }
   };
 }
-function x() {
-  m();
-  const o = C();
-  if (!u.existsSync(o)) {
-    console.warn(`Node service entry not found: ${o}`), g.showErrorBox(
+function D() {
+  b();
+  const t = B();
+  if (!c.existsSync(t)) {
+    console.warn(`Node service entry not found: ${t}`), v.showErrorBox(
       "服务未找到",
       `未找到 TypeScript 被控服务。
 
 请先执行：
 npm run build:service
 
-路径：${o}`
+路径：${t}`
     );
     return;
   }
-  const e = R(o);
-  console.log(`Starting Node service: ${e.executable} ${e.args.join(" ")}`), r = N(e.executable, e.args, {
+  const e = z(t);
+  console.log(`Starting Node service: ${e.executable} ${e.args.join(" ")}`);
+  const s = r.join(S(), "service.log");
+  f = c.openSync(s, "a"), i = O(e.executable, e.args, {
     cwd: e.cwd,
     env: e.env,
-    stdio: "ignore",
+    stdio: ["ignore", f, f],
     windowsHide: !0
-  }), r.on("exit", (i) => {
-    console.log(`Node service exited with code ${i}`), r = null;
-  }), r.on("error", (i) => {
-    console.error("Node service process error:", i), r = null;
+  }), i.on("exit", (a) => {
+    console.log(`Node service exited with code ${a}`), i = null;
+  }), i.on("error", (a) => {
+    console.error("Node service process error:", a), i = null;
   });
 }
-function m() {
-  r && !r.killed && (console.log("Stopping Node service..."), r.kill(), r = null);
-}
 function b() {
-  return r && r.pid && !r.killed ? { running: !0, pid: r.pid } : { running: !1 };
+  i && !i.killed && (console.log("Stopping Node service..."), i.kill(), i = null), f !== null && (c.closeSync(f), f = null);
 }
-function y() {
-  return h.shouldUseDarkColors ? "#1e1e1e" : "#ffffff";
+function A() {
+  return i && i.pid && !i.killed ? { running: !0, pid: i.pid } : { running: !1 };
 }
-function U() {
-  t && (t.setBackgroundColor(y()), t.webContents.send("theme:changed", h.shouldUseDarkColors));
+function F() {
+  return g.shouldUseDarkColors ? "#1e1e1e" : "#ffffff";
 }
-function $() {
-  c.handle("theme:shouldUseDarkColors", () => h.shouldUseDarkColors), c.handle("service:status", () => b()), c.handle("service:settings:get", () => T()), c.handle("service:settings:save", (o, e) => {
-    const i = {
-      port: e.port ?? l.port,
-      host: e.host ?? l.host,
+function J() {
+  o && (o.setBackgroundColor(F()), o.webContents.send("theme:changed", g.shouldUseDarkColors));
+}
+function G() {
+  l.handle("theme:shouldUseDarkColors", () => g.shouldUseDarkColors), l.handle("service:status", () => A()), l.handle("service:settings:get", () => T()), l.handle("service:settings:save", (t, e) => {
+    const s = {
+      port: e.port ?? p.port,
+      host: e.host ?? p.host,
       apiToken: e.apiToken ?? "",
       remoteAccessEnabled: !!e.remoteAccessEnabled
     };
-    I(i);
-  }), c.handle("service:restart", () => (x(), b())), c.handle("app:version", () => n.getVersion()), c.handle("app:path", () => n.getAppPath()), c.handle("shell:openPath", (o, e) => E.openPath(e)), c.handle("dialog:openFile", async (o, e) => await g.showOpenDialog(e)), c.handle("fs:readTextFile", (o, e) => u.readFileSync(e, "utf-8"));
+    U(s);
+  }), l.handle("service:restart", () => (D(), A())), l.handle("app:version", () => n.getVersion()), l.handle("app:path", () => n.getAppPath()), l.handle("shell:openPath", (t, e) => I.openPath(e)), l.handle("dialog:openFile", async (t, e) => await v.showOpenDialog(e)), l.handle("fs:readTextFile", (t, e) => c.readFileSync(e, "utf-8"));
 }
-function B() {
-  t = new A({
+function K() {
+  const t = H();
+  if (console.log(`Using preload: ${t}`), o = new N({
     width: 1100,
     height: 740,
     minWidth: 780,
     minHeight: 500,
     title: "Arma3 Server Tools",
-    backgroundColor: y(),
+    backgroundColor: F(),
     webPreferences: {
-      preload: _(),
+      preload: t,
       contextIsolation: !0,
-      nodeIntegration: !1
+      nodeIntegration: !1,
+      sandbox: !1
     },
     show: !1
-  }), t.on("ready-to-show", () => {
-    t == null || t.show();
-  }), t.on("close", (o) => {
-    a && (o.preventDefault(), t == null || t.hide());
-  }), d ? t.loadURL("http://localhost:5173").catch((o) => {
-    console.error("Failed to load dev server:", o), t == null || t.loadFile(P());
-  }) : t.loadFile(P());
+  }), o.webContents.on("preload-error", (e, s, a) => {
+    console.error(`Preload failed (${s}):`, a);
+  }), o.on("ready-to-show", () => {
+    o == null || o.show();
+  }), o.on("close", (e) => {
+    u && (e.preventDefault(), o == null || o.hide());
+  }), h) {
+    o.loadURL("http://localhost:5173").catch((e) => {
+      console.error("Failed to load dev server:", e), o == null || o.loadFile(E());
+    });
+    return;
+  }
+  o.loadFile(E());
 }
-function L() {
-  const o = O();
+function V() {
+  const t = q();
   let e;
-  u.existsSync(o) ? e = w.createFromPath(o) : e = w.createEmpty(), a = new j(e), a.setToolTip("Arma3 Server Tools");
-  const i = D.buildFromTemplate([
-    { label: "显示窗口", click: () => t == null ? void 0 : t.show() },
+  c.existsSync(t) ? e = x.createFromPath(t) : e = x.createEmpty(), u = new _(e), u.setToolTip("Arma3 Server Tools");
+  const s = C.buildFromTemplate([
+    { label: "显示窗口", click: () => o == null ? void 0 : o.show() },
     { type: "separator" },
     {
       label: "退出",
       click: () => {
-        m(), a == null || a.destroy(), a = null, n.exit();
+        b(), u == null || u.destroy(), u = null, n.exit();
       }
     }
   ]);
-  a.setContextMenu(i), a.on("double-click", () => t == null ? void 0 : t.show());
+  u.setContextMenu(s), u.on("double-click", () => o == null ? void 0 : o.show());
 }
-function M() {
-  const o = n.getPath("exe");
-  return /[\u4e00-\u9fff\u3400-\u4dbf]/.test(o) ? (g.showErrorBox(
+function Q() {
+  const t = n.getPath("exe");
+  return /[\u4e00-\u9fff\u3400-\u4dbf]/.test(t) ? (v.showErrorBox(
     "安装路径错误",
     `安装路径包含中文字符，可能导致运行异常。
 
-当前路径：${o}
+当前路径：${t}
 
 请重新安装到不含中文的目录。`
   ), !1) : !0;
 }
-const q = n.requestSingleInstanceLock();
-q ? (n.on("second-instance", () => {
-  t && (t.isMinimized() && t.restore(), t.show(), t.focus());
-}), n.whenReady().then(() => {
-  if (!M()) {
+const X = n.requestSingleInstanceLock();
+X ? (n.on("second-instance", () => {
+  o && (o.isMinimized() && o.restore(), o.show(), o.focus());
+}), n.whenReady().then(async () => {
+  if (!Q()) {
     n.quit();
     return;
   }
-  $(), h.themeSource = "system", h.on("updated", U), x(), B(), L();
+  G(), g.themeSource = "system", g.on("updated", J), D();
+  const t = T();
+  await M(t.port, 2e4) || v.showErrorBox(
+    "服务未就绪",
+    `本机被控服务未能响应 http://127.0.0.1:${t.port}/api/v1/health。
+
+日志：${r.join(S(), "service.log")}`
+  ), K(), V();
 }), n.on("before-quit", () => {
-  m();
+  b();
 }), n.on("window-all-closed", () => {
 }), n.on("activate", () => {
-  t && t.show();
+  o && o.show();
 })) : n.quit();

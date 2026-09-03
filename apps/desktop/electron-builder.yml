@@ -29,6 +29,9 @@ extraResources:
       - "**/*"
 
 asar: true
+asarUnpack:
+  - "**/dist-electron/preload.cjs"
+  - "**/dist-electron/preload.js"
 npmRebuild: false
 publish: []
 

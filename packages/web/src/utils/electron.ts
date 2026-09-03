@@ -2,6 +2,14 @@ export function isElectron(): boolean {
   return !!window.electronAPI?.isElectron;
 }
 
+/** Electron 外壳在跑，但 preload 未注入（常见于旧安装包 ESM preload 失败）。 */
+export function isElectronShellWithoutBridge(): boolean {
+  if (isElectron()) {
+    return false;
+  }
+  return /Electron/i.test(navigator.userAgent);
+}
+
 export async function openPath(targetPath: string): Promise<boolean> {
   if (!targetPath || !window.electronAPI?.openPath) {
     return false;

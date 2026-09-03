@@ -92,14 +92,14 @@ const showSaveInToolbar = computed(() => {
   if (!showCfgActions.value) {
     return false;
   }
-  if (getVisualTheme() === "ark" && activeModeId.value === "overview") {
-    return false;
-  }
   return true;
 });
 
 const showWriteCfgInToolbar = computed(() => {
   if (!showCfgActions.value) {
+    return false;
+  }
+  if (activeModeId.value === "workshop") {
     return false;
   }
   if (getVisualTheme() === "ark") {

@@ -37,6 +37,7 @@ const randomMissionOrder = ref(false);
 const missionParamsText = ref("");
 const loading = ref(false);
 const switching = ref(false);
+const saving = ref(false);
 const errorMsg = ref("");
 let trackDirty = false;
 
@@ -135,33 +136,42 @@ async function saveMissions() {
   if (!client) {
     throw new Error("未连接");
   }
-  await client.patchConfig(
-    props.serverUuid,
-    {
-      tasks: {
-        missions: missions.value,
-        forcedDifficulty: forcedDifficulty.value,
-        autoSelectMission: autoSelectMission.value,
-        randomMissionOrder: randomMissionOrder.value,
-      },
-      basic: {
-        forcedDifficulty: forcedDifficulty.value,
-        autoSelectMission: autoSelectMission.value,
-        randomMissionOrder: randomMissionOrder.value,
-      },
-      missionParams: {
-        params: parseMissionParams(missionParamsText.value),
-      },
-    } as never
-  );
-  ElMessage.success("任务设置已保存");
+  saving.value = true;
+  try {
+    await client.patchConfig(
+      props.serverUuid,
+      {
+        tasks: {
+          missions: missions.value,
+          forcedDifficulty: forcedDifficulty.value,
+          autoSelectMission: autoSelectMission.value,
+          randomMissionOrder: randomMissionOrder.value,
+        },
+        basic: {
+          forcedDifficulty: forcedDifficulty.value,
+          autoSelectMission: autoSelectMission.value,
+          randomMissionOrder: randomMissionOrder.value,
+        },
+        missionParams: {
+          params: parseMissionParams(missionParamsText.value),
+        },
+      } as never
+    );
+    markCleanRef();
+    ElMessage.success("任务设置已保存");
+  } finally {
+    saving.value = false;
+  }
 }
+
+let markCleanRef: () => void = () => {};
 
 const { markDirty, markClean } = useConfigEditorRegistration(props.serverUuid, {
   label: "任务",
   save: saveMissions,
   reload: loadConfig,
 });
+markCleanRef = markClean;
 
 watch(
   [missions, forcedDifficulty, autoSelectMission, randomMissionOrder, missionParamsText],
@@ -216,7 +226,12 @@ onMounted(() => {
       <template #header>
         <div class="mission-header">
           <span>任务列表</span>
-          <el-button size="small" :loading="scanning" @click="scanMissionsFromDisk">扫描 MPMissions</el-button>
+          <div class="mission-header__actions">
+            <el-button size="small" type="primary" :loading="saving" data-testid="btn-page-save" @click="saveMissions">
+              保存
+            </el-button>
+            <el-button size="small" :loading="scanning" @click="scanMissionsFromDisk">扫描 MPMissions</el-button>
+          </div>
         </div>
       </template>
       <el-table v-if="missions.length" :data="missions" stripe size="small">
@@ -276,6 +291,7 @@ onMounted(() => {
 <style scoped>
 .form-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
 .mission-header { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+.mission-header__actions { display: flex; gap: 6px; align-items: center; }
 .form-row.block { flex-direction: column; align-items: stretch; }
 .form-row label { width: 120px; color: var(--el-text-color-secondary); flex-shrink: 0; }
 .form-row.block label { width: auto; }

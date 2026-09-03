@@ -33,6 +33,8 @@ export function useSettingsPage(
     }
   }
 
+  let markCleanRef: () => void = () => {};
+
   async function save(): Promise<void> {
     saving.value = true;
     try {
@@ -41,6 +43,7 @@ export function useSettingsPage(
         throw new Error("未连接");
       }
       await client.patchConfig(serverUuid, buildPatch() as never);
+      markCleanRef();
       ElMessage.success("已保存");
     } catch (e: unknown) {
       ElMessage.error(e instanceof Error ? e.message : "保存失败");
@@ -55,6 +58,7 @@ export function useSettingsPage(
     save,
     reload: load,
   });
+  markCleanRef = markClean;
 
   watch(
     cfg,

@@ -86,5 +86,10 @@ export function modeShowsProcActions(modeId: string): boolean {
 }
 
 export function modeShowsCfgActions(modeId: string): boolean {
-  return modeId === "overview" || modeId === "deploy" || modeId === "config";
+  return (
+    modeId === "overview" ||
+    modeId === "deploy" ||
+    modeId === "config" ||
+    modeId === "workshop"
+  );
 }

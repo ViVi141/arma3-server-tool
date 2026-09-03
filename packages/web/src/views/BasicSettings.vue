@@ -13,7 +13,7 @@ import { resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
 
-const { cfg, loading, saving } = useSettingsPage(props.serverUuid, "基本设置", () => ({
+const { cfg, loading, saving, save } = useSettingsPage(props.serverUuid, "基本设置", () => ({
   server: srv(),
   basic: b(),
   startup: st(),
@@ -47,7 +47,10 @@ async function act(action: string) {
     <SettingsViewLayout
       kicker="CONFIG / 05 · BASIC"
       title="基本设置"
-      :hint="`修改后点顶栏「${UI_COPY.saveShort}」写入配置包；「${UI_COPY.writeGameCfg}」后才会生成游戏 cfg 文件。`"
+      :hint="`修改后点「${UI_COPY.saveShort}」写入配置包；再点顶栏「${UI_COPY.writeGameCfg}」才会生成游戏 cfg 文件。`"
+      :show-save="true"
+      :saving="saving"
+      @save="save"
     >
       <ArkTechPanel title="基础" code="CFG-01">
         <div class="form-row"><label>配置名称</label><el-input v-model="srv().configName" size="small"/></div>

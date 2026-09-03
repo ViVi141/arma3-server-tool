@@ -5,13 +5,19 @@ import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { useSettingsPage } from "@/composables/useSettingsPage";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
-const { cfg, loading } = useSettingsPage(props.serverUuid, "日志", () => ({ basic: b() }));
+const { cfg, loading, saving, save } = useSettingsPage(props.serverUuid, "日志", () => ({ basic: b() }));
 const b = () => (cfg.value.basic ?? {}) as Record<string, unknown>;
 </script>
 
 <template>
   <ConsolePageLayout v-loading="loading" :padded="false">
-    <SettingsViewLayout kicker="CONFIG / 05 · LOG" title="日志">
+    <SettingsViewLayout
+      kicker="CONFIG / 05 · LOG"
+      title="日志"
+      :show-save="true"
+      :saving="saving"
+      @save="save"
+    >
     <ArkTechPanel title="日志选项" code="LOG-01">
       <div class="form-row"><label>禁用 RPT (-noLogs)</label><el-switch v-model="b().noLogs" size="small"/></div>
       <div class="form-row"><label>网络日志 (-netlog)</label><el-switch v-model="b().netLog" size="small"/></div>

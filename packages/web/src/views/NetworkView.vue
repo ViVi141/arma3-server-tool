@@ -5,13 +5,19 @@ import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { useSettingsPage } from "@/composables/useSettingsPage";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
-const { cfg, loading } = useSettingsPage(props.serverUuid, "网络", () => ({ basic: b() }));
+const { cfg, loading, saving, save } = useSettingsPage(props.serverUuid, "网络", () => ({ basic: b() }));
 const b = () => (cfg.value.basic ?? {}) as Record<string, unknown>;
 </script>
 
 <template>
   <ConsolePageLayout v-loading="loading" :padded="false">
-    <SettingsViewLayout kicker="CONFIG / 05 · NET" title="网络">
+    <SettingsViewLayout
+      kicker="CONFIG / 05 · NET"
+      title="网络"
+      :show-save="true"
+      :saving="saving"
+      @save="save"
+    >
     <ArkTechPanel title="basic.cfg 网络参数" code="NET-01">
       <div class="form-row"><label>MaxMsgSend</label><el-input-number v-model="b().maxMsgSend" :min="64" :max="512" size="small" controls-position="right"/></div>
       <div class="form-row"><label>MaxSizeGuaranteed</label><el-input-number v-model="b().maxSizeGuaranteed" :min="128" :max="1024" size="small" controls-position="right"/></div>

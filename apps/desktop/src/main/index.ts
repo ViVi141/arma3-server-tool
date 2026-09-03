@@ -3,6 +3,9 @@ import { spawn, type ChildProcess } from "child_process";
 import http from "http";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
+
+const MAIN_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 const isDev = !app.isPackaged;
 
@@ -117,7 +120,26 @@ function getTrayIconPath(): string {
 }
 
 function getPreloadPath(): string {
-  return path.join(app.getAppPath(), "dist-electron", "preload.js");
+  // Prefer sibling of main.js (works in asar and asar.unpacked).
+  const candidates = [
+    path.join(MAIN_DIR, "preload.cjs"),
+    path.join(MAIN_DIR, "preload.js"),
+    path.join(app.getAppPath(), "dist-electron", "preload.cjs"),
+    path.join(app.getAppPath(), "dist-electron", "preload.js"),
+  ];
+  for (const candidate of candidates) {
+    const unpacked = candidate.includes("app.asar")
+      ? candidate.replace("app.asar", "app.asar.unpacked")
+      : candidate;
+    if (fs.existsSync(unpacked)) {
+      return unpacked;
+    }
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  console.error("Preload script not found. Tried:", candidates.join(" | "));
+  return candidates[0];
 }
 
 function buildServiceSpawnOptions(entry: string): {
@@ -273,6 +295,9 @@ function registerIpcHandlers(): void {
 }
 
 function createWindow(): void {
+  const preloadPath = getPreloadPath();
+  console.log(`Using preload: ${preloadPath}`);
+
   mainWindow = new BrowserWindow({
     width: 1100,
     height: 740,
@@ -281,12 +306,16 @@ function createWindow(): void {
     title: "Arma3 Server Tools",
     backgroundColor: themeBackgroundColor(),
     webPreferences: {
-      preload: getPreloadPath(),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
     },
     show: false,
+  });
+
+  mainWindow.webContents.on("preload-error", (_event, preloadScriptPath, error) => {
+    console.error(`Preload failed (${preloadScriptPath}):`, error);
   });
 
   mainWindow.on("ready-to-show", () => {

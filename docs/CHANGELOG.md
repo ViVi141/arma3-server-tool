@@ -2,7 +2,13 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.3] — 当前
+## [2.0.0-alpha.4] — 当前
+
+- Electron preload 改为 CJS 并 asarUnpack，修复「被控设置仍显示 Web 模式」`electronAPI` 未注入。
+- 被控设置可返回「主机连接」；控制台右上角改为「登出」。
+- 配置类页面与任务页补页内「保存」；工坊模式顶栏也可保存。
+
+## [2.0.0-alpha.3]
 
 - Electron 打包窗口改回 `file://` + preload，本机不再被当成浏览器（选目录 / 被控设置可用）；连接 API 仍走 `:19580`。
 - SteamCMD 下载失败时带上 CDN 地址，并提示检查 hosts / 代理。

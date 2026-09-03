@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { useRoute } from "vue-router";
 import { getThemeMode, setThemeMode, type ThemeMode } from "@/utils/systemTheme";
 
 const route = useRoute();
-const isConsole = () => route.path.startsWith("/console/");
+const isConsole = computed(() => route.path.startsWith("/console/"));
+const isConnections = computed(() => {
+  return route.path === "/connections" || route.path === "/";
+});
 const isMobile = import.meta.env.VITE_APP_MODE === "mobile";
 
 const themeMode = ref<ThemeMode>("system");
@@ -21,7 +24,7 @@ function onThemeModeChange(mode: ThemeMode) {
 
 <template>
   <div class="app-shell">
-    <div v-if="!isConsole()" class="title-bar">
+    <div v-if="!isConsole" class="title-bar">
       <div class="title-bar-left">
         <span class="app-mark" aria-hidden="true" />
         <span class="app-name">Arma3 Server Tools</span>
@@ -43,12 +46,12 @@ function onThemeModeChange(mode: ThemeMode) {
           </select>
         </label>
         <router-link
-          v-if="isConsole()"
+          v-if="!isConnections"
           to="/connections"
           class="title-link"
-          data-testid="nav-connections"
+          data-testid="nav-back-connections"
         >
-          连接
+          ← 主机连接
         </router-link>
         <router-link
           v-if="!isMobile"
