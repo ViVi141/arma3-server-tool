@@ -82,10 +82,6 @@ function getPackagedWebRoot(): string {
   return path.join(process.resourcesPath, "web");
 }
 
-function uiBaseUrl(port: number): string {
-  return `http://127.0.0.1:${port}/`;
-}
-
 function waitForHealth(port: number, timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   return new Promise((resolve) => {
@@ -288,6 +284,7 @@ function createWindow(): void {
       preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
     },
     show: false,
   });
@@ -311,12 +308,8 @@ function createWindow(): void {
     return;
   }
 
-  const settings = loadSettings();
-  const url = uiBaseUrl(settings.port);
-  mainWindow.loadURL(url).catch((e) => {
-    console.error("Failed to load service UI:", e);
-    mainWindow?.loadFile(getWebIndexPath());
-  });
+  // file:// + preload：原生选目录 / 被控设置可用。API 仍走 127.0.0.1:19580（CORS 已允许 Origin null）。
+  mainWindow.loadFile(getWebIndexPath());
 }
 
 function createTray(): void {

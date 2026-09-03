@@ -29,6 +29,7 @@ import {
   steamCmdEntryName,
 } from "../platform/index.js";
 import { killProcessTree } from "../process/identity.js";
+import { describeNetworkError, proxyFetch } from "./proxy-fetch.js";
 
 const BOOTSTRAP_MARKER = steamCmdBootstrapRelativePath();
 const SESSION_OUTPUT_MAX_CHARS = 500000;
@@ -120,9 +121,17 @@ export class SteamCmdManager extends EventEmitter {
     this.emit("progress", "下载 SteamCMD...");
     const archiveName = steamCmdArchiveFileName();
     const archivePath = path.join(this.installDir, archiveName);
-    const response = await fetch(steamCmdDownloadUrl());
+    const downloadUrl = steamCmdDownloadUrl();
+    let response;
+    try {
+      response = await proxyFetch(downloadUrl, { timeoutMs: 180000 });
+    } catch (e) {
+      throw new Error(
+        `无法下载 SteamCMD（${downloadUrl}）。${describeNetworkError(e)}。请检查该域名是否被 hosts 拦截、能否访问 Steam CDN，或配置 HTTPS_PROXY；也可手动把 steamcmd.zip 解压到 SteamCMD 目录。`
+      );
+    }
     if (!response.ok || !response.body) {
-      throw new Error(`下载 SteamCMD 失败: HTTP ${response.status}`);
+      throw new Error(`下载 SteamCMD 失败: HTTP ${response.status}（${downloadUrl}）`);
     }
     const reader = response.body.getReader();
     const writer = fs.createWriteStream(archivePath);

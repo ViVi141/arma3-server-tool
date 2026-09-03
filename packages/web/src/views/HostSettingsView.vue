@@ -2,8 +2,9 @@
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
 import { ref, onMounted } from "vue";
 import { ElMessage } from "element-plus";
+import { isElectron as inDesktopShell } from "@/utils/electron";
 
-const isElectron = typeof window !== "undefined" && !!window.electronAPI;
+const isElectron = inDesktopShell();
 
 const localPort = ref("19580");
 const localToken = ref("");

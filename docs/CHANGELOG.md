@@ -2,7 +2,12 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.2] — 当前
+## [2.0.0-alpha.3] — 当前
+
+- Electron 打包窗口改回 `file://` + preload，本机不再被当成浏览器（选目录 / 被控设置可用）；连接 API 仍走 `:19580`。
+- SteamCMD 下载失败时带上 CDN 地址，并提示检查 hosts / 代理。
+
+## [2.0.0-alpha.2]
 
 - 安装包内嵌 Service 补齐 `undici` 等生产依赖（修复启动时报 `ERR_MODULE_NOT_FOUND`）。
 

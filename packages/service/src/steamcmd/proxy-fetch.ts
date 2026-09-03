@@ -44,3 +44,19 @@ export async function proxyFetch(url: string, init?: ProxyFetchInit): Promise<Un
 
   return undiciFetch(url, requestInit);
 }
+
+export function describeNetworkError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+  const parts: string[] = [error.message];
+  const withCause = error as Error & { cause?: unknown };
+  if (withCause.cause instanceof Error) {
+    parts.push(withCause.cause.message);
+    const coded = withCause.cause as Error & { code?: string };
+    if (coded.code) {
+      parts.push(coded.code);
+    }
+  }
+  return parts.join(" — ");
+}
