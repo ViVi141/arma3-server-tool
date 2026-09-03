@@ -2,7 +2,11 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.1] — 当前
+## [2.0.0-alpha.2] — 当前
+
+- 安装包内嵌 Service 补齐 `undici` 等生产依赖（修复启动时报 `ERR_MODULE_NOT_FOUND`）。
+
+## [2.0.0-alpha.1]
 
 - Electron 安装包改为通过本机 Service（`http://127.0.0.1:19580`）打开界面，修复连接页 `Failed to fetch`。
 

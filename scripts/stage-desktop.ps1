@@ -46,23 +46,23 @@ Copy-Item -Path (Join-Path $WebDist "*") -Destination $StageWeb -Recurse -Force
 New-Item -ItemType Directory -Path (Join-Path $StageService "dist") -Force | Out-Null
 Copy-Item -Path (Join-Path $ServiceDist "*") -Destination (Join-Path $StageService "dist") -Recurse -Force
 
-$servicePackageJson = @'
-{
-  "name": "a3st-service-runtime",
-  "private": true,
-  "type": "module",
-  "version": "0.1.0",
-  "dependencies": {
-    "@fastify/cors": "^10.0.0",
-    "@fastify/multipart": "^9.0.0",
-    "croner": "^9.0.0",
-    "fastify": "^5.0.0",
-    "sql.js": "^1.11.0"
-  }
+$srcPkgPath = Join-Path $Root "packages\service\package.json"
+Require-Path -Path $srcPkgPath -Hint "Service package.json missing."
+$srcPkg = Get-Content -Raw -Path $srcPkgPath | ConvertFrom-Json
+if (-not $srcPkg.dependencies) {
+    throw "packages/service/package.json has no dependencies."
 }
-'@
 
-Set-Content -Path (Join-Path $StageService "package.json") -Value $servicePackageJson -Encoding UTF8
+$runtimePkg = @{
+    name = "a3st-service-runtime"
+    private = $true
+    type = "module"
+    version = [string]$srcPkg.version
+    dependencies = $srcPkg.dependencies
+}
+$runtimePath = Join-Path $StageService "package.json"
+$runtimeJson = $runtimePkg | ConvertTo-Json -Depth 8
+[System.IO.File]::WriteAllText($runtimePath, $runtimeJson)
 
 Write-Host "Installing production service dependencies ..."
 Push-Location $StageService
@@ -70,6 +70,12 @@ try {
     npm install --omit=dev --no-audit --no-fund
     if ($LASTEXITCODE -ne 0) {
         throw "npm install failed in staged service directory."
+    }
+    foreach ($depName in @($srcPkg.dependencies.PSObject.Properties.Name)) {
+        $depPkg = Join-Path $StageService ("node_modules\" + ($depName -replace "/", "\") + "\package.json")
+        if (-not (Test-Path $depPkg)) {
+            throw "Staged service missing dependency: $depName"
+        }
     }
 }
 finally {
