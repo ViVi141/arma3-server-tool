@@ -11,10 +11,20 @@ export interface ConfigSnapshot {
 
 export class ConfigSnapshotStore {
   private baseDir: string;
+  private lastTimestampMs = 0;
 
   constructor(baseDir: string) {
     this.baseDir = path.join(baseDir, "snapshots");
     fs.mkdirSync(this.baseDir, { recursive: true });
+  }
+
+  private nextTimestamp(): string {
+    let now = Date.now();
+    if (now <= this.lastTimestampMs) {
+      now = this.lastTimestampMs + 1;
+    }
+    this.lastTimestampMs = now;
+    return new Date(now).toISOString();
   }
 
   /** Create a snapshot of a server's config package */
@@ -30,7 +40,7 @@ export class ConfigSnapshotStore {
     const manifest: ConfigSnapshot = {
       id,
       label,
-      timestamp: new Date().toISOString(),
+      timestamp: this.nextTimestamp(),
       files: [],
     };
 
@@ -66,7 +76,14 @@ export class ConfigSnapshotStore {
       } catch { /* skip */ }
     }
 
-    return snaps.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return snaps.sort((a, b) => {
+      const delta =
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+      if (delta !== 0) {
+        return delta;
+      }
+      return b.id.localeCompare(a.id);
+    });
   }
 
   /** Restore a snapshot */

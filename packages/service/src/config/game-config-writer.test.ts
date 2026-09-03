@@ -12,6 +12,7 @@ import {
   getConfigRoot,
   getServerExecutablePath,
 } from "./game-config-writer.js";
+import { serverExecutableName } from "../platform/index.js";
 import type { ServerConfigPackage } from "../types/config.js";
 
 let tmpDir: string;
@@ -239,12 +240,12 @@ describe("GameConfigWriter", () => {
       formatVersion: 2,
       server: { serverDir: "C:\\arma3", executable: "arma3server", x64: true },
     });
-    expect(x64Path).toBe(path.join("C:\\arma3", "arma3server_x64.exe"));
+    expect(x64Path).toBe(path.join("C:\\arma3", serverExecutableName(true)));
 
     const x32Path = getServerExecutablePath({
       formatVersion: 2,
       server: { serverDir: "C:\\arma3", executable: "arma3server_x64.exe", x64: false },
     });
-    expect(x32Path).toBe(path.join("C:\\arma3", "arma3server.exe"));
+    expect(x32Path).toBe(path.join("C:\\arma3", serverExecutableName(false)));
   });
 });
