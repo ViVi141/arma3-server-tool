@@ -92,7 +92,16 @@ export async function createService(options: ServiceOptions) {
   });
 
   // Plugins
-  await app.register(cors, { origin: true });
+  // file:// Electron 页的 Origin 为 "null"；reflect 会导致浏览器直接 Failed to fetch。
+  await app.register(cors, {
+    origin: (origin, cb) => {
+      if (!origin || origin === "null") {
+        cb(null, "*");
+        return;
+      }
+      cb(null, origin);
+    },
+  });
   await app.register(multipart, { limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
 
   // Wire SSE to SteamCMD events
@@ -102,6 +111,11 @@ export async function createService(options: ServiceOptions) {
   await app.register(healthRoutes, { prefix: "/api/v1" });
   sseManager.registerRoutes(app, steamCmd, "/api/v1");
   await app.register(apiRoutes, { prefix: "/api/v1" });
+
+  const webRoot = resolveWebRoot();
+  if (webRoot) {
+    await registerWebStatic(app, webRoot);
+  }
 
   await app.listen({ port: options.port, host: options.host });
   app.log.info(`Service listening on ${options.host}:${options.port}`);
@@ -116,3 +130,4 @@ export async function createService(options: ServiceOptions) {
 // Lazy-import route modules at bottom to avoid circular deps
 import { healthRoutes } from "./api/health.js";
 import { apiRoutes } from "./api/routes.js";
+import { registerWebStatic, resolveWebRoot } from "./web-static.js";

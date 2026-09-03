@@ -1,6 +1,6 @@
 {
   "name": "arma3-server-tools-monorepo",
-  "version": "2.0.0-alpha",
+  "version": "2.0.0-alpha.1",
   "private": true,
   "description": "Arma3 Server Tools — Vue + Electron + Service monorepo",
   "workspaces": [

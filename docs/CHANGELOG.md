@@ -2,7 +2,11 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha] — 当前（v2 主线）
+## [2.0.0-alpha.1] — 当前
+
+- Electron 安装包改为通过本机 Service（`http://127.0.0.1:19580`）打开界面，修复连接页 `Failed to fetch`。
+
+## [2.0.0-alpha] — v2 主线
 
 - **技术栈**：Vue 3 + Electron + Node.js（`@a3st/service`）替代 WinForms + C# `Agent.Host`。
 - **控制面板**：连接本机/远程被控服务、多服控制台、配置包编辑与「写入游戏配置」。

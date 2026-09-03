@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage, dialog, ipcMain, shell, nativeTheme } from "electron";
 import { spawn, type ChildProcess } from "child_process";
+import http from "http";
 import path from "path";
 import fs from "fs";
 
@@ -20,6 +21,7 @@ const DEFAULT_SETTINGS: ServiceSettings = {
 };
 
 let serviceProcess: ChildProcess | null = null;
+let serviceLogFd: number | null = null;
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 
@@ -76,6 +78,41 @@ function getWebIndexPath(): string {
   return path.join(process.resourcesPath, "web", "index.html");
 }
 
+function getPackagedWebRoot(): string {
+  return path.join(process.resourcesPath, "web");
+}
+
+function uiBaseUrl(port: number): string {
+  return `http://127.0.0.1:${port}/`;
+}
+
+function waitForHealth(port: number, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  return new Promise((resolve) => {
+    const attempt = () => {
+      if (Date.now() > deadline) {
+        resolve(false);
+        return;
+      }
+      const req = http.get(`http://127.0.0.1:${port}/api/v1/health`, (res) => {
+        res.resume();
+        if (res.statusCode === 200) {
+          resolve(true);
+          return;
+        }
+        setTimeout(attempt, 250);
+      });
+      req.on("error", () => {
+        setTimeout(attempt, 250);
+      });
+      req.setTimeout(1500, () => {
+        req.destroy();
+      });
+    };
+    attempt();
+  });
+}
+
 function getTrayIconPath(): string {
   if (isDev) {
     return path.join(repoRoot(), "apps", "desktop", "build", "icon.ico");
@@ -105,6 +142,9 @@ function buildServiceSpawnOptions(entry: string): {
     DATA_DIR: dir,
     API_TOKEN: settings.apiToken,
   };
+  if (!isDev) {
+    baseEnv.WEB_ROOT = getPackagedWebRoot();
+  }
 
   if (isDev) {
     return {
@@ -142,10 +182,13 @@ function startService(): void {
   const spawnOptions = buildServiceSpawnOptions(entry);
   console.log(`Starting Node service: ${spawnOptions.executable} ${spawnOptions.args.join(" ")}`);
 
+  const logPath = path.join(dataDir(), "service.log");
+  serviceLogFd = fs.openSync(logPath, "a");
+
   serviceProcess = spawn(spawnOptions.executable, spawnOptions.args, {
     cwd: spawnOptions.cwd,
     env: spawnOptions.env,
-    stdio: "ignore",
+    stdio: ["ignore", serviceLogFd, serviceLogFd],
     windowsHide: true,
   });
 
@@ -165,6 +208,10 @@ function stopService(): void {
     console.log("Stopping Node service...");
     serviceProcess.kill();
     serviceProcess = null;
+  }
+  if (serviceLogFd !== null) {
+    fs.closeSync(serviceLogFd);
+    serviceLogFd = null;
   }
 }
 
@@ -261,9 +308,15 @@ function createWindow(): void {
       console.error("Failed to load dev server:", e);
       mainWindow?.loadFile(getWebIndexPath());
     });
-  } else {
-    mainWindow.loadFile(getWebIndexPath());
+    return;
   }
+
+  const settings = loadSettings();
+  const url = uiBaseUrl(settings.port);
+  mainWindow.loadURL(url).catch((e) => {
+    console.error("Failed to load service UI:", e);
+    mainWindow?.loadFile(getWebIndexPath());
+  });
 }
 
 function createTray(): void {
@@ -321,7 +374,7 @@ if (!gotLock) {
     }
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     if (!checkInstallPath()) {
       app.quit();
       return;
@@ -331,6 +384,14 @@ if (!gotLock) {
     nativeTheme.themeSource = "system";
     nativeTheme.on("updated", syncWindowTheme);
     startService();
+    const settings = loadSettings();
+    const healthy = await waitForHealth(settings.port, 20000);
+    if (!healthy) {
+      dialog.showErrorBox(
+        "服务未就绪",
+        `本机被控服务未能响应 http://127.0.0.1:${settings.port}/api/v1/health。\n\n日志：${path.join(dataDir(), "service.log")}`
+      );
+    }
     createWindow();
     createTray();
   });

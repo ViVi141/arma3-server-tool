@@ -1,6 +1,6 @@
 {
   "name": "@a3st/desktop",
-  "version": "2.0.0-alpha",
+  "version": "2.0.0-alpha.1",
   "private": true,
   "description": "Electron desktop shell for Arma3 Server Tools control panel",
   "author": "ViVi141",

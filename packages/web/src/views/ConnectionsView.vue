@@ -44,7 +44,16 @@ async function testConnection(baseUrl: string, token?: string): Promise<boolean>
     }
     return true;
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : "无法连接到被控服务");
+    let message = "无法连接到被控服务";
+    if (e instanceof Error && e.message) {
+      if (e.message === "Failed to fetch") {
+        message =
+          "无法连接本机服务（默认 http://127.0.0.1:19580）。请等窗口完全启动后再点连接；若仍失败，用浏览器打开该地址的 /api/v1/health。";
+      } else {
+        message = e.message;
+      }
+    }
+    ElMessage.error(message);
     return false;
   }
 }
