@@ -40,10 +40,11 @@ update_hosts_cached.vdf
 coverage/
 ${APPDATA}/
 
-# Local dev service data (default when DATA_DIR unset)
+# Local dev / e2e service data
 .a3st-dev-data/
+.a3st-e2e-data/
 
-# SteamCMD bootstrap artifacts when service cwd is repo root (legacy)
+# SteamCMD bootstrap artifacts when service cwd is repo root
 /package/
 /steamapps/
 /public/steambootstrapper_*.txt
@@ -53,3 +54,4 @@ libraryfolders.vdf
 depotcache/
 appcache/
 crashhandler*.dll*
+/bin/

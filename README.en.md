@@ -1,24 +1,27 @@
-# Arma3 Server Tools
+# Arma3 Server Tools v2
 
-Windows GUI for **Arma 3 dedicated server** management (.NET 10).
+Cross-platform **Arma 3 dedicated server** management. Full-stack **TypeScript**.
 
-**Current version: v1.5.0** · Maintainer: [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
+- **Frontend**: Vue 3 + Element Plus (Web + Electron shell)
+- **Backend**: Node.js + Fastify + SQLite
+- **Current version**: v2.0.0-alpha
+- **Maintainer**: [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
 
 For full documentation (Chinese), see **[README.md](README.md)**.
 
-## Highlights (v1.5.0)
-
-- Per-server **A3ST config package** under `config/{uuid}/` (split JSON; legacy `config/{uuid}.json` auto-migrates).
-- **Save to tool** vs **Apply to server directory** vs **Start** are separate; start does not auto-write `server.cfg`.
-- Large mod lists: faster save/apply via snapshot and scan optimizations.
-
-## Build
+## Quick start
 
 ```powershell
-dotnet restore Arma3ServerTools.sln
-dotnet build Arma3ServerTools.sln -c Release
-dotnet test Arma3ServerTools.sln -c Release
+npm install
+npm run build:service
+npm run start:service
 ```
+
+```powershell
+npm run dev:web
+```
+
+See [docs/v2-quickstart.md](docs/v2-quickstart.md).
 
 ## License
 

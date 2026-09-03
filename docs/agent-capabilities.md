@@ -1,7 +1,7 @@
 # Agent 自动化能力详解
 
 > **v2 执行组件（当前主线）**：`@a3st/service`（`packages/service`，Fastify + Node.js）  
-> **v1 归档**：`Arma3ServerTools.Agent.Host` + `ServerAutomationService`（`legacy/`）  
+> **v1 归档**：C# `Agent.Host` / WinForms（源码已移除；见 [archive/](archive/)）  
 > **权威列表**：运行中 Service 的 `GET /api/v1/actions`  
 > IM（QQ 等）：由 **OpenClaw 部署在 B 机** 接入，见 [deployment-ab-openclaw.md](deployment-ab-openclaw.md)
 
@@ -17,7 +17,6 @@
 | **Skill + `a3st-invoke.ps1`（B 机）** | 把对话转成任务 JSON、带 Bearer Token 调 A 机 HTTP |
 | **`@a3st/service`（A 机，v2）** | Fastify `/api/v1/*`、异步任务队列、SSE（SteamCMD 进度） |
 | **Service 模块（A 机）** | `ConfigStore`、`ProcessManager`、`game-config-writer`、`SteamCmdManager`、`ModScanner`、`BikeyService`、`RconClient`、`Scheduler`、`MonitoringDb` 等（`packages/service/src/`） |
-| **v1 等价层** | `legacy/` 中 C# Application + Agent.Host；action 名大体兼容 |
 
 **不包含**：在 A 机上直接收 QQ 协议、在 B 机上启动 `arma3server.exe`、远程代点 Web/Electron UI。
 
@@ -272,4 +271,4 @@
 
 ---
 
-*若行为与代码不一致，以 v2 `packages/service/src/api/routes.ts`（task 分支）与 `GET /api/v1/actions` 为准；v1 见 `legacy/`。*
+*若行为与代码不一致，以 v2 `packages/service/src/api/routes.ts`（task 分支）与 `GET /api/v1/actions` 为准。*

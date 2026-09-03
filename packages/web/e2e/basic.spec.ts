@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { connectConsole, ensureTestServer, navigateConsoleTab } from "./helpers";
+import {
+  connectConsole,
+  ensureTestServer,
+  navigateConsoleTab,
+  openFirstServerWizard,
+} from "./helpers";
 
 test.describe("Arma3 Server Tools Web UI", () => {
   test.beforeEach(async ({ page }) => {
@@ -9,7 +14,9 @@ test.describe("Arma3 Server Tools Web UI", () => {
 
   test("loads connections page", async ({ page }) => {
     await expect(page.getByTestId("connections-page")).toBeVisible();
-    await expect(page.getByText("主机连接")).toBeVisible();
+    await expect(
+      page.getByTestId("connections-page").getByText("主机连接", { exact: true })
+    ).toBeVisible();
   });
 
   test("shows default local connection", async ({ page }) => {
@@ -27,13 +34,14 @@ test.describe("Arma3 Server Tools Web UI", () => {
 
   test("console toolbar has core actions", async ({ page }) => {
     await ensureTestServer(page);
-    await expect(page.getByTestId("dashboard-hero")).toBeVisible();
-    await expect(page.getByTestId("btn-start")).toBeVisible();
-    await expect(page.getByTestId("btn-save")).toBeVisible();
-    await expect(page.getByTestId("btn-write-cfg")).toHaveText("写入游戏配置");
+    await expect(page.getByTestId("dashboard-page")).toBeVisible();
+    await expect(page.getByRole("button", { name: "启动" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "保存" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "写入游戏配置" })).toBeVisible();
     await navigateConsoleTab(page, "preflight");
-    await expect(page.getByTestId("deploy-ops-bar")).toBeVisible();
-    await expect(page.getByTestId("btn-preflight")).toHaveText("开服检查");
+    await expect(page.getByTestId("preflight-page")).toBeVisible();
+    await expect(page.locator(".shell-v2__actions [data-testid='btn-preflight']")).toBeVisible();
+    await expect(page.locator(".shell-v2__actions [data-testid='btn-preflight']")).toHaveText("开服检查");
     await expect(page.getByTestId("status-bar")).toBeVisible();
   });
 
@@ -75,7 +83,7 @@ test.describe("Arma3 Server Tools Web UI", () => {
 
   test("first server wizard opens from toolbar", async ({ page }) => {
     await connectConsole(page);
-    await page.getByTestId("btn-first-server-wizard").click();
+    await openFirstServerWizard(page);
     const dialog = page.getByTestId("first-server-wizard");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("heading", { name: "首服向导" })).toBeVisible();
@@ -85,7 +93,7 @@ test.describe("Arma3 Server Tools Web UI", () => {
 
   test("first server wizard has steamcmd step", async ({ page }) => {
     await connectConsole(page);
-    await page.getByTestId("btn-first-server-wizard").click();
+    await openFirstServerWizard(page);
     for (let i = 0; i < 4; i++) {
       await page.getByTestId("wizard-next").click();
     }

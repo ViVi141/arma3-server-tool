@@ -1,7 +1,7 @@
 # 文档索引
 
 > **v2 主线**：`2.0.0-alpha` · [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)  
-> **v1 归档**：WinForms / C# 安装包与 `legacy/` 源码；下文标注「v1」的文档描述旧版 GUI，业务语义仍可参考。
+> **v1 归档**：下文标注「v1」的文档与 [archive/](archive/) 描述旧版 WinForms GUI，业务语义仍可参考；C# 源码已从仓库移除。
 
 ---
 

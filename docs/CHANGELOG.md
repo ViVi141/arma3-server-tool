@@ -4,7 +4,7 @@
 
 ## [2.0.0-alpha] — 当前（v2 主线）
 
-- **技术栈**：Vue 3 + Electron + Node.js（`@a3st/service`）替代 WinForms + C# `Agent.Host`；v1 源码在 `legacy/`。
+- **技术栈**：Vue 3 + Electron + Node.js（`@a3st/service`）替代 WinForms + C# `Agent.Host`。
 - **控制面板**：连接本机/远程被控服务、多服控制台、配置包编辑与「写入游戏配置」。
 - **HTTP API**：Fastify `/api/v1`，与 v1 Agent 能力大体兼容（以 `GET /api/v1/actions` 为准）。
 - **文档**：新增 [v2-quickstart.md](v2-quickstart.md)；索引与 README 标明 v1/v2 分界。

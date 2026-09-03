@@ -29,7 +29,7 @@
 | **上游** | [airmoer/arma3-server-tool](https://github.com/airmoer/arma3-server-tool) |
 | **原作者** | destiny studio（Blue、七龙） |
 
-v2 从 C# / WinForms 重构为 TypeScript 全栈。v1.x C# 源码归档于 `legacy/`。
+v2 从 C# / WinForms 重构为 TypeScript 全栈。v1 历史说明见 [docs/archive/](docs/archive/)。
 
 ---
 
@@ -58,11 +58,9 @@ arma3-server-tool/
 │   └── desktop/       # Electron 桌面壳
 ├── docs/              # 文档
 ├── mod/               # 监控模组资源
-├── sql/               # SQLite 表结构
+├── DestinyServerMonitoring/  # 监控 RVExtension 源码
 ├── scripts/           # 构建 / 部署脚本
 ├── skills/            # OpenClaw Agent 技能
-├── tools/             # 安装器工具
-├── legacy/            # v1.x C# 源码归档
 └── package.json       # npm workspaces
 ```
 

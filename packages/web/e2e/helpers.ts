@@ -34,23 +34,68 @@ export async function navigateConsoleTab(page: Page, tab: string): Promise<void>
 }
 
 export async function openInstanceMenu(page: Page): Promise<void> {
+  const list = page.getByTestId("server-list");
+  if (await list.isVisible()) {
+    return;
+  }
   await page.getByTestId("server-panel").locator("button").first().click();
+  await expect(list).toBeVisible();
 }
 
 export async function connectConsole(page: Page): Promise<void> {
+  const healthPromise = page.waitForResponse(
+    (response) => {
+      return response.url().includes("/api/v1/health");
+    },
+    { timeout: 15000 }
+  );
   await page.getByTestId("btn-connect").first().click();
+  const healthResponse = await healthPromise;
+  if (!healthResponse.ok()) {
+    throw new Error(`Health check HTTP ${healthResponse.status()}`);
+  }
   await page.waitForURL(/\/console\/local\//, { timeout: 15000 });
+  await expect(page.getByTestId("console-shell")).toBeVisible();
+}
+
+async function waitForConsoleSettled(page: Page): Promise<void> {
+  await expect
+    .poll(async () => {
+      if (await page.getByTestId("content-empty-state").isVisible()) {
+        return "empty";
+      }
+      if (await page.getByTestId("dashboard-page").isVisible()) {
+        return "dashboard";
+      }
+      if (await page.getByRole("button", { name: "启动" }).isVisible()) {
+        return "toolbar";
+      }
+      return "pending";
+    }, { timeout: 15000 })
+    .not.toBe("pending");
+}
+
+export async function openFirstServerWizard(page: Page): Promise<void> {
+  await waitForConsoleSettled(page);
+  const emptyState = page.getByTestId("content-empty-state");
+  if (await emptyState.isVisible()) {
+    await page.getByTestId("btn-first-server-wizard-main").click();
+    return;
+  }
+  await openInstanceMenu(page);
+  await page.getByTestId("btn-first-server-wizard").click();
 }
 
 export async function ensureTestServer(page: Page): Promise<void> {
   await connectConsole(page);
-  const items = page.locator("[data-testid^='server-item-']");
-  if ((await items.count()) > 0) {
+  await waitForConsoleSettled(page);
+
+  const emptyState = page.getByTestId("content-empty-state");
+  if (!(await emptyState.isVisible())) {
     return;
   }
 
-  await openInstanceMenu(page);
-  await page.getByTestId("btn-first-server-wizard").click();
+  await page.getByTestId("btn-first-server-wizard-main").click();
   await page.getByTestId("wizard-next").click();
   await page.getByTestId("wizard-config-name").fill("E2E Server");
   await page.getByTestId("wizard-next").click();
@@ -62,5 +107,5 @@ export async function ensureTestServer(page: Page): Promise<void> {
   await page.getByTestId("wizard-next").click();
   await page.getByTestId("wizard-finish").click();
   await expect(page.getByTestId("first-server-wizard")).not.toBeVisible({ timeout: 15000 });
-  await expect(items.first()).toBeVisible();
+  await expect(page.getByTestId("dashboard-page")).toBeVisible({ timeout: 15000 });
 }

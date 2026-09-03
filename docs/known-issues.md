@@ -13,8 +13,8 @@
 |----|------|------|
 | 核心开服流程 | 可用 | Windows / **Linux** 开服机；保存 → 写入游戏配置 → 开服检查 → 启动 |
 | 首服向导 | 已提供 | Web 控制台 **首服向导**（多步创建配置包） |
-| 正式安装包 | 进行中 | Electron 可 `pack:desktop`；WinForms 安装包仍见 `legacy/` |
-| Agent 文档 | 已更新 v2 | 以 `GET /api/v1/actions` 为准；v1 见 `legacy/` |
+| 正式安装包 | 进行中 | Electron 可 `pack:desktop` |
+| Agent 文档 | 已更新 v2 | 以 `GET /api/v1/actions` 为准 |
 | E2E 测试 | 已纳入 CI | Playwright + 临时 Service（`scripts/ci-e2e.ps1`） |
 
 ### v2 打开问题

@@ -2,7 +2,7 @@
 
 > **当前主线**：`packages/service`（Node.js）+ `packages/web`（Vue 3）+ 可选 `apps/desktop`（Electron）  
 > **版本**：v2.0.0-alpha  
-> v1.x WinForms / C# Agent 见 [legacy/](legacy/) 与 [archive/](archive/)。
+> v1.x WinForms 说明见 [archive/](archive/)。
 
 ## 环境要求
 

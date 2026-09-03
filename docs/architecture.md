@@ -1,6 +1,6 @@
 # Arma3 Server Tools — 架构说明
 
-> **注意**：下文描述 **v1 WinForms / C#** 解决方案（源码在 `legacy/`）。  
+> **注意**：下文描述 **v1 WinForms / C#** 解决方案（源码已从仓库移除；历史见 [archive/](archive/)）。  
 > **v2 主线**（`2.0.0-alpha`）：`packages/service`（Node `@a3st/service`）+ `packages/web`（Vue 3）+ `apps/desktop`（Electron）。见 [v2-quickstart.md](v2-quickstart.md) 与根 [README.md](../README.md)。
 
 ---

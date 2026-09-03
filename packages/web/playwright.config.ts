@@ -17,7 +17,7 @@ export default defineConfig({
     command: "npx vite --port 5174 --host",
     url: "http://localhost:5174",
     cwd: webRoot,
-    reuseExistingServer: true,
+    reuseExistingServer: process.env.A3ST_E2E_REUSE_VITE === "1",
     timeout: 120000,
   },
 });

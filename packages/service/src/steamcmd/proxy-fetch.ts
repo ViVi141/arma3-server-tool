@@ -1,4 +1,4 @@
-import { ProxyAgent, fetch as undiciFetch } from "undici";
+import { ProxyAgent, fetch as undiciFetch, type Response as UndiciResponse } from "undici";
 
 function resolveProxyUrl(): string | undefined {
   const fromEnv =
@@ -19,26 +19,28 @@ export interface ProxyFetchInit {
   timeoutMs?: number;
 }
 
-export async function proxyFetch(url: string, init?: ProxyFetchInit): Promise<Response> {
+export async function proxyFetch(url: string, init?: ProxyFetchInit): Promise<UndiciResponse> {
   const proxyUrl = resolveProxyUrl();
-  const timeoutMs = init?.timeoutMs ?? 20000;
+  let timeoutMs = 20000;
+  if (init && init.timeoutMs !== undefined) {
+    timeoutMs = init.timeoutMs;
+  }
   const signal = AbortSignal.timeout(timeoutMs);
 
-  if (proxyUrl) {
-    const dispatcher = new ProxyAgent(proxyUrl);
-    return undiciFetch(url, {
-      method: init?.method,
-      headers: init?.headers,
-      body: init?.body,
-      signal,
-      dispatcher,
-    }) as Promise<Response>;
-  }
-
-  return fetch(url, {
+  const requestInit = {
     method: init?.method,
     headers: init?.headers,
     body: init?.body,
     signal,
-  });
+  };
+
+  if (proxyUrl) {
+    const dispatcher = new ProxyAgent(proxyUrl);
+    return undiciFetch(url, {
+      ...requestInit,
+      dispatcher,
+    });
+  }
+
+  return undiciFetch(url, requestInit);
 }

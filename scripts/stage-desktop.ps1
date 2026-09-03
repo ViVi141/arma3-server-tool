@@ -81,11 +81,7 @@ if (-not (Test-Path $BuildDir)) {
 }
 
 $IconTarget = Join-Path $BuildDir "icon.ico"
-if (-not (Test-Path $IconTarget)) {
-    $LegacyIcon = Join-Path $Root "legacy\src\Arma3ServerTools.App.WinForms\Assets\1_arma3server_x64.ico"
-    Require-Path -Path $LegacyIcon -Hint "Legacy icon not found; place icon.ico in apps/desktop/build/"
-    Copy-Item -Path $LegacyIcon -Destination $IconTarget -Force
-}
+Require-Path -Path $IconTarget -Hint "Place icon.ico in apps/desktop/build/"
 
 Copy-Item -Path $IconTarget -Destination (Join-Path $StageAssets "icon.ico") -Force
 
