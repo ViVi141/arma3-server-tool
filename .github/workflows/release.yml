@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows-desktop:
+    name: Build Windows desktop
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: TypeScript Check
+        run: npm run typecheck
+
+      - name: Run Tests
+        run: npm test
+
+      - name: Pack desktop (NSIS + win-unpacked)
+        run: npm run pack:desktop
+
+      - name: Zip win-unpacked
+        shell: pwsh
+        run: |
+          $Root = $env:GITHUB_WORKSPACE
+          $Source = Join-Path $Root "artifacts\desktop\win-unpacked"
+          $Version = (Get-Content (Join-Path $Root "package.json") -Raw | ConvertFrom-Json).version
+          $ZipPath = Join-Path $Root "artifacts\desktop\Arma3ServerTools-win-unpacked-$Version.zip"
+          if (-not (Test-Path (Join-Path $Source "Arma3 Server Tools.exe"))) {
+            throw "Missing unpacked build at $Source"
+          }
+          if (Test-Path $ZipPath) {
+            Remove-Item -Force $ZipPath
+          }
+          Compress-Archive -Path (Join-Path $Source "*") -DestinationPath $ZipPath -CompressionLevel Optimal
+          Write-Host "Created $ZipPath"
+
+      - name: Collect artifacts
+        id: assets
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:GITHUB_WORKSPACE "artifacts\desktop"
+          $setup = Get-ChildItem $dir -Filter "Arma3ServerTools-Setup-*.exe" | Select-Object -First 1
+          $zip = Get-ChildItem $dir -Filter "Arma3ServerTools-win-unpacked-*.zip" | Select-Object -First 1
+          if (-not $setup) { throw "Setup exe not found" }
+          if (-not $zip) { throw "Unpacked zip not found" }
+          Write-Host "Setup: $($setup.FullName)"
+          Write-Host "Zip:   $($zip.FullName)"
+          "setup=$($setup.FullName)" >> $env:GITHUB_OUTPUT
+          "zip=$($zip.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Arma3 Server Tools ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          generate_release_notes: true
+          files: |
+            ${{ steps.assets.outputs.setup }}
+            ${{ steps.assets.outputs.zip }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

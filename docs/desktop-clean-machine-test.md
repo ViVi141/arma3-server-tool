@@ -95,5 +95,6 @@ powershell -ExecutionPolicy Bypass -File scripts/smoke-desktop-unpacked.ps1
 
 ## 六、与 CI 的关系
 
-- GitHub Actions **默认 CI 不包含** Electron 打包（体积与耗时）。
-- 发版前在 Windows 开发机执行：`pack:desktop:dir` + `smoke-desktop-unpacked.ps1` + 第四节人工清单。
+- 日常 CI（`.github/workflows/ci.yml`）**不含** Electron 打包。
+- **发版**：推送 tag `v*` 会触发 `.github/workflows/release.yml`，在 `windows-latest` 上构建 NSIS 安装包与 win-unpacked zip，并挂到该 tag 的 GitHub Release。
+- 本地可选冒烟：`pack:desktop:dir` + `smoke-desktop-unpacked.ps1` + 第四节人工清单。
