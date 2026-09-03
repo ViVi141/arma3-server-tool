@@ -33,7 +33,7 @@ import {
 import { applySteamCmdSettings } from "../settings/apply-steamcmd-settings.js";
 import { resolveConfiguredPath } from "../util/user-path.js";
 import { fetchWorkshopModDetails } from "../steamcmd/workshop-api.js";
-import { listMissionFiles, mergeMissionEntries } from "../missions/scanner.js";
+import { listMissionFiles, mergeMissionEntries, promoteMissionToFront } from "../missions/scanner.js";
 import { loadLocalBans, saveLocalBans, type LocalBanEntry } from "../bans/bans-service.js";
 import { runFullDiagnostics } from "../diagnostics/service.js";
 import {
@@ -1147,16 +1147,24 @@ async function executeCommand(
       const template = cmd.missionTemplate as string;
       if (!template) return fail("缺少 missionTemplate");
 
-      const missions = config.tasks?.missions ?? [];
-      if (!missions.some((m) => m.template === template)) {
-        missions.push({ template, difficulty: (cmd.missionDifficulty as number) ?? 3 });
-      }
+      const difficulty = cmd.missionDifficulty as number | undefined;
+      const missions = promoteMissionToFront(
+        config.tasks?.missions ?? [],
+        template,
+        difficulty
+      );
       config.tasks = { ...config.tasks, missions };
       app.configStore.save(uuid, config);
 
+      // 与文档一致：切换后写入游戏 cfg，否则启服仍读磁盘上旧的 Mission1。
+      const writeResult = writeAll(uuid, config);
+      if (!writeResult.success) {
+        return fail(writeResult.message);
+      }
+
       const restartAfterMission = cmd.restartAfterMission !== false;
       if (!restartAfterMission) {
-        return ok(`任务已切换至 ${template}（需重启生效）`);
+        return ok(`任务已切换至 ${missions[0]?.template ?? template}（配置已写入，需重启生效）`);
       }
 
       const state = app.processManager.getState(uuid, config);

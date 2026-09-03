@@ -5,6 +5,7 @@
 ## [2.0.0-alpha.5] — 当前
 
 - 去掉 `asarUnpack` 通配（Release 在 monorepo 下会因 `packages/api-client` 路径校验失败）；preload 仍用 asar 内 CJS。
+- 修复 `switch_mission`：将目标任务置顶为 `Mission1`，并写入游戏 cfg（此前仅 append、不改顺序）。
 
 ## [2.0.0-alpha.4]
 

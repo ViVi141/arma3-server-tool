@@ -18,6 +18,54 @@ export function listMissionFiles(serverDir: string): string[] {
   return results;
 }
 
+export function normalizeMissionTemplate(template: string): string {
+  return template.trim().replace(/\.pbo$/i, "");
+}
+
+/**
+ * Put the given mission template at index 0 (Arma Mission1).
+ * Existing entry is moved and de-duplicated; missing entry is inserted.
+ */
+export function promoteMissionToFront(
+  missions: MissionEntry[],
+  template: string,
+  difficulty?: number
+): MissionEntry[] {
+  const key = normalizeMissionTemplate(template).toLowerCase();
+  if (!key) {
+    return missions.slice();
+  }
+
+  let selected: MissionEntry | undefined;
+  const rest: MissionEntry[] = [];
+  for (const entry of missions) {
+    const entryKey = normalizeMissionTemplate(entry.template ?? "").toLowerCase();
+    if (entryKey === key) {
+      if (!selected) {
+        selected = { ...entry };
+        if (difficulty !== undefined) {
+          selected.difficulty = difficulty;
+        }
+      }
+      continue;
+    }
+    rest.push(entry);
+  }
+
+  if (!selected) {
+    const next: MissionEntry = {
+      template: normalizeMissionTemplate(template),
+      difficulty: 3,
+    };
+    if (difficulty !== undefined) {
+      next.difficulty = difficulty;
+    }
+    selected = next;
+  }
+
+  return [selected, ...rest];
+}
+
 export function mergeMissionEntries(
   scannedTemplates: string[],
   savedMissions: MissionEntry[] = []

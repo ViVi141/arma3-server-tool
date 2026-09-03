@@ -194,8 +194,6 @@ async function switchMission(template: string) {
       serverUuid: props.serverUuid,
       commands: [
         { action: "switch_mission", missionTemplate: template },
-        { action: "write_cfg" },
-        { action: "restart" },
       ],
     });
     const msg = resolveTaskMessage(res.data as never, `任务已切换至 ${template}`);
