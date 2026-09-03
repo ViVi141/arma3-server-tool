@@ -32,6 +32,10 @@ jobs:
         run: npm test
 
       - name: Pack desktop (NSIS + win-unpacked)
+        env:
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npm run pack:desktop
 
       - name: Zip win-unpacked

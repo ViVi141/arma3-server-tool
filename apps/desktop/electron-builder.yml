@@ -29,6 +29,8 @@ extraResources:
       - "**/*"
 
 asar: true
+npmRebuild: false
+publish: []
 
 win:
   target:

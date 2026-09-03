@@ -43,18 +43,9 @@ export async function openInstanceMenu(page: Page): Promise<void> {
 }
 
 export async function connectConsole(page: Page): Promise<void> {
-  const healthPromise = page.waitForResponse(
-    (response) => {
-      return response.url().includes("/api/v1/health");
-    },
-    { timeout: 15000 }
-  );
   await page.getByTestId("btn-connect").first().click();
-  const healthResponse = await healthPromise;
-  if (!healthResponse.ok()) {
-    throw new Error(`Health check HTTP ${healthResponse.status()}`);
-  }
-  await page.waitForURL(/\/console\/local\//, { timeout: 15000 });
+  // Hash router 不会触发 document load；waitForURL(waitUntil: load) 在 Linux CI 上会空等到超时。
+  await expect(page).toHaveURL(/#\/console\/local\//, { timeout: 15000 });
   await expect(page.getByTestId("console-shell")).toBeVisible();
 }
 
