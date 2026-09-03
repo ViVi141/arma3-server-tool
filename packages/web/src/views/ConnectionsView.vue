@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { createClient } from "@a3st/api-client";
@@ -16,6 +16,12 @@ const addForm = ref({
   name: "",
   baseUrl: "",
   token: "",
+});
+
+// 预热控制台懒加载块：Vue Router 会等异步组件 resolve 后才改 hash。
+// Linux CI 上冷编译该树可能超过默认 E2E 超时，导致一直停在 #/connections。
+onMounted(() => {
+  void import("./ServerConsoleView.vue");
 });
 
 function connectionTag(conn: SavedConnection): string {
@@ -51,7 +57,7 @@ async function connect(conn: SavedConnection) {
       return;
     }
     store.setActive(conn.id);
-    router.push(`/console/${conn.id}/dashboard`);
+    await router.push(`/console/${conn.id}/dashboard`);
   } finally {
     connectingId.value = null;
   }
@@ -76,7 +82,7 @@ async function doAdd() {
   addForm.value = { name: "", baseUrl: "", token: "" };
   showAdd.value = false;
   store.setActive(id);
-  router.push(`/console/${id}/dashboard`);
+  await router.push(`/console/${id}/dashboard`);
 }
 
 function doRemove(id: string) {

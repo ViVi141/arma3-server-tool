@@ -43,10 +43,25 @@ export async function openInstanceMenu(page: Page): Promise<void> {
 }
 
 export async function connectConsole(page: Page): Promise<void> {
-  await page.getByTestId("btn-connect").first().click();
-  // Hash router 不会触发 document load；waitForURL(waitUntil: load) 在 Linux CI 上会空等到超时。
-  await expect(page).toHaveURL(/#\/console\/local\//, { timeout: 15000 });
-  await expect(page.getByTestId("console-shell")).toBeVisible();
+  const connectBtn = page.getByTestId("btn-connect").first();
+  await expect(connectBtn).toBeVisible();
+  await expect(connectBtn).toBeEnabled();
+
+  // Hash 要等懒加载的 ServerConsoleView resolve 后才变；冷 Vite 在 Linux CI 上可能很慢。
+  const healthPromise = page.waitForResponse(
+    (response) => {
+      return response.url().includes("/api/v1/health") && response.request().method() === "GET";
+    },
+    { timeout: 20000 }
+  );
+  await connectBtn.click();
+  const healthResponse = await healthPromise;
+  if (!healthResponse.ok()) {
+    throw new Error(`Health check HTTP ${healthResponse.status()}`);
+  }
+
+  await expect(page).toHaveURL(/#\/console\/local\//, { timeout: 60000 });
+  await expect(page.getByTestId("console-shell")).toBeVisible({ timeout: 30000 });
 }
 
 async function waitForConsoleSettled(page: Page): Promise<void> {

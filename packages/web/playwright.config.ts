@@ -6,7 +6,8 @@ const webRoot = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 30000,
+  // First console route compile via Vite can exceed 30s on cold Linux CI runners.
+  timeout: 90000,
   retries: 0,
   use: {
     headless: true,
