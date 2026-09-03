@@ -29,9 +29,8 @@ extraResources:
       - "**/*"
 
 asar: true
-asarUnpack:
-  - "**/dist-electron/preload.cjs"
-  - "**/dist-electron/preload.js"
+# 不要用 asarUnpack 的 **/ 通配：monorepo 下 electron-builder 会对
+# packages/* 调 getRelativePath 并直接失败。CJS preload 放在 asar 内即可。
 npmRebuild: false
 publish: []
 

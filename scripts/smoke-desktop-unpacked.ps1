@@ -35,18 +35,15 @@ Assert-PathExists -Path $ExePath -Label "main executable"
 Assert-PathExists -Path $ServiceEntryInResources -Label "bundled service entry"
 Assert-PathExists -Path $WebIndexInResources -Label "bundled web index"
 
-$preloadCjs = Join-Path $WinUnpacked "resources\app.asar.unpacked\dist-electron\preload.cjs"
-$preloadInAsarHint = "resources\app.asar (dist-electron/preload.cjs)"
-if (Test-Path $preloadCjs) {
-    Assert-PathExists -Path $preloadCjs -Label "unpacked CJS preload"
-    $preloadHead = Get-Content -Path $preloadCjs -TotalCount 5 -Raw
+$preloadBuilt = Join-Path $Root "apps\desktop\dist-electron\preload.cjs"
+if (Test-Path $preloadBuilt) {
+    $preloadHead = Get-Content -Path $preloadBuilt -TotalCount 3 -Raw
     if ($preloadHead -match "^\s*import\s") {
         throw "preload.cjs still looks like ESM (starts with import). Electron will not inject electronAPI."
     }
-    Write-Host "  OK  preload.cjs is not ESM import-style" -ForegroundColor DarkGray
+    Write-Host "  OK  built preload.cjs is CJS" -ForegroundColor DarkGray
 } else {
-    Write-Host "  WARN preload.cjs not found unpacked at $preloadCjs (check asar contents / asarUnpack)" -ForegroundColor Yellow
-    Write-Host "       Expected also inside $preloadInAsarHint" -ForegroundColor Yellow
+    Write-Host "  WARN apps/desktop/dist-electron/preload.cjs missing (run desktop build before pack)" -ForegroundColor Yellow
 }
 
 $serviceNodeModules = Join-Path $WinUnpacked "resources\service\node_modules\fastify"

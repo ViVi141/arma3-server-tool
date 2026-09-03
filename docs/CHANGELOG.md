@@ -2,9 +2,13 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.4] — 当前
+## [2.0.0-alpha.5] — 当前
 
-- Electron preload 改为 CJS 并 asarUnpack，修复「被控设置仍显示 Web 模式」`electronAPI` 未注入。
+- 去掉 `asarUnpack` 通配（Release 在 monorepo 下会因 `packages/api-client` 路径校验失败）；preload 仍用 asar 内 CJS。
+
+## [2.0.0-alpha.4]
+
+- Electron preload 改为 CJS，修复「被控设置仍显示 Web 模式」`electronAPI` 未注入。
 - 被控设置可返回「主机连接」；控制台右上角改为「登出」。
 - 配置类页面与任务页补页内「保存」；工坊模式顶栏也可保存。
 
