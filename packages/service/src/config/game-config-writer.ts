@@ -407,9 +407,15 @@ function writeServerCfg(uuid: string, config: ServerConfigPackage, configRoot: s
   lines.push(line("maxpacketloss", num(basic.maxPacketLoss, 0)));
 
   const missions = Array.isArray(tasks.missions) ? tasks.missions : [];
+  // 与 v1 一致：class Missions 只写当前激活任务（missions[0]），
+  // 备选列表留在工具配置中供 GUI / switch_mission 使用，避免引擎轮换/投票池。
+  let activeMissions: unknown[] = [];
   if (missions.length > 0) {
+    activeMissions = [missions[0]];
+  }
+  if (activeMissions.length > 0) {
     lines.push("class Missions {");
-    missions.forEach((mission, index) => {
+    activeMissions.forEach((mission, index) => {
       const m = asRecord(mission);
       const template = str(m.template).replace(/\.pbo$/i, "");
       if (!template) {

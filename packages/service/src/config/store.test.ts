@@ -39,6 +39,19 @@ describe("ConfigStore", () => {
     expect(list.map((s) => s.configName).sort()).toEqual(["Server A", "Server B"]);
   });
 
+  it("preserves manifest configName when save omits explicit name", () => {
+    store.save("uuid-1", { formatVersion: 2, server: { configName: "作训服" } }, "作训服");
+    store.save("uuid-1", {
+      formatVersion: 2,
+      server: { configName: "作训服", serverDir: "C:\\arma3" },
+      tasks: { processById: 1234 },
+    });
+
+    const list = store.listServers();
+    expect(list).toHaveLength(1);
+    expect(list[0].configName).toBe("作训服");
+  });
+
   it("preserves scheduler and monitoring sections", () => {
     store.save("uuid-1", {
       formatVersion: 2,

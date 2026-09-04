@@ -29,6 +29,22 @@ function patchProcessId(
   app.configStore.save(uuid, config);
 }
 
+function resolveIdentityMarkers(
+  uuid: string,
+  config: ServerConfigPackage | null | undefined
+): { profileName: string; port?: number } {
+  let expectedPort = 0;
+  if (config?.startup?.port && config.startup.port > 0) {
+    expectedPort = config.startup.port;
+  } else if (config?.basic?.port && config.basic.port > 0) {
+    expectedPort = config.basic.port;
+  }
+  if (expectedPort > 0) {
+    return { profileName: uuid, port: expectedPort };
+  }
+  return { profileName: uuid };
+}
+
 export async function stopServer(
   app: FastifyInstance,
   uuid: string
@@ -36,10 +52,11 @@ export async function stopServer(
   const config = app.configStore.load(uuid);
   const persistedPid = config?.tasks?.processById ?? 0;
   const executable = config ? getServerExecutablePath(config) : "";
+  const markers = resolveIdentityMarkers(uuid, config);
 
   if (app.processManager.isRunning(uuid)) {
     if (persistedPid > 0 && executable) {
-      const identity = verifyProcessIdentity(persistedPid, executable);
+      const identity = verifyProcessIdentity(persistedPid, executable, markers);
       if (identity === "mismatch") {
         return {
           success: false,
@@ -60,7 +77,7 @@ export async function stopServer(
 
   if (persistedPid > 0 && isProcessRunning(persistedPid)) {
     if (executable) {
-      const identity = verifyProcessIdentity(persistedPid, executable);
+      const identity = verifyProcessIdentity(persistedPid, executable, markers);
       if (identity === "mismatch") {
         return {
           success: false,

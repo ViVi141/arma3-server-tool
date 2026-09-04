@@ -117,4 +117,30 @@ describe("AsyncTaskManager", () => {
     expect(task!.status).toBe("Failed");
     expect(task!.error).toContain("bg error");
   });
+
+  it("cancel marks a running task as Cancelled", async () => {
+    const mgr = new AsyncTaskManager();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const taskId = await mgr.runAsync(
+      "uuid-1",
+      [{ action: "download_mods" }],
+      async () => {
+        await gate;
+        return { success: true, message: "done" };
+      }
+    );
+
+    expect(mgr.get(taskId)!.status).toBe("Running");
+    const cancelled = mgr.cancel(taskId);
+    expect(cancelled).toBe(true);
+    expect(mgr.get(taskId)!.status).toBe("Cancelled");
+    release();
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mgr.get(taskId)!.status).toBe("Cancelled");
+  });
 });

@@ -121,12 +121,19 @@ export class ProcessManager extends EventEmitter {
     if (persistedPid > 0 && isProcessRunning(persistedPid)) {
       if (config?.server?.serverDir) {
         const executable = getServerExecutablePath(config);
-        const identity = verifyProcessIdentity(persistedPid, executable);
+        let expectedPort = 0;
+        if (config.startup?.port && config.startup.port > 0) {
+          expectedPort = config.startup.port;
+        } else if (config.basic?.port && config.basic.port > 0) {
+          expectedPort = config.basic.port;
+        }
+        const identity = verifyProcessIdentity(persistedPid, executable, {
+          profileName: uuid,
+          port: expectedPort > 0 ? expectedPort : undefined,
+        });
         if (identity === "match") {
           return { isRunning: true, pid: persistedPid };
         }
-      } else {
-        return { isRunning: true, pid: persistedPid };
       }
     }
 

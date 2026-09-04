@@ -58,6 +58,7 @@ export class SteamCmdManager extends EventEmitter {
   private _serverInstallPath = "";
   private sessionOutput = "";
   private latestSessionLogPath = "";
+  private _aborted = false;
 
   constructor(installDir: string, pathContext?: SteamCmdPathContext) {
     super();
@@ -210,8 +211,10 @@ export class SteamCmdManager extends EventEmitter {
 
   /** 安装/更新 Arma 3 专用服务器 */
   async updateServer(serverDir?: string, onOutput?: (line: string) => void): Promise<void> {
+    this.clearAbort();
     await this.ensureInstalled();
     this.requireCredentials();
+    this.throwIfAborted();
     const installDir = serverDir ?? this._serverInstallPath ?? this.installDir;
     const argumentsString = buildDedicatedServerUpdateArguments(
       this._username,
@@ -223,6 +226,7 @@ export class SteamCmdManager extends EventEmitter {
 
   /** 下载 Workshop 模组 */
   async downloadWorkshopMods(modIds: number[], onOutput?: (line: string) => void): Promise<void> {
+    this.clearAbort();
     await this.ensureInstalled();
     this.requireCredentials();
 
@@ -247,11 +251,13 @@ export class SteamCmdManager extends EventEmitter {
       uniqueIds,
     );
     try {
+      this.throwIfAborted();
       await this.runSteamCmdArguments(batchArgs, onOutput, {
         isWorkshop: true,
         emitComplete: false,
       });
     } catch (err) {
+      this.throwIfAborted();
       const msg = err instanceof Error ? err.message : String(err);
       const hint = `[提示] 批量下载未完全成功，将检查失败项并单独重试。详情: ${msg.slice(0, 200)}\n`;
       this.appendSessionOutput(hint);
@@ -262,6 +268,7 @@ export class SteamCmdManager extends EventEmitter {
     let remaining = resolveWorkshopDownloadMissingIds(uniqueIds, this.sessionOutput);
     const maxSoloAttempts = 3;
     for (let attempt = 1; attempt <= maxSoloAttempts && remaining.length > 0; attempt++) {
+      this.throwIfAborted();
       const hint =
         `[重试] 批量下载有 ${remaining.length} 个模组未完成（常见于体积较大的 Workshop 项，如 CUP Terrains），`
         + `将单独重试第 ${attempt}/${maxSoloAttempts} 次: ${remaining.join(", ")}\n`;
@@ -271,7 +278,9 @@ export class SteamCmdManager extends EventEmitter {
 
       const nextFailed: number[] = [];
       for (const modId of remaining) {
+        this.throwIfAborted();
         await new Promise<void>((resolve) => setTimeout(resolve, 1500));
+        this.throwIfAborted();
         const soloArgs = buildWorkshopDownloadArguments(
           this._username,
           this._password,
@@ -285,6 +294,7 @@ export class SteamCmdManager extends EventEmitter {
             emitComplete: false,
           });
         } catch (err) {
+          this.throwIfAborted();
           const msg = err instanceof Error ? err.message : String(err);
           const failHint = `[失败] 模组 ${modId} 单独下载出错: ${msg}\n`;
           this.appendSessionOutput(failHint);
@@ -299,6 +309,8 @@ export class SteamCmdManager extends EventEmitter {
       }
       remaining = nextFailed;
     }
+
+    this.throwIfAborted();
 
     if (remaining.length > 0) {
       throw new Error(
@@ -327,6 +339,7 @@ export class SteamCmdManager extends EventEmitter {
     } = {},
     retryCount = 0,
   ): Promise<void> {
+    this.throwIfAborted();
     if (this.activeCapture !== null) {
       throw new Error("SteamCMD 进程已在运行，请等待当前任务完成");
     }
@@ -529,6 +542,26 @@ export class SteamCmdManager extends EventEmitter {
     }
     if (pid) {
       killProcessTree(pid);
+    }
+  }
+
+  /** 终止当前 SteamCMD，并阻止 download_mods 等循环继续拉起新进程。 */
+  requestAbort(): void {
+    this._aborted = true;
+    this.kill();
+  }
+
+  clearAbort(): void {
+    this._aborted = false;
+  }
+
+  get isAborted(): boolean {
+    return this._aborted;
+  }
+
+  private throwIfAborted(): void {
+    if (this._aborted) {
+      throw new Error("SteamCMD 操作已取消");
     }
   }
 

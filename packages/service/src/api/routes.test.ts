@@ -78,12 +78,13 @@ describe("API Routes Integration", () => {
     const body = JSON.parse(res.payload);
     expect(body.data.taskActions).toBeInstanceOf(Array);
     expect(body.data.taskActions.length).toBeGreaterThanOrEqual(20);
-  });
-
-  it("GET /api/v1/servers returns empty array", async () => {
-    const res = await app.inject({ method: "GET", url: "/api/v1/servers" });
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload)).toEqual([]);
+    expect(body.data.taskActions).toContain("create_server");
+    expect(body.data.taskActions).toContain("first_server_setup");
+    expect(body.data.taskActions).toContain("ensure_steamcmd");
+    const paths = body.data.restEndpoints.map((e: { path: string }) => e.path);
+    expect(paths).toContain("/api/v1/servers");
+    expect(paths).toContain("/api/v1/steamcmd/stop");
+    expect(paths).toContain("/api/v1/tasks/{taskId}");
   });
 
   it("POST /api/v1/servers creates a server", async () => {
@@ -104,6 +105,134 @@ describe("API Routes Integration", () => {
     const configBody = JSON.parse(configRes.payload);
     expect(configBody.data.server.serverDir).toBe("C:\\arma3");
     expect(configBody.data.server.configName).toBe("Test");
+
+    const listRes = await app.inject({ method: "GET", url: "/api/v1/servers" });
+    const list = JSON.parse(listRes.payload) as { uuid: string; configName: string }[];
+    const created = list.find((s) => s.uuid === body.data.uuid);
+    expect(created?.configName).toBe("Test");
+  });
+
+  it("clone clears processById from the source server", async () => {
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/v1/servers",
+      payload: { configName: "Source", serverDir: tmpDir },
+    });
+    const uuid = JSON.parse(createRes.payload).data.uuid as string;
+
+    await app.inject({
+      method: "PUT",
+      url: `/api/v1/servers/${uuid}/config`,
+      payload: {
+        formatVersion: 2,
+        server: { configName: "Source", serverDir: tmpDir },
+        tasks: { processById: 99999, missions: [{ template: "A.Altis", difficulty: 3 }] },
+      },
+    });
+
+    // PUT 会清掉无法校验的 PID；直接写入模拟「整包导入残留」场景
+    const planted = app.configStore.load(uuid)!;
+    planted.tasks = { ...planted.tasks, processById: 99999 };
+    app.configStore.save(uuid, planted);
+    expect(app.configStore.load(uuid)!.tasks?.processById).toBe(99999);
+
+    const cloneRes = await app.inject({
+      method: "POST",
+      url: `/api/v1/servers/${uuid}/clone`,
+    });
+    expect(cloneRes.statusCode).toBe(201);
+    const newUuid = JSON.parse(cloneRes.payload).data.uuid as string;
+
+    const configRes = await app.inject({
+      method: "GET",
+      url: `/api/v1/servers/${newUuid}/config`,
+    });
+    const cloned = JSON.parse(configRes.payload).data;
+    expect(cloned.tasks.processById).toBe(0);
+
+    const statusRes = await app.inject({
+      method: "GET",
+      url: `/api/v1/servers/${newUuid}/status`,
+    });
+    expect(JSON.parse(statusRes.payload).isRunning).toBe(false);
+  });
+
+  it("PUT config clears foreign processById on import", async () => {
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/v1/servers",
+      payload: { configName: "ImportPid", serverDir: tmpDir },
+    });
+    const uuid = JSON.parse(createRes.payload).data.uuid as string;
+
+    const putRes = await app.inject({
+      method: "PUT",
+      url: `/api/v1/servers/${uuid}/config`,
+      payload: {
+        formatVersion: 2,
+        server: { configName: "ImportPid", serverDir: tmpDir },
+        tasks: { processById: 424242 },
+      },
+    });
+    expect(putRes.statusCode).toBe(200);
+    const loaded = JSON.parse(
+      (await app.inject({ method: "GET", url: `/api/v1/servers/${uuid}/config` })).payload
+    ).data;
+    expect(loaded.tasks.processById).toBe(0);
+  });
+
+  it("PUT config?writeCfg=true writes server.cfg", async () => {
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/v1/servers",
+      payload: { configName: "WriteCfg", serverDir: tmpDir },
+    });
+    const uuid = JSON.parse(createRes.payload).data.uuid as string;
+
+    const putRes = await app.inject({
+      method: "PUT",
+      url: `/api/v1/servers/${uuid}/config?writeCfg=true`,
+      payload: {
+        formatVersion: 2,
+        server: { configName: "WriteCfg", serverDir: tmpDir, executable: "arma3server_x64.exe" },
+        basic: { hostname: "WriteCfg Host", maxPlayers: 16, port: 2502 },
+        startup: { port: 2502 },
+        tasks: {
+          missions: [
+            { template: "First.Altis", difficulty: 3 },
+            { template: "Second.Malden", difficulty: 1 },
+          ],
+        },
+      },
+    });
+    expect(putRes.statusCode).toBe(200);
+    const putBody = JSON.parse(putRes.payload);
+    expect(putBody.success).toBe(true);
+    expect(putBody.data.message).toContain("写入");
+
+    const cfgPath = path.join(tmpDir, "a3st_serverconfig", uuid, "server.cfg");
+    expect(fs.existsSync(cfgPath)).toBe(true);
+    const cfgText = fs.readFileSync(cfgPath, "utf-8");
+    expect(cfgText).toContain("First.Altis");
+    expect(cfgText).not.toContain("Second.Malden");
+  });
+
+  it("DELETE /api/v1/tasks/:taskId cancels a running task", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/task",
+      payload: {
+        serverUuid: "test-uuid",
+        commands: [{ action: "status" }],
+        async: true,
+      },
+    });
+    const taskId = JSON.parse(res.payload).data.taskId as string;
+
+    // status is fast; cancel may already be finished — endpoint must still succeed
+    const del = await app.inject({ method: "DELETE", url: `/api/v1/tasks/${taskId}` });
+    expect(del.statusCode).toBe(200);
+    expect(JSON.parse(del.payload).success).toBe(true);
   });
 
   it("PUT /api/v1/settings/steamcmd persists workshop root", async () => {

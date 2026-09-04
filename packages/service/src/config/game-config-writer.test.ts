@@ -171,6 +171,29 @@ describe("GameConfigWriter", () => {
     expect(serverCfg).toContain("class Params");
     expect(serverCfg).toContain("TimeOfDay = 12;");
     expect(serverCfg).toContain("autoSelectMission=1;");
+    // class Missions 只写当前激活任务（首项），备选不进引擎池
+    expect(serverCfg).toContain("class Mission1");
+    expect(serverCfg).not.toContain("class Mission2");
+    expect(serverCfg).not.toContain('template = "Other_Mission"');
+  });
+
+  it("writes only the first mission into class Missions", () => {
+    const cfg: ServerConfigPackage = {
+      ...sampleConfig(),
+      tasks: {
+        missions: [
+          { template: "Active.Altis", difficulty: 3 },
+          { template: "Spare.Malden", difficulty: 1 },
+          { template: "Spare.Tanoa", difficulty: 2 },
+        ],
+      },
+    };
+    writeAll("uuid-missions", cfg);
+    const serverCfg = fs.readFileSync(serverCfgPath(tmpDir, "uuid-missions"), "utf-8");
+    expect(serverCfg).toContain('template = "Active.Altis"');
+    expect(serverCfg).not.toContain("Spare.Malden");
+    expect(serverCfg).not.toContain("Spare.Tanoa");
+    expect(serverCfg.match(/class Mission\d+/g)).toEqual(["class Mission1"]);
   });
 
   it("appends base64 startConfigArgs and rejects long command lines", () => {

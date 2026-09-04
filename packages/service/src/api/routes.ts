@@ -56,6 +56,7 @@ import {
 import { syncCronJobsForServer } from "../scheduling/cron-sync.js";
 import { validateServerPath } from "../utils/path-validation.js";
 import { defaultServerExecutable } from "../platform/index.js";
+import { verifyProcessIdentity } from "../process/identity.js";
 
 export async function apiRoutes(app: FastifyInstance) {
   // ===================== Servers CRUD =====================
@@ -70,9 +71,13 @@ export async function apiRoutes(app: FastifyInstance) {
     return servers.map((s) => {
       const config = app.configStore.load(s.uuid);
       const serverDir = config?.server?.serverDir;
+      let configName = s.configName;
+      if (config?.server?.configName && config.server.configName.trim()) {
+        configName = config.server.configName.trim();
+      }
       return {
         uuid: s.uuid,
-        configName: s.configName,
+        configName,
         serverDir: serverDir ?? undefined,
       };
     });
@@ -107,8 +112,30 @@ export async function apiRoutes(app: FastifyInstance) {
     const { uuid } = req.params as { uuid: string };
     const body = req.body as Record<string, unknown>;
     try {
+      const sanitized = sanitizeImportedProcessId(
+        uuid,
+        body as unknown as ServerConfigPackage,
+        app
+      );
       maybeAutoSnapshot(app, uuid, "save");
-      app.configStore.save(uuid, body as never);
+      app.configStore.save(uuid, sanitized);
+
+      const query = req.query as { writeCfg?: string };
+      if (parseQueryBool(query.writeCfg)) {
+        maybeAutoSnapshot(app, uuid, "write");
+        const writeResult = writeAll(uuid, sanitized);
+        if (!writeResult.success) {
+          reply.status(400);
+          return envelope(false, { message: writeResult.message }, "WRITE_CFG_FAILED", uuid);
+        }
+        return envelope(
+          true,
+          { message: `配置已保存并写入。${writeResult.message}` },
+          null,
+          uuid
+        );
+      }
+
       return envelope(true, { message: "配置已保存" }, null, uuid);
     } catch {
       reply.status(400);
@@ -143,13 +170,14 @@ export async function apiRoutes(app: FastifyInstance) {
       }
     }
     const merged = mergeConfigPackage(existing, patch);
+    const sanitized = sanitizeImportedProcessId(uuid, merged, app);
     maybeAutoSnapshot(app, uuid, "save");
-    app.configStore.save(uuid, merged);
+    app.configStore.save(uuid, sanitized);
 
     const query = req.query as { writeCfg?: string };
     if (parseQueryBool(query.writeCfg)) {
       maybeAutoSnapshot(app, uuid, "write");
-      const writeResult = writeAll(uuid, merged);
+      const writeResult = writeAll(uuid, sanitized);
       if (!writeResult.success) {
         reply.status(400);
         return envelope(false, { message: writeResult.message }, "WRITE_CFG_FAILED", uuid);
@@ -203,7 +231,20 @@ export async function apiRoutes(app: FastifyInstance) {
       return envelope(false, null, "NOT_FOUND", uuid);
     }
     const newUuid = randomUUID();
-    app.configStore.save(newUuid, config);
+    const cloned: ServerConfigPackage = {
+      ...config,
+      tasks: {
+        ...config.tasks,
+        processById: 0,
+      },
+    };
+    if (cloned.server?.configName) {
+      cloned.server = {
+        ...cloned.server,
+        configName: `${cloned.server.configName} (副本)`,
+      };
+    }
+    app.configStore.save(newUuid, cloned, cloned.server?.configName);
     reply.status(201);
     return envelope(true, { uuid: newUuid }, null, uuid);
   });
@@ -359,7 +400,7 @@ export async function apiRoutes(app: FastifyInstance) {
   });
 
   app.post("/steamcmd/stop", async () => {
-    app.steamCmd.kill();
+    app.steamCmd.requestAbort();
     return envelope(true, { message: "SteamCMD 已停止" }, null, "");
   });
 
@@ -1026,12 +1067,95 @@ export async function apiRoutes(app: FastifyInstance) {
       completedAt: task.completedAt?.toISOString(),
     }, null, taskId);
   });
+
+  app.delete("/tasks/:taskId", async (req, reply) => {
+    const { taskId } = req.params as { taskId: string };
+    const task = app.asyncTaskManager.get(taskId);
+    if (!task) {
+      reply.status(404);
+      return envelope(false, null, "NOT_FOUND", taskId);
+    }
+    const cancelled = app.asyncTaskManager.cancel(taskId);
+    app.steamCmd.requestAbort();
+    const updated = app.asyncTaskManager.get(taskId);
+    let message = "任务已结束";
+    if (cancelled) {
+      message = "任务已取消";
+    }
+    return envelope(
+      true,
+      { message, status: updated?.status ?? task.status },
+      null,
+      taskId
+    );
+  });
 }
 
 // ===================== Helpers =====================
 
 function envelope<T>(success: boolean, data: T, error: string | null, requestId: string) {
   return { success, data, error, requestId: requestId || randomUUID().slice(0, 12) };
+}
+
+/**
+ * Clone/import 常会带上源服的 processById。仅在本 uuid 已有托管进程，
+ * 或 PID 经 -name/-port 身份校验匹配时保留；否则清零，避免误报 running / 误杀。
+ */
+function sanitizeImportedProcessId(
+  uuid: string,
+  config: ServerConfigPackage,
+  app: FastifyInstance
+): ServerConfigPackage {
+  const livePid = app.processManager.getPid(uuid);
+  if (livePid && livePid > 0) {
+    return {
+      ...config,
+      tasks: {
+        ...config.tasks,
+        processById: livePid,
+      },
+    };
+  }
+
+  const importedPid = config.tasks?.processById ?? 0;
+  if (importedPid <= 0) {
+    return {
+      ...config,
+      tasks: {
+        ...config.tasks,
+        processById: 0,
+      },
+    };
+  }
+
+  const executable = getServerExecutablePath(config);
+  let expectedPort = 0;
+  if (config.startup?.port && config.startup.port > 0) {
+    expectedPort = config.startup.port;
+  } else if (config.basic?.port && config.basic.port > 0) {
+    expectedPort = config.basic.port;
+  }
+
+  let portMarker: number | undefined;
+  if (expectedPort > 0) {
+    portMarker = expectedPort;
+  }
+
+  const identity = verifyProcessIdentity(importedPid, executable, {
+    profileName: uuid,
+    port: portMarker,
+  });
+  if (identity === "match") {
+    return config;
+  }
+
+  return {
+    ...config,
+    tasks: {
+      ...config.tasks,
+      processById: 0,
+    },
+  };
 }
 
 async function executeCommandWithFollowUps(
@@ -1352,7 +1476,7 @@ async function executeCommand(
       }
     }
     case "stop_steamcmd": {
-      app.steamCmd.kill();
+      app.steamCmd.requestAbort();
       return ok("SteamCMD 已停止");
     }
     case "steamcmd_status": {

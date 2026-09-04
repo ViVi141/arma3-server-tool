@@ -102,15 +102,44 @@ export class ConfigStore {
     return pkg;
   }
 
+  private readManifestConfigName(uuid: string): string | undefined {
+    const manifestPath = path.join(this.baseDir, CONFIG_DIR, uuid, MANIFEST_FILE);
+    if (!fs.existsSync(manifestPath)) {
+      return undefined;
+    }
+    try {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as ServerManifest;
+      const name = manifest.configName?.trim();
+      if (name) {
+        return name;
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   /** Save a complete config package */
   save(uuid: string, config: ServerConfigPackage, configName?: string): void {
     const pkgDir = path.join(this.baseDir, CONFIG_DIR, uuid);
     fs.mkdirSync(pkgDir, { recursive: true });
 
+    let resolvedName = uuid;
+    if (configName && configName.trim()) {
+      resolvedName = configName.trim();
+    } else if (config.server?.configName && config.server.configName.trim()) {
+      resolvedName = config.server.configName.trim();
+    } else {
+      const existingName = this.readManifestConfigName(uuid);
+      if (existingName) {
+        resolvedName = existingName;
+      }
+    }
+
     const sections: Record<string, unknown> = {
       manifest: {
         uuid,
-        configName: configName ?? uuid,
+        configName: resolvedName,
         formatVersion: config.formatVersion,
         lastModified: new Date().toISOString(),
       },
