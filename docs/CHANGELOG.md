@@ -2,15 +2,18 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.5] — 当前
+## [2.0.0-alpha.6] — 当前
 
-- 去掉 `asarUnpack` 通配（Release 在 monorepo 下会因 `packages/api-client` 路径校验失败）；preload 仍用 asar 内 CJS。
-- 修复 `switch_mission`：将目标任务置顶为 `Mission1`，并写入游戏 cfg（此前仅 append、不改顺序）。
 - `PUT/PATCH ?writeCfg=true` 真正调用 `writeAll` 落盘 server.cfg（修复 #9）。
 - `write_cfg` 的 `class Missions` 只写 `missions[0]`，备选列表留在工具配置（修复 #13 / #11 任务不一致）。
 - clone/整包导入清零或校验 `processById`；进程身份校验匹配 `-name=<uuid>` / `-port`（修复 #10）。
 - 保存配置时保留 manifest `configName`；`GET /servers` 优先返回 `server.configName`（修复 #11）。
 - 补全 `GET /actions` 的 taskActions / restEndpoints；新增 `DELETE /tasks/:taskId` 与 SteamCMD abort，可真正中止 `download_mods`（修复 #11 / #12）。
+
+## [2.0.0-alpha.5]
+
+- 去掉 `asarUnpack` 通配（Release 在 monorepo 下会因 `packages/api-client` 路径校验失败）；preload 仍用 asar 内 CJS。
+- 修复 `switch_mission`：将目标任务置顶为 `Mission1`，并写入游戏 cfg（此前仅 append、不改顺序）。
 
 ## [2.0.0-alpha.4]
 
