@@ -58,11 +58,73 @@ export const useConnectionsStore = defineStore("connections", () => {
     activeId.value = id;
   }
 
+  function updateConnection(id: string, patch: Partial<Omit<SavedConnection, "id">>): void {
+    const idx = connections.value.findIndex((c) => c.id === id);
+    if (idx < 0) {
+      return;
+    }
+    const current = connections.value[idx];
+    connections.value[idx] = {
+      ...current,
+      ...patch,
+      id: current.id,
+    };
+    if (patch.baseUrl !== undefined) {
+      connections.value[idx].baseUrl = patch.baseUrl.trim();
+    }
+    persist();
+  }
+
+  /** Electron 被控 Token/端口变更后，同步到「本机」连接，避免 UI 能开但 API 全 401。 */
+  async function syncLocalFromElectronSettings(): Promise<void> {
+    if (!window.electronAPI?.getServiceSettings) {
+      return;
+    }
+    try {
+      const settings = await window.electronAPI.getServiceSettings();
+      const port = settings.port && settings.port > 0 ? settings.port : 19580;
+      const baseUrl = `http://127.0.0.1:${port}`;
+      let token: string | undefined;
+      if (settings.apiToken && settings.apiToken.trim()) {
+        token = settings.apiToken.trim();
+      } else {
+        token = undefined;
+      }
+
+      const local = connections.value.find((c) => c.id === "local" || c.isLocal);
+      if (local) {
+        updateConnection(local.id, { baseUrl, token, isLocal: true });
+        return;
+      }
+      connections.value.unshift({
+        id: "local",
+        name: "本机",
+        baseUrl,
+        token,
+        isLocal: true,
+      });
+      persist();
+    } catch {
+      /* ignore */
+    }
+  }
+
   function getClient(): A3stClient | null {
     const conn = active.value;
     if (!conn) return null;
     return createClient(conn.baseUrl.trim(), conn.token);
   }
 
-  return { connections, activeId, active, add, remove, setActive, getClient, persist };
+  return {
+    connections,
+    activeId,
+    active,
+    add,
+    remove,
+    setActive,
+    updateConnection,
+    syncLocalFromElectronSettings,
+    getClient,
+    persist,
+  };
 });

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { createClient } from "@a3st/api-client";
@@ -16,6 +16,10 @@ const addForm = ref({
   name: "",
   baseUrl: "",
   token: "",
+});
+
+onMounted(() => {
+  void store.syncLocalFromElectronSettings();
 });
 
 function connectionTag(conn: SavedConnection): string {

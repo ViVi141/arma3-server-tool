@@ -3,9 +3,11 @@ import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
 import { ref, onMounted, computed } from "vue";
 import { ElMessage } from "element-plus";
 import { isElectron as inDesktopShell, isElectronShellWithoutBridge } from "@/utils/electron";
+import { useConnectionsStore } from "@/stores/connections";
 
 const isElectron = inDesktopShell();
 const bridgeBroken = isElectronShellWithoutBridge();
+const connections = useConnectionsStore();
 
 const modeAlertTitle = computed(() => {
   if (bridgeBroken) {
@@ -70,6 +72,7 @@ async function saveSettings() {
       apiToken: localToken.value.trim(),
       remoteAccessEnabled: remoteEnabled.value,
     });
+    await connections.syncLocalFromElectronSettings();
     const status = await window.electronAPI.restartService();
     if (status.running) {
       serviceStatus.value = `运行中 · PID ${status.pid ?? "-"}`;

@@ -66,6 +66,13 @@ export async function createService(options: ServiceOptions) {
   app.decorateRequest("authenticated", false);
   app.addHook("onRequest", async (request, reply) => {
     const pathOnly = request.url.split("?")[0] ?? request.url;
+
+    // 静态 UI（/, /assets/*）不能要求 Bearer：浏览器直接打开页面时没有 Authorization。
+    if (!pathOnly.startsWith("/api/")) {
+      (request as { authenticated: boolean }).authenticated = true;
+      return;
+    }
+
     if (pathOnly === "/api/v1/health" || pathOnly === "/api/v1/actions") {
       return;
     }

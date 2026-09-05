@@ -2,10 +2,13 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.8] — 当前
+## [2.0.0-alpha.9] — 当前
+
+- 配置了 API Token 时仍允许加载静态 UI（`/`、`/assets/*`）；Electron「本机」连接自动同步被控 Token，避免打开就 `Unauthorized`。
+
+## [2.0.0-alpha.8]
 
 - Electron 安装包优先从 `http://127.0.0.1:<port>/` 加载 UI；控制台路由同步打包；隐藏默认 File/Edit 菜单；连接主机后白屏修复。
-
 ## [2.0.0-alpha.7]
 
 - SteamCMD「取消当前操作（不再重试）」：杀进程后禁止内部/solo 重试，并取消相关异步任务；工坊页按钮同步强化。
