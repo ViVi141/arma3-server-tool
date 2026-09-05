@@ -2,16 +2,19 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.6] — 当前
+## [2.0.0-alpha.7] — 当前
+
+- SteamCMD「取消当前操作（不再重试）」：杀进程后禁止内部/solo 重试，并取消相关异步任务；工坊页按钮同步强化。
+- 模组页新增「更新/下载选中」与「仅更新有更新的模组」入口（按勾选 / outdated 子集下载，非整库）。
+- Electron：web `base` 固定相对路径；界面 `did-fail-load` 时回退到本机 Service 静态页，缓解关进程后再开空白窗。
+
+## [2.0.0-alpha.6]
 
 - `PUT/PATCH ?writeCfg=true` 真正调用 `writeAll` 落盘 server.cfg（修复 #9）。
 - `write_cfg` 的 `class Missions` 只写 `missions[0]`，备选列表留在工具配置（修复 #13 / #11 任务不一致）。
 - clone/整包导入清零或校验 `processById`；进程身份校验匹配 `-name=<uuid>` / `-port`（修复 #10）。
 - 保存配置时保留 manifest `configName`；`GET /servers` 优先返回 `server.configName`（修复 #11）。
 - 补全 `GET /actions` 的 taskActions / restEndpoints；新增 `DELETE /tasks/:taskId` 与 SteamCMD abort，可真正中止 `download_mods`（修复 #11 / #12）。
-- SteamCMD「取消当前操作（不再重试）」：杀进程后禁止内部/solo 重试，并取消相关异步任务；工坊页按钮同步强化。
-- 模组页新增「更新/下载选中」与「仅更新有更新的模组」入口（按勾选 / outdated 子集下载，非整库）。
-- Electron：web `base` 固定相对路径；界面 `did-fail-load` 时回退到本机 Service 静态页，缓解关进程后再开空白窗。
 
 ## [2.0.0-alpha.5]
 
