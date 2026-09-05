@@ -8,7 +8,7 @@ export async function healthRoutes(app: FastifyInstance) {
     return {
       success: true,
       service: "Arma3ServerTools.Service",
-      version: "2.0.0-alpha.7",
+      version: "2.0.0-alpha.8",
       remoteAccessEnabled: false,
       publicBaseUrl: `http://127.0.0.1:${(app.server.address() as { port: number })?.port ?? 19580}`,
       platform: platform.os,

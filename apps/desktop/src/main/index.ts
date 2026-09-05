@@ -305,6 +305,7 @@ function createWindow(): void {
     minHeight: 500,
     title: "Arma3 Server Tools",
     backgroundColor: themeBackgroundColor(),
+    autoHideMenuBar: true,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -314,6 +315,9 @@ function createWindow(): void {
     show: false,
   });
 
+  // 去掉默认 File/Edit 菜单，避免「只有菜单栏+白屏」被误认为正常界面。
+  mainWindow.setMenuBarVisibility(false);
+
   mainWindow.webContents.on("preload-error", (_event, preloadScriptPath, error) => {
     console.error(`Preload failed (${preloadScriptPath}):`, error);
   });
@@ -322,31 +326,47 @@ function createWindow(): void {
   mainWindow.webContents.on(
     "did-fail-load",
     (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-      // -3 = ERR_ABORTED（正常导航中断）；子资源失败也不应整页回退。
       if (!isMainFrame || errorCode === -3 || loadFallbackTried || !mainWindow) {
         return;
       }
       console.error(`UI did-fail-load code=${errorCode} url=${validatedURL}: ${errorDescription}`);
       loadFallbackTried = true;
-      const settings = loadSettings();
-      const fallbackUrl = `http://127.0.0.1:${settings.port}/`;
-      console.warn(`Falling back to service UI: ${fallbackUrl}`);
-      mainWindow.loadURL(fallbackUrl).catch((err) => {
-        console.error("Fallback UI load failed:", err);
-        dialog.showErrorBox(
-          "界面加载失败",
-          `无法加载控制台界面。\n\nfile 错误: ${errorDescription}\n回退地址: ${fallbackUrl}\n\n请确认安装完整，或查看 service.log。`
-        );
-        mainWindow?.show();
-      });
+      const indexPath = getWebIndexPath();
+      if (fs.existsSync(indexPath)) {
+        console.warn(`Falling back to file UI: ${indexPath}`);
+        mainWindow.loadFile(indexPath).catch((err) => {
+          console.error("Fallback file UI load failed:", err);
+          dialog.showErrorBox(
+            "界面加载失败",
+            `无法加载控制台界面。\n\n错误: ${errorDescription}\n地址: ${validatedURL}\n\n请确认本机服务已启动，或查看 service.log。`
+          );
+          mainWindow?.show();
+        });
+        return;
+      }
+      dialog.showErrorBox(
+        "界面加载失败",
+        `无法加载控制台界面。\n\n错误: ${errorDescription}\n地址: ${validatedURL}`
+      );
+      mainWindow.show();
     }
   );
+
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    console.error("Renderer gone:", details);
+    dialog.showErrorBox(
+      "界面进程已退出",
+      `渲染进程异常（${details.reason}）。将尝试重新加载。`
+    );
+    if (mainWindow) {
+      loadUiIntoWindow(mainWindow);
+    }
+  });
 
   mainWindow.on("ready-to-show", () => {
     mainWindow?.show();
   });
 
-  // 托盘唤起时若页面空白，尝试重新加载一次。
   mainWindow.on("show", () => {
     if (!mainWindow) {
       return;
@@ -367,6 +387,10 @@ function createWindow(): void {
   loadUiIntoWindow(mainWindow);
 }
 
+/**
+ * 安装包优先走本机 Service 静态页（http://127.0.0.1:port/）。
+ * file:// 下部分动态 chunk / 路由切换易白屏；preload 在 http 回环仍可用。
+ */
 function loadUiIntoWindow(win: BrowserWindow): void {
   if (isDev) {
     win.loadURL("http://localhost:5173").catch((e) => {
@@ -378,26 +402,28 @@ function loadUiIntoWindow(win: BrowserWindow): void {
     return;
   }
 
-  const indexPath = getWebIndexPath();
-  if (!fs.existsSync(indexPath)) {
+  const settings = loadSettings();
+  const serviceUrl = `http://127.0.0.1:${settings.port}/`;
+  console.log(`Loading UI from service: ${serviceUrl}`);
+  win.loadURL(serviceUrl).catch((err) => {
+    console.error("Service UI load failed:", err);
+    const indexPath = getWebIndexPath();
+    if (fs.existsSync(indexPath)) {
+      win.loadFile(indexPath).catch((fileErr) => {
+        console.error("file:// UI load failed:", fileErr);
+        dialog.showErrorBox(
+          "界面加载失败",
+          `无法打开控制台。\nService: ${serviceUrl}\nfile: ${indexPath}`
+        );
+        win.show();
+      });
+      return;
+    }
     dialog.showErrorBox(
       "界面文件缺失",
-      `未找到控制台页面：\n${indexPath}\n\n请重新安装或重新打包。`
+      `未找到控制台页面，且无法连接 ${serviceUrl}。\n日志：${path.join(dataDir(), "service.log")}`
     );
-    const settings = loadSettings();
-    win.loadURL(`http://127.0.0.1:${settings.port}/`).catch(() => {
-      win.show();
-    });
-    return;
-  }
-
-  // file:// + preload：原生选目录 / 被控设置可用。API 仍走 127.0.0.1:19580（CORS 已允许 Origin null）。
-  win.loadFile(indexPath).catch((err) => {
-    console.error("loadFile failed:", err);
-    const settings = loadSettings();
-    win.loadURL(`http://127.0.0.1:${settings.port}/`).catch(() => {
-      win.show();
-    });
+    win.show();
   });
 }
 
@@ -461,6 +487,9 @@ if (!gotLock) {
       app.quit();
       return;
     }
+
+    // 隐藏应用默认菜单（File/Edit/...），避免白屏时看起来像「空壳菜单程序」。
+    Menu.setApplicationMenu(null);
 
     registerIpcHandlers();
     nativeTheme.themeSource = "system";

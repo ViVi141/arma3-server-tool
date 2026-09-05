@@ -4,7 +4,7 @@
 
 - **前端**：Vue 3 + Element Plus（Web + Electron 桌面壳）
 - **后端**：Node.js + Fastify + SQLite
-- **当前版本**：v2.0.0-alpha.7
+- **当前版本**：v2.0.0-alpha.8
 - **开服机**：Windows 或 Linux（Arma 3 专用服务器 + SteamCMD）；**Electron 桌面壳** 目前仅 Windows 打包
 - **控制端**：任意系统浏览器；Linux 开服机可直接 `npm run start:service` + 浏览器
 

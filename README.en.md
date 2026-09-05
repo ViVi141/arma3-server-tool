@@ -4,7 +4,7 @@ Cross-platform **Arma 3 dedicated server** management. Full-stack **TypeScript**
 
 - **Frontend**: Vue 3 + Element Plus (Web + Electron shell)
 - **Backend**: Node.js + Fastify + SQLite
-- **Current version**: v2.0.0-alpha.7
+- **Current version**: v2.0.0-alpha.8
 - **Maintainer**: [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)
 
 For full documentation (Chinese), see **[README.md](README.md)**.
