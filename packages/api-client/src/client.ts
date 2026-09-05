@@ -297,6 +297,10 @@ export class A3stClient {
     return this.get(`/api/v1/tasks/${taskId}`);
   }
 
+  async cancelTask(taskId: string): Promise<ApiResponse<{ message: string; status?: string }>> {
+    return this.deleteReq(`/api/v1/tasks/${taskId}`);
+  }
+
   async pollTask(
     taskId: string,
     intervalMs = 2000,
@@ -306,7 +310,7 @@ export class A3stClient {
     while (Date.now() - started < timeoutMs) {
       const res = await this.getTask(taskId);
       const status = res.data.status;
-      if (status === "Succeeded" || status === "Failed") {
+      if (status === "Succeeded" || status === "Failed" || status === "Cancelled") {
         return res.data;
       }
       await new Promise((resolve) => {
@@ -398,7 +402,7 @@ export class A3stClient {
     return this.put("/api/v1/settings/steamcmd", body);
   }
 
-  async stopSteamCmd(): Promise<ApiResponse<null>> {
+  async stopSteamCmd(): Promise<ApiResponse<{ message?: string; cancelledTaskIds?: string[] }>> {
     return this.post("/api/v1/steamcmd/stop");
   }
 }

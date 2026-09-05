@@ -8,7 +8,7 @@ import { useConnectionsStore } from "@/stores/connections";
 import type { AutomationCommand, AsyncTaskResponse } from "@a3st/api-client";
 import TerminalOutput from "@/components/TerminalOutput.vue";
 import PathInput from "@/components/PathInput.vue";
-import { pollTaskSucceeded, resolvePollTaskMessage } from "@/utils/taskSteps";
+import { pollTaskSucceeded, pollTaskCancelled, resolvePollTaskMessage } from "@/utils/taskSteps";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
@@ -22,6 +22,8 @@ const taskStatus = ref("");
 const workshopCount = ref("-");
 const currentServerDir = ref("");
 const busy = ref(false);
+const activeTaskId = ref("");
+const cancelling = ref(false);
 
 const baseUrl = computed(() => store.active?.baseUrl ?? "");
 const apiToken = computed(() => store.active?.token ?? "");
@@ -123,10 +125,14 @@ async function submitAsyncTask(commands: AutomationCommand[], label: string) {
       ElMessage.warning("未收到任务 ID");
       return;
     }
+    activeTaskId.value = taskId;
 
     const finalTask = await client.pollTask(taskId, 2000, 900000);
     const msg = resolvePollTaskMessage(finalTask as never, `${label} 完成`);
-    if (pollTaskSucceeded(finalTask as never)) {
+    if (pollTaskCancelled(finalTask as never)) {
+      taskStatus.value = `${label}：已取消`;
+      ElMessage.info(msg);
+    } else if (pollTaskSucceeded(finalTask as never)) {
       taskStatus.value = `${label}：${msg}`;
       ElMessage.success(msg);
     } else {
@@ -138,6 +144,7 @@ async function submitAsyncTask(commands: AutomationCommand[], label: string) {
     ElMessage.error(e instanceof Error ? e.message : "任务失败");
   } finally {
     busy.value = false;
+    activeTaskId.value = "";
     await checkSteamCmd();
   }
 }
@@ -154,9 +161,19 @@ async function checkSteamCmd() {
     }
     const res = await client.steamCmdStatus();
     const data = res.data;
-    const installed = data.isInstalled ? "是" : "否";
-    const running = data.isRunning ? "是" : "否";
-    statusText.value = `安装: ${installed} · 运行: ${running}`;
+    let installed = "否";
+    if (data.isInstalled) {
+      installed = "是";
+    }
+    let running = "否";
+    if (data.isRunning) {
+      running = "是";
+    }
+    let aborted = "";
+    if (data.isAborted) {
+      aborted = " · 已取消";
+    }
+    statusText.value = `安装: ${installed} · 运行: ${running}${aborted}`;
   } catch {
     statusText.value = "安装: - · 运行: -";
   }
@@ -189,11 +206,24 @@ async function stopSteamCmd() {
     if (!client) {
       return;
     }
-    await client.stopSteamCmd();
-    statusText.value = "SteamCMD 已停止";
-    ElMessage.success("已停止 SteamCMD");
+    cancelling.value = true;
+    if (activeTaskId.value) {
+      try {
+        await client.cancelTask(activeTaskId.value);
+      } catch {
+        /* stopSteamCmd 仍会 abort 并取消全部 Running 任务 */
+      }
+    }
+    const res = await client.stopSteamCmd();
+    const msg = res.data?.message ?? "已取消 SteamCMD 操作，将不再重试";
+    statusText.value = msg;
+    taskStatus.value = "操作已取消（不再重试）";
+    ElMessage.success(msg);
+    await checkSteamCmd();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : "停止失败");
+    ElMessage.error(e instanceof Error ? e.message : "取消失败");
+  } finally {
+    cancelling.value = false;
   }
 }
 </script>
@@ -202,11 +232,20 @@ async function stopSteamCmd() {
   <ConsolePageLayout :padded="false">
     <template #toolbar>
       <el-button size="small" type="primary" :loading="busy" @click="installOrUpdateServer">安装/更新服务器</el-button>
-      <el-button size="small" style="margin-left: auto;" @click="stopSteamCmd">停止 SteamCMD</el-button>
+      <el-button
+        size="small"
+        type="danger"
+        style="margin-left: auto;"
+        :loading="cancelling"
+        :disabled="cancelling"
+        @click="stopSteamCmd"
+      >
+        取消当前操作（不再重试）
+      </el-button>
       <el-button size="small" @click="checkSteamCmd">刷新状态</el-button>
     </template>
     <template #hint>
-      <span>通过 SteamCMD 下载/更新专用服务器与 SteamCMD 本身；下方终端可查看实时输出。</span>
+      <span>通过 SteamCMD 下载/更新专用服务器与模组；下载失败会自动重试，可随时取消并立即停止重试。</span>
       <span v-if="taskStatus" class="task-hint">{{ taskStatus }}</span>
     </template>
 

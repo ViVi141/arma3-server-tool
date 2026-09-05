@@ -370,6 +370,7 @@ export async function apiRoutes(app: FastifyInstance) {
     return envelope(true, {
       isRunning: app.steamCmd.isRunning,
       isInstalled: app.steamCmd.isInstalled,
+      isAborted: app.steamCmd.isAborted,
     }, null, "");
   });
 
@@ -401,7 +402,16 @@ export async function apiRoutes(app: FastifyInstance) {
 
   app.post("/steamcmd/stop", async () => {
     app.steamCmd.requestAbort();
-    return envelope(true, { message: "SteamCMD 已停止" }, null, "");
+    const cancelledTaskIds = app.asyncTaskManager.cancelSteamCmdRelatedRunning();
+    return envelope(
+      true,
+      {
+        message: "已取消 SteamCMD 操作，将不再重试",
+        cancelledTaskIds,
+      },
+      null,
+      ""
+    );
   });
 
   // ===================== Preflight =====================
@@ -1477,7 +1487,11 @@ async function executeCommand(
     }
     case "stop_steamcmd": {
       app.steamCmd.requestAbort();
-      return ok("SteamCMD 已停止");
+      const cancelledTaskIds = app.asyncTaskManager.cancelSteamCmdRelatedRunning();
+      if (cancelledTaskIds.length > 0) {
+        return ok(`已取消 SteamCMD 操作（${cancelledTaskIds.length} 个任务），将不再重试`);
+      }
+      return ok("已取消 SteamCMD 操作，将不再重试");
     }
     case "steamcmd_status": {
       return ok(

@@ -167,12 +167,12 @@ export interface TaskData {
 
 export interface AsyncTaskResponse {
   taskId: string;
-  status?: "Pending" | "Running" | "Succeeded" | "Failed";
+  status?: "Pending" | "Running" | "Succeeded" | "Failed" | "Cancelled";
 }
 
 export interface TaskStatus {
   taskId: string;
-  status: "Pending" | "Running" | "Succeeded" | "Failed";
+  status: "Pending" | "Running" | "Succeeded" | "Failed" | "Cancelled";
   steps?: TaskStep[];
   data?: TaskData;
   error?: string;
@@ -226,6 +226,7 @@ export interface SteamCmdStatusData {
   isRunning: boolean;
   isBusy?: boolean;
   isInstalled?: boolean;
+  isAborted?: boolean;
   currentOperation?: string;
 }
 

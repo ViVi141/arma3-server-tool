@@ -74,6 +74,47 @@ export class AsyncTaskManager {
     return true;
   }
 
+  /** 取消所有尚未结束的任务（用于停止 SteamCMD 时一并收尾）。 */
+  cancelAllRunning(): string[] {
+    const cancelled: string[] = [];
+    for (const task of this.tasks.values()) {
+      if (task.status === "Pending" || task.status === "Running") {
+        if (this.cancel(task.taskId)) {
+          cancelled.push(task.taskId);
+        }
+      }
+    }
+    return cancelled;
+  }
+
+  /**
+   * 仅取消涉及 SteamCMD 的未完成任务（下载模组 / 更新服务器等），
+   * 避免误取消无关长任务。
+   */
+  cancelSteamCmdRelatedRunning(): string[] {
+    const steamActions = new Set([
+      "download_mods",
+      "update_server",
+      "ensure_steamcmd",
+      "install_dedicated_server",
+      "import_mods_html",
+    ]);
+    const cancelled: string[] = [];
+    for (const task of this.tasks.values()) {
+      if (task.status !== "Pending" && task.status !== "Running") {
+        continue;
+      }
+      const related = task.commands.some((cmd) => steamActions.has(String(cmd.action)));
+      if (!related) {
+        continue;
+      }
+      if (this.cancel(task.taskId)) {
+        cancelled.push(task.taskId);
+      }
+    }
+    return cancelled;
+  }
+
   appendStep(taskId: string, action: string, success: boolean, message: string): void {
     const task = this.tasks.get(taskId);
     if (task) {

@@ -318,8 +318,43 @@ function createWindow(): void {
     console.error(`Preload failed (${preloadScriptPath}):`, error);
   });
 
+  let loadFallbackTried = false;
+  mainWindow.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      // -3 = ERR_ABORTED（正常导航中断）；子资源失败也不应整页回退。
+      if (!isMainFrame || errorCode === -3 || loadFallbackTried || !mainWindow) {
+        return;
+      }
+      console.error(`UI did-fail-load code=${errorCode} url=${validatedURL}: ${errorDescription}`);
+      loadFallbackTried = true;
+      const settings = loadSettings();
+      const fallbackUrl = `http://127.0.0.1:${settings.port}/`;
+      console.warn(`Falling back to service UI: ${fallbackUrl}`);
+      mainWindow.loadURL(fallbackUrl).catch((err) => {
+        console.error("Fallback UI load failed:", err);
+        dialog.showErrorBox(
+          "界面加载失败",
+          `无法加载控制台界面。\n\nfile 错误: ${errorDescription}\n回退地址: ${fallbackUrl}\n\n请确认安装完整，或查看 service.log。`
+        );
+        mainWindow?.show();
+      });
+    }
+  );
+
   mainWindow.on("ready-to-show", () => {
     mainWindow?.show();
+  });
+
+  // 托盘唤起时若页面空白，尝试重新加载一次。
+  mainWindow.on("show", () => {
+    if (!mainWindow) {
+      return;
+    }
+    const url = mainWindow.webContents.getURL();
+    if (!url || url === "about:blank") {
+      loadUiIntoWindow(mainWindow);
+    }
   });
 
   mainWindow.on("close", (event) => {
@@ -329,16 +364,41 @@ function createWindow(): void {
     }
   });
 
+  loadUiIntoWindow(mainWindow);
+}
+
+function loadUiIntoWindow(win: BrowserWindow): void {
   if (isDev) {
-    mainWindow.loadURL("http://localhost:5173").catch((e) => {
+    win.loadURL("http://localhost:5173").catch((e) => {
       console.error("Failed to load dev server:", e);
-      mainWindow?.loadFile(getWebIndexPath());
+      win.loadFile(getWebIndexPath()).catch((err) => {
+        console.error("Failed to load packaged web index:", err);
+      });
+    });
+    return;
+  }
+
+  const indexPath = getWebIndexPath();
+  if (!fs.existsSync(indexPath)) {
+    dialog.showErrorBox(
+      "界面文件缺失",
+      `未找到控制台页面：\n${indexPath}\n\n请重新安装或重新打包。`
+    );
+    const settings = loadSettings();
+    win.loadURL(`http://127.0.0.1:${settings.port}/`).catch(() => {
+      win.show();
     });
     return;
   }
 
   // file:// + preload：原生选目录 / 被控设置可用。API 仍走 127.0.0.1:19580（CORS 已允许 Origin null）。
-  mainWindow.loadFile(getWebIndexPath());
+  win.loadFile(indexPath).catch((err) => {
+    console.error("loadFile failed:", err);
+    const settings = loadSettings();
+    win.loadURL(`http://127.0.0.1:${settings.port}/`).catch(() => {
+      win.show();
+    });
+  });
 }
 
 function createTray(): void {

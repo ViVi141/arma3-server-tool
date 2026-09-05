@@ -83,9 +83,12 @@ export function resolvePollTaskMessage(
   task: TaskResponseLike | null | undefined,
   fallback: string
 ): string {
-  if (task?.status === "Failed") {
+  if (task?.status === "Failed" || task?.status === "Cancelled") {
     if (task.error) {
       return task.error;
+    }
+    if (task.status === "Cancelled") {
+      return "已取消";
     }
     return fallback;
   }
@@ -93,8 +96,12 @@ export function resolvePollTaskMessage(
 }
 
 export function pollTaskSucceeded(task: TaskResponseLike | null | undefined): boolean {
-  if (task?.status === "Failed") {
+  if (task?.status === "Failed" || task?.status === "Cancelled") {
     return false;
   }
   return taskSucceeded(task);
+}
+
+export function pollTaskCancelled(task: TaskResponseLike | null | undefined): boolean {
+  return task?.status === "Cancelled";
 }

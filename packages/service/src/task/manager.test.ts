@@ -143,4 +143,42 @@ describe("AsyncTaskManager", () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(mgr.get(taskId)!.status).toBe("Cancelled");
   });
+
+  it("cancelSteamCmdRelatedRunning only cancels SteamCMD tasks", async () => {
+    const mgr = new AsyncTaskManager();
+    let releaseDl!: () => void;
+    let releaseStatus!: () => void;
+    const gateDl = new Promise<void>((resolve) => {
+      releaseDl = resolve;
+    });
+    const gateStatus = new Promise<void>((resolve) => {
+      releaseStatus = resolve;
+    });
+
+    const downloadId = await mgr.runAsync(
+      "uuid-1",
+      [{ action: "download_mods" }],
+      async () => {
+        await gateDl;
+        return { success: true, message: "dl" };
+      }
+    );
+    const statusId = await mgr.runAsync(
+      "uuid-1",
+      [{ action: "status" }],
+      async () => {
+        await gateStatus;
+        return { success: true, message: "ok" };
+      }
+    );
+
+    const cancelled = mgr.cancelSteamCmdRelatedRunning();
+    expect(cancelled).toEqual([downloadId]);
+    expect(mgr.get(downloadId)!.status).toBe("Cancelled");
+    expect(mgr.get(statusId)!.status).toBe("Running");
+
+    releaseDl();
+    releaseStatus();
+    await new Promise((r) => setTimeout(r, 50));
+  });
 });

@@ -586,8 +586,12 @@ async function runDownload(modIds: number[]) {
     throw new Error("未收到任务 ID");
   }
   goToSteamCmd();
-  ElMessage.info("SteamCMD 已开始下载，请在终端查看进度");
+  ElMessage.info("SteamCMD 已开始下载，请在终端查看进度；可随时「取消当前操作（不再重试）」");
   const finalTask = await client.pollTask(taskId, 2000, 900000);
+  if (finalTask.status === "Cancelled") {
+    ElMessage.info(resolvePollTaskMessage(finalTask as never, "下载已取消"));
+    return;
+  }
   if (finalTask.status === "Failed") {
     throw new Error(resolvePollTaskMessage(finalTask as never, "下载失败"));
   }
@@ -603,14 +607,34 @@ async function onDownloadConfirm(ids: number[]) {
   }
 }
 
+function downloadSelectedMods() {
+  const ids = modList.value
+    .filter((m) => m.updateSelected && m.workshopId > 0)
+    .map((m) => m.workshopId);
+  openDownloadConfirm(ids);
+}
+
+function downloadOutdatedMods() {
+  const ids = modList.value
+    .filter((m) => m.updateStatus === "outdated" && m.workshopId > 0)
+    .map((m) => m.workshopId);
+  if (!ids.length) {
+    ElMessage.info("没有标记为「有更新」的模组；请先点「检查更新」");
+    return;
+  }
+  openDownloadConfirm(ids);
+}
+
 function onGetMods(action: string) {
   switch (action) {
     case "add_local":
       addLocalModPath();
       break;
     case "download":
-      const ids = modList.value.filter((m) => m.updateSelected && m.workshopId > 0).map((m) => m.workshopId);
-      openDownloadConfirm(ids);
+      downloadSelectedMods();
+      break;
+    case "download_outdated":
+      downloadOutdatedMods();
       break;
     case "paste":
       navigator.clipboard.readText().then((text) => {
@@ -888,6 +912,14 @@ const filteredList = computed(() => {
     <template #toolbar>
       <el-button size="small" :loading="scanning" @click="doScan">扫描刷新</el-button>
       <el-button size="small" :loading="checkingUpdates" @click="checkModUpdates()">检查更新</el-button>
+      <el-button
+        size="small"
+        type="primary"
+        :disabled="!steamCmdReady"
+        @click="downloadSelectedMods"
+      >
+        更新/下载选中
+      </el-button>
       <el-dropdown size="small" @command="onGetMods">
         <el-button size="small">
           获取模组<el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -896,6 +928,7 @@ const filteredList = computed(() => {
           <el-dropdown-menu>
             <el-dropdown-item command="add_local">添加本地模组</el-dropdown-item>
             <el-dropdown-item command="download">下载选中模组</el-dropdown-item>
+            <el-dropdown-item command="download_outdated">仅更新「有更新」的模组</el-dropdown-item>
             <el-dropdown-item command="paste">从剪贴板导入 ID</el-dropdown-item>
             <el-dropdown-item command="html_download">从 HTML 下载...</el-dropdown-item>
             <el-dropdown-item command="html_enable">从 HTML 启用...</el-dropdown-item>

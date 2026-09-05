@@ -355,6 +355,9 @@ export class SteamCmdManager extends EventEmitter {
       onOutput?.(clean);
     });
 
+    // 用户取消后不得再走 Workshop 早退/内部重试，否则会继续拉起 SteamCMD。
+    this.throwIfAborted();
+
     const captureResult: SessionRunCapture = {
       console: combined,
       exitCode,
@@ -373,11 +376,18 @@ export class SteamCmdManager extends EventEmitter {
       }
       return;
     }
-    if (retryCount < 1 && this.shouldRetrySteamCmd(exitCode, combined)) {
+    if (
+      !this._aborted
+      && retryCount < 1
+      && this.shouldRetrySteamCmd(exitCode, combined)
+    ) {
+      this.throwIfAborted();
       const retryHint = "Update complete, launching SteamCMD...\n";
       this.appendSessionOutput(retryHint);
       this.emit("output", retryHint);
+      onOutput?.(retryHint);
       await new Promise<void>((resolve) => setTimeout(resolve, 2000));
+      this.throwIfAborted();
       return this.runSteamCmdArguments(argumentsString, onOutput, flags, retryCount + 1);
     }
     throw new Error(`SteamCMD 退出代码: ${exitCode}\n${combined.slice(-500)}`);
@@ -548,6 +558,9 @@ export class SteamCmdManager extends EventEmitter {
   /** 终止当前 SteamCMD，并阻止 download_mods 等循环继续拉起新进程。 */
   requestAbort(): void {
     this._aborted = true;
+    const hint = "[取消] 用户已请求停止 SteamCMD，将不再重试。\n";
+    this.appendSessionOutput(hint);
+    this.emit("output", hint);
     this.kill();
   }
 
