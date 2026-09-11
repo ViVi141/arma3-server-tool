@@ -98,8 +98,8 @@ export async function createService(options: ServiceOptions) {
     reply.status(401).send({ success: false, message: "Unauthorized" });
   });
 
-  // Plugins
-  // file:// Electron 页的 Origin 为 "null"；reflect 会导致浏览器直接 Failed to fetch。
+  // Capacitor WebView Origin 多为 http://localhost；手机连 LAN 时也允许反射任意 Origin。
+  // file:// / null Origin 用 *，避免浏览器 Failed to fetch。
   await app.register(cors, {
     origin: (origin, cb) => {
       if (!origin || origin === "null") {
@@ -108,6 +108,8 @@ export async function createService(options: ServiceOptions) {
       }
       cb(null, origin);
     },
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Authorization", "Content-Type", "X-Api-Key", "Accept"],
   });
   await app.register(multipart, { limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
 

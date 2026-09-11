@@ -5,12 +5,18 @@ const config: CapacitorConfig = {
   appName: "A3ST",
   webDir: "www",
   server: {
-    // Capacitor WebView 使用 https 本地 origin；访问局域网 http:// Service 需 cleartext。
+    // 与局域网 http:// Service 同协议，避免混合内容。
     androidScheme: "http",
     cleartext: true,
   },
   android: {
     allowMixedContent: true,
+  },
+  plugins: {
+    // 用原生 HTTP 打补丁 window.fetch，绕过 WebView CORS / 部分 cleartext 限制。
+    CapacitorHttp: {
+      enabled: true,
+    },
   },
 };
 
