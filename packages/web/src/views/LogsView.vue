@@ -8,6 +8,13 @@ import type { LogFileEntry } from "@a3st/api-client";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
+const isMobile = import.meta.env.VITE_APP_MODE === "mobile";
+let logsToolbarClass = "logs-toolbar-desktop";
+let logFileSelectStyle: { width: string } | undefined = { width: "280px" };
+if (isMobile) {
+  logsToolbarClass = "logs-toolbar-mobile";
+  logFileSelectStyle = undefined;
+}
 
 const logKind = ref<"rpt" | "battleye" | "console" | "all">("console");
 const files = ref<LogFileEntry[]>([]);
@@ -129,30 +136,34 @@ onUnmounted(stopAutoRefresh);
 <template>
   <ConsolePageLayout>
     <template #toolbar>
-      <span class="logs-title">日志查看</span>
-      <el-radio-group v-model="logKind">
-        <el-radio-button value="console">Console</el-radio-button>
-        <el-radio-button value="rpt">RPT</el-radio-button>
-        <el-radio-button value="battleye">BattlEye</el-radio-button>
-        <el-radio-button value="all">全部</el-radio-button>
-      </el-radio-group>
-      <el-select
-        v-if="files.length"
-        v-model="selectedFile"
-        size="small"
-        placeholder="选择日志文件"
-        style="width: 280px;"
-      >
-        <el-option
-          v-for="file in files"
-          :key="file.filePath"
-          :label="formatLogLabel(file)"
-          :value="file.filePath"
-        />
-      </el-select>
-      <el-button type="primary" :loading="loading" @click="loadLogs">加载</el-button>
-      <el-checkbox v-model="autoRefresh" size="small">自动刷新</el-checkbox>
-      <el-button size="small" @click="openLogDirectory">打开日志目录</el-button>
+      <div :class="logsToolbarClass">
+        <span class="logs-title">日志查看</span>
+        <el-radio-group v-model="logKind">
+          <el-radio-button value="console">Console</el-radio-button>
+          <el-radio-button value="rpt">RPT</el-radio-button>
+          <el-radio-button value="battleye">BattlEye</el-radio-button>
+          <el-radio-button value="all">全部</el-radio-button>
+        </el-radio-group>
+        <el-select
+          v-if="files.length"
+          v-model="selectedFile"
+          size="small"
+          placeholder="选择日志文件"
+          :style="logFileSelectStyle"
+        >
+          <el-option
+            v-for="file in files"
+            :key="file.filePath"
+            :label="formatLogLabel(file)"
+            :value="file.filePath"
+          />
+        </el-select>
+        <div class="logs-toolbar-row">
+          <el-button type="primary" :loading="loading" @click="loadLogs">加载</el-button>
+          <el-checkbox v-model="autoRefresh" size="small">自动刷新</el-checkbox>
+          <el-button v-if="!isMobile" size="small" @click="openLogDirectory">打开日志目录</el-button>
+        </div>
+      </div>
     </template>
 
     <el-alert v-if="errorMsg" :title="errorMsg" type="error" show-icon style="margin-bottom: 12px;" />
@@ -170,6 +181,19 @@ onUnmounted(stopAutoRefresh);
   font-size: 14px;
   font-weight: 600;
   margin-right: 8px;
+}
+
+.logs-toolbar-desktop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.logs-toolbar-desktop .logs-toolbar-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .log-pre {

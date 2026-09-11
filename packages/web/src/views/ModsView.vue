@@ -27,6 +27,34 @@ const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
 const uiSettings = useUiSettingsStore();
 const router = useRouter();
+const isMobile = import.meta.env.VITE_APP_MODE === "mobile";
+const expandedModPaths = ref<Record<string, boolean>>({});
+let sortSelectStyle: Record<string, string> = { width: "140px" };
+let visibilitySelectStyle: Record<string, string> = { width: "140px" };
+let scanPathDialogWidth = "760px";
+if (isMobile) {
+  sortSelectStyle = { width: "100%", maxWidth: "100%" };
+  visibilitySelectStyle = { width: "100%", maxWidth: "100%" };
+  scanPathDialogWidth = "92vw";
+}
+
+function modRowKey(row: ModRow): string {
+  if (row.path) {
+    return row.path;
+  }
+  return `${row.dirName}:${row.workshopId}`;
+}
+
+function toggleModPath(row: ModRow) {
+  const key = modRowKey(row);
+  const next = { ...expandedModPaths.value };
+  if (next[key]) {
+    delete next[key];
+  } else {
+    next[key] = true;
+  }
+  expandedModPaths.value = next;
+}
 
 interface ModRow {
   name: string;
@@ -910,54 +938,56 @@ const filteredList = computed(() => {
 <template>
   <ConsolePageLayout :padded="false">
     <template #toolbar>
-      <el-button size="small" :loading="scanning" @click="doScan">扫描刷新</el-button>
-      <el-button size="small" :loading="checkingUpdates" @click="checkModUpdates()">检查更新</el-button>
-      <el-button
-        size="small"
-        type="primary"
-        :disabled="!steamCmdReady"
-        @click="downloadSelectedMods"
-      >
-        更新/下载选中
-      </el-button>
-      <el-dropdown size="small" @command="onGetMods">
-        <el-button size="small">
-          获取模组<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+      <div :class="{ 'mods-toolbar-mobile': isMobile }">
+        <el-button size="small" :loading="scanning" @click="doScan">扫描刷新</el-button>
+        <el-button size="small" :loading="checkingUpdates" @click="checkModUpdates()">检查更新</el-button>
+        <el-button
+          size="small"
+          type="primary"
+          :disabled="!steamCmdReady"
+          @click="downloadSelectedMods"
+        >
+          更新/下载选中
         </el-button>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item command="add_local">添加本地模组</el-dropdown-item>
-            <el-dropdown-item command="download">下载选中模组</el-dropdown-item>
-            <el-dropdown-item command="download_outdated">仅更新「有更新」的模组</el-dropdown-item>
-            <el-dropdown-item command="paste">从剪贴板导入 ID</el-dropdown-item>
-            <el-dropdown-item command="html_download">从 HTML 下载...</el-dropdown-item>
-            <el-dropdown-item command="html_enable">从 HTML 启用...</el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
-      <el-dropdown size="small" data-testid="bikey-menu" @command="onBikeyMenu">
-        <el-button size="small">Bikey 管理</el-button>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item command="manage">管理 Bikey</el-dropdown-item>
-            <el-dropdown-item command="copy_all">复制全部 Bikey</el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
-      <el-button size="small" @click="openScanPathDialog">扫描路径...</el-button>
+        <el-dropdown size="small" @command="onGetMods">
+          <el-button size="small">
+            获取模组<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="add_local">添加本地模组</el-dropdown-item>
+              <el-dropdown-item command="download">下载选中模组</el-dropdown-item>
+              <el-dropdown-item command="download_outdated">仅更新「有更新」的模组</el-dropdown-item>
+              <el-dropdown-item command="paste">从剪贴板导入 ID</el-dropdown-item>
+              <el-dropdown-item command="html_download">从 HTML 下载...</el-dropdown-item>
+              <el-dropdown-item command="html_enable">从 HTML 启用...</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <el-dropdown size="small" data-testid="bikey-menu" @command="onBikeyMenu">
+          <el-button size="small">Bikey 管理</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="manage">管理 Bikey</el-dropdown-item>
+              <el-dropdown-item command="copy_all">复制全部 Bikey</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <el-button size="small" @click="openScanPathDialog">扫描路径...</el-button>
+      </div>
     </template>
 
     <div class="mods-shell">
         <div class="mods-bar mods-bar--first">
           <span class="mods-bar-label">排序</span>
-          <el-select v-model="sortMode" size="small" style="width: 140px">
+          <el-select v-model="sortMode" size="small" :style="sortSelectStyle">
             <el-option value="scanOrder" label="扫描顺序" />
             <el-option value="dirName" label="文件夹名" />
             <el-option value="name" label="模组名" />
             <el-option value="updated" label="更新时间" />
           </el-select>
           <span class="mods-bar-label">可见性</span>
-          <el-select v-model="visibilityFilter" size="small" style="width: 140px">
+          <el-select v-model="visibilityFilter" size="small" :style="visibilitySelectStyle">
             <el-option value="all" label="显示全部" />
             <el-option value="selected" label="仅已选择" />
             <el-option value="unselected" label="仅未选择" />
@@ -994,7 +1024,71 @@ const filteredList = computed(() => {
           <span class="mods-archive-count">{{ filteredList.length }} ENTRIES</span>
         </div>
 
-        <div class="mods-table-wrap mods-archive-table">
+        <div v-if="isMobile" class="mods-card-list" data-testid="mods-card-list">
+          <div
+            v-for="row in filteredList"
+            :key="modRowKey(row)"
+            class="mods-card"
+          >
+            <div class="mods-card__header">
+              <el-checkbox
+                v-model="row.updateSelected"
+                :disabled="row.workshopId <= 0"
+              />
+              <div class="mods-card__titles">
+                <h3 class="mods-card__title">{{ row.name || row.dirName }}</h3>
+                <p class="mods-card__meta">{{ row.dirName }}</p>
+              </div>
+              <el-tag
+                v-if="row.workshopId > 0 && row.updateStatus"
+                size="small"
+                :type="updateStatusTagType(row.updateStatus)"
+              >
+                {{ updateStatusLabel(row.updateStatus) }}
+              </el-tag>
+            </div>
+            <div class="mods-card__roles">
+              <label class="mods-card__role">
+                <span>客户端</span>
+                <el-switch
+                  :model-value="row.isClientMod"
+                  size="small"
+                  @change="(v: boolean) => onRoleChange(row, 'client', v)"
+                />
+              </label>
+              <label class="mods-card__role">
+                <span>服务器</span>
+                <el-switch
+                  :model-value="row.isServerMod"
+                  size="small"
+                  @change="(v: boolean) => onRoleChange(row, 'server', v)"
+                />
+              </label>
+              <label class="mods-card__role">
+                <span>HC</span>
+                <el-switch
+                  :model-value="row.isHcMod"
+                  size="small"
+                  @change="(v: boolean) => onRoleChange(row, 'hc', v)"
+                />
+              </label>
+            </div>
+            <div class="mods-card__footer">
+              <span class="bikey-status-cell">
+                <span class="bikey-icon">{{ bikeyStatusIcon(row.bikeyStatus) }}</span>
+                <span class="bikey-label">{{ row.bikeyLabel }}</span>
+              </span>
+              <el-button size="small" text @click="toggleModPath(row)">
+                <template v-if="expandedModPaths[modRowKey(row)]">收起路径</template>
+                <template v-else>查看路径</template>
+              </el-button>
+            </div>
+            <p v-if="expandedModPaths[modRowKey(row)]" class="mods-card__path">{{ row.path }}</p>
+          </div>
+          <el-empty v-if="!filteredList.length" description="暂无模组" />
+        </div>
+
+        <div v-else class="mods-table-wrap mods-archive-table">
           <el-table :data="filteredList" stripe size="small" height="100%">
             <el-table-column label="序号" width="52" align="center">
               <template #default="{ $index }">{{ $index + 1 }}</template>
@@ -1095,7 +1189,7 @@ const filteredList = computed(() => {
     :files="bikeyListFiles"
   />
 
-  <el-dialog v-model="showScanPathDialog" title="模组扫描路径" width="760px">
+  <el-dialog v-model="showScanPathDialog" title="模组扫描路径" :width="scanPathDialogWidth">
     <el-table :data="scanPaths" stripe size="small">
       <el-table-column label="扫描路径" min-width="280">
         <template #default="{ row }">

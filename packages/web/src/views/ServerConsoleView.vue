@@ -31,6 +31,7 @@ const router = useRouter();
 const store = useConnectionsStore();
 const uiSettings = useUiSettingsStore();
 const configSession = useConfigSessionStore();
+const isMobile = import.meta.env.VITE_APP_MODE === "mobile";
 const unsavedDialog = ref<InstanceType<typeof UnsavedChangesDialog> | null>(null);
 const showNewServerDialog = ref(false);
 const showFirstServerWizard = ref(false);
@@ -623,7 +624,80 @@ provide(CONSOLE_ACTIONS_KEY, {
     @open-dir="openServerDir"
   >
     <template #actions>
-      <template v-if="selectedUuid">
+      <template v-if="selectedUuid && isMobile">
+        <span v-if="showProcInToolbar" class="shell-v2__action-group mobile-action-primary">
+          <el-button type="success" data-testid="btn-start" :disabled="isRunning" @click="execAction('start')">启动</el-button>
+          <el-button type="warning" data-testid="btn-restart" :disabled="!isRunning" @click="execAction('restart')">重启</el-button>
+          <el-button type="danger" data-testid="btn-stop" :disabled="!isRunning" @click="execAction('stop')">停止</el-button>
+        </span>
+        <el-button
+          v-if="showSaveInToolbar"
+          class="mobile-action-primary"
+          data-testid="btn-save"
+          :type="hasDirtyChanges ? 'primary' : 'default'"
+          @click="execSave"
+        >
+          {{ UI_COPY.saveShort }}<span v-if="hasDirtyChanges">*</span>
+        </el-button>
+        <el-dropdown
+          class="mobile-action-secondary"
+          trigger="click"
+        >
+          <el-button data-testid="btn-mobile-more-actions">更多</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-if="showWriteCfgInToolbar"
+                data-testid="btn-write-cfg"
+                @click="execAction('write_cfg')"
+              >
+                {{ UI_COPY.writeGameCfg }}
+              </el-dropdown-item>
+              <el-dropdown-item
+                v-if="activeModeId === 'deploy' && showDeployCfgInToolbar"
+                data-testid="btn-preflight"
+                @click="execAction('preflight')"
+              >
+                {{ UI_COPY.preflight }}
+              </el-dropdown-item>
+              <el-dropdown-item @click="reloadFromDisk">读盘刷新</el-dropdown-item>
+              <el-dropdown-item @click="openServerDir">服务器目录</el-dropdown-item>
+              <el-dropdown-item @click="openToolConfigDir">工具配置目录</el-dropdown-item>
+              <el-dropdown-item @click="openServerConfigDir">服务器配置目录</el-dropdown-item>
+              <el-dropdown-item @click="openLogDir">日志目录</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <el-popover trigger="click" width="280" popper-class="global-popover">
+          <template #reference>
+            <el-button class="mobile-action-secondary">全局设置</el-button>
+          </template>
+          <div class="global-settings">
+            <div class="row">
+              <span>显示高级设置</span>
+              <el-switch v-model="uiSettings.showAdvancedSettings" size="small" />
+            </div>
+            <div class="row">
+              <span>读盘模式</span>
+              <el-switch v-model="uiSettings.allowExternalConfigRefresh" size="small" />
+            </div>
+            <div class="row">
+              <span>自动快照</span>
+              <el-select v-model="uiSettings.autoSnapshotMode" size="small" style="width: 130px;">
+                <el-option label="关闭" value="Off" />
+                <el-option label="保存前" value="BeforeSave" />
+                <el-option label="写入前" value="BeforeWrite" />
+              </el-select>
+            </div>
+            <div class="row">
+              <span>异步快照</span>
+              <el-switch v-model="uiSettings.autoSnapshotAsync" size="small" />
+            </div>
+            <el-button size="small" type="primary" @click="saveGlobalUiSettings">保存</el-button>
+          </div>
+        </el-popover>
+      </template>
+      <template v-else-if="selectedUuid">
         <span v-if="showProcInToolbar" class="shell-v2__action-group">
           <span class="shell-v2__action-label">PROC</span>
           <el-button size="small" type="success" data-testid="btn-start" :disabled="isRunning" @click="execAction('start')">启动</el-button>

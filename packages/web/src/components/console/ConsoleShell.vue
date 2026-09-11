@@ -5,7 +5,7 @@ import type { ServerSummary } from "@a3st/api-client";
 import { getThemeMode, setThemeMode, type ThemeMode } from "@/utils/systemTheme";
 import { ref, onMounted } from "vue";
 
-defineProps<{
+const props = defineProps<{
   modes: ConsoleMode[];
   activeModeId: string;
   activeTab: string;
@@ -22,7 +22,7 @@ defineProps<{
   serverDotClass: (uuid: string) => string;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   "update:searchText": [value: string];
   "navigate-mode": [modeId: string];
   "navigate-tab": [tabName: string];
@@ -35,6 +35,7 @@ defineEmits<{
   "open-dir": [];
 }>();
 
+const isMobile = import.meta.env.VITE_APP_MODE === "mobile";
 const themeMode = ref<ThemeMode>("system");
 
 onMounted(() => {
@@ -44,6 +45,20 @@ onMounted(() => {
 function onThemeModeChange(mode: ThemeMode) {
   themeMode.value = mode;
   setThemeMode(mode);
+}
+
+function onSubTabSelect(tabName: string | number | boolean | undefined) {
+  if (typeof tabName !== "string" || !tabName) {
+    return;
+  }
+  emit("navigate-tab", tabName);
+}
+
+function subTabOptionLabel(tab: TabEntry): string {
+  if (tab.name === props.activeTab && props.hasDirtyChanges) {
+    return tab.label + " *";
+  }
+  return tab.label;
 }
 </script>
 
@@ -154,7 +169,31 @@ function onThemeModeChange(mode: ThemeMode) {
       </aside>
 
       <div class="shell-v2__stage">
-        <nav v-if="subTabs.length > 1" class="shell-v2__subnav" aria-label="子页面">
+        <div
+          v-if="isMobile && subTabs.length > 1"
+          class="shell-v2__subnav-select"
+          aria-label="子页面"
+        >
+          <el-select
+            :model-value="activeTab"
+            :disabled="!selectedUuid"
+            data-testid="nav-subtab-select"
+            style="width: 100%"
+            @update:model-value="onSubTabSelect"
+          >
+            <el-option
+              v-for="tab in subTabs"
+              :key="tab.name"
+              :label="subTabOptionLabel(tab)"
+              :value="tab.name"
+            />
+          </el-select>
+        </div>
+        <nav
+          v-else-if="!isMobile && subTabs.length > 1"
+          class="shell-v2__subnav"
+          aria-label="子页面"
+        >
           <button
             v-for="tab in subTabs"
             :key="tab.name"

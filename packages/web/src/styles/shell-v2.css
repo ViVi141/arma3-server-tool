@@ -641,6 +641,7 @@ html[data-app-mode="mobile"] {
   --el-font-size-base: 14px;
   --el-component-size: 32px;
   --el-component-size-small: 28px;
+  --mobile-chrome-offset: 15.5rem;
 }
 
 html.is-mobile-app body,
@@ -798,4 +799,319 @@ html.is-mobile-app .shell-v2__content-empty-actions .el-button,
 html[data-app-mode="mobile"] .shell-v2__content-empty-actions .el-button {
   width: 100%;
   min-height: 2.6rem;
+}
+
+/* 腾出垂直空间：隐藏 PATH / SYNC 底栏 */
+html.is-mobile-app .shell-v2__baseline,
+html[data-app-mode="mobile"] .shell-v2__baseline {
+  display: none;
+}
+
+html.is-mobile-app .shell-v2__subnav-select,
+html[data-app-mode="mobile"] .shell-v2__subnav-select {
+  width: 100%;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--shell-rule);
+}
+
+html.is-mobile-app .shell-v2__actions,
+html[data-app-mode="mobile"] .shell-v2__actions {
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  align-items: center;
+}
+
+html.is-mobile-app .shell-v2__action-group,
+html[data-app-mode="mobile"] .shell-v2__action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+html.is-mobile-app .shell-v2__action-label,
+html[data-app-mode="mobile"] .shell-v2__action-label {
+  display: none;
+}
+
+html.is-mobile-app .shell-v2__action-sep,
+html[data-app-mode="mobile"] .shell-v2__action-sep {
+  display: none;
+}
+
+html.is-mobile-app .shell-v2__actions .el-button,
+html[data-app-mode="mobile"] .shell-v2__actions .el-button {
+  min-height: 2.6rem;
+}
+
+html.is-mobile-app .shell-v2__instance-menu,
+html[data-app-mode="mobile"] .shell-v2__instance-menu {
+  min-width: min(92vw, 22rem);
+}
+
+html.is-mobile-app .shell-v2__instance-row,
+html[data-app-mode="mobile"] .shell-v2__instance-row {
+  min-height: 2.75rem;
+  padding: 10px 12px;
+}
+
+html.is-mobile-app .shell-v2__instance-actions,
+html[data-app-mode="mobile"] .shell-v2__instance-actions {
+  flex-direction: column;
+}
+
+html.is-mobile-app .shell-v2__instance-actions .el-button,
+html[data-app-mode="mobile"] .shell-v2__instance-actions .el-button {
+  width: 100%;
+  min-height: 2.6rem;
+  margin: 0;
+}
+
+/* 表单竖排 */
+html.is-mobile-app .form-row,
+html[data-app-mode="mobile"] .form-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+html.is-mobile-app .form-row > label,
+html[data-app-mode="mobile"] .form-row > label,
+html.is-mobile-app .form-row > .label,
+html[data-app-mode="mobile"] .form-row > .label {
+  width: auto;
+  max-width: none;
+  margin-bottom: 0;
+}
+
+html.is-mobile-app .el-form--label-left .el-form-item,
+html[data-app-mode="mobile"] .el-form--label-left .el-form-item {
+  display: block;
+}
+
+html.is-mobile-app .el-form--label-left .el-form-item__label,
+html[data-app-mode="mobile"] .el-form--label-left .el-form-item__label {
+  width: auto !important;
+  text-align: left;
+  float: none;
+  display: block;
+  padding: 0 0 4px;
+  line-height: 1.4;
+  justify-content: flex-start;
+}
+
+html.is-mobile-app .el-form--label-left .el-form-item__content,
+html[data-app-mode="mobile"] .el-form--label-left .el-form-item__content {
+  margin-left: 0 !important;
+}
+
+/* Dialog 全宽兜底 */
+html.is-mobile-app .el-dialog,
+html[data-app-mode="mobile"] .el-dialog {
+  width: min(92vw, 100%) !important;
+  max-width: calc(100vw - 24px);
+  margin-top: 8vh !important;
+}
+
+html.is-mobile-app .el-overlay-dialog,
+html[data-app-mode="mobile"] .el-overlay-dialog {
+  padding: 12px;
+}
+
+html.is-mobile-app .el-button,
+html[data-app-mode="mobile"] .el-button {
+  min-height: 2.4rem;
+}
+
+/* 表格横向滚动兜底 */
+html.is-mobile-app .el-table,
+html[data-app-mode="mobile"] .el-table {
+  width: 100%;
+}
+
+html.is-mobile-app .mods-table-wrap,
+html[data-app-mode="mobile"] .mods-table-wrap,
+html.is-mobile-app .console-page__body,
+html[data-app-mode="mobile"] .console-page__body {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+html.is-mobile-app .col-desktop-only,
+html[data-app-mode="mobile"] .col-desktop-only {
+  display: none !important;
+}
+
+/* 连接页：隐藏桌面 title-bar，用安全区顶栏 */
+html.is-mobile-app .app-shell > .title-bar,
+html[data-app-mode="mobile"] .app-shell > .title-bar {
+  display: none;
+}
+
+html.is-mobile-app .app-shell,
+html[data-app-mode="mobile"] .app-shell {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+html.is-mobile-app .app-content,
+html[data-app-mode="mobile"] .app-content {
+  height: 100%;
+  max-height: 100dvh;
+}
+
+/* 日志页 */
+html.is-mobile-app .logs-toolbar-mobile,
+html[data-app-mode="mobile"] .logs-toolbar-mobile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+
+html.is-mobile-app .logs-toolbar-mobile .el-radio-group,
+html[data-app-mode="mobile"] .logs-toolbar-mobile .el-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+html.is-mobile-app .logs-toolbar-mobile .el-select,
+html[data-app-mode="mobile"] .logs-toolbar-mobile .el-select {
+  width: 100% !important;
+}
+
+html.is-mobile-app .logs-toolbar-mobile .logs-toolbar-row,
+html[data-app-mode="mobile"] .logs-toolbar-mobile .logs-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+html.is-mobile-app .log-pre,
+html[data-app-mode="mobile"] .log-pre {
+  max-height: calc(100dvh - var(--mobile-chrome-offset) - env(safe-area-inset-bottom, 0px));
+  overflow: auto;
+}
+
+/* 工坊手机卡片 */
+html.is-mobile-app .mods-card-list,
+html[data-app-mode="mobile"] .mods-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 0 12px;
+}
+
+html.is-mobile-app .mods-card,
+html[data-app-mode="mobile"] .mods-card {
+  border: 1px solid var(--shell-rule, var(--a3st-border));
+  border-radius: 6px;
+  padding: 12px;
+  background: var(--a3st-bg-panel, transparent);
+}
+
+html.is-mobile-app .mods-card__header,
+html[data-app-mode="mobile"] .mods-card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+html.is-mobile-app .mods-card__titles,
+html[data-app-mode="mobile"] .mods-card__titles {
+  flex: 1;
+  min-width: 0;
+}
+
+html.is-mobile-app .mods-card__title,
+html[data-app-mode="mobile"] .mods-card__title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  word-break: break-word;
+}
+
+html.is-mobile-app .mods-toolbar-mobile,
+html[data-app-mode="mobile"] .mods-toolbar-mobile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+html.is-mobile-app .mods-toolbar-mobile > .el-button,
+html[data-app-mode="mobile"] .mods-toolbar-mobile > .el-button,
+html.is-mobile-app .mods-toolbar-mobile > .el-dropdown,
+html[data-app-mode="mobile"] .mods-toolbar-mobile > .el-dropdown {
+  flex: 1 1 calc(50% - 8px);
+}
+
+html.is-mobile-app .mods-toolbar-mobile > .el-button,
+html[data-app-mode="mobile"] .mods-toolbar-mobile > .el-button {
+  width: 100%;
+}
+
+html.is-mobile-app .mods-card-list,
+html[data-app-mode="mobile"] .mods-card-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+html.is-mobile-app .mods-card__meta,
+html[data-app-mode="mobile"] .mods-card__meta {
+  font-size: 12px;
+  color: var(--a3st-text-dim);
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+
+html.is-mobile-app .mods-card__roles,
+html[data-app-mode="mobile"] .mods-card__roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+html.is-mobile-app .mods-card__role,
+html[data-app-mode="mobile"] .mods-card__role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+html.is-mobile-app .mods-card__footer,
+html[data-app-mode="mobile"] .mods-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+html.is-mobile-app .mods-card__path,
+html[data-app-mode="mobile"] .mods-card__path {
+  font-size: 11px;
+  color: var(--a3st-text-dim);
+  margin-top: 8px;
+  word-break: break-all;
+}
+
+html.is-mobile-app .mods-bar,
+html[data-app-mode="mobile"] .mods-bar {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+html.is-mobile-app .console-page__toolbar,
+html[data-app-mode="mobile"] .console-page__toolbar {
+  flex-wrap: wrap;
 }

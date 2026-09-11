@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { createClient } from "@a3st/api-client";
 import { UI_COPY } from "@/constants/uiCopy";
 import { useConnectionsStore, type SavedConnection } from "@/stores/connections";
@@ -9,6 +9,16 @@ import { useConnectionsStore, type SavedConnection } from "@/stores/connections"
 const store = useConnectionsStore();
 const router = useRouter();
 const isMobile = import.meta.env.VITE_APP_MODE === "mobile";
+let addDialogWidth = "400px";
+let addFormLabelPosition: "left" | "top" = "left";
+let addFormLabelWidth: string | undefined = "72px";
+let addUrlPlaceholder = "http://127.0.0.1:19580";
+if (isMobile) {
+  addDialogWidth = "92vw";
+  addFormLabelPosition = "top";
+  addFormLabelWidth = undefined;
+  addUrlPlaceholder = "http://192.168.x.x:19580";
+}
 
 const showAdd = ref(false);
 const connectingId = ref<string | null>(null);
@@ -46,8 +56,13 @@ async function testConnection(baseUrl: string, token?: string): Promise<boolean>
     let message = "无法连接到被控服务";
     if (e instanceof Error && e.message) {
       if (e.message === "Failed to fetch") {
-        message =
-          "无法连接本机服务（默认 http://127.0.0.1:19580）。请等窗口完全启动后再点连接；若仍失败，用浏览器打开该地址的 /api/v1/health。";
+        if (isMobile) {
+          message =
+            "无法连接被控服务。请确认已填写局域网地址（如 http://192.168.x.x:19580）与 API Token，且手机与开服机同一 Wi‑Fi（关闭访客隔离）。";
+        } else {
+          message =
+            "无法连接本机服务（默认 http://127.0.0.1:19580）。请等窗口完全启动后再点连接；若仍失败，用浏览器打开该地址的 /api/v1/health。";
+        }
       } else {
         message = e.message;
       }
@@ -59,6 +74,7 @@ async function testConnection(baseUrl: string, token?: string): Promise<boolean>
 
 async function connect(conn: SavedConnection) {
   connectingId.value = conn.id;
+  selectedId.value = conn.id;
   try {
     const ok = await testConnection(conn.baseUrl, conn.token);
     if (!ok) {
@@ -69,6 +85,21 @@ async function connect(conn: SavedConnection) {
   } finally {
     connectingId.value = null;
   }
+}
+
+function onRowClick(conn: SavedConnection) {
+  if (isMobile) {
+    void connect(conn);
+    return;
+  }
+  selectedId.value = conn.id;
+}
+
+function onRowDblClick(conn: SavedConnection) {
+  if (isMobile) {
+    return;
+  }
+  void connect(conn);
 }
 
 async function doAdd() {
@@ -93,15 +124,22 @@ async function doAdd() {
   await router.push(`/console/${id}/dashboard`);
 }
 
-function doRemove(id: string) {
+async function doRemove(id: string) {
+  if (isMobile) {
+    try {
+      await ElMessageBox.confirm("确定移除此主机？", "移除主机", {
+        type: "warning",
+        confirmButtonText: "移除",
+        cancelButtonText: "取消",
+      });
+    } catch {
+      return;
+    }
+  }
   store.remove(id);
   if (selectedId.value === id) {
     selectedId.value = null;
   }
-}
-
-function selectConnection(id: string) {
-  selectedId.value = id;
 }
 </script>
 
@@ -128,7 +166,7 @@ function selectConnection(id: string) {
         data-testid="remote-connection-hint"
       >
         <template v-if="isMobile">
-          手机主控：添加开服机地址，例如 http://192.168.31.176:19580，并填入 API Token。需与开服机同一局域网或经 Tailscale 可达。
+          手机主控：点选主机即可连接。地址示例 http://192.168.31.176:19580，并填入 API Token。需与开服机同一局域网或经 Tailscale 可达。
         </template>
         <template v-else>
           远程：开服机运行 @a3st/service 后添加 http://&lt;IP&gt;:19580 与 Token。双机见 docs/deployment-ab-openclaw.md；Electron 可在「被控设置」开启 0.0.0.0 监听。
@@ -149,10 +187,10 @@ function selectConnection(id: string) {
             v-for="conn in store.connections"
             :key="conn.id"
             class="conn-archive__row"
-            :class="{ 'is-selected': selectedId === conn.id }"
+            :class="{ 'is-selected': selectedId === conn.id, 'is-connecting': connectingId === conn.id }"
             :data-testid="'connection-row-' + conn.id"
-            @click="selectConnection(conn.id)"
-            @dblclick="connect(conn)"
+            @click="onRowClick(conn)"
+            @dblclick="onRowDblClick(conn)"
           >
             <span class="conn-archive__tag">{{ connectionTag(conn) }}</span>
             <div class="conn-archive__body">
@@ -176,21 +214,35 @@ function selectConnection(id: string) {
       </el-scrollbar>
     </div>
 
-    <el-dialog v-model="showAdd" :title="UI_COPY.addHostDialog" width="400px">
-      <el-form label-width="72px" label-position="left">
+    <el-dialog
+      v-model="showAdd"
+      :title="UI_COPY.addHostDialog"
+      :width="addDialogWidth"
+    >
+      <el-form :label-position="addFormLabelPosition" :label-width="addFormLabelWidth">
         <el-form-item label="名称">
-          <el-input v-model="addForm.name" placeholder="我的服务器" />
+          <el-input v-model="addForm.name" data-testid="input-host-name" placeholder="例如：客厅开服机" />
         </el-form-item>
         <el-form-item label="地址">
-          <el-input v-model="addForm.baseUrl" placeholder="http://127.0.0.1:19580" />
+          <el-input
+            v-model="addForm.baseUrl"
+            data-testid="input-host-url"
+            :placeholder="addUrlPlaceholder"
+          />
         </el-form-item>
         <el-form-item label="Token">
-          <el-input v-model="addForm.token" type="password" placeholder="可选" show-password />
+          <el-input
+            v-model="addForm.token"
+            data-testid="input-host-token"
+            type="password"
+            show-password
+            placeholder="api_token.txt 中的内容"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showAdd = false">取消</el-button>
-        <el-button type="primary" @click="doAdd">添加并连接</el-button>
+        <el-button type="primary" data-testid="btn-add-host-confirm" @click="doAdd">添加并连接</el-button>
       </template>
     </el-dialog>
   </div>
@@ -213,6 +265,7 @@ function selectConnection(id: string) {
   background: var(--a3st-toolbar);
   border-bottom: 1px solid var(--a3st-border-subtle);
   flex-shrink: 0;
+  gap: 12px;
 }
 
 .connections-title {
@@ -251,6 +304,10 @@ function selectConnection(id: string) {
   color: var(--a3st-text-dim);
   font-size: 11px;
   margin-bottom: 4px;
+}
+
+.conn-archive__row.is-connecting {
+  opacity: 0.85;
 }
 
 [data-visual="classic"] .conn-archive__tag {

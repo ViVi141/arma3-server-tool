@@ -24,7 +24,7 @@ function onThemeModeChange(mode: ThemeMode) {
 
 <template>
   <div class="app-shell">
-    <div v-if="!isConsole" class="title-bar">
+    <div v-if="!isMobile && !isConsole" class="title-bar">
       <div class="title-bar-left">
         <span class="app-mark" aria-hidden="true" />
         <span class="app-name">Arma3 Server Tools</span>
