@@ -466,3 +466,336 @@
     font-size: 0.55rem;
   }
 }
+
+/* —— 手机 / 窄屏：底栏导航，不再用竖排 rail —— */
+@media (max-width: 768px) {
+  .shell-v2 {
+    --shell-fs-base: 14px;
+    --shell-fs-sm: 13px;
+    --shell-fs-xs: 12px;
+    padding-top: env(safe-area-inset-top, 0);
+  }
+
+  .shell-v2__topbar {
+    gap: 8px;
+    min-height: 3rem;
+    padding: 0 10px;
+    flex-wrap: nowrap;
+  }
+
+  .shell-v2__wordmark small {
+    display: none;
+  }
+
+  .shell-v2__wordmark strong {
+    font-size: 1.15rem;
+  }
+
+  .shell-v2__mark {
+    width: 1.35rem;
+    height: 1.35rem;
+  }
+
+  .shell-v2__instance {
+    flex: 1;
+    max-width: none;
+  }
+
+  .shell-v2__instance-trigger {
+    max-width: none;
+    min-height: 2.5rem;
+    padding: 8px 10px;
+  }
+
+  .shell-v2__picker {
+    display: none;
+  }
+
+  .shell-v2__body {
+    flex-direction: column;
+  }
+
+  .shell-v2__stage {
+    order: 1;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .shell-v2__rail {
+    order: 2;
+    width: 100%;
+    flex-direction: row;
+    flex-shrink: 0;
+    border-right: none;
+    border-top: 1px solid var(--shell-rule);
+    background: var(--shell-paper);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .shell-v2__rail-item {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 3.4rem;
+    padding: 0.45rem 0.2rem 0.35rem;
+    border-bottom: none;
+    border-right: 1px solid var(--shell-rule);
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+  }
+
+  .shell-v2__rail-item:last-child {
+    border-right: none;
+  }
+
+  .shell-v2__rail-item::before {
+    inset: auto 0 0 0;
+    width: auto;
+    height: 0.2rem;
+    transform: scaleX(0);
+    transform-origin: center;
+  }
+
+  .shell-v2__rail-item.is-active::before {
+    transform: scaleX(1);
+  }
+
+  .shell-v2__rail-index {
+    writing-mode: horizontal-tb;
+    font-size: 0.62rem;
+    line-height: 1;
+  }
+
+  .shell-v2__rail-label {
+    writing-mode: horizontal-tb;
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .shell-v2__subnav {
+    padding: 0 4px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .shell-v2__subnav-item {
+    flex: 0 0 auto;
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+
+  .shell-v2__actions {
+    padding: 8px;
+  }
+
+  .shell-v2__action-group {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .shell-v2__action-group .el-button {
+    min-height: 2.4rem;
+  }
+
+  .shell-v2__baseline {
+    min-height: 1.85rem;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .shell-v2__baseline-link {
+    max-width: 40vw;
+  }
+
+  .shell-v2__content-empty {
+    padding: 24px 16px;
+    text-align: center;
+    gap: 14px;
+  }
+
+  .shell-v2__content-empty-actions {
+    flex-direction: column;
+    width: min(100%, 16rem);
+  }
+
+  .shell-v2__content-empty-actions .el-button {
+    width: 100%;
+    min-height: 2.6rem;
+  }
+}
+
+/* Capacitor App：再放大触控与安全区；强制底栏（不受横屏宽度影响） */
+html.is-mobile-app,
+html[data-app-mode="mobile"] {
+  --el-font-size-base: 14px;
+  --el-component-size: 32px;
+  --el-component-size-small: 28px;
+}
+
+html.is-mobile-app body,
+html[data-app-mode="mobile"] body {
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html.is-mobile-app #app,
+html[data-app-mode="mobile"] #app {
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+html.is-mobile-app .shell-v2,
+html[data-app-mode="mobile"] .shell-v2 {
+  --shell-fs-base: 14px;
+  --shell-fs-sm: 13px;
+  --shell-fs-xs: 12px;
+  height: 100%;
+  max-height: 100dvh;
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+html.is-mobile-app .shell-v2__relay,
+html[data-app-mode="mobile"] .shell-v2__relay,
+html.is-mobile-app .shell-v2__picker,
+html[data-app-mode="mobile"] .shell-v2__picker {
+  display: none;
+}
+
+html.is-mobile-app .shell-v2__body,
+html[data-app-mode="mobile"] .shell-v2__body {
+  flex-direction: column;
+}
+
+html.is-mobile-app .shell-v2__stage,
+html[data-app-mode="mobile"] .shell-v2__stage {
+  order: 1;
+  flex: 1;
+  min-height: 0;
+}
+
+html.is-mobile-app .shell-v2__rail,
+html[data-app-mode="mobile"] .shell-v2__rail {
+  order: 2;
+  width: 100%;
+  flex-direction: row;
+  flex-shrink: 0;
+  border-right: none;
+  border-top: 1px solid var(--shell-rule);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+html.is-mobile-app .shell-v2__rail-item,
+html[data-app-mode="mobile"] .shell-v2__rail-item {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 3.5rem;
+  padding: 0.45rem 0.15rem 0.4rem;
+  border-bottom: none;
+  border-right: 1px solid var(--shell-rule);
+  writing-mode: horizontal-tb;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+}
+
+html.is-mobile-app .shell-v2__rail-item:last-child,
+html[data-app-mode="mobile"] .shell-v2__rail-item:last-child {
+  border-right: none;
+}
+
+html.is-mobile-app .shell-v2__rail-item::before,
+html[data-app-mode="mobile"] .shell-v2__rail-item::before {
+  inset: auto 0 0 0;
+  width: auto;
+  height: 0.22rem;
+  transform: scaleX(0);
+  transform-origin: center;
+}
+
+html.is-mobile-app .shell-v2__rail-item.is-active::before,
+html[data-app-mode="mobile"] .shell-v2__rail-item.is-active::before {
+  transform: scaleX(1);
+}
+
+html.is-mobile-app .shell-v2__rail-index,
+html[data-app-mode="mobile"] .shell-v2__rail-index,
+html.is-mobile-app .shell-v2__rail-label,
+html[data-app-mode="mobile"] .shell-v2__rail-label {
+  writing-mode: horizontal-tb;
+}
+
+html.is-mobile-app .shell-v2__rail-label,
+html[data-app-mode="mobile"] .shell-v2__rail-label {
+  font-size: 0.75rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.is-mobile-app .shell-v2__instance,
+html[data-app-mode="mobile"] .shell-v2__instance {
+  flex: 1;
+  max-width: none;
+}
+
+html.is-mobile-app .shell-v2__instance-trigger,
+html[data-app-mode="mobile"] .shell-v2__instance-trigger {
+  max-width: none;
+  min-height: 2.6rem;
+}
+
+html.is-mobile-app .console-page__toolbar,
+html[data-app-mode="mobile"] .console-page__toolbar {
+  padding: 8px 10px;
+  gap: 8px;
+  min-height: 2.75rem;
+}
+
+html.is-mobile-app .console-page__inner--padded,
+html[data-app-mode="mobile"] .console-page__inner--padded {
+  padding: 10px 12px 20px;
+}
+
+html.is-mobile-app .conn-page,
+html[data-app-mode="mobile"] .conn-page {
+  padding: 12px 14px calc(16px + env(safe-area-inset-bottom, 0));
+}
+
+html.is-mobile-app .conn-page__hero,
+html[data-app-mode="mobile"] .conn-page__hero {
+  margin-bottom: 12px;
+}
+
+html.is-mobile-app .conn-archive__row,
+html[data-app-mode="mobile"] .conn-archive__row {
+  padding: 14px 12px;
+  min-height: 3.25rem;
+}
+
+html.is-mobile-app .shell-v2__content-empty-actions,
+html[data-app-mode="mobile"] .shell-v2__content-empty-actions {
+  flex-direction: column;
+  width: min(100%, 16rem);
+}
+
+html.is-mobile-app .shell-v2__content-empty-actions .el-button,
+html[data-app-mode="mobile"] .shell-v2__content-empty-actions .el-button {
+  width: 100%;
+  min-height: 2.6rem;
+}

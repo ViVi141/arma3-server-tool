@@ -5,8 +5,8 @@ const config: CapacitorConfig = {
   appName: "A3ST",
   webDir: "www",
   server: {
-    // LAN 开服机常用 http://192.168.*；Android 9+ 默认禁明文，需配合 network_security_config。
-    androidScheme: "https",
+    // Capacitor WebView 使用 https 本地 origin；访问局域网 http:// Service 需 cleartext。
+    androidScheme: "http",
     cleartext: true,
   },
   android: {

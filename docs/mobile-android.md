@@ -41,7 +41,11 @@ Android Studio 打开后可 Run 到模拟器 / 真机。
 3. Token：开服机上的 `API_TOKEN`
 4. 连接
 
-手机与 N100 须同一局域网，或走 Tailscale 等可达网络。App 已允许明文 HTTP（`cleartext`），以便访问内网 `http://` 地址。
+手机与 N100 须同一局域网，或走 Tailscale 等可达网络。App 已允许明文 HTTP（`cleartext` + `androidScheme: http`），以便访问内网 `http://` 地址。
+
+## 界面适配
+
+手机端控制台为 **底栏六宫格导航**（概览 / 部署 / 工坊 / 日志 / 配置 / 系统），不再使用桌面竖排 rail；顶栏保留实例切换与登出。
 
 ## 说明
 
