@@ -28,9 +28,17 @@ export function resolveWebRoot(serviceCwd?: string): string | null {
   if (serviceCwd && serviceCwd.length > 0) {
     cwd = serviceCwd;
   }
-  const sibling = path.join(cwd, "..", "web");
-  if (fs.existsSync(path.join(sibling, "index.html"))) {
-    return sibling;
+
+  const candidates = [
+    path.join(cwd, "packages", "web", "dist"),
+    path.join(cwd, "..", "web", "dist"),
+    path.join(cwd, "web", "dist"),
+    path.join(cwd, "..", "web"),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, "index.html"))) {
+      return candidate;
+    }
   }
   return null;
 }
