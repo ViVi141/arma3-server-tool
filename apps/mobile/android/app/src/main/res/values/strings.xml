@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">A3ST</string>
+    <string name="title_activity_main">A3ST</string>
+    <string name="package_name">com.vivi141.a3st</string>
+    <string name="custom_url_scheme">com.vivi141.a3st</string>
+</resources>

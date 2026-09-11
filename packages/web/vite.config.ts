@@ -6,7 +6,7 @@ import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
 import { resolve } from "path";
 
 export default defineConfig(({ mode }) => ({
-  // Electron file:// 与 Service 静态托管都需要相对资源路径；绝对 /assets 会白屏。
+  // Electron file://、Service 静态托管、Capacitor 都需要相对资源路径。
   base: "./",
   plugins: [
     vue(),

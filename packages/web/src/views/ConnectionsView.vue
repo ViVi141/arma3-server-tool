@@ -8,6 +8,7 @@ import { useConnectionsStore, type SavedConnection } from "@/stores/connections"
 
 const store = useConnectionsStore();
 const router = useRouter();
+const isMobile = import.meta.env.VITE_APP_MODE === "mobile";
 
 const showAdd = ref(false);
 const connectingId = ref<string | null>(null);
@@ -126,7 +127,12 @@ function selectConnection(id: string) {
         class="conn-page__hint"
         data-testid="remote-connection-hint"
       >
-        远程：开服机运行 @a3st/service 后添加 http://&lt;IP&gt;:19580 与 Token。双机见 docs/deployment-ab-openclaw.md；Electron 可在「被控设置」开启 0.0.0.0 监听。
+        <template v-if="isMobile">
+          手机主控：添加开服机地址，例如 http://192.168.31.176:19580，并填入 API Token。需与开服机同一局域网或经 Tailscale 可达。
+        </template>
+        <template v-else>
+          远程：开服机运行 @a3st/service 后添加 http://&lt;IP&gt;:19580 与 Token。双机见 docs/deployment-ab-openclaw.md；Electron 可在「被控设置」开启 0.0.0.0 监听。
+        </template>
       </p>
 
       <div v-if="!store.connections.length" class="connections-empty">

@@ -7,9 +7,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
+    "build:mobile": "vue-tsc --noEmit && vite build --mode mobile --outDir ../../apps/mobile/www --emptyOutDir",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
-    "lint": "echo ok"
+    "lint": "echo ok",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@a3st/api-client": "*",

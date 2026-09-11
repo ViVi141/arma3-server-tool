@@ -1,0 +1,22 @@
+{
+  "name": "@a3st/mobile",
+  "version": "2.0.0-alpha.9",
+  "private": true,
+  "description": "Capacitor Android shell for Arma3 Server Tools control panel",
+  "type": "module",
+  "scripts": {
+    "build:web": "npm -w @a3st/web run build:mobile",
+    "sync": "npm run build:web && npx cap sync android && powershell -ExecutionPolicy Bypass -File ../../scripts/ensure-mobile-cleartext.ps1",
+    "open": "npx cap open android",
+    "run:android": "npm run sync && npx cap run android",
+    "pack:apk": "powershell -ExecutionPolicy Bypass -File ../../scripts/pack-mobile-apk.ps1"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.2.0",
+    "@capacitor/core": "^7.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.2.0",
+    "typescript": "^5.6.0"
+  }
+}

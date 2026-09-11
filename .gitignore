@@ -3,7 +3,9 @@ dist/
 *.tsbuildinfo
 out/
 apps/desktop/electron-resources/
+# Local CI / build artifacts
 artifacts/
+
 
 # Node / npm
 node_modules/

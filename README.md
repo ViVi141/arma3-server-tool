@@ -2,7 +2,8 @@
 
 跨平台 **Arma 3 专用服务器** 管理工具。全栈 **TypeScript** 实现。
 
-- **前端**：Vue 3 + Element Plus（Web + Electron 桌面壳）
+- **桌面**：Electron（Windows）
+- **手机**：Capacitor Android 主控壳（见 [docs/mobile-android.md](docs/mobile-android.md)）
 - **后端**：Node.js + Fastify + SQLite
 - **当前版本**：v2.0.0-alpha.9
 - **开服机**：Windows 或 Linux（Arma 3 专用服务器 + SteamCMD）；**Electron 桌面壳** 目前仅 Windows 打包

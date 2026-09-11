@@ -1,0 +1,7 @@
+# Android Capacitor 工程产物（由 `npx cap add android` / sync 生成）
+apps/mobile/android/
+apps/mobile/www/
+!apps/mobile/www/.gitignore
+
+# APK 输出
+artifacts/mobile/

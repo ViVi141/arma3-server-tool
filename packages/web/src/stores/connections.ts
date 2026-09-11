@@ -23,11 +23,16 @@ export const useConnectionsStore = defineStore("connections", () => {
   function loadConnections(): SavedConnection[] {
     try {
       const raw = localStorage.getItem("a3st-connections");
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        return JSON.parse(raw);
+      }
     } catch {
       /* ignore */
     }
-    // default: local
+    // 手机端没有本机 Service，不预置 127.0.0.1。
+    if (import.meta.env.VITE_APP_MODE === "mobile") {
+      return [];
+    }
     const defaultConn: SavedConnection = {
       id: "local",
       name: "本机",
