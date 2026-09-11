@@ -198,7 +198,7 @@ export class A3stClient {
 
   async listLogFiles(
     uuid: string,
-    kind: "rpt" | "battleye" | "all" = "all"
+    kind: "rpt" | "battleye" | "console" | "all" = "all"
   ): Promise<ApiResponse<{ files: LogFileEntry[]; serverDir: string }>> {
     return this.get(`/api/v1/servers/${uuid}/logs?kind=${kind}`);
   }
@@ -369,7 +369,7 @@ export class A3stClient {
 
   async readLogs(
     uuid: string,
-    logKind: "rpt" | "battleye" | "all" = "rpt",
+    logKind: "rpt" | "battleye" | "console" | "all" = "rpt",
     options?: { tail?: number; file?: string }
   ): Promise<ApiResponse<LogData>> {
     const qs = new URLSearchParams();

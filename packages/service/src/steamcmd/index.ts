@@ -1,1 +1,1 @@
-export { SteamCmdManager } from "./manager.js";
+export { SteamCmdManager, killSteamCmdProcessesUnderDir } from "./manager.js";

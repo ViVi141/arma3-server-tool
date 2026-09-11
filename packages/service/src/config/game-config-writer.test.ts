@@ -61,6 +61,8 @@ describe("GameConfigWriter", () => {
     expect(serverCfg).toContain('hostname="Test Server"');
     expect(serverCfg).toContain("maxPlayers=32;");
     expect(serverCfg).toContain("class Missions");
+    const expectedConsoleLog = path.resolve(getConfigRoot(tmpDir, "uuid-1"), "server_console.log");
+    expect(serverCfg).toContain(`logFile="${expectedConsoleLog}"`);
 
     const basicCfg = fs.readFileSync(path.join(getConfigRoot(tmpDir, "uuid-1"), "basic.cfg"), "utf-8");
     expect(basicCfg).toContain("MaxMsgSend=128;");

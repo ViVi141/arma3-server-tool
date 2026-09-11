@@ -107,19 +107,39 @@ describe("RptLogReader", () => {
     expect(logs[0].fileName).toBe("arma3server_2026.rpt");
   });
 
-  it("listLogs finds service capture log under logs/", () => {
+  it("listLogs finds service capture log under logs/ as console", () => {
     touch(path.join(tmpDir, "logs", `server_${TEST_UUID}.log`), "startup line");
 
-    const logs = reader.listLogs(tmpDir, TEST_UUID, "rpt");
+    const logs = reader.listLogs(tmpDir, TEST_UUID, "console");
     expect(logs).toHaveLength(1);
     expect(logs[0].fileName).toBe(`server_${TEST_UUID}.log`);
+    expect(logs[0].kind).toBe("console");
+  });
+
+  it("listLogs finds server_console.log under profile as console", () => {
+    const profileRoot = path.join(tmpDir, "a3st_serverconfig", TEST_UUID);
+    touch(path.join(profileRoot, "server_console.log"), "Dedicated host created");
+
+    const logs = reader.listLogs(tmpDir, TEST_UUID, "console");
+    expect(logs).toHaveLength(1);
+    expect(logs[0].fileName).toBe("server_console.log");
+    expect(logs[0].kind).toBe("console");
   });
 
   it("resolveAllowedLogPath matches full file path from UI", () => {
     const logPath = path.join(tmpDir, "logs", `server_${TEST_UUID}.log`);
     touch(logPath, "line1");
 
-    const resolved = reader.resolveAllowedLogPath(tmpDir, TEST_UUID, "rpt", logPath);
+    const resolved = reader.resolveAllowedLogPath(tmpDir, TEST_UUID, "console", logPath);
     expect(resolved).toBe(logPath);
+  });
+
+  it("all kind returns both rpt and console", () => {
+    const profileRoot = path.join(tmpDir, "a3st_serverconfig", TEST_UUID);
+    touch(path.join(profileRoot, "server.rpt"), "rpt");
+    touch(path.join(profileRoot, "server_console.log"), "console");
+
+    const logs = reader.listLogs(tmpDir, TEST_UUID, "all");
+    expect(logs.map((l) => l.kind).sort()).toEqual(["console", "rpt"]);
   });
 });

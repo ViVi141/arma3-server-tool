@@ -2,12 +2,15 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { CONFIG_FOLDER } from "../config/game-config-writer.js";
 
+export type LogKind = "rpt" | "battleye" | "console";
+export type LogKindFilter = LogKind | "all";
+
 export interface RptLogEntry {
   fileName: string;
   filePath: string;
   size: number;
   lastModified: Date;
-  kind: "rpt" | "battleye";
+  kind: LogKind;
 }
 
 const BATTLEYE_EXCLUDED = new Set(["bans.txt", "beserver_x64.cfg", "beserver.cfg"]);
@@ -33,18 +36,19 @@ function battleyeSearchDirs(serverDir: string, serverUuid: string): string[] {
   return dirs;
 }
 
-function isRptLogFileName(fileName: string): boolean {
+export function isConsoleLogFileName(fileName: string): boolean {
   const lower = fileName.toLowerCase();
-  if (lower.endsWith(".rpt")) {
-    return true;
-  }
   if (lower.startsWith("server_console") && lower.endsWith(".log")) {
     return true;
   }
-  if (lower.startsWith("server_") && lower.endsWith(".log")) {
+  if (lower.startsWith("server_") && lower.endsWith(".log") && !lower.endsWith(".rpt")) {
     return true;
   }
   return false;
+}
+
+export function isRptLogFileName(fileName: string): boolean {
+  return fileName.toLowerCase().endsWith(".rpt");
 }
 
 function isBattlEyeLogFileName(fileName: string): boolean {
@@ -60,7 +64,7 @@ function isBattlEyeLogFileName(fileName: string): boolean {
 
 function collectFiles(
   directory: string,
-  kind: "rpt" | "battleye",
+  kind: LogKind,
   results: RptLogEntry[],
   seen: Set<string>,
   fileFilter: (fileName: string) => boolean
@@ -105,7 +109,7 @@ export class RptLogReader {
   listLogs(
     serverDir: string,
     serverUuid: string,
-    kind: "rpt" | "battleye" | "all"
+    kind: LogKindFilter
   ): RptLogEntry[] {
     const results: RptLogEntry[] = [];
     if (!serverDir || !fs.existsSync(serverDir)) {
@@ -118,12 +122,18 @@ export class RptLogReader {
       for (const dir of profileSearchDirs(serverDir, serverUuid)) {
         collectFiles(dir, "rpt", results, seen, isRptLogFileName);
       }
-      collectFiles(path.join(serverDir, "logs"), "rpt", results, seen, (fileName) => {
+    }
+
+    if (kind === "console" || kind === "all") {
+      for (const dir of profileSearchDirs(serverDir, serverUuid)) {
+        collectFiles(dir, "console", results, seen, isConsoleLogFileName);
+      }
+      collectFiles(path.join(serverDir, "logs"), "console", results, seen, (fileName) => {
         const lower = fileName.toLowerCase();
         if (serverUuid && lower === `server_${serverUuid.toLowerCase()}.log`) {
           return true;
         }
-        return lower.startsWith("server_") && lower.endsWith(".log");
+        return isConsoleLogFileName(fileName);
       });
     }
 
@@ -171,9 +181,19 @@ export class RptLogReader {
     if (logs.length === 0) {
       return null;
     }
-    const rptFile = logs.find((item) => item.fileName.toLowerCase().endsWith(".rpt"));
-    if (rptFile) {
-      return rptFile.filePath;
+    return logs[0].filePath;
+  }
+
+  findActiveConsoleLog(serverDir: string, serverUuid: string): string | null {
+    const logs = this.listLogs(serverDir, serverUuid, "console");
+    if (logs.length === 0) {
+      return null;
+    }
+    const preferred = logs.find((item) =>
+      item.fileName.toLowerCase().startsWith("server_console")
+    );
+    if (preferred) {
+      return preferred.filePath;
     }
     return logs[0].filePath;
   }
@@ -181,7 +201,7 @@ export class RptLogReader {
   resolveAllowedLogPath(
     serverDir: string,
     serverUuid: string,
-    kind: "rpt" | "battleye" | "all",
+    kind: LogKindFilter,
     fileName?: string
   ): string | null {
     const logs = this.listLogs(serverDir, serverUuid, kind);

@@ -132,7 +132,7 @@ export interface AutomationCommand {
   rconMissionName?: string;
   rconCommandText?: string;
   broadcastMessage?: string;
-  logKind?: "rpt" | "battleye" | "all";
+  logKind?: "rpt" | "battleye" | "console" | "all";
   playerId?: string;
   playerGuid?: string;
   reason?: string;
@@ -326,7 +326,7 @@ export interface LogFileEntry {
   filePath: string;
   size: number;
   lastModified: string;
-  kind: "rpt" | "battleye";
+  kind: "rpt" | "battleye" | "console";
 }
 
 export interface ServerPathsData {
@@ -335,6 +335,7 @@ export interface ServerPathsData {
   serverDir: string;
   serverConfigDir: string;
   logDir: string;
+  processLogDir?: string;
 }
 
 export interface BikeyFileEntry {

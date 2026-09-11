@@ -25,6 +25,7 @@ const service = await createService({
 // Graceful shutdown
 process.on("SIGINT", async () => {
   service.log.info("Shutting down...");
+  service.steamCmd.requestAbort();
   service.processManager.killAll();
   await service.close();
   process.exit(0);
@@ -32,6 +33,7 @@ process.on("SIGINT", async () => {
 
 process.on("SIGTERM", async () => {
   service.log.info("Shutting down...");
+  service.steamCmd.requestAbort();
   service.processManager.killAll();
   await service.close();
   process.exit(0);

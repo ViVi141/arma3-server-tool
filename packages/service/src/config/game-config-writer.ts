@@ -293,6 +293,18 @@ export function getConfigRoot(serverDir: string, uuid: string): string {
   return path.join(serverDir, CONFIG_FOLDER, uuid);
 }
 
+/**
+ * Resolve server.cfg logFile to an absolute path under the profiles root.
+ * Relative names like server_console.log otherwise may land outside the scanned dirs.
+ */
+export function resolveServerConsoleLogPath(configRoot: string, logFileSetting: string): string {
+  const raw = logFileSetting.trim() || "server_console.log";
+  if (path.isAbsolute(raw)) {
+    return raw;
+  }
+  return path.resolve(configRoot, raw);
+}
+
 export function serverCfgPath(serverDir: string, uuid: string): string {
   return path.join(getConfigRoot(serverDir, uuid), "server.cfg");
 }
@@ -439,7 +451,7 @@ function writeServerCfg(uuid: string, config: ServerConfigPackage, configRoot: s
     lines.push(line("randomMissionOrder", true));
   }
 
-  lines.push(quotedLine("logFile", str(basic.logFile, "server_console.log")));
+  lines.push(quotedLine("logFile", resolveServerConsoleLogPath(configRoot, str(basic.logFile, "server_console.log"))));
   lines.push(quotedLine("timeStampFormat", timeStampFormat(basic.timeStampFormat)));
   lines.push(line("callExtReportLimit", num(basic.callExtReportLimit, 10000)));
 

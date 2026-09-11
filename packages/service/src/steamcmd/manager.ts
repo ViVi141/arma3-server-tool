@@ -59,6 +59,12 @@ export class SteamCmdManager extends EventEmitter {
   private sessionOutput = "";
   private latestSessionLogPath = "";
   private _aborted = false;
+  /** 整次 SteamCMD 业务操作互斥（下载/更新/安装），不仅限单个子进程。 */
+  private _busy = false;
+  /**
+   * 每次开始操作 +1；取消时再 +1，使旧协程即使被 clearAbort 也无法继续拉起进程。
+   */
+  private _runId = 0;
 
   constructor(installDir: string, pathContext?: SteamCmdPathContext) {
     super();
@@ -69,6 +75,8 @@ export class SteamCmdManager extends EventEmitter {
     };
     this.sessionLogDir = path.join(installDir, "logs", "steamcmd");
     fs.mkdirSync(this.sessionLogDir, { recursive: true });
+    // 上次异常退出可能留下 steamcmd 占着安装目录，导致新任务立刻失败或被系统锁死。
+    this.purgeOrphanSteamCmdProcesses();
   }
 
   setCredentials(username: string, password: string): void {
@@ -107,7 +115,11 @@ export class SteamCmdManager extends EventEmitter {
   }
 
   get isRunning(): boolean {
-    return this.activeCapture !== null;
+    return this._busy || this.activeCapture !== null;
+  }
+
+  get isBusy(): boolean {
+    return this._busy;
   }
 
   get steamCmdDir(): string {
@@ -115,6 +127,13 @@ export class SteamCmdManager extends EventEmitter {
   }
 
   async ensureInstalled(): Promise<void> {
+    return this.withExclusiveLock(async (runId) => {
+      await this.ensureInstalledBody(runId);
+    });
+  }
+
+  private async ensureInstalledBody(runId: number): Promise<void> {
+    this.throwIfStaleOrAborted(runId);
     if (this.isInstalled) {
       return;
     }
@@ -131,6 +150,7 @@ export class SteamCmdManager extends EventEmitter {
         `无法下载 SteamCMD（${downloadUrl}）。${describeNetworkError(e)}。请检查该域名是否被 hosts 拦截、能否访问 Steam CDN，或配置 HTTPS_PROXY；也可手动把 steamcmd.zip 解压到 SteamCMD 目录。`
       );
     }
+    this.throwIfStaleOrAborted(runId);
     if (!response.ok || !response.body) {
       throw new Error(`下载 SteamCMD 失败: HTTP ${response.status}（${downloadUrl}）`);
     }
@@ -139,6 +159,7 @@ export class SteamCmdManager extends EventEmitter {
     const total = parseInt(response.headers.get("content-length") ?? "0", 10);
     let received = 0;
     while (true) {
+      this.throwIfStaleOrAborted(runId);
       const { done, value } = await reader.read();
       if (done) {
         break;
@@ -152,6 +173,7 @@ export class SteamCmdManager extends EventEmitter {
     writer.end();
     await finished(writer);
 
+    this.throwIfStaleOrAborted(runId);
     this.emit("progress", "解压 SteamCMD...");
     if (isWindows()) {
       await this.extractSteamCmdWindowsArchive(archivePath, this.installDir);
@@ -173,8 +195,9 @@ export class SteamCmdManager extends EventEmitter {
     }
 
     if (!this.isInstalled) {
+      this.throwIfStaleOrAborted(runId);
       this.emit("progress", "初始化 SteamCMD...");
-      await this.runBootstrapUpdate();
+      await this.runBootstrapUpdate(runId);
       if (!this.isInstalled) {
         throw new Error(
           "SteamCMD 初始化未完成，缺少 public 资源文件。请确认可访问 Steam CDN 后重试。"
@@ -185,7 +208,7 @@ export class SteamCmdManager extends EventEmitter {
     this.emit("progress", "SteamCMD 安装完成");
   }
 
-  private async runBootstrapUpdate(): Promise<void> {
+  private async runBootstrapUpdate(runId: number): Promise<void> {
     const timeoutMs = 180000;
     let output = "";
     const timer = setTimeout(() => {
@@ -194,9 +217,10 @@ export class SteamCmdManager extends EventEmitter {
 
     try {
       this.sessionOutput = "";
-      const exitCode = await this.runCapturedProcess("+quit", (chunk) => {
+      const exitCode = await this.runCapturedProcess(runId, "+quit", (chunk) => {
         output += chunk;
       });
+      this.throwIfStaleOrAborted(runId);
       if (!this.isInstalled) {
         throw new Error(`SteamCMD 初始化未完成\n${output.slice(-500)}`);
       }
@@ -211,115 +235,135 @@ export class SteamCmdManager extends EventEmitter {
 
   /** 安装/更新 Arma 3 专用服务器 */
   async updateServer(serverDir?: string, onOutput?: (line: string) => void): Promise<void> {
-    this.clearAbort();
-    await this.ensureInstalled();
-    this.requireCredentials();
-    this.throwIfAborted();
-    const installDir = serverDir ?? this._serverInstallPath ?? this.installDir;
-    const argumentsString = buildDedicatedServerUpdateArguments(
-      this._username,
-      this._password,
-      installDir,
-    );
-    return this.runSteamCmdArguments(argumentsString, onOutput, { isAppUpdate: true });
+    return this.withExclusiveLock(async (runId) => {
+      await this.ensureInstalledBody(runId);
+      this.requireCredentials();
+      this.throwIfStaleOrAborted(runId);
+      const installDir = serverDir ?? this._serverInstallPath ?? this.installDir;
+      const argumentsString = buildDedicatedServerUpdateArguments(
+        this._username,
+        this._password,
+        installDir,
+      );
+      await this.runSteamCmdArguments(runId, argumentsString, onOutput, { isAppUpdate: true });
+    });
   }
 
   /** 下载 Workshop 模组 */
   async downloadWorkshopMods(modIds: number[], onOutput?: (line: string) => void): Promise<void> {
-    this.clearAbort();
-    await this.ensureInstalled();
-    this.requireCredentials();
+    return this.withExclusiveLock(async (runId) => {
+      await this.ensureInstalledBody(runId);
+      this.requireCredentials();
 
-    if (!modIds.length) {
-      throw new Error("没有要下载的 Workshop 模组 ID。");
-    }
-
-    const workshopRoot = normalizeWorkshopRoot(this._pathContext, this._workshopRoot);
-    if (!workshopRoot.trim()) {
-      throw new Error(
-        "SteamCMD 程序目录未配置。请在「工具 → SteamCMD 设置」中填写，或点「下载 SteamCMD」使用工具内置目录。"
-      );
-    }
-
-    ensureWorkshopContentDirectory(workshopRoot);
-
-    const uniqueIds = dedupePositiveIds(modIds);
-    const batchArgs = buildWorkshopDownloadArguments(
-      this._username,
-      this._password,
-      workshopRoot,
-      uniqueIds,
-    );
-    try {
-      this.throwIfAborted();
-      await this.runSteamCmdArguments(batchArgs, onOutput, {
-        isWorkshop: true,
-        emitComplete: false,
-      });
-    } catch (err) {
-      this.throwIfAborted();
-      const msg = err instanceof Error ? err.message : String(err);
-      const hint = `[提示] 批量下载未完全成功，将检查失败项并单独重试。详情: ${msg.slice(0, 200)}\n`;
-      this.appendSessionOutput(hint);
-      this.emit("output", hint);
-      onOutput?.(hint);
-    }
-
-    let remaining = resolveWorkshopDownloadMissingIds(uniqueIds, this.sessionOutput);
-    const maxSoloAttempts = 3;
-    for (let attempt = 1; attempt <= maxSoloAttempts && remaining.length > 0; attempt++) {
-      this.throwIfAborted();
-      const hint =
-        `[重试] 批量下载有 ${remaining.length} 个模组未完成（常见于体积较大的 Workshop 项，如 CUP Terrains），`
-        + `将单独重试第 ${attempt}/${maxSoloAttempts} 次: ${remaining.join(", ")}\n`;
-      this.appendSessionOutput(hint);
-      this.emit("output", hint);
-      onOutput?.(hint);
-
-      const nextFailed: number[] = [];
-      for (const modId of remaining) {
-        this.throwIfAborted();
-        await new Promise<void>((resolve) => setTimeout(resolve, 1500));
-        this.throwIfAborted();
-        const soloArgs = buildWorkshopDownloadArguments(
-          this._username,
-          this._password,
-          workshopRoot,
-          [modId],
-          { validate: true },
-        );
-        try {
-          await this.runSteamCmdArguments(soloArgs, onOutput, {
-            isWorkshop: true,
-            emitComplete: false,
-          });
-        } catch (err) {
-          this.throwIfAborted();
-          const msg = err instanceof Error ? err.message : String(err);
-          const failHint = `[失败] 模组 ${modId} 单独下载出错: ${msg}\n`;
-          this.appendSessionOutput(failHint);
-          this.emit("output", failHint);
-          onOutput?.(failHint);
-        }
-
-        const stillMissing = resolveWorkshopDownloadMissingIds([modId], this.sessionOutput);
-        if (stillMissing.length > 0) {
-          nextFailed.push(modId);
-        }
+      if (!modIds.length) {
+        throw new Error("没有要下载的 Workshop 模组 ID。");
       }
-      remaining = nextFailed;
-    }
 
-    this.throwIfAborted();
+      const workshopRoot = normalizeWorkshopRoot(this._pathContext, this._workshopRoot);
+      if (!workshopRoot.trim()) {
+        throw new Error(
+          "SteamCMD 程序目录未配置。请在「工具 → SteamCMD 设置」中填写，或点「下载 SteamCMD」使用工具内置目录。"
+        );
+      }
 
-    if (remaining.length > 0) {
-      throw new Error(
-        `以下 Workshop 模组下载失败（超时或未完成）: ${remaining.join(", ")}。`
-        + `大体积模组（如 CUP Terrains - Core / 583496184）可稍后再单独下载，或检查磁盘空间与网络。`,
+      ensureWorkshopContentDirectory(workshopRoot);
+
+      const uniqueIds = dedupePositiveIds(modIds);
+      const batchArgs = buildWorkshopDownloadArguments(
+        this._username,
+        this._password,
+        workshopRoot,
+        uniqueIds,
       );
-    }
+      try {
+        this.throwIfStaleOrAborted(runId);
+        await this.runSteamCmdArguments(runId, batchArgs, onOutput, {
+          isWorkshop: true,
+          emitComplete: false,
+        });
+      } catch (err) {
+        this.throwIfStaleOrAborted(runId);
+        const msg = err instanceof Error ? err.message : String(err);
+        const hint = `[提示] 批量下载未完全成功，将检查失败项并单独重试。详情: ${msg.slice(0, 200)}\n`;
+        this.appendSessionOutput(hint);
+        this.emit("output", hint);
+        onOutput?.(hint);
+      }
 
-    this.emit("complete", this.sessionOutput);
+      let remaining = resolveWorkshopDownloadMissingIds(uniqueIds, this.sessionOutput);
+      const maxSoloAttempts = 3;
+      for (let attempt = 1; attempt <= maxSoloAttempts && remaining.length > 0; attempt++) {
+        this.throwIfStaleOrAborted(runId);
+        const hint =
+          `[重试] 批量下载有 ${remaining.length} 个模组未完成（常见于体积较大的 Workshop 项，如 CUP Terrains），`
+          + `将单独重试第 ${attempt}/${maxSoloAttempts} 次: ${remaining.join(", ")}\n`;
+        this.appendSessionOutput(hint);
+        this.emit("output", hint);
+        onOutput?.(hint);
+
+        const nextFailed: number[] = [];
+        for (const modId of remaining) {
+          this.throwIfStaleOrAborted(runId);
+          await new Promise<void>((resolve) => setTimeout(resolve, 1500));
+          this.throwIfStaleOrAborted(runId);
+          const soloArgs = buildWorkshopDownloadArguments(
+            this._username,
+            this._password,
+            workshopRoot,
+            [modId],
+            { validate: true },
+          );
+          try {
+            await this.runSteamCmdArguments(runId, soloArgs, onOutput, {
+              isWorkshop: true,
+              emitComplete: false,
+            });
+          } catch (err) {
+            this.throwIfStaleOrAborted(runId);
+            const msg = err instanceof Error ? err.message : String(err);
+            const failHint = `[失败] 模组 ${modId} 单独下载出错: ${msg}\n`;
+            this.appendSessionOutput(failHint);
+            this.emit("output", failHint);
+            onOutput?.(failHint);
+          }
+
+          const stillMissing = resolveWorkshopDownloadMissingIds([modId], this.sessionOutput);
+          if (stillMissing.length > 0) {
+            nextFailed.push(modId);
+          }
+        }
+        remaining = nextFailed;
+      }
+
+      this.throwIfStaleOrAborted(runId);
+
+      if (remaining.length > 0) {
+        throw new Error(
+          `以下 Workshop 模组下载失败（超时或未完成）: ${remaining.join(", ")}。`
+          + `大体积模组（如 CUP Terrains - Core / 583496184）可稍后再单独下载，或检查磁盘空间与网络。`,
+        );
+      }
+
+      this.emit("complete", this.sessionOutput);
+    });
+  }
+
+  /**
+   * 全局互斥：同一时刻只允许一次 SteamCMD 业务操作。
+   * 取消时提升 runId，旧协程在检查点会失败，且不会被新操作的 clearAbort 复活。
+   */
+  private async withExclusiveLock<T>(fn: (runId: number) => Promise<T>): Promise<T> {
+    if (this._busy) {
+      throw new Error("SteamCMD 进程已在运行，请等待当前任务完成");
+    }
+    this._busy = true;
+    this._aborted = false;
+    const runId = ++this._runId;
+    try {
+      return await fn(runId);
+    } finally {
+      this._busy = false;
+    }
   }
 
   private requireCredentials(): void {
@@ -330,6 +374,7 @@ export class SteamCmdManager extends EventEmitter {
 
   /** 使用与 C# ProcessStartInfo.Arguments 相同的参数字符串启动 SteamCMD。 */
   private async runSteamCmdArguments(
+    runId: number,
     argumentsString: string,
     onOutput?: (line: string) => void,
     flags: {
@@ -339,7 +384,7 @@ export class SteamCmdManager extends EventEmitter {
     } = {},
     retryCount = 0,
   ): Promise<void> {
-    this.throwIfAborted();
+    this.throwIfStaleOrAborted(runId);
     if (this.activeCapture !== null) {
       throw new Error("SteamCMD 进程已在运行，请等待当前任务完成");
     }
@@ -349,14 +394,14 @@ export class SteamCmdManager extends EventEmitter {
     const shouldEmitComplete = flags.emitComplete !== false;
 
     let combined = "";
-    const exitCode = await this.runCapturedProcess(argumentsString, (chunk) => {
+    const exitCode = await this.runCapturedProcess(runId, argumentsString, (chunk) => {
       const clean = sanitizeSteamCmdOutput(chunk);
       combined += clean;
       onOutput?.(clean);
     });
 
     // 用户取消后不得再走 Workshop 早退/内部重试，否则会继续拉起 SteamCMD。
-    this.throwIfAborted();
+    this.throwIfStaleOrAborted(runId);
 
     const captureResult: SessionRunCapture = {
       console: combined,
@@ -378,25 +423,28 @@ export class SteamCmdManager extends EventEmitter {
     }
     if (
       !this._aborted
+      && runId === this._runId
       && retryCount < 1
       && this.shouldRetrySteamCmd(exitCode, combined)
     ) {
-      this.throwIfAborted();
+      this.throwIfStaleOrAborted(runId);
       const retryHint = "Update complete, launching SteamCMD...\n";
       this.appendSessionOutput(retryHint);
       this.emit("output", retryHint);
       onOutput?.(retryHint);
       await new Promise<void>((resolve) => setTimeout(resolve, 2000));
-      this.throwIfAborted();
-      return this.runSteamCmdArguments(argumentsString, onOutput, flags, retryCount + 1);
+      this.throwIfStaleOrAborted(runId);
+      return this.runSteamCmdArguments(runId, argumentsString, onOutput, flags, retryCount + 1);
     }
     throw new Error(`SteamCMD 退出代码: ${exitCode}\n${combined.slice(-500)}`);
   }
 
   private async runCapturedProcess(
+    runId: number,
     argumentsString: string,
     onChunk: (chunk: string) => void,
   ): Promise<number | null> {
+    this.throwIfStaleOrAborted(runId);
     const exePath = resolveSteamCmdPath(this.installDir);
     const capture = await spawnConsoleCapture(
       exePath,
@@ -414,7 +462,9 @@ export class SteamCmdManager extends EventEmitter {
     try {
       return await capture.waitForExit();
     } finally {
-      this.activeCapture = null;
+      if (this.activeCapture === capture) {
+        this.activeCapture = null;
+      }
     }
   }
 
@@ -541,14 +591,15 @@ export class SteamCmdManager extends EventEmitter {
   }
 
   kill(): void {
-    const pid = this.activeCapture?.pid;
-    if (this.activeCapture) {
+    const capture = this.activeCapture;
+    const pid = capture?.pid;
+    if (capture) {
       try {
-        this.activeCapture.kill();
+        capture.kill();
       } catch {
         /* ignore */
       }
-      this.activeCapture = null;
+      // 保持 activeCapture 直到 waitForExit 结束，避免互斥空窗期再起一个进程。
     }
     if (pid) {
       killProcessTree(pid);
@@ -558,10 +609,13 @@ export class SteamCmdManager extends EventEmitter {
   /** 终止当前 SteamCMD，并阻止 download_mods 等循环继续拉起新进程。 */
   requestAbort(): void {
     this._aborted = true;
+    // 使进行中的 runId 立刻失效；即便随后有人清 abort 标志，旧协程也不能继续。
+    this._runId += 1;
     const hint = "[取消] 用户已请求停止 SteamCMD，将不再重试。\n";
     this.appendSessionOutput(hint);
     this.emit("output", hint);
     this.kill();
+    this.purgeOrphanSteamCmdProcesses();
   }
 
   clearAbort(): void {
@@ -572,8 +626,16 @@ export class SteamCmdManager extends EventEmitter {
     return this._aborted;
   }
 
-  private throwIfAborted(): void {
-    if (this._aborted) {
+  /**
+   * 杀掉本工具 SteamCMD 安装目录下仍存活的 steamcmd 进程（含自更新拉起的孤儿）。
+   * 服务重启后构造时也会调用，避免「已占用」残留。
+   */
+  purgeOrphanSteamCmdProcesses(): number {
+    return killSteamCmdProcessesUnderDir(this.installDir);
+  }
+
+  private throwIfStaleOrAborted(runId: number): void {
+    if (this._aborted || runId !== this._runId) {
       throw new Error("SteamCMD 操作已取消");
     }
   }
@@ -627,4 +689,90 @@ function tailTextLines(text: string, maxLines: number): string {
     return lines.join("\n").trimEnd();
   }
   return lines.slice(-maxLines).join("\n").trimEnd();
+}
+
+/** 仅终止位于 steamCmdInstallDir 下的 steamcmd 进程，避免误杀其它目录实例。 */
+export function killSteamCmdProcessesUnderDir(steamCmdInstallDir: string): number {
+  const root = path.resolve(steamCmdInstallDir);
+  if (!root) {
+    return 0;
+  }
+  try {
+    if (isWindows()) {
+      return killSteamCmdWindows(root);
+    }
+    return killSteamCmdUnix(root);
+  } catch {
+    return 0;
+  }
+}
+
+function killSteamCmdWindows(root: string): number {
+  const script = [
+    "$ErrorActionPreference = 'SilentlyContinue'",
+    "$root = $env:A3ST_STEAMCMD_ROOT",
+    "$n = 0",
+    "Get-CimInstance Win32_Process -Filter \"Name = 'steamcmd.exe'\" | ForEach-Object {",
+    "  $exe = $_.ExecutablePath",
+    "  if ($exe -and $exe.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) {",
+    "    Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue",
+    "    $script:n++",
+    "  }",
+    "}",
+    "Write-Output $n",
+  ].join("\n");
+  const out = execSync("powershell -NoProfile -Command -", {
+    encoding: "utf-8",
+    timeout: 8000,
+    input: script,
+    env: { ...process.env, A3ST_STEAMCMD_ROOT: root },
+    stdio: ["pipe", "pipe", "ignore"],
+  });
+  const parsed = parseInt(String(out).trim().split(/\r?\n/).pop() ?? "0", 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return 0;
+}
+
+function killSteamCmdUnix(root: string): number {
+  const entry = resolveSteamCmdPath(root);
+  let killed = 0;
+  try {
+    const out = execSync("ps -eo pid=,args=", {
+      encoding: "utf-8",
+      timeout: 5000,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    for (const line of out.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        continue;
+      }
+      const space = trimmed.indexOf(" ");
+      if (space <= 0) {
+        continue;
+      }
+      const pid = parseInt(trimmed.slice(0, space), 10);
+      const args = trimmed.slice(space + 1);
+      if (!Number.isFinite(pid) || pid <= 0) {
+        continue;
+      }
+      if (pid === process.pid) {
+        continue;
+      }
+      const hit =
+        args.includes(entry)
+        || (args.includes("steamcmd") && args.includes(root));
+      if (!hit) {
+        continue;
+      }
+      if (killProcessTree(pid)) {
+        killed += 1;
+      }
+    }
+  } catch {
+    return killed;
+  }
+  return killed;
 }

@@ -32,7 +32,7 @@ export interface AutomationCommand {
   broadcastMessage?: string;
   playerId?: string;
   playerGuid?: string;
-  logKind?: "rpt" | "battleye" | "all";
+  logKind?: "rpt" | "battleye" | "console" | "all";
 }
 
 export interface TaskPayload {

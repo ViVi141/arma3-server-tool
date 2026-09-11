@@ -9,7 +9,7 @@ import type { LogFileEntry } from "@a3st/api-client";
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
 
-const logKind = ref<"rpt" | "battleye" | "all">("rpt");
+const logKind = ref<"rpt" | "battleye" | "console" | "all">("console");
 const files = ref<LogFileEntry[]>([]);
 const selectedFile = ref("");
 const lines = ref<string[]>([]);
@@ -18,6 +18,19 @@ const autoRefresh = ref(false);
 const errorMsg = ref("");
 const logDir = ref("");
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
+
+function formatLogLabel(file: LogFileEntry): string {
+  if (file.kind === "console") {
+    return `[Console] ${file.fileName}`;
+  }
+  if (file.kind === "rpt") {
+    return `[RPT] ${file.fileName}`;
+  }
+  if (file.kind === "battleye") {
+    return `[BE] ${file.fileName}`;
+  }
+  return file.fileName;
+}
 
 async function loadFileList() {
   try {
@@ -118,6 +131,7 @@ onUnmounted(stopAutoRefresh);
     <template #toolbar>
       <span class="logs-title">日志查看</span>
       <el-radio-group v-model="logKind">
+        <el-radio-button value="console">Console</el-radio-button>
         <el-radio-button value="rpt">RPT</el-radio-button>
         <el-radio-button value="battleye">BattlEye</el-radio-button>
         <el-radio-button value="all">全部</el-radio-button>
@@ -129,7 +143,12 @@ onUnmounted(stopAutoRefresh);
         placeholder="选择日志文件"
         style="width: 280px;"
       >
-        <el-option v-for="file in files" :key="file.filePath" :label="file.fileName" :value="file.filePath" />
+        <el-option
+          v-for="file in files"
+          :key="file.filePath"
+          :label="formatLogLabel(file)"
+          :value="file.filePath"
+        />
       </el-select>
       <el-button type="primary" :loading="loading" @click="loadLogs">加载</el-button>
       <el-checkbox v-model="autoRefresh" size="small">自动刷新</el-checkbox>

@@ -57,6 +57,7 @@ import { syncCronJobsForServer } from "../scheduling/cron-sync.js";
 import { validateServerPath } from "../utils/path-validation.js";
 import { defaultServerExecutable } from "../platform/index.js";
 import { verifyProcessIdentity } from "../process/identity.js";
+import { taskCommandsInvolveSteamCmd } from "../task/manager.js";
 
 export async function apiRoutes(app: FastifyInstance) {
   // ===================== Servers CRUD =====================
@@ -369,6 +370,7 @@ export async function apiRoutes(app: FastifyInstance) {
   app.get("/steamcmd/status", async () => {
     return envelope(true, {
       isRunning: app.steamCmd.isRunning,
+      isBusy: app.steamCmd.isBusy,
       isInstalled: app.steamCmd.isInstalled,
       isAborted: app.steamCmd.isAborted,
     }, null, "");
@@ -559,18 +561,19 @@ export async function apiRoutes(app: FastifyInstance) {
       return envelope(false, null, "NOT_FOUND", uuid);
     }
     const serverDir = config.server?.serverDir ?? "";
+    const serverConfigDir = serverDir
+      ? path.join(serverDir, CONFIG_FOLDER, uuid)
+      : "";
     return envelope(
       true,
       {
         toolConfigDir: app.configStore.getServerConfigDir(uuid),
         dataConfigDir: app.configStore.getConfigDir(),
         serverDir,
-        serverConfigDir: serverDir
-          ? path.join(serverDir, CONFIG_FOLDER, uuid)
-          : "",
-        logDir: serverDir
-          ? path.join(serverDir, "logs")
-          : "",
+        serverConfigDir,
+        // 控制台/RPT 落在 profiles（a3st_serverconfig/<uuid>）；stdout 捕获在 serverDir/logs（Linux）
+        logDir: serverConfigDir || (serverDir ? path.join(serverDir, "logs") : ""),
+        processLogDir: serverDir ? path.join(serverDir, "logs") : "",
       },
       null,
       uuid
@@ -647,7 +650,7 @@ export async function apiRoutes(app: FastifyInstance) {
       reply.status(400);
       return envelope(false, { message: "未设置服务器目录" }, "NO_SERVER_DIR", uuid);
     }
-    const kind = (query.kind ?? "all") as "rpt" | "battleye" | "all";
+    const kind = (query.kind ?? "all") as "rpt" | "battleye" | "console" | "all";
     const files = app.rptLogReader.listLogs(config.server.serverDir, uuid, kind).map((item) => ({
       fileName: item.fileName,
       filePath: item.filePath,
@@ -671,7 +674,7 @@ export async function apiRoutes(app: FastifyInstance) {
       reply.status(400);
       return envelope(false, { message: "未设置服务器目录" }, "NO_SERVER_DIR", uuid);
     }
-    const kind = (query.kind ?? "rpt") as "rpt" | "battleye" | "all";
+    const kind = (query.kind ?? "rpt") as "rpt" | "battleye" | "console" | "all";
     const maxLines = parseInt(query.tail ?? "200", 10);
     const target = app.rptLogReader.resolveAllowedLogPath(
       config.server.serverDir,
@@ -1086,7 +1089,10 @@ export async function apiRoutes(app: FastifyInstance) {
       return envelope(false, null, "NOT_FOUND", taskId);
     }
     const cancelled = app.asyncTaskManager.cancel(taskId);
-    app.steamCmd.requestAbort();
+    // 仅 SteamCMD 相关任务才 abort，避免取消无关任务时误杀正在跑的 SteamCMD。
+    if (taskCommandsInvolveSteamCmd(task.commands)) {
+      app.steamCmd.requestAbort();
+    }
     const updated = app.asyncTaskManager.get(taskId);
     let message = "任务已结束";
     if (cancelled) {
@@ -1452,7 +1458,6 @@ async function executeCommand(
         return fail("未设置服务器目录");
       }
       try {
-        await app.steamCmd.ensureInstalled();
         await app.steamCmd.updateServer(targetDir);
         return ok("服务器文件更新完成");
       } catch (e: unknown) {
@@ -1507,7 +1512,6 @@ async function executeCommand(
         return fail("未设置服务器目录");
       }
       try {
-        await app.steamCmd.ensureInstalled();
         await app.steamCmd.updateServer(targetDir);
         return ok("专用服务器安装/更新完成");
       } catch (e: unknown) {
@@ -1544,7 +1548,6 @@ async function executeCommand(
         return fail("未设置服务器目录");
       }
       try {
-        await app.steamCmd.ensureInstalled();
         await app.steamCmd.updateServer(serverDir);
         const deployResult = deployMonitoringIfEnabled(app.dataDir, config);
         const writeResult = writeAll(uuid, config);
@@ -1624,7 +1627,7 @@ async function executeCommand(
       if (!config?.server?.serverDir) return fail("未设置服务器目录");
       const kind = cmd.action === "read_rpt"
         ? "rpt"
-        : ((cmd.logKind ?? "rpt") as "rpt" | "battleye" | "all");
+        : ((cmd.logKind ?? "rpt") as "rpt" | "battleye" | "console" | "all");
       const target = app.rptLogReader.resolveAllowedLogPath(
         config.server.serverDir,
         uuid,
@@ -1705,7 +1708,7 @@ async function runSteamCmdModDownload(
   applySteamCmdSettings(app.steamCmd, settings, scanPaths);
 
   try {
-    await app.steamCmd.ensureInstalled();
+    // downloadWorkshopMods 内部已 ensureInstalled，并持有全局互斥锁。
     await app.steamCmd.downloadWorkshopMods(modIds);
     return ok(`SteamCMD 已开始下载 ${modIds.length} 个模组，请在 SteamCMD 页查看输出`);
   } catch (e: unknown) {

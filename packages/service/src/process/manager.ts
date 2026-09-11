@@ -39,10 +39,16 @@ export class ProcessManager extends EventEmitter {
     this.kill(uuid);
 
     return new Promise((resolve) => {
+      // Windows 上重定向 stdout/stderr 会导致专用服务器不再写入 logFile（server_console.log），
+      // 只剩 RPT。Linux 专用服则以 stdout 为主，保留管道捕获。
+      const stdio: ["ignore", "pipe" | "ignore", "pipe" | "ignore"] = isWindows()
+        ? ["ignore", "ignore", "ignore"]
+        : ["ignore", "pipe", "pipe"];
+
       const spawnOpts = {
         cwd: opts.cwd,
         windowsHide: true,
-        stdio: ["ignore", "pipe", "pipe"] as ["ignore", "pipe", "pipe"],
+        stdio,
       };
 
       let proc: ChildProcess;
@@ -66,20 +72,23 @@ export class ProcessManager extends EventEmitter {
       if (!fs.existsSync(logDir)) {
         fs.mkdirSync(logDir, { recursive: true });
       }
-      const logStream = fs.createWriteStream(logFile, { flags: "a" });
 
-      proc.stdout?.pipe(logStream);
-      proc.stderr?.pipe(logStream);
+      let logStream: fs.WriteStream | null = null;
+      if (!isWindows()) {
+        logStream = fs.createWriteStream(logFile, { flags: "a" });
+        proc.stdout?.pipe(logStream);
+        proc.stderr?.pipe(logStream);
+      }
 
       proc.on("exit", (code) => {
         this.processes.delete(uuid);
-        logStream.end();
+        logStream?.end();
         this.emit("exit", uuid, code);
       });
 
       proc.on("error", (err) => {
         this.processes.delete(uuid);
-        logStream.end();
+        logStream?.end();
         this.emit("error", uuid, err);
       });
 

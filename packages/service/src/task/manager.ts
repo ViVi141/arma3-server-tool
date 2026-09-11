@@ -14,6 +14,25 @@ export interface AsyncTask {
   log: string[];
 }
 
+const STEAMCMD_TASK_ACTIONS = new Set([
+  "download_mods",
+  "update_server",
+  "ensure_steamcmd",
+  "install_dedicated_server",
+  "import_mods_html",
+  "stop_steamcmd",
+]);
+
+export function isSteamCmdTaskAction(action: string): boolean {
+  return STEAMCMD_TASK_ACTIONS.has(action);
+}
+
+export function taskCommandsInvolveSteamCmd(
+  commands: { action: string; [key: string]: unknown }[]
+): boolean {
+  return commands.some((cmd) => isSteamCmdTaskAction(String(cmd.action)));
+}
+
 export class AsyncTaskManager {
   private tasks = new Map<string, AsyncTask>();
   private cancelledIds = new Set<string>();
@@ -92,19 +111,12 @@ export class AsyncTaskManager {
    * 避免误取消无关长任务。
    */
   cancelSteamCmdRelatedRunning(): string[] {
-    const steamActions = new Set([
-      "download_mods",
-      "update_server",
-      "ensure_steamcmd",
-      "install_dedicated_server",
-      "import_mods_html",
-    ]);
     const cancelled: string[] = [];
     for (const task of this.tasks.values()) {
       if (task.status !== "Pending" && task.status !== "Running") {
         continue;
       }
-      const related = task.commands.some((cmd) => steamActions.has(String(cmd.action)));
+      const related = task.commands.some((cmd) => isSteamCmdTaskAction(String(cmd.action)));
       if (!related) {
         continue;
       }
