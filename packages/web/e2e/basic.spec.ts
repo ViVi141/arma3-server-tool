@@ -68,8 +68,8 @@ test.describe("Arma3 Server Tools Web UI", () => {
   test("add connection dialog", async ({ page }) => {
     await page.getByTestId("btn-add-host").click();
     await expect(page.getByRole("dialog")).toBeVisible();
-    await page.getByPlaceholder("我的服务器").fill("E2E Test");
-    await page.getByPlaceholder("http://127.0.0.1:19580").fill("http://127.0.0.1:19580");
+    await page.getByTestId("input-host-name").fill("E2E Test");
+    await page.getByTestId("input-host-url").fill("http://127.0.0.1:19580");
     await page.getByRole("button", { name: "取消" }).click();
     await expect(page.getByRole("dialog")).not.toBeVisible();
   });
