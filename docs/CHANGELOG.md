@@ -2,7 +2,11 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.10] — 当前
+## [2.0.0-alpha.11] — 当前
+
+- 修复 Windows CI：SteamCMD 孤儿进程清理改用 `-EncodedCommand` + `Get-Process`，避免 PowerShell stdin 挂死导致测试超时。
+
+## [2.0.0-alpha.10]
 
 - 移动端 Capacitor：LAN cleartext / CapacitorHttp；壳层底栏与动作条折叠；连接单击即连；日志/工坊手机布局；E2E 改用 data-testid。
 - Linux 被控部署与静态 UI `WEB_ROOT` 解析增强；Console 日志与 SteamCMD 取消/锁修复（随主线累积）。

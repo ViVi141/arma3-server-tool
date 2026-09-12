@@ -712,25 +712,31 @@ function killSteamCmdWindows(root: string): number {
     "$ErrorActionPreference = 'SilentlyContinue'",
     "$root = $env:A3ST_STEAMCMD_ROOT",
     "$n = 0",
-    "Get-CimInstance Win32_Process -Filter \"Name = 'steamcmd.exe'\" | ForEach-Object {",
-    "  $exe = $_.ExecutablePath",
+    // Get-Process 比 Get-CimInstance 轻；避免 powershell -Command - + stdin 在 CI 上挂死。
+    "Get-Process -Name steamcmd -ErrorAction SilentlyContinue | ForEach-Object {",
+    "  $exe = $_.Path",
     "  if ($exe -and $exe.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) {",
-    "    Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue",
+    "    Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue",
     "    $script:n++",
     "  }",
     "}",
     "Write-Output $n",
   ].join("\n");
-  const out = execSync("powershell -NoProfile -Command -", {
-    encoding: "utf-8",
-    timeout: 8000,
-    input: script,
-    env: { ...process.env, A3ST_STEAMCMD_ROOT: root },
-    stdio: ["pipe", "pipe", "ignore"],
-  });
-  const parsed = parseInt(String(out).trim().split(/\r?\n/).pop() ?? "0", 10);
-  if (Number.isFinite(parsed) && parsed > 0) {
-    return parsed;
+  const encoded = Buffer.from(script, "utf16le").toString("base64");
+  try {
+    const out = execSync(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, {
+      encoding: "utf-8",
+      timeout: 3000,
+      env: { ...process.env, A3ST_STEAMCMD_ROOT: root },
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+    });
+    const parsed = parseInt(String(out).trim().split(/\r?\n/).pop() ?? "0", 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  } catch {
+    return 0;
   }
   return 0;
 }

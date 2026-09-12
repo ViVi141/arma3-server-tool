@@ -52,7 +52,7 @@ describe("SseManager + SteamCmdManager integration", () => {
 
     // Check complete event
     expect(calls[3]).toContain("[完成]");
-  });
+  }, 15_000);
 
   it("handles multiple SSE clients", () => {
     const sse = new SseManager();

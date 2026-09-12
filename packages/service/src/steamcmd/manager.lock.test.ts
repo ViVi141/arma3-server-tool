@@ -56,7 +56,7 @@ describe("SteamCmdManager exclusive lock / abort", () => {
     await first;
     expect(secondError).toContain("已在运行");
     expect(mgr.isBusy).toBe(false);
-  });
+  }, 15_000);
 
   it("requestAbort invalidates in-flight run even after clearAbort", async () => {
     const mgr = makeInstalledMgr();

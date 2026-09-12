@@ -5,7 +5,7 @@
 - **桌面**：Electron（Windows）
 - **手机**：Capacitor Android 主控壳（见 [docs/mobile-android.md](docs/mobile-android.md)）
 - **后端**：Node.js + Fastify + SQLite
-- **当前版本**：v2.0.0-alpha.10
+- **当前版本**：v2.0.0-alpha.11
 - **开服机**：Windows 或 Linux（Arma 3 专用服务器 + SteamCMD）；**Electron 桌面壳** 目前仅 Windows 打包
 - **控制端**：任意系统浏览器；Linux 开服机可直接 `npm run start:service` + 浏览器
 
