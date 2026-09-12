@@ -2,7 +2,12 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.9] — 当前
+## [2.0.0-alpha.10] — 当前
+
+- 移动端 Capacitor：LAN cleartext / CapacitorHttp；壳层底栏与动作条折叠；连接单击即连；日志/工坊手机布局；E2E 改用 data-testid。
+- Linux 被控部署与静态 UI `WEB_ROOT` 解析增强；Console 日志与 SteamCMD 取消/锁修复（随主线累积）。
+
+## [2.0.0-alpha.9]
 
 - 配置了 API Token 时仍允许加载静态 UI（`/`、`/assets/*`）；Electron「本机」连接自动同步被控 Token，避免打开就 `Unauthorized`。
 
