@@ -2,7 +2,13 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.11] — 当前
+## [2.0.0-alpha.12] — 当前
+
+- Windows 重启后若服务没有托管控制台页面，桌面壳不再把 HTTP 404 当成界面；端口占用会重试，并回退到本地页面。
+- 切换服务器实例时重载任务与设置页，避免把上一套任务配置写进当前配置。
+- 去掉已弃用的 `tsconfig` `baseUrl`，并显式设置 `rootDir`。
+
+## [2.0.0-alpha.11]
 
 - 修复 Windows CI：SteamCMD 孤儿进程清理改用 `-EncodedCommand` + `Get-Process`，避免 PowerShell stdin 挂死导致测试超时。
 
