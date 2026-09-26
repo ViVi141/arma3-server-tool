@@ -28,6 +28,8 @@ let serviceLogFd: number | null = null;
 let serviceExited = false;
 let serviceGeneration = 0;
 let preferFileUi = false;
+/** PID of a service we reused (orphan) rather than spawned in this process. */
+let adoptedServicePid: number | null = null;
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 
@@ -134,6 +136,91 @@ function probeService(port: number): Promise<ServiceProbe> {
   });
 }
 
+function findListenerPid(port: number): number | null {
+  if (process.platform !== "win32") {
+    try {
+      const out = execFileSync("sh", ["-c", `lsof -t -iTCP:${port} -sTCP:LISTEN`], {
+        encoding: "utf-8",
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      const pid = parseInt(out.trim().split(/\r?\n/)[0] ?? "", 10);
+      if (Number.isFinite(pid) && pid > 0) {
+        return pid;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  try {
+    const out = execFileSync(
+      "powershell",
+      [
+        "-NoProfile",
+        "-Command",
+        `(Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess)`,
+      ],
+      {
+        encoding: "utf-8",
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "ignore"],
+      }
+    );
+    const pid = parseInt(out.trim(), 10);
+    if (Number.isFinite(pid) && pid > 0) {
+      return pid;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function killPidTree(pid: number): void {
+  if (!pid || pid <= 0) {
+    return;
+  }
+  if (process.platform === "win32") {
+    try {
+      execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], {
+        windowsHide: true,
+        stdio: "ignore",
+      });
+    } catch (err) {
+      console.error(`taskkill ${pid} failed:`, err);
+    }
+    return;
+  }
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch (err) {
+    console.error(`kill ${pid} failed:`, err);
+  }
+}
+
+function adoptListenerIfPresent(port: number): void {
+  const pid = findListenerPid(port);
+  if (!pid || pid === process.pid) {
+    return;
+  }
+  adoptedServicePid = pid;
+  console.log(`Adopted existing listener on port ${port} as PID ${pid}`);
+}
+
+function freeServicePort(port: number): void {
+  const pid = findListenerPid(port);
+  if (!pid || pid === process.pid) {
+    return;
+  }
+  console.log(`Freeing port ${port} by stopping PID ${pid}`);
+  killPidTree(pid);
+  if (adoptedServicePid === pid) {
+    adoptedServicePid = null;
+  }
+}
+
 function readServiceLogTail(): string {
   const logPath = path.join(dataDir(), "service.log");
   try {
@@ -235,6 +322,8 @@ function buildServiceSpawnOptions(entry: string): {
 
 function startService(): boolean {
   stopService();
+  const settings = loadSettings();
+  freeServicePort(settings.port);
   serviceGeneration += 1;
   const generation = serviceGeneration;
   serviceExited = false;
@@ -292,20 +381,13 @@ function stopService(): void {
   if (serviceProcess && serviceProcess.pid && !serviceProcess.killed) {
     console.log("Stopping Node service...");
     const pid = serviceProcess.pid;
-    if (process.platform === "win32") {
-      try {
-        execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], {
-          windowsHide: true,
-          stdio: "ignore",
-        });
-      } catch (err) {
-        console.error("taskkill failed:", err);
-        serviceProcess.kill();
-      }
-    } else {
-      serviceProcess.kill();
-    }
+    killPidTree(pid);
     serviceProcess = null;
+  }
+  if (adoptedServicePid) {
+    console.log(`Stopping adopted service PID ${adoptedServicePid}...`);
+    killPidTree(adoptedServicePid);
+    adoptedServicePid = null;
   }
   if (serviceLogFd !== null) {
     fs.closeSync(serviceLogFd);
@@ -316,6 +398,9 @@ function stopService(): void {
 function getServiceStatus(): { running: boolean; pid?: number } {
   if (serviceProcess && serviceProcess.pid && !serviceProcess.killed) {
     return { running: true, pid: serviceProcess.pid };
+  }
+  if (adoptedServicePid) {
+    return { running: true, pid: adoptedServicePid };
   }
   return { running: false };
 }
@@ -352,8 +437,16 @@ function registerIpcHandlers(): void {
     saveSettings(normalized);
   });
 
-  ipcMain.handle("service:restart", () => {
-    startService();
+  ipcMain.handle("service:restart", async () => {
+    const started = startService();
+    if (!started) {
+      preferFileUi = true;
+      return getServiceStatus();
+    }
+    const settings = loadSettings();
+    serviceExited = false;
+    const probe = await waitForServiceReady(settings.port, 30000);
+    preferFileUi = probe !== "ui";
     return getServiceStatus();
   });
 
@@ -597,6 +690,7 @@ if (!gotLock) {
         probe = await waitForServiceReady(settings.port, 30000);
       }
     } else {
+      adoptListenerIfPresent(settings.port);
       console.log(`Reusing service already listening on ${settings.port} (${probe})`);
     }
     preferFileUi = probe !== "ui";

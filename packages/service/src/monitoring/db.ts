@@ -119,6 +119,9 @@ export class MonitoringDb {
   }
 
   recordStats(serverUuid: string, playerCount: number, fps?: number): void {
+    if (!this.db) {
+      return;
+    }
     this.db.run(
       "INSERT INTO a3st_statistics (server_uuid, player_count, server_fps) VALUES (?, ?, ?)",
       [serverUuid, playerCount, fps ?? null]
@@ -127,6 +130,9 @@ export class MonitoringDb {
   }
 
   recordPlayer(player: PlayerRecord): void {
+    if (!this.db) {
+      return;
+    }
     this.db.run(
       `INSERT INTO a3st_players (guid, name, server_uuid, last_seen)
        VALUES (?, ?, ?, datetime('now'))
@@ -137,6 +143,9 @@ export class MonitoringDb {
   }
 
   batchInsertPlayers(players: PlayerRecord[]): void {
+    if (!this.db) {
+      return;
+    }
     const stmt = this.db.prepare(
       `INSERT INTO a3st_players (guid, name, server_uuid, last_seen)
        VALUES (?, ?, ?, datetime('now'))
@@ -154,6 +163,9 @@ export class MonitoringDb {
     peakPlayers: number;
     totalEntries: number;
   } {
+    if (!this.db) {
+      return { avgPlayers: 0, peakPlayers: 0, totalEntries: 0 };
+    }
     const rows = this.db.exec(
       `SELECT AVG(player_count) as avgPlayers,
               MAX(player_count) as peakPlayers,
@@ -173,6 +185,9 @@ export class MonitoringDb {
   }
 
   getStats(serverUuid: string, sinceHours = 24): StatsRecord[] {
+    if (!this.db) {
+      return [];
+    }
     const rows = this.db.exec(
       `SELECT server_uuid as serverUuid, player_count as playerCount,
               recorded_at as timestamp, server_fps as serverFps
@@ -186,6 +201,9 @@ export class MonitoringDb {
   }
 
   listPlayers(serverUuid: string, limit = 200): PlayerRecord[] {
+    if (!this.db) {
+      return [];
+    }
     const rows = this.db.exec(
       `SELECT guid as playerGuid, name as playerName, server_uuid as serverUuid,
               last_seen as lastSeen
