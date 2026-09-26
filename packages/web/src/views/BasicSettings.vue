@@ -13,7 +13,7 @@ import { resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
 
-const { cfg, loading, saving, save } = useSettingsPage(props.serverUuid, "基本设置", () => ({
+const { cfg, loading, saving, save } = useSettingsPage(() => props.serverUuid, "基本设置", () => ({
   server: srv(),
   basic: b(),
   startup: st(),

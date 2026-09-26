@@ -15,26 +15,23 @@ const MIME: Record<string, string> = {
 };
 
 export function resolveWebRoot(serviceCwd?: string): string | null {
+  const candidates: string[] = [];
   const fromEnv = process.env.WEB_ROOT;
   if (fromEnv && fromEnv.trim().length > 0) {
-    const envRoot = fromEnv.trim();
-    if (fs.existsSync(path.join(envRoot, "index.html"))) {
-      return envRoot;
-    }
-    return null;
+    candidates.push(fromEnv.trim());
   }
 
   let cwd = process.cwd();
   if (serviceCwd && serviceCwd.length > 0) {
     cwd = serviceCwd;
   }
-
-  const candidates = [
+  candidates.push(
     path.join(cwd, "packages", "web", "dist"),
     path.join(cwd, "..", "web", "dist"),
     path.join(cwd, "web", "dist"),
     path.join(cwd, "..", "web"),
-  ];
+  );
+
   for (const candidate of candidates) {
     if (fs.existsSync(path.join(candidate, "index.html"))) {
       return candidate;

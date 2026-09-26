@@ -2,6 +2,23 @@ import initSqlJs, { type Database as SqlDb, type QueryExecResult, type SqlJsValu
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+function replaceFile(temp: string, target: string): void {
+  try {
+    fs.renameSync(temp, target);
+    return;
+  } catch (error) {
+    let code = "";
+    if (error instanceof Error && "code" in error) {
+      code = String((error as NodeJS.ErrnoException).code ?? "");
+    }
+    if (code !== "EPERM" && code !== "EEXIST" && code !== "EBUSY") {
+      throw error;
+    }
+  }
+  fs.rmSync(target, { force: true });
+  fs.renameSync(temp, target);
+}
+
 export interface PlayerRecord {
   playerGuid: string;
   playerName: string;
@@ -30,15 +47,37 @@ export class MonitoringDb {
   }
 
   private async init(): Promise<void> {
-    const SQL = await initSqlJs();
-    if (fs.existsSync(this.dbPath)) {
-      const buffer = fs.readFileSync(this.dbPath);
-      this.db = new SQL.Database(buffer);
-    } else {
-      this.db = new SQL.Database();
+    try {
+      const SQL = await initSqlJs();
+      if (fs.existsSync(this.dbPath)) {
+        const buffer = fs.readFileSync(this.dbPath);
+        this.db = new SQL.Database(buffer);
+      } else {
+        this.db = new SQL.Database();
+      }
+      try {
+        this.db.run("PRAGMA journal_mode=WAL");
+      } catch (pragmaError) {
+        console.error("PRAGMA journal_mode=WAL skipped:", pragmaError);
+      }
+      this.ensureSchema();
+      this.save();
+    } catch (error) {
+      console.error("Monitoring database init failed:", error);
+      if (this.db) {
+        return;
+      }
+      try {
+        const SQL = await initSqlJs();
+        this.db = new SQL.Database();
+        this.ensureSchema();
+      } catch (fallbackError) {
+        console.error("Monitoring database fallback failed:", fallbackError);
+      }
     }
-    this.db.run("PRAGMA journal_mode=WAL");
+  }
 
+  private ensureSchema(): void {
     this.db.run(`
       CREATE TABLE IF NOT EXISTS a3st_statistics (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,15 +101,17 @@ export class MonitoringDb {
       )
     `);
 
-    this.save();
   }
 
   private save(): void {
+    if (!this.db) {
+      return;
+    }
     const data = this.db.export();
     const buffer = Buffer.from(data);
     const temp = this.dbPath + ".tmp";
     fs.writeFileSync(temp, buffer);
-    fs.renameSync(temp, this.dbPath);
+    replaceFile(temp, this.dbPath);
   }
 
   async waitReady(): Promise<void> {
@@ -166,6 +207,9 @@ export class MonitoringDb {
   }
 
   close(): void {
+    if (!this.db) {
+      return;
+    }
     this.save();
     this.db.close();
   }

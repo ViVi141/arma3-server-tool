@@ -32,9 +32,25 @@ describe("resolveWebRoot", () => {
     expect(resolveWebRoot()).toBe(dir);
   });
 
-  it("returns null when WEB_ROOT is missing index", () => {
-    process.env.WEB_ROOT = os.tmpdir();
-    expect(resolveWebRoot()).toBeNull();
+  it("returns null when WEB_ROOT and cwd have no index", () => {
+    const empty = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-empty-"));
+    created.push(empty);
+    process.env.WEB_ROOT = empty;
+    expect(resolveWebRoot(empty)).toBeNull();
+  });
+
+  it("falls through to a sibling web directory when WEB_ROOT has no index", () => {
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-root-"));
+    created.push(parent);
+    const serviceDir = path.join(parent, "service");
+    const webDir = path.join(parent, "web");
+    fs.mkdirSync(serviceDir);
+    fs.mkdirSync(webDir);
+    fs.writeFileSync(path.join(webDir, "index.html"), "<html>fallback</html>", "utf8");
+    const missing = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-missing-web-"));
+    created.push(missing);
+    process.env.WEB_ROOT = missing;
+    expect(resolveWebRoot(serviceDir)).toBe(webDir);
   });
 });
 

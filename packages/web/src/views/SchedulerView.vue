@@ -85,11 +85,20 @@ async function save() {
   ElMessage.success("定时设置已保存");
 }
 
-const { markDirty, markClean } = useConfigEditorRegistration(props.serverUuid, {
+const { markDirty, markClean } = useConfigEditorRegistration(() => props.serverUuid, {
   label: "定时",
   save,
   reload: load,
 });
+
+watch(
+  () => props.serverUuid,
+  () => {
+    load().then(() => {
+      markClean();
+    });
+  }
+);
 
 watch(
   [cfg, cronRows],

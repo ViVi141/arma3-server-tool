@@ -5,7 +5,7 @@ import { applyDefaults } from "@/utils/defaults";
 import { useConfigEditorRegistration } from "./configEditor";
 
 export function useSettingsPage(
-  serverUuid: string,
+  getServerUuid: () => string,
   label: string,
   buildPatch: () => Record<string, unknown>
 ) {
@@ -23,7 +23,7 @@ export function useSettingsPage(
       if (!client) {
         return;
       }
-      const res = await client.getConfig(serverUuid);
+      const res = await client.getConfig(getServerUuid());
       if (res.success) {
         cfg.value = applyDefaults(res.data as Record<string, unknown>);
       }
@@ -42,7 +42,7 @@ export function useSettingsPage(
       if (!client) {
         throw new Error("未连接");
       }
-      await client.patchConfig(serverUuid, buildPatch() as never);
+      await client.patchConfig(getServerUuid(), buildPatch() as never);
       markCleanRef();
       ElMessage.success("已保存");
     } catch (e: unknown) {
@@ -53,7 +53,7 @@ export function useSettingsPage(
     }
   }
 
-  const { markDirty, markClean } = useConfigEditorRegistration(serverUuid, {
+  const { markDirty, markClean } = useConfigEditorRegistration(getServerUuid, {
     label,
     save,
     reload: load,
@@ -69,6 +69,12 @@ export function useSettingsPage(
     },
     { deep: true }
   );
+
+  watch(getServerUuid, () => {
+    load().then(() => {
+      markClean();
+    });
+  });
 
   onMounted(() => {
     load().then(() => {

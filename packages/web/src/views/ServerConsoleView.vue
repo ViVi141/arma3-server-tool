@@ -790,7 +790,7 @@ provide(CONSOLE_ACTIONS_KEY, {
       </div>
     </div>
     <template v-else>
-      <div class="shell-v2__page">
+      <div class="shell-v2__page" :key="selectedUuid">
       <DashboardView v-if="activeTab === 'dashboard'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
       <BasicSettings v-else-if="activeTab === 'basic'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
       <PerformanceView v-else-if="activeTab === 'performance'" :connection-id="connectionId()" :server-uuid="selectedUuid" />

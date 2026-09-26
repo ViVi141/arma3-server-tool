@@ -5,7 +5,7 @@ import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { useSettingsPage } from "@/composables/useSettingsPage";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
-const { cfg, loading, saving, save } = useSettingsPage(props.serverUuid, "性能", () => ({ startup: s() }));
+const { cfg, loading, saving, save } = useSettingsPage(() => props.serverUuid, "性能", () => ({ startup: s() }));
 const s = () => (cfg.value.startup ?? {}) as Record<string, unknown>;
 </script>
 

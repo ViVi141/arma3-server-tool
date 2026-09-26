@@ -1,4 +1,4 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import { processManager, ProcessManager } from "./process/index.js";
@@ -21,6 +21,37 @@ export interface ServiceOptions {
   host: string;
   dataDir: string;
   apiToken?: string;
+}
+
+const LISTEN_RETRY_CODES = new Set(["EADDRINUSE", "EACCES", "EADDRNOTAVAIL"]);
+
+async function listenWithRetry(
+  app: FastifyInstance,
+  port: number,
+  host: string
+): Promise<void> {
+  const attempts = 15;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await app.listen({ port, host });
+      return;
+    } catch (error) {
+      lastError = error;
+      let code = "";
+      if (error instanceof Error && "code" in error) {
+        code = String((error as NodeJS.ErrnoException).code ?? "");
+      }
+      const retryable = LISTEN_RETRY_CODES.has(code);
+      if (!retryable || attempt === attempts) {
+        app.log.error(error);
+        throw error;
+      }
+      app.log.error(`Listen ${host}:${port} failed (${code}), retry ${attempt}/${attempts}`);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+  throw lastError;
 }
 
 export async function createService(options: ServiceOptions) {
@@ -124,9 +155,13 @@ export async function createService(options: ServiceOptions) {
   const webRoot = resolveWebRoot();
   if (webRoot) {
     await registerWebStatic(app, webRoot);
+  } else {
+    app.log.error(
+      "Web UI root not found. GET / will return 404 until WEB_ROOT or packages/web/dist is available."
+    );
   }
 
-  await app.listen({ port: options.port, host: options.host });
+  await listenWithRetry(app, options.port, options.host);
   app.log.info(`Service listening on ${options.host}:${options.port}`);
 
   const { syncAllCronJobs } = await import("./scheduling/cron-sync.js");

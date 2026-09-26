@@ -166,12 +166,21 @@ async function saveMissions() {
 
 let markCleanRef: () => void = () => {};
 
-const { markDirty, markClean } = useConfigEditorRegistration(props.serverUuid, {
+const { markDirty, markClean } = useConfigEditorRegistration(() => props.serverUuid, {
   label: "任务",
   save: saveMissions,
   reload: loadConfig,
 });
 markCleanRef = markClean;
+
+watch(
+  () => props.serverUuid,
+  () => {
+    loadConfig().then(() => {
+      markClean();
+    });
+  }
+);
 
 watch(
   [missions, forcedDifficulty, autoSelectMission, randomMissionOrder, missionParamsText],

@@ -5,7 +5,7 @@ import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { useSettingsPage } from "@/composables/useSettingsPage";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
-const { cfg, loading, saving, save } = useSettingsPage(props.serverUuid, "安全", () => ({ basic: b(), battleye: be() }));
+const { cfg, loading, saving, save } = useSettingsPage(() => props.serverUuid, "安全", () => ({ basic: b(), battleye: be() }));
 const b = () => (cfg.value.basic ?? {}) as Record<string, unknown>;
 const be = () => (cfg.value.battleye ?? {}) as Record<string, unknown>;
 </script>

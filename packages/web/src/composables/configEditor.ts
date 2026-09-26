@@ -16,7 +16,7 @@ export interface ConfigEditorContext {
 export const CONFIG_EDITOR_KEY: InjectionKey<ConfigEditorContext> = Symbol("configEditor");
 
 export function useConfigEditorRegistration(
-  serverUuid: string,
+  getServerUuid: () => string,
   options: {
     label: string;
     save: () => Promise<void>;
@@ -32,11 +32,11 @@ export function useConfigEditorRegistration(
     }
     ctx.register({
       label: options.label,
-      isDirty: () => configSession.isDirty(serverUuid),
+      isDirty: () => configSession.isDirty(getServerUuid()),
       save: async () => {
         try {
           await options.save();
-          configSession.markClean(serverUuid);
+          configSession.markClean(getServerUuid());
           ctx.onSaved();
           return true;
         } catch {
@@ -45,7 +45,7 @@ export function useConfigEditorRegistration(
       },
       discard: async () => {
         await options.reload();
-        configSession.markClean(serverUuid);
+        configSession.markClean(getServerUuid());
       },
     });
   });
@@ -55,7 +55,7 @@ export function useConfigEditorRegistration(
   });
 
   return {
-    markDirty: () => configSession.markDirty(serverUuid),
-    markClean: () => configSession.markClean(serverUuid),
+    markDirty: () => configSession.markDirty(getServerUuid()),
+    markClean: () => configSession.markClean(getServerUuid()),
   };
 }

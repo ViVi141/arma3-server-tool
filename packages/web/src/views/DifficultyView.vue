@@ -5,7 +5,7 @@ import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { useSettingsPage } from "@/composables/useSettingsPage";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
-const { cfg, loading, saving, save } = useSettingsPage(props.serverUuid, "难度", () => ({ basic: b() }));
+const { cfg, loading, saving, save } = useSettingsPage(() => props.serverUuid, "难度", () => ({ basic: b() }));
 const b = () => (cfg.value.basic ?? {}) as Record<string, unknown>;
 const tri0 = (a: string[]) => a.map((s, i) => ({ value: i + "", label: s }));
 </script>

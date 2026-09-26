@@ -1,5 +1,5 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage, dialog, ipcMain, shell, nativeTheme } from "electron";
-import { spawn, type ChildProcess } from "child_process";
+import { execFileSync, spawn, type ChildProcess } from "child_process";
 import http from "http";
 import path from "path";
 import fs from "fs";
@@ -25,8 +25,13 @@ const DEFAULT_SETTINGS: ServiceSettings = {
 
 let serviceProcess: ChildProcess | null = null;
 let serviceLogFd: number | null = null;
+let serviceExited = false;
+let serviceGeneration = 0;
+let preferFileUi = false;
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+
+type ServiceProbe = "down" | "ui" | "api-only";
 
 function settingsPath(): string {
   return path.join(app.getPath("userData"), "service-settings.json");
@@ -85,31 +90,75 @@ function getPackagedWebRoot(): string {
   return path.join(process.resourcesPath, "web");
 }
 
-function waitForHealth(port: number, timeoutMs: number): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
+function probeService(port: number): Promise<ServiceProbe> {
   return new Promise((resolve) => {
-    const attempt = () => {
-      if (Date.now() > deadline) {
-        resolve(false);
+    let settled = false;
+    const finish = (result: ServiceProbe) => {
+      if (settled) {
         return;
       }
-      const req = http.get(`http://127.0.0.1:${port}/api/v1/health`, (res) => {
-        res.resume();
-        if (res.statusCode === 200) {
-          resolve(true);
+      settled = true;
+      resolve(result);
+    };
+
+    const req = http.get(`http://127.0.0.1:${port}/api/v1/health`, (res) => {
+      res.resume();
+      if (res.statusCode !== 200) {
+        finish("down");
+        return;
+      }
+      const pageReq = http.get(`http://127.0.0.1:${port}/`, (pageRes) => {
+        pageRes.resume();
+        const contentType = String(pageRes.headers["content-type"] ?? "");
+        if (pageRes.statusCode === 200 && contentType.includes("text/html")) {
+          finish("ui");
           return;
         }
-        setTimeout(attempt, 250);
+        finish("api-only");
       });
-      req.on("error", () => {
-        setTimeout(attempt, 250);
+      pageReq.on("error", () => {
+        finish("api-only");
       });
-      req.setTimeout(1500, () => {
-        req.destroy();
+      pageReq.setTimeout(1500, () => {
+        pageReq.destroy();
+        finish("api-only");
       });
-    };
-    attempt();
+    });
+    req.on("error", () => {
+      finish("down");
+    });
+    req.setTimeout(1500, () => {
+      req.destroy();
+      finish("down");
+    });
   });
+}
+
+function readServiceLogTail(): string {
+  const logPath = path.join(dataDir(), "service.log");
+  try {
+    const raw = fs.readFileSync(logPath, "utf-8");
+    const lines = raw.split(/\r?\n/);
+    const start = Math.max(0, lines.length - 25);
+    return lines.slice(start).join("\n").trim();
+  } catch {
+    return "";
+  }
+}
+
+async function waitForServiceReady(port: number, timeoutMs: number): Promise<ServiceProbe> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() <= deadline) {
+    if (serviceExited) {
+      break;
+    }
+    const probe = await probeService(port);
+    if (probe !== "down") {
+      return probe;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return "down";
 }
 
 function getTrayIconPath(): string {
@@ -184,17 +233,21 @@ function buildServiceSpawnOptions(entry: string): {
   };
 }
 
-function startService(): void {
+function startService(): boolean {
   stopService();
+  serviceGeneration += 1;
+  const generation = serviceGeneration;
+  serviceExited = false;
 
   const entry = getServiceEntryPath();
   if (!fs.existsSync(entry)) {
     console.warn(`Node service entry not found: ${entry}`);
+    serviceExited = true;
     dialog.showErrorBox(
       "服务未找到",
       `未找到 TypeScript 被控服务。\n\n请先执行：\nnpm run build:service\n\n路径：${entry}`
     );
-    return;
+    return false;
   }
 
   const spawnOptions = buildServiceSpawnOptions(entry);
@@ -203,28 +256,55 @@ function startService(): void {
   const logPath = path.join(dataDir(), "service.log");
   serviceLogFd = fs.openSync(logPath, "a");
 
-  serviceProcess = spawn(spawnOptions.executable, spawnOptions.args, {
+  const child = spawn(spawnOptions.executable, spawnOptions.args, {
     cwd: spawnOptions.cwd,
     env: spawnOptions.env,
     stdio: ["ignore", serviceLogFd, serviceLogFd],
     windowsHide: true,
   });
+  serviceProcess = child;
 
-  serviceProcess.on("exit", (code) => {
+  child.on("exit", (code) => {
     console.log(`Node service exited with code ${code}`);
-    serviceProcess = null;
+    if (generation !== serviceGeneration) {
+      return;
+    }
+    if (serviceProcess === child) {
+      serviceProcess = null;
+    }
+    serviceExited = true;
   });
 
-  serviceProcess.on("error", (err) => {
+  child.on("error", (err) => {
     console.error("Node service process error:", err);
-    serviceProcess = null;
+    if (generation !== serviceGeneration) {
+      return;
+    }
+    if (serviceProcess === child) {
+      serviceProcess = null;
+    }
+    serviceExited = true;
   });
+  return true;
 }
 
 function stopService(): void {
-  if (serviceProcess && !serviceProcess.killed) {
+  if (serviceProcess && serviceProcess.pid && !serviceProcess.killed) {
     console.log("Stopping Node service...");
-    serviceProcess.kill();
+    const pid = serviceProcess.pid;
+    if (process.platform === "win32") {
+      try {
+        execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], {
+          windowsHide: true,
+          stdio: "ignore",
+        });
+      } catch (err) {
+        console.error("taskkill failed:", err);
+        serviceProcess.kill();
+      }
+    } else {
+      serviceProcess.kill();
+    }
     serviceProcess = null;
   }
   if (serviceLogFd !== null) {
@@ -404,6 +484,21 @@ function loadUiIntoWindow(win: BrowserWindow): void {
 
   const settings = loadSettings();
   const serviceUrl = `http://127.0.0.1:${settings.port}/`;
+  if (preferFileUi) {
+    const indexPath = getWebIndexPath();
+    if (fs.existsSync(indexPath)) {
+      console.warn(`Loading file UI because service page is not ready: ${indexPath}`);
+      win.loadFile(indexPath).catch((err) => {
+        console.error("file:// UI load failed:", err);
+        dialog.showErrorBox(
+          "界面加载失败",
+          `无法打开控制台。\nService: ${serviceUrl}\nfile: ${indexPath}`
+        );
+        win.show();
+      });
+      return;
+    }
+  }
   console.log(`Loading UI from service: ${serviceUrl}`);
   win.loadURL(serviceUrl).catch((err) => {
     console.error("Service UI load failed:", err);
@@ -494,13 +589,31 @@ if (!gotLock) {
     registerIpcHandlers();
     nativeTheme.themeSource = "system";
     nativeTheme.on("updated", syncWindowTheme);
-    startService();
     const settings = loadSettings();
-    const healthy = await waitForHealth(settings.port, 20000);
-    if (!healthy) {
+    let probe = await probeService(settings.port);
+    if (probe === "down") {
+      const started = startService();
+      if (started) {
+        probe = await waitForServiceReady(settings.port, 30000);
+      }
+    } else {
+      console.log(`Reusing service already listening on ${settings.port} (${probe})`);
+    }
+    preferFileUi = probe !== "ui";
+    if (probe === "down") {
+      const startedEntry = fs.existsSync(getServiceEntryPath());
+      if (startedEntry) {
+        const tail = readServiceLogTail();
+        let detail = `本机被控服务未能响应 http://127.0.0.1:${settings.port}/api/v1/health。\n\n日志：${path.join(dataDir(), "service.log")}`;
+        if (tail.length > 0) {
+          detail = `${detail}\n\n${tail}`;
+        }
+        dialog.showErrorBox("服务未就绪", detail);
+      }
+    } else if (probe === "api-only") {
       dialog.showErrorBox(
-        "服务未就绪",
-        `本机被控服务未能响应 http://127.0.0.1:${settings.port}/api/v1/health。\n\n日志：${path.join(dataDir(), "service.log")}`
+        "控制台页面未就绪",
+        `服务已在 http://127.0.0.1:${settings.port}/ 响应，但首页不是控制台页面（常见为 HTTP 404）。\n已改用本地界面。若日志中是端口被占用或拒绝访问，可在被控设置里更换端口后重启服务。\n\n日志：${path.join(dataDir(), "service.log")}`
       );
     }
     createWindow();
