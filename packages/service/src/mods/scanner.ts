@@ -245,9 +245,12 @@ export class ModScanner {
     modPath: string,
     timeStamp: number
   ): { updatedAt?: string; updatedTime: string } {
+    // meta.cpp `timestamp` is Unix SECONDS. Interpreting it as milliseconds
+    // (new Date(seconds)) collapsed every mod to ~1970, so it always compared
+    // older than the Workshop time_updated and reported "有更新" forever.
     if (timeStamp > 0) {
       try {
-        const date = new Date(timeStamp);
+        const date = new Date(timeStamp * 1000);
         if (!Number.isNaN(date.getTime())) {
           return { updatedAt: date.toISOString(), updatedTime: date.toLocaleString() };
         }

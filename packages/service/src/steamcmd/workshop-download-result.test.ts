@@ -35,4 +35,20 @@ OK
       sample + "\nSuccess. Downloaded item 583496184 to \"/tmp/583496184\" (100 bytes)\n";
     expect(resolveWorkshopDownloadMissingIds([450814997, 583496184], recovered)).toEqual([]);
   });
+
+  it("recognizes 'file exists up to date' as success", () => {
+    const output = "Success. File exists up to date (450814997)\n";
+    expect(parseWorkshopDownloadSuccessIds(output)).toEqual([450814997]);
+    expect(resolveWorkshopDownloadMissingIds([450814997], output)).toEqual([]);
+  });
+
+  it("does not mark up-to-date mods as missing after a fresh download of another", () => {
+    const mixed =
+      'Success. Downloaded item 450814997 to "C:\\steamapps\\workshop\\450814997" (100 bytes)\n' +
+      "450814997: up to date\n" +
+      "Success. File exists up to date (1372685250)\n";
+    expect(
+      resolveWorkshopDownloadMissingIds([450814997, 1372685250], mixed),
+    ).toEqual([]);
+  });
 });

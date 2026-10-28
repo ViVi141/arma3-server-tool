@@ -6,7 +6,6 @@ import { RconClient } from "../rcon/index.js";
 import type { ServerConfigPackage } from "../types/config.js";
 import {
   writeAll,
-  buildStartCommandLine,
   serverCfgExists,
   getServerExecutablePath,
   CONFIG_FOLDER,
@@ -54,6 +53,7 @@ import {
   stopServer,
 } from "../scheduling/server-lifecycle.js";
 import { syncCronJobsForServer } from "../scheduling/cron-sync.js";
+import { isValidCron } from "../scheduling/cron.js";
 import { validateServerPath } from "../utils/path-validation.js";
 import { defaultServerExecutable } from "../platform/index.js";
 import { verifyProcessIdentity } from "../process/identity.js";
@@ -829,31 +829,28 @@ export async function apiRoutes(app: FastifyInstance) {
 
   app.post("/schedule/restart", async (req) => {
     const body = req.body as { serverUuid?: string; cron?: string } | null;
-    if (!body?.serverUuid || !body?.cron) {
+    const uuid = body?.serverUuid;
+    if (!uuid || !body?.cron) {
       return envelope(false, null, "INVALID_REQUEST", "");
     }
-    app.scheduler.add({
-      name: `restart-${body.serverUuid}`,
-      schedule: body.cron,
-      handler: () => {
-        app.processManager.kill(body.serverUuid!);
-        setTimeout(() => {
-          const config = app.configStore.load(body.serverUuid!);
-          if (config?.server?.serverDir && serverCfgExists(config.server.serverDir, body.serverUuid!)) {
-            const executable = getServerExecutablePath(config);
-            const mods = scanModsForConfig(app, config);
-            const commandLine = buildStartCommandLine(body.serverUuid!, config, mods);
-            app.processManager.register(body.serverUuid!, {
-              executable,
-              commandLine,
-              cwd: config.server.serverDir,
-            });
-            app.processManager.start(body.serverUuid!);
-          }
-        }, 5000);
-      },
-    });
-    return envelope(true, { message: `定时重启已设置: ${body.cron}` }, null, "");
+    if (!isValidCron(body.cron)) {
+      return envelope(false, { message: `非法的 cron 表达式: ${body.cron}` }, "INVALID_CRON", uuid);
+    }
+    const config = app.configStore.load(uuid);
+    if (!config) {
+      return envelope(false, null, "NOT_FOUND", uuid);
+    }
+    // 写入配置并通过统一同步管道注册（作业名 ${uuid}-restart 与
+    // clearCronJobsForServer 前缀一致，且走 executeCronAction 回写 processById）。
+    config.scheduler = { ...config.scheduler, restartCron: body.cron };
+    app.configStore.save(uuid, config);
+    const sync = syncCronJobsForServer(app, uuid, config);
+    return envelope(
+      sync.success,
+      { message: `定时重启已设置: ${body.cron}；${sync.message}` },
+      sync.success ? null : "SYNC_FAILED",
+      uuid
+    );
   });
 
   // ===================== Snapshots =====================
@@ -1061,7 +1058,13 @@ export async function apiRoutes(app: FastifyInstance) {
     }
 
     const result = await app.asyncTaskManager.runSync(uuid, cmds, executor);
-    return envelope(true, { ...result, steps: result.results }, null, task.taskId ?? "");
+    // 外层 success 如实反映执行结果（失败时仍返回 steps，供 UI 展示具体失败步骤）。
+    return envelope(
+      result.success,
+      { ...result, steps: result.results },
+      result.success ? null : "TASK_FAILED",
+      task.taskId ?? uuid
+    );
   });
 
   app.get("/tasks/:taskId", async (req) => {

@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: monitoring_service
+title: Arma3 服务器监控扩展 DLL
+scope:
+    - DestinyServerMonitoring/
+source_files: []
+depends_on: []
+related_to:
+    - path: scripts_and_ci

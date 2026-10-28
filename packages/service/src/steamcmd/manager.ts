@@ -12,6 +12,7 @@ import {
 import { sanitizeSteamCmdOutput } from "./output-sanitize.js";
 import {
   hasWorkshopDownloadFailure,
+  parseWorkshopDownloadSuccessIds,
   resolveWorkshopDownloadMissingIds,
 } from "./workshop-download-result.js";
 import {
@@ -275,64 +276,64 @@ export class SteamCmdManager extends EventEmitter {
         workshopRoot,
         uniqueIds,
       );
+      let batchOutput = "";
       try {
         this.throwIfStaleOrAborted(runId);
-        await this.runSteamCmdArguments(runId, batchArgs, onOutput, {
+        batchOutput = await this.runSteamCmdArguments(runId, batchArgs, onOutput, {
           isWorkshop: true,
           emitComplete: false,
         });
       } catch (err) {
         this.throwIfStaleOrAborted(runId);
         const msg = err instanceof Error ? err.message : String(err);
-        const hint = `[提示] 批量下载未完全成功，将检查失败项并单独重试。详情: ${msg.slice(0, 200)}\n`;
+        const hint = `[提示] 批量下载未完全成功，将检查失败项并重试。详情: ${msg.slice(0, 200)}\n`;
         this.appendSessionOutput(hint);
         this.emit("output", hint);
         onOutput?.(hint);
       }
 
-      let remaining = resolveWorkshopDownloadMissingIds(uniqueIds, this.sessionOutput);
-      const maxSoloAttempts = 3;
-      for (let attempt = 1; attempt <= maxSoloAttempts && remaining.length > 0; attempt++) {
+      // Retry remaining items in ONE merged SteamCMD process per attempt
+      // (single login), instead of one process per mod (which caused the
+      // "crazy login storm"). validate only on the final attempt.
+      let remaining = resolveWorkshopDownloadMissingIds(uniqueIds, batchOutput);
+      const maxRounds = 2;
+      for (let round = 1; round <= maxRounds && remaining.length > 0; round++) {
         this.throwIfStaleOrAborted(runId);
+        const isLastRound = round === maxRounds;
         const hint =
-          `[重试] 批量下载有 ${remaining.length} 个模组未完成（常见于体积较大的 Workshop 项，如 CUP Terrains），`
-          + `将单独重试第 ${attempt}/${maxSoloAttempts} 次: ${remaining.join(", ")}\n`;
+          `[重试] 尚有 ${remaining.length} 个模组未确认完成，合并为单个 SteamCMD 进程重试 `
+          + `第 ${round}/${maxRounds} 轮${isLastRound ? "（含 validate 校验）" : ""}: ${remaining.join(", ")}\n`;
         this.appendSessionOutput(hint);
         this.emit("output", hint);
         onOutput?.(hint);
 
-        const nextFailed: number[] = [];
-        for (const modId of remaining) {
-          this.throwIfStaleOrAborted(runId);
-          await new Promise<void>((resolve) => setTimeout(resolve, 1500));
-          this.throwIfStaleOrAborted(runId);
-          const soloArgs = buildWorkshopDownloadArguments(
-            this._username,
-            this._password,
-            workshopRoot,
-            [modId],
-            { validate: true },
-          );
-          try {
-            await this.runSteamCmdArguments(runId, soloArgs, onOutput, {
-              isWorkshop: true,
-              emitComplete: false,
-            });
-          } catch (err) {
-            this.throwIfStaleOrAborted(runId);
-            const msg = err instanceof Error ? err.message : String(err);
-            const failHint = `[失败] 模组 ${modId} 单独下载出错: ${msg}\n`;
-            this.appendSessionOutput(failHint);
-            this.emit("output", failHint);
-            onOutput?.(failHint);
-          }
+        await new Promise<void>((resolve) => setTimeout(resolve, 1500));
+        this.throwIfStaleOrAborted(runId);
 
-          const stillMissing = resolveWorkshopDownloadMissingIds([modId], this.sessionOutput);
-          if (stillMissing.length > 0) {
-            nextFailed.push(modId);
-          }
+        const retryArgs = buildWorkshopDownloadArguments(
+          this._username,
+          this._password,
+          workshopRoot,
+          remaining,
+          { validate: isLastRound },
+        );
+        let retryOutput = "";
+        try {
+          retryOutput = await this.runSteamCmdArguments(runId, retryArgs, onOutput, {
+            isWorkshop: true,
+            emitComplete: false,
+          });
+        } catch (err) {
+          this.throwIfStaleOrAborted(runId);
+          const msg = err instanceof Error ? err.message : String(err);
+          const failHint = `[失败] 重试轮出错: ${msg}\n`;
+          this.appendSessionOutput(failHint);
+          this.emit("output", failHint);
+          onOutput?.(failHint);
         }
-        remaining = nextFailed;
+        // If the retry produced no parseable output at all, keep all as remaining
+        // so we don't silently drop them.
+        remaining = resolveWorkshopDownloadMissingIds(remaining, retryOutput);
       }
 
       this.throwIfStaleOrAborted(runId);
@@ -383,7 +384,7 @@ export class SteamCmdManager extends EventEmitter {
       emitComplete?: boolean;
     } = {},
     retryCount = 0,
-  ): Promise<void> {
+  ): Promise<string> {
     this.throwIfStaleOrAborted(runId);
     if (this.activeCapture !== null) {
       throw new Error("SteamCMD 进程已在运行，请等待当前任务完成");
@@ -412,14 +413,15 @@ export class SteamCmdManager extends EventEmitter {
     this.writeSessionLogFile(sessionLogPath, captureResult, flags);
 
     if (flags.isWorkshop && hasWorkshopDownloadFailure(combined)) {
-      return;
+      // 部分失败：不抛错，交由调用方按缺失列表统一重试/判定，避免重复登录风暴。
+      return combined;
     }
 
     if (exitCode === 0 || this.isSteamCmdOutputSuccess(combined, flags)) {
       if (shouldEmitComplete) {
         this.emit("complete", combined);
       }
-      return;
+      return combined;
     }
     if (
       !this._aborted
@@ -515,7 +517,10 @@ export class SteamCmdManager extends EventEmitter {
       if (hasWorkshopDownloadFailure(output)) {
         return false;
       }
-      return /Success\.\s+Downloaded item/i.test(output);
+      // Accept any success/up-to-date phrasing SteamCMD emits, not just
+      // "Success. Downloaded item" — otherwise already-current mods read as
+      // failures and trigger needless retries (and re-logins).
+      return parseWorkshopDownloadSuccessIds(output).length > 0;
     }
     return false;
   }

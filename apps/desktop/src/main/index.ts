@@ -14,6 +14,8 @@ export interface ServiceSettings {
   host: string;
   apiToken: string;
   remoteAccessEnabled: boolean;
+  /** What to do when the user closes the main window while the tray exists. */
+  closeBehavior?: "ask" | "tray" | "quit";
 }
 
 const DEFAULT_SETTINGS: ServiceSettings = {
@@ -32,6 +34,8 @@ let preferFileUi = false;
 let adoptedServicePid: number | null = null;
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+/** Set once the user confirmed quitting, so the close handler stops intercepting. */
+let isQuitting = false;
 
 type ServiceProbe = "down" | "ui" | "api-only";
 
@@ -52,6 +56,7 @@ function loadSettings(): ServiceSettings {
       host: parsed.host ?? DEFAULT_SETTINGS.host,
       apiToken: parsed.apiToken ?? DEFAULT_SETTINGS.apiToken,
       remoteAccessEnabled: parsed.remoteAccessEnabled ?? DEFAULT_SETTINGS.remoteAccessEnabled,
+      closeBehavior: parsed.closeBehavior === "tray" || parsed.closeBehavior === "quit" ? parsed.closeBehavior : "ask",
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -200,6 +205,34 @@ function killPidTree(pid: number): void {
   }
 }
 
+/**
+ * Stop a single PID WITHOUT its child tree. Game servers are spawned as
+ * children of the Node service; a tree kill here would take them down every
+ * time the service restarts. Orphaned game servers are re-adopted by the next
+ * service start (persisted PID + identity verification).
+ */
+function killProcessOnly(pid: number): void {
+  if (!pid || pid <= 0) {
+    return;
+  }
+  if (process.platform === "win32") {
+    try {
+      execFileSync("taskkill", ["/PID", String(pid), "/F"], {
+        windowsHide: true,
+        stdio: "ignore",
+      });
+    } catch (err) {
+      console.error(`taskkill ${pid} failed:`, err);
+    }
+    return;
+  }
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch (err) {
+    console.error(`kill ${pid} failed:`, err);
+  }
+}
+
 function adoptListenerIfPresent(port: number): void {
   const pid = findListenerPid(port);
   if (!pid || pid === process.pid) {
@@ -214,8 +247,10 @@ function freeServicePort(port: number): void {
   if (!pid || pid === process.pid) {
     return;
   }
-  console.log(`Freeing port ${port} by stopping PID ${pid}`);
-  killPidTree(pid);
+  // Soft kill only the listener: children (game servers) survive and are
+  // adopted by the freshly started service.
+  console.log(`Freeing port ${port} by stopping listener PID ${pid} (children preserved)`);
+  killProcessOnly(pid);
   if (adoptedServicePid === pid) {
     adoptedServicePid = null;
   }
@@ -377,16 +412,18 @@ function startService(): boolean {
   return true;
 }
 
-function stopService(): void {
+function stopService(options: { killGameServers?: boolean } = {}): void {
+  const kill = options.killGameServers ? killPidTree : killProcessOnly;
   if (serviceProcess && serviceProcess.pid && !serviceProcess.killed) {
-    console.log("Stopping Node service...");
-    const pid = serviceProcess.pid;
-    killPidTree(pid);
+    console.log(
+      `Stopping Node service (PID ${serviceProcess.pid}, killGameServers=${!!options.killGameServers})...`
+    );
+    kill(serviceProcess.pid);
     serviceProcess = null;
   }
   if (adoptedServicePid) {
     console.log(`Stopping adopted service PID ${adoptedServicePid}...`);
-    killPidTree(adoptedServicePid);
+    kill(adoptedServicePid);
     adoptedServicePid = null;
   }
   if (serviceLogFd !== null) {
@@ -428,11 +465,15 @@ function registerIpcHandlers(): void {
   ipcMain.handle("service:settings:get", () => loadSettings());
 
   ipcMain.handle("service:settings:save", (_event, settings: ServiceSettings) => {
+    const current = loadSettings();
     const normalized: ServiceSettings = {
       port: settings.port ?? DEFAULT_SETTINGS.port,
       host: settings.host ?? DEFAULT_SETTINGS.host,
       apiToken: settings.apiToken ?? "",
       remoteAccessEnabled: !!settings.remoteAccessEnabled,
+      // Preserve tray preference even when the web client posts settings
+      // without this field.
+      closeBehavior: settings.closeBehavior ?? current.closeBehavior ?? "ask",
     };
     saveSettings(normalized);
   });
@@ -551,9 +592,38 @@ function createWindow(): void {
   });
 
   mainWindow.on("close", (event) => {
-    if (tray) {
+    const win = mainWindow;
+    if (isQuitting || !tray || !win) {
+      return;
+    }
+    const behavior = loadSettings().closeBehavior ?? "ask";
+    if (behavior === "quit") {
+      event.preventDefault();
+      quitApplication({ ask: false });
+      return;
+    }
+    if (behavior === "tray") {
       event.preventDefault();
       mainWindow?.hide();
+      return;
+    }
+    // "ask": let the user choose instead of silently hiding forever, which
+    // made many users believe the app was closed while it kept running.
+    event.preventDefault();
+    const choice = dialog.showMessageBoxSync(win, {
+      type: "question",
+      title: "关闭窗口",
+      message: "要最小化到托盘还是退出程序？",
+      detail: "最小化后后台服务与已启动的游戏服务器继续运行。退出时可选择是否一并停止游戏服务器。也可以在托盘菜单里修改本提醒行为。",
+      buttons: ["最小化到托盘", "退出程序", "取消"],
+      defaultId: 0,
+      cancelId: 2,
+      noLink: true,
+    });
+    if (choice === 0) {
+      mainWindow?.hide();
+    } else if (choice === 1) {
+      quitApplication({ ask: true });
     }
   });
 
@@ -615,6 +685,48 @@ function loadUiIntoWindow(win: BrowserWindow): void {
   });
 }
 
+/**
+ * Unified quit flow: unlike the old silent stopService()+exit, the user now
+ * chooses whether running game servers (children of the service) are stopped
+ * too. Default keeps them alive; the next service start re-adopts them.
+ */
+function quitApplication(options: { ask: boolean }): void {
+  if (isQuitting) {
+    return;
+  }
+  let killGameServers = false;
+  if (options.ask) {
+    const dialogOptions = {
+      type: "question" as const,
+      title: "退出程序",
+      message: "正在运行的游戏服务器如何处理？",
+      detail: "选择“保持运行”时，Arma3 服务器进程将继续运行，下次打开工具会自动接管管理。",
+      buttons: ["退出并保持服务器运行", "退出并停止服务器", "取消"],
+      defaultId: 0,
+      cancelId: 2,
+      noLink: true as const,
+    };
+    const choice = mainWindow
+      ? dialog.showMessageBoxSync(mainWindow, dialogOptions)
+      : dialog.showMessageBoxSync(dialogOptions);
+    if (choice === 2) {
+      return;
+    }
+    killGameServers = choice === 1;
+  }
+  isQuitting = true;
+  stopService({ killGameServers });
+  tray?.destroy();
+  tray = null;
+  app.exit(0);
+}
+
+function saveCloseBehavior(behavior: "ask" | "tray" | "quit"): void {
+  const settings = loadSettings();
+  settings.closeBehavior = behavior;
+  saveSettings(settings);
+}
+
 function createTray(): void {
   const iconPath = getTrayIconPath();
 
@@ -627,17 +739,27 @@ function createTray(): void {
 
   tray = new Tray(icon);
   tray.setToolTip("Arma3 Server Tools");
+  const currentBehavior = loadSettings().closeBehavior ?? "ask";
   const contextMenu = Menu.buildFromTemplate([
     { label: "显示窗口", click: () => mainWindow?.show() },
     { type: "separator" },
     {
-      label: "退出",
-      click: () => {
-        stopService();
-        tray?.destroy();
-        tray = null;
-        app.exit();
-      },
+      label: "点击关闭按钮时",
+      submenu: ([
+        { value: "ask", label: "每次询问" },
+        { value: "tray", label: "最小化到托盘" },
+        { value: "quit", label: "退出程序" },
+      ] as const).map((item) => ({
+        label: item.label,
+        type: "radio" as const,
+        checked: currentBehavior === item.value,
+        click: () => saveCloseBehavior(item.value),
+      })),
+    },
+    { type: "separator" },
+    {
+      label: "退出…",
+      click: () => quitApplication({ ask: true }),
     },
   ]);
   tray.setContextMenu(contextMenu);

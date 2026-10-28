@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { decodeLogBytes } from "./decode.js";
 import { CONFIG_FOLDER } from "../config/game-config-writer.js";
 
 export type LogKind = "rpt" | "battleye" | "console";
@@ -156,24 +157,32 @@ export class RptLogReader {
       return { lines: ["[文件不存在]"], totalLines: 0, offset: 0 };
     }
 
-    const content = fs.readFileSync(filePath, "utf-8");
-    const allLines = content.split("\n");
-    const total = allLines.length;
+    let fd: number | null = null;
+    try {
+      fd = fs.openSync(filePath, "r");
+      const size = fs.fstatSync(fd).size;
 
-    let start = 0;
-    if (startOffset != null) {
-      start = Math.max(0, startOffset);
-    } else if (total > maxLines) {
-      start = total - maxLines;
+      // Incremental tail: read forward from a known byte offset (live-follow).
+      if (startOffset != null && startOffset >= 0) {
+        const start = Math.min(startOffset, size);
+        const chunk = readForward(fd, start, size, maxLines);
+        return chunk;
+      }
+
+      // Default: read only the tail bytes needed for `maxLines` lines, so a
+      // several-hundred-MB RPT no longer freezes the request thread.
+      return readTail(fd, size, maxLines);
+    } catch {
+      return { lines: ["[读取日志失败]"], totalLines: 0, offset: 0 };
+    } finally {
+      if (fd !== null) {
+        try {
+          fs.closeSync(fd);
+        } catch {
+          // ignore
+        }
+      }
     }
-
-    const lines = allLines.slice(start, start + maxLines);
-
-    return {
-      lines: lines.length > 0 ? lines : ["[文件为空]"],
-      totalLines: total,
-      offset: start + lines.length,
-    };
   }
 
   findActiveRpt(serverDir: string, serverUuid: string): string | null {
@@ -226,4 +235,111 @@ export class RptLogReader {
     }
     return null;
   }
+}
+
+/** Hard cap on bytes pulled in a single forward (follow) read. */
+const FORWARD_BYTE_CAP = 1_000_000;
+/** Block size used when scanning backwards for the tail. */
+const TAIL_BLOCK = 65_536;
+
+function splitLines(text: string): string[] {
+  // Drop a single trailing newline so we don't report a phantom empty line.
+  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = normalized.split("\n");
+  if (lines.length > 1 && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+  return lines;
+}
+
+/**
+ * Read the last `maxLines` lines by scanning backwards in blocks, so huge RPT
+ * files cost O(tail) instead of O(fileSize).
+ */
+function readTail(fd: number, size: number, maxLines: number): {
+  lines: string[]; totalLines: number; offset: number;
+} {
+  if (size === 0) {
+    return { lines: ["[文件为空]"], totalLines: 0, offset: 0 };
+  }
+  let pos = size;
+  let newlineCount = 0;
+  // Grow the window until we have enough newlines (or reach the start).
+  while (pos > 0 && newlineCount <= maxLines) {
+    const readLen = Math.min(TAIL_BLOCK, pos);
+    pos -= readLen;
+    const buf = Buffer.alloc(readLen);
+    fs.readSync(fd, buf, 0, readLen, pos);
+    newlineCount += countNewlines(buf);
+  }
+  // Read the final collected region once, decoded as a whole (BOM-safe).
+  const regionLen = size - pos;
+  const buf = Buffer.alloc(regionLen);
+  fs.readSync(fd, buf, 0, regionLen, pos);
+  let lines = splitLines(decodeLogBytes(buf));
+  if (pos > 0 && lines.length > 0) {
+    // First line is likely truncated mid-line; drop it.
+    lines = lines.slice(1);
+  }
+  if (lines.length > maxLines) {
+    lines = lines.slice(lines.length - maxLines);
+  }
+  return {
+    lines: lines.length > 0 ? lines : ["[文件为空]"],
+    totalLines: lines.length,
+    offset: size,
+  };
+}
+
+/** Read forward from a byte offset (live-follow), capped to avoid full reads. */
+function readForward(fd: number, start: number, size: number, maxLines: number): {
+  lines: string[]; totalLines: number; offset: number;
+} {
+  if (start >= size) {
+    return { lines: [], totalLines: 0, offset: start };
+  }
+  const want = Math.min(size - start, FORWARD_BYTE_CAP);
+  const buf = Buffer.alloc(want);
+  fs.readSync(fd, buf, 0, want, start);
+
+  // Byte-level line boundaries (0x0A never appears inside GBK/UTF-8 trail
+  // bytes) so the returned offset is exact for any encoding.
+  const lineEnds: number[] = [];
+  for (let i = 0; i < buf.length; i += 1) {
+    if (buf[i] === 0x0a) {
+      lineEnds.push(i + 1);
+    }
+  }
+
+  let consumedBytes: number;
+  if (lineEnds.length >= maxLines) {
+    consumedBytes = lineEnds[maxLines - 1];
+  } else if (want < size - start) {
+    // Capped mid-file: stop at the last complete line so the next poll does
+    // not re-send a half line.
+    consumedBytes = lineEnds.length > 0 ? lineEnds[lineEnds.length - 1] : 0;
+    if (consumedBytes === 0) {
+      // A single line exceeds the cap; emit it truncated once and move on.
+      consumedBytes = want;
+    }
+  } else {
+    consumedBytes = want;
+  }
+
+  const lines = splitLines(decodeLogBytes(buf.subarray(0, consumedBytes)));
+  return {
+    lines,
+    totalLines: lines.length,
+    offset: start + consumedBytes,
+  };
+}
+
+function countNewlines(buf: Buffer): number {
+  let count = 0;
+  for (let i = 0; i < buf.length; i += 1) {
+    if (buf[i] === 0x0a) {
+      count += 1;
+    }
+  }
+  return count;
 }

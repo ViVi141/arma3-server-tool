@@ -59,6 +59,20 @@ const isRunning = ref(false);
 const statusText = ref("已停止");
 const serverRunningCache = ref<Record<string, boolean>>({});
 let statusPollTimer: ReturnType<typeof setInterval> | null = null;
+/** Action currently in flight (start/stop/restart) to block double-submit and show loading. */
+const busyAction = ref<string | null>(null);
+let pollFailureStreak = 0;
+const PROC_ACTIONS = new Set(["start", "stop", "restart"]);
+
+function procButtonDisabled(action: string): boolean {
+  if (busyAction.value !== null) {
+    return true;
+  }
+  if (action === "start") {
+    return isRunning.value;
+  }
+  return !isRunning.value;
+}
 
 const activeTab = ref("dashboard");
 
@@ -410,8 +424,17 @@ async function refreshStatus() {
     } else {
       statusText.value = "已停止";
     }
+    pollFailureStreak = 0;
   } catch {
-    /* ignore */
+    // A silent failure here left the UI frozen on a stale "运行中" badge when
+    // the service died; surface it after two consecutive misses.
+    pollFailureStreak += 1;
+    if (pollFailureStreak === 2) {
+      statusText.value = "状态获取失败 · 正在重试";
+      ElMessage.warning("无法连接本机被控服务，状态显示可能不是最新（持续失败将不再重复提醒）");
+    } else if (pollFailureStreak > 2) {
+      statusText.value = "状态获取失败 · 正在重试";
+    }
   }
 }
 
@@ -463,20 +486,40 @@ async function execAction(action: string) {
   if (!selectedUuid.value) {
     return;
   }
+  if (busyAction.value !== null && PROC_ACTIONS.has(action)) {
+    ElMessage.info("上一个进程操作尚未完成，请稍候");
+    return;
+  }
   if (action === "save") {
     await execSave();
     return;
   }
   if (action === "write_cfg" && hasDirtyChanges.value) {
-    try {
-      await ElMessageBox.confirm("有未保存的修改，写入的是磁盘上已保存的配置。是否继续？", "提示", {
-        type: "warning",
-        confirmButtonText: "继续写入",
-        cancelButtonText: "取消",
-      });
-    } catch {
-      return;
+    // Writing while edits are unsaved used to silently write the OLD config.
+    // Save the active page first; only ask for confirmation when the dirty
+    // flag comes from a page we cannot save from here.
+    if (activeEditor.value?.isDirty()) {
+      const saved = await activeEditor.value.save();
+      if (!saved) {
+        ElMessage.error("存在未保存的修改且自动保存失败，已取消写入");
+        return;
+      }
+      ElMessage.info("已自动保存当前页未提交的修改");
+    } else {
+      try {
+        await ElMessageBox.confirm("有未保存的修改且无法在当前页自动保存，写入的可能是旧配置。是否继续？", "提示", {
+          type: "warning",
+          confirmButtonText: "继续写入",
+          cancelButtonText: "取消",
+        });
+      } catch {
+        return;
+      }
     }
+  }
+  const isProc = PROC_ACTIONS.has(action);
+  if (isProc) {
+    busyAction.value = action;
   }
   try {
     const client = store.getClient();
@@ -498,6 +541,10 @@ async function execAction(action: string) {
     await refreshStatus();
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : "操作失败");
+  } finally {
+    if (isProc) {
+      busyAction.value = null;
+    }
   }
 }
 
@@ -626,9 +673,9 @@ provide(CONSOLE_ACTIONS_KEY, {
     <template #actions>
       <template v-if="selectedUuid && isMobile">
         <span v-if="showProcInToolbar" class="shell-v2__action-group mobile-action-primary">
-          <el-button type="success" data-testid="btn-start" :disabled="isRunning" @click="execAction('start')">启动</el-button>
-          <el-button type="warning" data-testid="btn-restart" :disabled="!isRunning" @click="execAction('restart')">重启</el-button>
-          <el-button type="danger" data-testid="btn-stop" :disabled="!isRunning" @click="execAction('stop')">停止</el-button>
+          <el-button type="success" data-testid="btn-start" :disabled="procButtonDisabled('start')" :loading="busyAction === 'start'" @click="execAction('start')">启动</el-button>
+          <el-button type="warning" data-testid="btn-restart" :disabled="procButtonDisabled('restart')" :loading="busyAction === 'restart'" @click="execAction('restart')">重启</el-button>
+          <el-button type="danger" data-testid="btn-stop" :disabled="procButtonDisabled('stop')" :loading="busyAction === 'stop'" @click="execAction('stop')">停止</el-button>
         </span>
         <el-button
           v-if="showSaveInToolbar"
@@ -700,9 +747,9 @@ provide(CONSOLE_ACTIONS_KEY, {
       <template v-else-if="selectedUuid">
         <span v-if="showProcInToolbar" class="shell-v2__action-group">
           <span class="shell-v2__action-label">PROC</span>
-          <el-button size="small" type="success" data-testid="btn-start" :disabled="isRunning" @click="execAction('start')">启动</el-button>
-          <el-button size="small" type="warning" data-testid="btn-restart" :disabled="!isRunning" @click="execAction('restart')">重启</el-button>
-          <el-button size="small" type="danger" data-testid="btn-stop" :disabled="!isRunning" @click="execAction('stop')">停止</el-button>
+          <el-button size="small" type="success" data-testid="btn-start" :disabled="procButtonDisabled('start')" :loading="busyAction === 'start'" @click="execAction('start')">启动</el-button>
+          <el-button size="small" type="warning" data-testid="btn-restart" :disabled="procButtonDisabled('restart')" :loading="busyAction === 'restart'" @click="execAction('restart')">重启</el-button>
+          <el-button size="small" type="danger" data-testid="btn-stop" :disabled="procButtonDisabled('stop')" :loading="busyAction === 'stop'" @click="execAction('stop')">停止</el-button>
         </span>
         <span v-if="showProcInToolbar && showSaveInToolbar" class="shell-v2__action-sep" />
         <span v-if="showSaveInToolbar || showWriteCfgInToolbar" class="shell-v2__action-group">

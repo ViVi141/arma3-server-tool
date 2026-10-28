@@ -4,9 +4,9 @@ import * as fs from "node:fs";
 import { EventEmitter } from "node:events";
 import type { ServerConfigPackage } from "../types/config.js";
 import type { ServerProcessState } from "../types/server.js";
-import { getServerExecutablePath, splitCommandLine } from "../config/game-config-writer.js";
 import { isWindows } from "../platform/index.js";
 import { isProcessRunning, verifyProcessIdentity } from "./identity.js";
+import { getServerExecutablePath, splitCommandLine } from "../config/game-config-writer.js";
 
 export interface SpawnOptions {
   executable: string;
@@ -15,10 +15,22 @@ export interface SpawnOptions {
   /** Parsed argv; used when commandLine is not set. */
   args?: string[];
   cwd: string;
+  /**
+   * Hidden by default (legacy behavior). Set false on Windows to keep the
+   * dedicated server's own console window visible — required for operators to
+   * see in-game error/assert dialogs that block startup until confirmed.
+   */
+  windowsHide?: boolean;
+}
+
+/** Minimal tracked entry: real spawn handles carry the ChildProcess, adopted ones only the PID. */
+interface ProcessEntry {
+  pid: number;
+  child?: ChildProcess;
 }
 
 export class ProcessManager extends EventEmitter {
-  private processes = new Map<string, ChildProcess>();
+  private processes = new Map<string, ProcessEntry>();
   private configs = new Map<string, SpawnOptions>();
 
   register(uuid: string, options: SpawnOptions): void {
@@ -47,7 +59,7 @@ export class ProcessManager extends EventEmitter {
 
       const spawnOpts = {
         cwd: opts.cwd,
-        windowsHide: true,
+        windowsHide: opts.windowsHide ?? true,
         stdio,
       };
 
@@ -65,7 +77,7 @@ export class ProcessManager extends EventEmitter {
         proc = spawn(opts.executable, opts.args ?? [], spawnOpts);
       }
 
-      this.processes.set(uuid, proc);
+      this.processes.set(uuid, { pid: proc.pid ?? 0, child: proc });
 
       const logFile = path.join(opts.cwd, "logs", `server_${uuid}.log`);
       const logDir = path.dirname(logFile);
@@ -96,32 +108,68 @@ export class ProcessManager extends EventEmitter {
     });
   }
 
-  kill(uuid: string): boolean {
-    const proc = this.processes.get(uuid);
-    if (!proc) return false;
+  /**
+   * Re-attach a known-running PID (e.g. persisted in config.tasks.processById
+   * before a service restart) so stop/kill no longer silently no-ops.
+   */
+  adopt(uuid: string, pid: number): boolean {
+    if (!pid || pid <= 0 || !isProcessRunning(pid)) {
+      return false;
+    }
+    const existing = this.processes.get(uuid);
+    if (existing?.pid === pid) {
+      return true;
+    }
+    if (existing && existing.pid > 0 && isProcessRunning(existing.pid)) {
+      return false;
+    }
+    this.processes.set(uuid, { pid });
+    this.emit("adopt", uuid, pid);
+    return true;
+  }
 
+  /** Drop tracking for a uuid without touching the OS process (e.g. PID was reused by another program). */
+  forget(uuid: string): void {
+    this.processes.delete(uuid);
+  }
+
+  kill(uuid: string): boolean {
+    const entry = this.processes.get(uuid);
+    if (!entry) return false;
+
+    const pid = entry.child?.pid ?? entry.pid;
     try {
-      if (process.platform === "win32") {
-        execSync(`taskkill /PID ${proc.pid} /T /F 2>nul`, { stdio: "ignore" });
-      } else {
-        proc.kill("SIGTERM");
+      if (isWindows()) {
+        execSync(`taskkill /PID ${pid} /T /F 2>nul`, { stdio: "ignore" });
+      } else if (entry.child) {
+        entry.child.kill("SIGTERM");
+        const child = entry.child;
         setTimeout(() => {
-          if (!proc.killed) proc.kill("SIGKILL");
+          if (!child.killed) child.kill("SIGKILL");
         }, 5000);
+      } else {
+        process.kill(pid, "SIGTERM");
       }
     } catch {
-      proc.kill();
+      try {
+        entry.child?.kill();
+      } catch {
+        // already dead
+      }
     }
 
-    this.processes.delete(uuid);
+    // For adopted entries (no child) there is no exit event; drop the record here.
+    if (!entry.child) {
+      this.processes.delete(uuid);
+    }
     return true;
   }
 
   getState(uuid: string, config?: ServerConfigPackage): ServerProcessState {
-    const proc = this.processes.get(uuid);
-    if (proc && proc.pid) {
-      if (isProcessRunning(proc.pid)) {
-        return { isRunning: true, pid: proc.pid };
+    const entry = this.processes.get(uuid);
+    if (entry && entry.pid > 0) {
+      if (isProcessRunning(entry.pid)) {
+        return { isRunning: true, pid: entry.pid };
       }
       this.processes.delete(uuid);
     }
@@ -141,6 +189,8 @@ export class ProcessManager extends EventEmitter {
           port: expectedPort > 0 ? expectedPort : undefined,
         });
         if (identity === "match") {
+          // Re-attach so subsequent kill/stop actually reaches the process.
+          this.adopt(uuid, persistedPid);
           return { isRunning: true, pid: persistedPid };
         }
       }
@@ -150,7 +200,8 @@ export class ProcessManager extends EventEmitter {
   }
 
   getPid(uuid: string): number | undefined {
-    return this.processes.get(uuid)?.pid;
+    const pid = this.processes.get(uuid)?.pid;
+    return pid && pid > 0 ? pid : undefined;
   }
 
   isRunning(uuid: string, config?: ServerConfigPackage): boolean {

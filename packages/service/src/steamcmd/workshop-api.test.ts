@@ -43,10 +43,16 @@ describe("parseWorkshopFileDetailsHtml", () => {
 });
 
 describe("workshop update helpers", () => {
-  it("marks local copy outdated when remote is newer", () => {
-    const status = resolveUpdateStatus(1700000200, 1700000000000, true);
+  it("marks local copy outdated when remote is clearly newer (beyond skew tolerance)", () => {
+    // remote newer by ~2h exceeds the 30-min clock-skew tolerance
+    const status = resolveUpdateStatus(1700007200, 1700000000000, true);
     expect(status).toBe("outdated");
     expect(updateStatusLabel(status)).toBe("有更新");
+  });
+
+  it("treats small remote-newer deltas as up to date (clock skew / mtime lag)", () => {
+    const status = resolveUpdateStatus(1700000200, 1700000000000, true);
+    expect(status).toBe("up_to_date");
   });
 
   it("marks local copy up to date when local mtime is newer", () => {

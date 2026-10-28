@@ -1,0 +1,16 @@
+schema_version: 1
+module_path: ""
+title: Arma3 Server Tools v2 多端 Monorepo
+scope:
+    - README.md
+    - README.en.md
+    - THIRD-PARTY-NOTICES.txt
+    - .gitignore
+    - .editorconfig
+    - package.json
+    - package-lock.json
+    - LICENSE
+    - NOTICE
+source_files: []
+depends_on: []
+related_to: []

@@ -8,18 +8,51 @@ export interface CronJobDef {
   handler: CronJobHandler;
 }
 
+/** Validate a cron expression without scheduling anything. */
+export function isValidCron(schedule: string): boolean {
+  if (!schedule || !schedule.trim()) {
+    return false;
+  }
+  try {
+    // Constructor throws synchronously on invalid patterns; stop() cancels the
+    // freshly scheduled tick so the probe never fires.
+    const probe = new Cron(schedule);
+    probe.stop();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export class Scheduler {
   private jobs: Map<string, Cron> = new Map();
   private schedules: Map<string, string> = new Map();
 
-  add(def: CronJobDef): void {
+  /**
+   * Register a job. Invalid expressions are skipped (returns false) instead of
+   * throwing — a single bad cron in a config package must never crash the
+   * whole service on startup.
+   */
+  add(def: CronJobDef): boolean {
+    if (!isValidCron(def.schedule)) {
+      this.remove(def.name);
+      return false;
+    }
     this.remove(def.name);
-    const job = new Cron(def.schedule, () => {
-      def.handler();
-    });
-
-    this.jobs.set(def.name, job);
-    this.schedules.set(def.name, def.schedule);
+    try {
+      const job = new Cron(def.schedule, () => {
+        // Handler failures must not kill the scheduler or leak unhandled rejections.
+        Promise.resolve()
+          .then(() => def.handler())
+          .catch(() => undefined);
+      });
+      this.jobs.set(def.name, job);
+      this.schedules.set(def.name, def.schedule);
+      return true;
+    } catch {
+      this.remove(def.name);
+      return false;
+    }
   }
 
   remove(name: string): void {
@@ -54,7 +87,15 @@ export const CRON_EVERY_HOUR = "0 * * * *";
 export const CRON_DAILY_3AM = "0 3 * * *";
 export const CRON_SERVER_RESTART = stringifyServerRestart(6, 18); // 06:00 & 18:00
 
-/** Generate cron expressions for daily restart at given hours */
+/**
+ * Generate a daily-restart cron expression for the given HOURS (fired at
+ * minute 0 of each hour). Fields are "minute hour dom mon dow".
+ * e.g. stringifyServerRestart(6, 18) => "0 6,18 * * *" (06:00 and 18:00 daily).
+ */
 export function stringifyServerRestart(...hours: number[]): string {
-  return `${hours.join(",").replace(/\d+/g, (h) => `${(+h % 24)}`)} 0 * * *`;
+  const normalized = hours
+    .map((h) => ((Math.trunc(h) % 24) + 24) % 24)
+    .filter((h) => Number.isFinite(h));
+  const unique = Array.from(new Set(normalized)).sort((a, b) => a - b);
+  return `0 ${unique.join(",")} * * *`;
 }

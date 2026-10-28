@@ -1,0 +1,59 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: main
+nodes_managed: true
+exported_at: "2026-10-28T11:05:54Z"
+modules:
+    "":
+        dir_name: Arma3 Server Tools v2 多端 Monorepo
+        title: Arma3 Server Tools v2 多端 Monorepo
+        scope:
+            - README.md
+            - README.en.md
+            - THIRD-PARTY-NOTICES.txt
+            - .gitignore
+            - .editorconfig
+            - package.json
+            - package-lock.json
+            - LICENSE
+            - NOTICE
+        source_files: []
+        children:
+            - docs
+            - monitoring_service
+            - scripts_and_ci
+        depends_on: []
+        related_to: []
+    docs:
+        dir_name: Arma3 Server Tools 文档与 OpenClaw Skill 定义
+        title: Arma3 Server Tools 文档与 OpenClaw Skill 定义
+        scope:
+            - docs/
+            - skills/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: scripts_and_ci
+    monitoring_service:
+        dir_name: Arma3 服务器监控扩展 DLL
+        title: Arma3 服务器监控扩展 DLL
+        scope:
+            - DestinyServerMonitoring/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: scripts_and_ci
+    scripts_and_ci:
+        dir_name: 构建、打包与 CI 脚本集
+        title: 构建、打包与 CI 脚本集
+        scope:
+            - scripts/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: docs
+            - path: monitoring_service

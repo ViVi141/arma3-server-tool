@@ -122,6 +122,22 @@ export function commandLineContainsNameForTest(
   return commandLineContainsName(commandLine, profileName);
 }
 
+/**
+ * Fallback identity check when full verification is inconclusive (e.g. the
+ * executable path cannot be resolved): matches our `-name=<uuid>` marker in
+ * the raw command line. Returns null when the command line is unreadable.
+ */
+export function commandLineMatchesMarkers(
+  pid: number,
+  profileName: string
+): boolean | null {
+  const commandLine = getProcessCommandLine(pid);
+  if (commandLine === null) {
+    return null;
+  }
+  return commandLineContainsName(commandLine, profileName);
+}
+
 /** Exported for unit tests */
 export function commandLineContainsPortForTest(
   commandLine: string,

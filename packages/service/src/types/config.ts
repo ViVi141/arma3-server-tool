@@ -53,6 +53,8 @@ export interface StartupConfigSection {
   queueSizeLogG?: number;
   startArgs?: string;
   startConfigArgs?: string;
+  /** Windows: keep the dedicated server console window visible (default true). */
+  showServerWindow?: boolean;
   [key: string]: unknown;
 }
 

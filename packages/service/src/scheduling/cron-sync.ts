@@ -24,21 +24,26 @@ export function syncCronJobsForServer(
 
   clearCronJobsForServer(app, uuid);
   let count = 0;
+  const skipped: string[] = [];
   const schedulerCfg = cfg.scheduler ?? {};
 
   if (schedulerCfg.restartCron) {
-    app.scheduler.add({
+    const ok = app.scheduler.add({
       name: `${uuid}-restart`,
       schedule: schedulerCfg.restartCron,
       handler: async () => {
         await executeCronAction(app, uuid, "restart");
       },
     });
-    count += 1;
+    if (ok) {
+      count += 1;
+    } else {
+      skipped.push(`restart("${schedulerCfg.restartCron}")`);
+    }
   }
 
   if (schedulerCfg.monitoringCron) {
-    app.scheduler.add({
+    const ok = app.scheduler.add({
       name: `${uuid}-monitoring`,
       schedule: schedulerCfg.monitoringCron,
       handler: async () => {
@@ -67,7 +72,11 @@ export function syncCronJobsForServer(
         }
       },
     });
-    count += 1;
+    if (ok) {
+      count += 1;
+    } else {
+      skipped.push(`monitoring("${schedulerCfg.monitoringCron}")`);
+    }
   }
 
   const cronJobs = schedulerCfg.cronJobs ?? {};
@@ -80,16 +89,27 @@ export function syncCronJobsForServer(
       continue;
     }
     const actionText = String(job.actionText ?? job.action ?? "restart");
-    app.scheduler.add({
+    const ok = app.scheduler.add({
       name: `${uuid}-cron-${taskId}`,
       schedule: job.cron,
       handler: async () => {
         await executeCronAction(app, uuid, actionText);
       },
     });
-    count += 1;
+    if (ok) {
+      count += 1;
+    } else {
+      skipped.push(`task ${taskId}("${job.cron}")`);
+    }
   }
 
+  if (skipped.length > 0) {
+    return {
+      success: true,
+      message: `定时任务已同步 (${count} 个)，已跳过 ${skipped.length} 个非法表达式: ${skipped.join(", ")}`,
+      count,
+    };
+  }
   return { success: true, message: `定时任务已同步 (${count} 个)`, count };
 }
 

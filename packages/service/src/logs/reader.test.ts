@@ -65,20 +65,25 @@ describe("RptLogReader", () => {
     expect(result.totalLines).toBe(3);
   });
 
-  it("readLog respects maxLines", () => {
-    const lines = Array.from({ length: 100 }, (_, i) => `line${i + 1}`).join("\n");
-    touch(path.join(tmpDir, "big.rpt"), lines);
+  it("readLog respects maxLines (tail keeps the newest lines)", () => {
+    const all = Array.from({ length: 100 }, (_, i) => `line${i + 1}`);
+    const content = all.join("\n");
+    touch(path.join(tmpDir, "big.rpt"), content);
     const result = reader.readLog(path.join(tmpDir, "big.rpt"), 5);
-    expect(result.lines).toHaveLength(5);
-    expect(result.offset).toBe(100);
+    expect(result.lines).toEqual(["line96", "line97", "line98", "line99", "line100"]);
+    // Tail reads report the byte size so a follow-up read can continue forward.
+    expect(result.offset).toBe(Buffer.byteLength(content, "utf8"));
   });
 
-  it("readLog with startOffset", () => {
-    const lines = Array.from({ length: 20 }, (_, i) => `line${i + 1}`).join("\n");
-    touch(path.join(tmpDir, "offset.rpt"), lines);
-    const result = reader.readLog(path.join(tmpDir, "offset.rpt"), 5, 10);
-    expect(result.lines[0]).toBe("line11");
-    expect(result.offset).toBe(15);
+  it("readLog with byte startOffset reads forward incrementally", () => {
+    const all = Array.from({ length: 20 }, (_, i) => `line${i + 1}`);
+    const content = all.join("\n");
+    touch(path.join(tmpDir, "offset.rpt"), content);
+    const start = Buffer.byteLength(all.slice(0, 10).join("\n") + "\n", "utf8");
+    const result = reader.readLog(path.join(tmpDir, "offset.rpt"), 5, start);
+    expect(result.lines).toEqual(["line11", "line12", "line13", "line14", "line15"]);
+    const consumed = Buffer.byteLength(all.slice(10, 15).join("\n") + "\n", "utf8");
+    expect(result.offset).toBe(start + consumed);
   });
 
   it("readLog handles missing file", () => {

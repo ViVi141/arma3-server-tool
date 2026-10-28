@@ -1,4 +1,5 @@
 import * as fs from "node:fs";
+import * as path from "node:path";
 
 export type WorkshopUpdateStatus = "missing" | "up_to_date" | "outdated" | "unknown";
 
@@ -20,20 +21,50 @@ export function formatUnixTime(unixSeconds: number): string {
 }
 
 export function readLocalUpdatedAtMs(local?: LocalModRef): number | undefined {
+  const signals: number[] = [];
+
+  // meta.cpp timestamp (author build time). May lag the Workshop's
+  // time_updated even when content is current, so it alone is unreliable.
   if (local?.updatedAt) {
     const parsed = Date.parse(local.updatedAt);
     if (Number.isFinite(parsed) && parsed > 0) {
-      return parsed;
+      signals.push(parsed);
     }
   }
+
+  // Filesystem mtime reflects when SteamCMD actually wrote the content and is
+  // the strongest "we already synced this" signal. Take the MAX of all signals
+  // instead of trusting the (older) meta timestamp.
   if (local?.path && fs.existsSync(local.path)) {
     try {
-      return fs.statSync(local.path).mtimeMs;
+      const stat = fs.statSync(local.path);
+      const dirMtime = stat.mtimeMs;
+      signals.push(dirMtime);
+      // A mod dir's top-level mtime doesn't always change on re-download; scan
+      // the largest mtime among immediate entries as an extra signal.
+      try {
+        for (const child of fs.readdirSync(local.path).slice(0, 20)) {
+          try {
+            const cm = fs.statSync(path.join(local.path, child)).mtimeMs;
+            if (cm > 0) {
+              signals.push(cm);
+            }
+          } catch {
+            // skip unreadable child
+          }
+        }
+      } catch {
+        // readdir failed; ignore
+      }
     } catch {
-      return undefined;
+      // stat failed; ignore
     }
   }
-  return undefined;
+
+  if (signals.length === 0) {
+    return undefined;
+  }
+  return Math.max(...signals);
 }
 
 export function resolveUpdateStatus(
@@ -51,7 +82,9 @@ export function resolveUpdateStatus(
     return "unknown";
   }
   const remoteMs = remoteTimeUpdated * 1000;
-  if (localUpdatedAtMs + 120_000 >= remoteMs) {
+  // Tolerance covers clock skew and SteamCMD preserving slightly-older file
+  // mtimes than the Workshop's recorded update second.
+  if (localUpdatedAtMs + 1_800_000 >= remoteMs) {
     return "up_to_date";
   }
   return "outdated";
