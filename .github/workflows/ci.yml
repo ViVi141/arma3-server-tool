@@ -12,7 +12,9 @@ on:
 
 jobs:
   build-test:
-    runs-on: ubuntu-latest
+    # 固定到 Ubuntu 24.04 LTS：ubuntu-latest 已升级为 26.04，
+    # Playwright 1.60 尚不支持该系统版本（install --with-deps 会失败）
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         node-version: [20, 22]
