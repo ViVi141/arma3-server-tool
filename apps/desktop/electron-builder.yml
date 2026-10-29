@@ -1,7 +1,7 @@
 appId: com.vivi141.arma3servertools
 productName: Arma3 Server Tools
 copyright: Copyright © 2026 ViVi141
-electronVersion: 33.4.11
+electronVersion: 45.1.0
 artifactName: Arma3ServerTools-Setup-${version}.${ext}
 
 directories:

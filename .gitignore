@@ -42,6 +42,10 @@ update_hosts_cached.vdf
 coverage/
 ${APPDATA}/
 
+# Playwright test artifacts
+test-results/
+playwright-report/
+
 # Local dev / e2e service data
 .a3st-dev-data/
 .a3st-e2e-data/
