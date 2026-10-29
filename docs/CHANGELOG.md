@@ -2,7 +2,11 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.14] — 当前
+## [2.0.0-alpha.15] — 当前
+
+- 修复桌面端点「启动」后 ArmA3 服务器控制台窗口不显示：Service 无控制台，子进程需 `detached:true` 才能新建窗口（等效 `.bat` 的 `start`）。
+
+## [2.0.0-alpha.14]
 
 - CI runner 固定为 ubuntu-24.04，修复 Playwright 1.60 不支持 ubuntu26.04 导致的 E2E 安装失败。
 - 依赖安全升级：Electron 33→45、electron-builder 25→26、vitest 4.1.8→4.1.12，`npm audit` 归零（含 tar critical 等 172 条 Dependabot 告警）。
