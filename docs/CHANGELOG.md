@@ -2,7 +2,11 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.15] — 当前
+## [2.0.0-alpha.16] — 当前
+
+- 修复安装包启动报 `Cannot find package 'fastify'`：electron-builder 退回 25（v26 会剥离 extraResources 里的 service `node_modules`）。
+
+## [2.0.0-alpha.15]
 
 - 修复桌面端点「启动」后 ArmA3 服务器控制台窗口不显示：Service 无控制台，子进程需 `detached:true` 才能新建窗口（等效 `.bat` 的 `start`）。
 
