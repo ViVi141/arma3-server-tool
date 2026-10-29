@@ -38,6 +38,13 @@
 | ISSUE-03 | 2026-05-27 | 首服向导下载 SteamCMD 后可点「下一步」 |
 | ISSUE-04 | 2026-05-27 | SteamCMD / 模组 / 游戏目录文案（`SteamPathUiHelper`） |
 | ISSUE-05 | 2026-10-29 | 桌面端点「启动」后 ArmA3 服务器控制台窗口不显示（`packages/service/src/process/manager.ts`） |
+| ISSUE-06 | 2026-10-29 | 安装包启动报 `Cannot find package 'fastify'`（electron-builder 26 不拷贝 extraResources 嵌套 node_modules） |
+
+### ISSUE-06 摘要（已修复）
+
+- **问题**：安装后启动弹「服务未就继」，`service.log` 报 `ERR_MODULE_NOT_FOUND: Cannot find package 'fastify'`（路径 `resources\service\dist\app.js`）。
+- **根因**：将 electron-builder 从 25 升到 26 后，新版重写了文件复制引擎且移除了 `includeSubNodeModules`，会把 `extraResources`（`electron-resources/service`）里的嵌套 `node_modules` 剥离——`dist` 进去了但依赖没进去。v25 则正常拷贝。
+- **修复**：electron-builder 退回 `^25.0.0`（保留 electron 运行时 45 与 vitest 升级）。`--dir` 产物验证 `resources/service/node_modules/fastify` 存在。electron-builder 仅为构建期工具，不随包分发；其 dev 依赖告警不影响运行时（`npm audit --omit=dev` 为 0）。后续若升 v26 需先用 `afterPack` 钩子等手段补回 node_modules 拷贝。
 
 ### ISSUE-05 摘要（已修复）
 
