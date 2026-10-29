@@ -53,6 +53,11 @@ export class ProcessManager extends EventEmitter {
     return new Promise((resolve) => {
       // Windows 上重定向 stdout/stderr 会导致专用服务器不再写入 logFile（server_console.log），
       // 只剩 RPT。Linux 专用服则以 stdout 为主，保留管道捕获。
+      // 需要显示服务器窗口时，stdio 必须为 ignore：带管道的 stdio 会阻止新建控制台。
+      // 注意：Service 由 Electron 以「无控制台」方式拉起（windowsHide:true + stdio 重定向），
+      // 子进程无从继承控制台，单靠 windowsHide:false 并不会凭空创建一个窗口——
+      // 必须 detached:true 触发 CREATE_NEW_CONSOLE，才等效于 .bat 里用 start 打开服务器窗口。
+      const showServerWindow = isWindows() && opts.windowsHide === false;
       const stdio: ["ignore", "pipe" | "ignore", "pipe" | "ignore"] = isWindows()
         ? ["ignore", "ignore", "ignore"]
         : ["ignore", "pipe", "pipe"];
@@ -61,6 +66,7 @@ export class ProcessManager extends EventEmitter {
         cwd: opts.cwd,
         windowsHide: opts.windowsHide ?? true,
         stdio,
+        detached: showServerWindow,
       };
 
       let proc: ChildProcess;
@@ -75,6 +81,12 @@ export class ProcessManager extends EventEmitter {
         }
       } else {
         proc = spawn(opts.executable, opts.args ?? [], spawnOpts);
+      }
+
+      // 分离出的服务器窗口应独立于 Service 进程树存活；解除引用以免阻塞 Service 退出。
+      // 停止仍通过持久化 PID + killProcessTree(taskkill /T) 精确处理，不依赖此句柄。
+      if (showServerWindow) {
+        proc.unref();
       }
 
       this.processes.set(uuid, { pid: proc.pid ?? 0, child: proc });

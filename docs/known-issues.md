@@ -1,6 +1,6 @@
 # 已知问题与用户反馈记录
 
-> 更新日期：2026-08-28  
+> 更新日期：2026-10-29  
 > 关联：[README.md](README.md) · [CHANGELOG.md](CHANGELOG.md) · [config-workflow.md](config-workflow.md) · [smoke-checklist.md](smoke-checklist.md)
 
 本文记录用户反馈的问题及处理状态。
@@ -37,6 +37,13 @@
 | ISSUE-02 | 2026-05-27 | 安装包含 `first-server-guide.txt`，记事本打开（`FirstServerGuideOpener`） |
 | ISSUE-03 | 2026-05-27 | 首服向导下载 SteamCMD 后可点「下一步」 |
 | ISSUE-04 | 2026-05-27 | SteamCMD / 模组 / 游戏目录文案（`SteamPathUiHelper`） |
+| ISSUE-05 | 2026-10-29 | 桌面端点「启动」后 ArmA3 服务器控制台窗口不显示（`packages/service/src/process/manager.ts`） |
+
+### ISSUE-05 摘要（已修复）
+
+- **问题**：用 `.bat` 手动开服窗口正常，但从控制台点「启动」时 ArmA3 专用服窗口不显示（服务器仍在后台跑）。
+- **根因**：Service 由 Electron 以「无控制台」方式（`windowsHide:true` + stdio 重定向、非 detached）拉起，其子进程继承不到控制台。`spawn` 仅设 `windowsHide:false` 只表示「不主动隐藏」，并不会凭空创建一个窗口。
+- **修复**：Windows 上需显示服务器窗口时补 `detached:true`（触发 `CREATE_NEW_CONSOLE`，等效 `.bat` 的 `start`）、`stdio:'ignore'`，并 `unref()` 让窗口独立于 Service 存活；停止仍靠持久化 PID + `taskkill /T`。默认显示窗口，后台无窗口部署可设 `startup.showServerWindow=false`。
 
 ### ISSUE-01 摘要（已修复）
 
@@ -61,6 +68,7 @@
 
 | 日期 | 说明 |
 |------|------|
+| 2026-10-29 | ISSUE-05：桌面端服务器控制台窗口不显示（detached 新建控制台修复） |
 | 2026-08-28 | 增加 v2 alpha 状态表；首服向导与 smoke 清单 v2 章节 |
 | 2026-06-01 | 增加 v1.5.0 升级说明 |
 | 2026-05-27 | ISSUE-01～04 记录；均已修复或改进 |
