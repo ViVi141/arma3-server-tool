@@ -2,7 +2,12 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.13] — 当前
+## [2.0.0-alpha.14] — 当前
+
+- CI runner 固定为 ubuntu-24.04，修复 Playwright 1.60 不支持 ubuntu26.04 导致的 E2E 安装失败。
+- 依赖安全升级：Electron 33→45、electron-builder 25→26、vitest 4.1.8→4.1.12，`npm audit` 归零（含 tar critical 等 172 条 Dependabot 告警）。
+
+## [2.0.0-alpha.13]
 
 - 复用已有本机 Service 时记录监听 PID；退出与「保存并重启」会释放端口，避免撞端口或孤儿残留。
 - 监控库初始化失败时读写改为安全跳过，不再拖垮查询路径。
