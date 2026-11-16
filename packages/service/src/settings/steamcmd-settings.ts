@@ -1,10 +1,16 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { resolveConfiguredPath } from "../util/user-path.js";
+import {
+  normalizeLoginMode,
+  type SteamCmdLoginMode,
+} from "../steamcmd/login-mode.js";
 
 export interface SteamCmdSettings {
   username: string;
   password: string;
+  /** cached：只传用户名；password：传用户名+密码。默认 password 保持兼容。 */
+  loginMode: SteamCmdLoginMode;
   workshopRoot: string;
   serverInstallPath: string;
 }
@@ -12,6 +18,7 @@ export interface SteamCmdSettings {
 const DEFAULTS: SteamCmdSettings = {
   username: "",
   password: "",
+  loginMode: "password",
   workshopRoot: "",
   serverInstallPath: "",
 };
@@ -35,6 +42,7 @@ export class SteamCmdSettingsStore {
       return {
         username: raw.username ?? DEFAULTS.username,
         password: raw.password ?? DEFAULTS.password,
+        loginMode: normalizeLoginMode(raw.loginMode),
         workshopRoot: raw.workshopRoot ?? DEFAULTS.workshopRoot,
         serverInstallPath: raw.serverInstallPath ?? DEFAULTS.serverInstallPath,
       };
@@ -53,6 +61,9 @@ export class SteamCmdSettingsStore {
     const merged: SteamCmdSettings = {
       username: partial.username ?? current.username,
       password: partial.password !== undefined ? partial.password : current.password,
+      loginMode: partial.loginMode !== undefined
+        ? normalizeLoginMode(partial.loginMode)
+        : current.loginMode,
       workshopRoot: partial.workshopRoot ?? current.workshopRoot,
       serverInstallPath: partial.serverInstallPath ?? current.serverInstallPath,
     };
@@ -88,6 +99,7 @@ export function countWorkshopMods(workshopRoot: string): number {
 export interface SteamCmdSettingsView {
   username: string;
   hasPassword: boolean;
+  loginMode: SteamCmdLoginMode;
   workshopRoot: string;
   serverInstallPath: string;
   steamCmdDir: string;
@@ -101,6 +113,7 @@ export function toSteamCmdSettingsView(
   return {
     username: settings.username,
     hasPassword: settings.password.length > 0,
+    loginMode: settings.loginMode,
     workshopRoot: settings.workshopRoot,
     serverInstallPath: settings.serverInstallPath,
     steamCmdDir,

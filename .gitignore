@@ -5,6 +5,7 @@ out/
 apps/desktop/electron-resources/
 # Local CI / build artifacts
 artifacts/
+.tmp-build/
 
 
 # Node / npm

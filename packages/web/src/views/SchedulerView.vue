@@ -26,6 +26,7 @@ const ACTION_OPTIONS = [
   { value: "stop", label: "停止服务器" },
   { value: "start", label: "启动服务器" },
   { value: "detect", label: "检测并重启" },
+  { value: "update_mods", label: "检查/更新模组" },
 ];
 
 function scheduler(): Record<string, unknown> {
@@ -50,6 +51,8 @@ async function load() {
         actionText: job.actionText ?? "restart",
         remark: job.remark ?? "",
         enabled: job.enabled ?? job.status === 1,
+        quietHoursStart: job.quietHoursStart ?? "",
+        quietHoursEnd: job.quietHoursEnd ?? "",
       }));
     }
   } finally {
@@ -69,6 +72,8 @@ function buildCronJobsMap(): Record<string, CronJobEntry> {
       remark: row.remark,
       enabled: row.enabled,
       status: row.enabled ? 1 : 0,
+      quietHoursStart: row.quietHoursStart?.trim() || undefined,
+      quietHoursEnd: row.quietHoursEnd?.trim() || undefined,
     };
   }
   return map;
@@ -117,6 +122,8 @@ function addCronRow() {
     actionText: "restart",
     remark: "",
     enabled: true,
+    quietHoursStart: "",
+    quietHoursEnd: "",
   });
 }
 
@@ -196,11 +203,31 @@ onMounted(() => {
               <el-input v-model="row.cron" size="small" />
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="130">
+          <el-table-column label="操作" width="140">
             <template #default="{ row }">
               <el-select v-model="row.actionText" size="small">
                 <el-option v-for="opt in ACTION_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
               </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="禁更起" width="90">
+            <template #default="{ row }">
+              <el-input
+                v-model="row.quietHoursStart"
+                size="small"
+                placeholder="18:00"
+                :disabled="row.actionText !== 'update_mods'"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="禁更止" width="90">
+            <template #default="{ row }">
+              <el-input
+                v-model="row.quietHoursEnd"
+                size="small"
+                placeholder="22:00"
+                :disabled="row.actionText !== 'update_mods'"
+              />
             </template>
           </el-table-column>
           <el-table-column label="备注" min-width="100">
@@ -214,7 +241,9 @@ onMounted(() => {
             </template>
           </el-table-column>
         </el-table>
-        <p class="hint">Cron 表达式格式：分 时 日 月 周。</p>
+        <p class="hint">
+          Cron：分 时 日 月 周。「检查/更新模组」仅针对本服已启用模组；有更新且不在禁更窗时会先停止全部服务器再下载并重启先前在跑的服。
+        </p>
       </ArkTechPanel>
     </SettingsViewLayout>
   </ConsolePageLayout>

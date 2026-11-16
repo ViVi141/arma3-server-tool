@@ -14,7 +14,9 @@ export function applySteamCmdSettings(
   );
   steamCmd.setWorkshopRoot(workshopRoot);
   steamCmd.setServerInstallPath(settings.serverInstallPath);
-  if (settings.username && settings.password) {
-    steamCmd.setCredentials(settings.username, settings.password);
+  steamCmd.setLoginMode(settings.loginMode);
+  if (settings.username) {
+    // cached 模式允许无密码；password 模式仍写入（可能为空，由 requireCredentials 校验）
+    steamCmd.setCredentials(settings.username, settings.password ?? "");
   }
 }

@@ -52,7 +52,7 @@ watch(
     try {
       rows.value = await props.fetchDetails(props.modIds);
       if (rows.value.length) {
-        statusText.value = `共 ${rows.value.length} 个模组，请勾选需要下载的项。`;
+        statusText.value = `共 ${rows.value.length} 个模组，请勾选需要下载的项（仅下载，不会改启用列表）。`;
       } else {
         statusText.value = "没有可下载的 Workshop 模组 ID。";
       }

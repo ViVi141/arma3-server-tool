@@ -17,10 +17,21 @@ import { evaluateSyncState } from "../config/sync-state.js";
 import { disableModsByScope, type ModDisableScope } from "../mods/enabler.js";
 import { collectModPaths, ensureDefaultWorkshopScanPath, isModDirectory, normalizeModScanPathEntries, resolveWorkshopInstallRootFromScanPaths } from "../mods/paths.js";
 import {
+  applyEnableList,
+  buildModImportPreview,
+  normalizeModImportMode,
+  shouldDownloadForMode,
+} from "../mods/import-modes.js";
+import {
   buildModScanOptions,
   scanModsForConfig,
   syncRoleEntriesFromIds,
 } from "../mods/mod-config-sync.js";
+import {
+  assertMissionPboFileName,
+  assertSafeTargetPath,
+  MISSION_PBO_MAX_BYTES,
+} from "../util/upload-safety.js";
 import { getServerKeysDirectory } from "../mods/bikey-service.js";
 import type { LocalModEntry } from "../types/mods.js";
 import { startHeadlessClient, stopHeadlessClient } from "../process/headless.js";
@@ -295,6 +306,7 @@ export async function apiRoutes(app: FastifyInstance) {
     const body = req.body as {
       username?: string;
       password?: string;
+      loginMode?: string;
       workshopRoot?: string;
       serverInstallPath?: string;
     } | null;
@@ -305,6 +317,7 @@ export async function apiRoutes(app: FastifyInstance) {
     const merged = app.steamCmdSettingsStore.merge({
       username: body.username,
       password: body.password,
+      loginMode: body.loginMode as "cached" | "password" | undefined,
       workshopRoot: body.workshopRoot !== undefined
         ? (body.workshopRoot.trim() ? resolveConfiguredPath(body.workshopRoot) : "")
         : undefined,
@@ -373,26 +386,43 @@ export async function apiRoutes(app: FastifyInstance) {
       isBusy: app.steamCmd.isBusy,
       isInstalled: app.steamCmd.isInstalled,
       isAborted: app.steamCmd.isAborted,
+      loginMode: app.steamCmd.loginMode,
+      authState: app.steamCmd.authState,
+      hasCredentials: app.steamCmd.hasCredentials,
     }, null, "");
   });
 
   app.put("/steamcmd/credentials", async (req, reply) => {
-    const body = req.body as { username?: string; password?: string } | null;
-    if (!body?.username || !body?.password) {
+    const body = req.body as {
+      username?: string;
+      password?: string;
+      loginMode?: string;
+    } | null;
+    if (!body?.username) {
       reply.status(400);
       return envelope(false, null, "INVALID_CREDENTIALS", "");
     }
-    app.steamCmd.setCredentials(body.username, body.password);
+    const loginMode = body.loginMode === "cached" ? "cached" : "password";
+    if (loginMode === "password" && !body.password) {
+      reply.status(400);
+      return envelope(false, null, "INVALID_CREDENTIALS", "");
+    }
+    app.steamCmd.setLoginMode(loginMode);
+    app.steamCmd.setCredentials(body.username, body.password ?? "");
     const merged = app.steamCmdSettingsStore.merge({
       username: body.username,
       password: body.password,
+      loginMode,
     });
     applySteamCmdSettings(
       app.steamCmd,
       merged,
       app.modScanPathStore.list().map((entry) => entry.modulePath),
     );
-    return envelope(true, { message: "凭据已设置" }, null, "");
+    return envelope(true, {
+      message: loginMode === "cached" ? "凭据已设置（缓存登录模式）" : "凭据已设置",
+      loginMode,
+    }, null, "");
   });
 
   app.get("/steamcmd/log", async (req) => {
@@ -963,12 +993,13 @@ export async function apiRoutes(app: FastifyInstance) {
 
     // Parse IDs from HTML
     const ids = [...html.matchAll(/(\d{7,})/g)].map((m) => parseInt(m[1], 10));
-    const mode = query.mode ?? "download_and_enable";
+    const mode = normalizeModImportMode(query.mode ?? "download_and_enable");
     const writeCfg = query.writeCfg === "true";
 
     const result = await executeCommand(app, uuid, {
       action: "import_mods_html",
       modIds: ids,
+      mode,
       writeCfgAfter: writeCfg,
     } as never);
 
@@ -979,8 +1010,42 @@ export async function apiRoutes(app: FastifyInstance) {
       success: result.success,
       message: result.message,
       modCount: ids.length,
-      requiresSteamCmd: true,
+      mode,
+      requiresSteamCmd: shouldDownloadForMode(mode),
     }, result.success ? null : result.message, uuid);
+  });
+
+  app.post("/servers/:uuid/mods/import-preview", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    const body = req.body as { modIds?: number[]; mode?: string } | null;
+    const config = app.configStore.load(uuid);
+    if (!config) {
+      reply.status(404);
+      return envelope(false, null, "NOT_FOUND", uuid);
+    }
+    const ids = body?.modIds ?? [];
+    if (!ids.length) {
+      reply.status(400);
+      return envelope(false, null, "NO_MOD_IDS", uuid);
+    }
+    const mode = normalizeModImportMode(body?.mode);
+    let installedIds: number[] = [];
+    try {
+      if (collectModPaths(app, config).length) {
+        installedIds = scanModsForConfig(app, config)
+          .filter((m) => m.workshopId > 0 && m.path)
+          .map((m) => m.workshopId);
+      }
+    } catch {
+      installedIds = [];
+    }
+    const preview = buildModImportPreview(
+      ids,
+      config.mods?.enabledIds ?? [],
+      installedIds,
+      mode,
+    );
+    return envelope(true, preview, null, uuid);
   });
 
   app.post("/servers/:uuid/files/mission-pbo", async (req, reply) => {
@@ -999,17 +1064,49 @@ export async function apiRoutes(app: FastifyInstance) {
       return envelope(false, null, "NO_FILE", uuid);
     }
 
-    const mpmDir = path.join(config.server.serverDir, "MPMissions");
-    fs.mkdirSync(mpmDir, { recursive: true });
+    let safeName: string;
+    let fullPath: string;
+    try {
+      safeName = assertMissionPboFileName(data.filename);
+      const mpmDir = path.join(config.server.serverDir, "MPMissions");
+      fs.mkdirSync(mpmDir, { recursive: true });
+      fullPath = assertSafeTargetPath(mpmDir, safeName);
+    } catch (err) {
+      reply.status(400);
+      return envelope(false, null, err instanceof Error ? err.message : "INVALID_FILE", uuid);
+    }
 
     const chunks: Buffer[] = [];
-    for await (const chunk of data.file) chunks.push(chunk);
-    const fullPath = path.join(mpmDir, data.filename);
+    let total = 0;
+    for await (const chunk of data.file) {
+      total += chunk.length;
+      if (total > MISSION_PBO_MAX_BYTES) {
+        reply.status(413);
+        return envelope(
+          false,
+          null,
+          `文件超过 ${MISSION_PBO_MAX_BYTES / (1024 * 1024)} MiB 限制`,
+          uuid,
+        );
+      }
+      chunks.push(chunk);
+    }
 
+    const sharedDirs = app.configStore.listServers().filter((server) => {
+      if (server.uuid === uuid) {
+        return false;
+      }
+      const other = app.configStore.load(server.uuid);
+      return Boolean(
+        other?.server?.serverDir
+        && path.resolve(other.server.serverDir) === path.resolve(config.server!.serverDir!),
+      );
+    });
+    const overwrite = fs.existsSync(fullPath);
     fs.writeFileSync(fullPath, Buffer.concat(chunks));
 
     if (query.addToMissionList === "true") {
-      const template = path.basename(data.filename, path.extname(data.filename));
+      const template = path.basename(safeName, path.extname(safeName));
       const missions = config.tasks?.missions ?? [];
       if (!missions.some((m) => m.template === template)) {
         missions.push({ template, difficulty: 3 });
@@ -1019,9 +1116,16 @@ export async function apiRoutes(app: FastifyInstance) {
     }
 
     return envelope(true, {
-      template: path.basename(data.filename, ".pbo"),
+      template: path.basename(safeName, ".pbo"),
       fullPath,
-      fileName: data.filename,
+      fileName: safeName,
+      sizeBytes: total,
+      maxBytes: MISSION_PBO_MAX_BYTES,
+      overwritten: overwrite,
+      sharedServerWarning: sharedDirs.length
+        ? `该 MPMissions 目录与另外 ${sharedDirs.length} 台服务器共享，覆盖会影响它们`
+        : null,
+      note: "上传不等于切换任务或重启服务器",
     }, null, uuid);
   });
 
@@ -1401,26 +1505,42 @@ async function executeCommand(
       if (!ids?.length) {
         return fail("未能从 HTML 解析模组 ID");
       }
+      const mode = normalizeModImportMode(cmd.mode);
 
-      const mergedIds = [...new Set([...(config.mods?.enabledIds ?? []), ...ids])];
-      config.mods = {
-        ...config.mods,
-        enabledIds: mergedIds,
-      };
-      app.configStore.save(uuid, config);
-
-      if (cmd.writeCfgAfter) {
-        const writeResult = writeAll(uuid, config);
-        if (!writeResult.success) {
-          return fail(writeResult.message);
+      if (shouldDownloadForMode(mode)) {
+        const downloadResult = await runSteamCmdModDownload(app, ids);
+        if (!downloadResult.success) {
+          // 下载失败不改启用列表
+          return downloadResult;
+        }
+        if (mode === "download_only") {
+          return ok(`已下载 ${ids.length} 个模组（未改启用列表）。${downloadResult.message}`);
         }
       }
 
-      const downloadResult = await runSteamCmdModDownload(app, ids);
-      if (!downloadResult.success) {
-        return downloadResult;
+      const nextEnabled = applyEnableList(config.mods?.enabledIds ?? [], ids, mode);
+      if (nextEnabled) {
+        config.mods = {
+          ...config.mods,
+          enabledIds: nextEnabled,
+        };
+        app.configStore.save(uuid, config);
+
+        if (cmd.writeCfgAfter) {
+          const writeResult = writeAll(uuid, config);
+          if (!writeResult.success) {
+            return fail(writeResult.message);
+          }
+        }
       }
-      return ok(`已导入 ${ids.length} 个模组 ID。${downloadResult.message}`);
+
+      if (mode === "merge_enable") {
+        return ok(`已合并启用 ${ids.length} 个模组（未下载）`);
+      }
+      if (mode === "replace_enable") {
+        return ok(`已替换启用列表为 ${ids.length} 个模组（未下载）`);
+      }
+      return ok(`已导入 ${ids.length} 个模组 ID（下载并启用）`);
     }
     case "copy_bikeys": {
       if (!config?.server?.serverDir) return fail("未设置服务器目录");

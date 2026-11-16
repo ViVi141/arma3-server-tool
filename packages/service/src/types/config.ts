@@ -113,6 +113,10 @@ export interface CronJobEntry {
   remark?: string;
   enabled?: boolean;
   status?: number;
+  /** 禁更窗开始 HH:mm（含）；与 quietHoursEnd 同时配置时生效 */
+  quietHoursStart?: string;
+  /** 禁更窗结束 HH:mm；跨午夜时 start > end */
+  quietHoursEnd?: string;
 }
 
 export interface MissionParamsSection {

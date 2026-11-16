@@ -89,11 +89,21 @@ export function syncCronJobsForServer(
       continue;
     }
     const actionText = String(job.actionText ?? job.action ?? "restart");
+    const quietHoursStart = job.quietHoursStart;
+    const quietHoursEnd = job.quietHoursEnd;
     const ok = app.scheduler.add({
       name: `${uuid}-cron-${taskId}`,
       schedule: job.cron,
       handler: async () => {
-        await executeCronAction(app, uuid, actionText);
+        const result = await executeCronAction(app, uuid, actionText, {
+          quietHoursStart,
+          quietHoursEnd,
+        });
+        if (!result.success) {
+          app.log.warn({ uuid, taskId, message: result.message }, "cron job failed");
+        } else {
+          app.log.info({ uuid, taskId, message: result.message }, "cron job ok");
+        }
       },
     });
     if (ok) {

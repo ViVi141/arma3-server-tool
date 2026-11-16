@@ -51,6 +51,11 @@ beforeAll(async () => {
   app.decorate("steamCmdSettingsStore", new SteamCmdSettingsStore(tmpDir));
   app.decorate("asyncTaskManager", asyncTaskManager);
   app.decorate("dataDir", tmpDir);
+  app.decorate("serviceOptions", {
+    port: 19580,
+    host: "127.0.0.1",
+    dataDir: tmpDir,
+  });
 
   await app.register(healthRoutes, { prefix: "/api/v1" });
   await app.register(apiRoutes, { prefix: "/api/v1" });

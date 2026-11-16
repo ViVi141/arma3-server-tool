@@ -15,9 +15,11 @@ const store = useConnectionsStore();
 
 const steamUser = ref("");
 const steamPwd = ref("");
+const loginMode = ref<"cached" | "password">("password");
 const workshopRoot = ref("");
 const serverInstallPath = ref("");
 const statusText = ref("安装: - · 运行: -");
+const authStateText = ref("");
 const taskStatus = ref("");
 const workshopCount = ref("-");
 const currentServerDir = ref("");
@@ -50,6 +52,7 @@ async function loadSteamCmdSettings() {
       serverInstallPath.value = data.serverInstallPath;
     }
     steamUser.value = data.username ?? "";
+    loginMode.value = data.loginMode === "cached" ? "cached" : "password";
     workshopCount.value = String(data.workshopModCount ?? 0);
   } catch {
     /* ignore */
@@ -67,9 +70,11 @@ async function saveSteamCmdSettings() {
       serverInstallPath: string;
       username?: string;
       password?: string;
+      loginMode: "cached" | "password";
     } = {
       workshopRoot: workshopRoot.value.trim(),
       serverInstallPath: serverInstallPath.value.trim(),
+      loginMode: loginMode.value,
     };
     if (steamUser.value.trim()) {
       body.username = steamUser.value.trim();
@@ -173,9 +178,13 @@ async function checkSteamCmd() {
     if (data.isAborted) {
       aborted = " · 已取消";
     }
+    const mode = data.loginMode === "cached" ? "缓存" : "密码";
+    const auth = data.authState ?? "idle";
+    authStateText.value = `登录模式: ${mode} · 认证状态: ${auth}`;
     statusText.value = `安装: ${installed} · 运行: ${running}${aborted}`;
   } catch {
     statusText.value = "安装: - · 运行: -";
+    authStateText.value = "";
   }
 }
 
@@ -185,12 +194,22 @@ async function saveCredentials() {
     if (!client) {
       return;
     }
+    if (loginMode.value === "password" && !steamPwd.value) {
+      ElMessage.warning("密码登录模式需要填写密码，或改用缓存登录");
+      return;
+    }
     await client.postRaw("/api/v1/steamcmd/credentials", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: steamUser.value, password: steamPwd.value }),
+      body: JSON.stringify({
+        username: steamUser.value,
+        password: steamPwd.value,
+        loginMode: loginMode.value,
+      }),
     });
-    ElMessage.success("凭据已保存");
+    ElMessage.success(
+      loginMode.value === "cached" ? "凭据已保存（缓存登录）" : "凭据已保存",
+    );
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : "保存失败");
   }
@@ -252,7 +271,14 @@ async function stopSteamCmd() {
     <SettingsViewLayout kicker="WORKSHOP / 03 · STM" title="SteamCMD">
     <ArkTechPanel title="Steam 账号" code="STM-01">
       <div class="form-row"><label>用户名</label><el-input v-model="steamUser" size="small"/></div>
-      <div class="form-row"><label>密码</label><el-input v-model="steamPwd" type="password" size="small" show-password/></div>
+      <div class="form-row"><label>登录模式</label>
+        <el-radio-group v-model="loginMode" size="small">
+          <el-radio-button value="cached">优先缓存</el-radio-button>
+          <el-radio-button value="password">用户名密码</el-radio-button>
+        </el-radio-group>
+      </div>
+      <div class="form-row"><label>密码</label><el-input v-model="steamPwd" type="password" size="small" show-password :disabled="loginMode === 'cached'" :placeholder="loginMode === 'cached' ? '缓存模式不传密码' : ''"/></div>
+      <p class="panel-note">缓存模式只向 SteamCMD 传用户名，依赖本机 config/config.vdf；需手机确认时不会自动重试。</p>
       <el-button size="small" @click="saveCredentials">保存凭据</el-button>
     </ArkTechPanel>
 
@@ -261,7 +287,8 @@ async function stopSteamCmd() {
       <div class="form-row"><label>服务器安装</label><PathInput v-model="serverInstallPath" mode="directory" placeholder="从基本配置读取"/></div>
       <div class="form-row"><label>Workshop 内容</label><span class="hint">{{ workshopCount }} 个模组</span></div>
       <div class="form-row"><label>SteamCMD 状态</label><span class="hint">{{ statusText }}</span></div>
-      <el-button size="small" type="primary" @click="saveSteamCmdSettings">保存路径</el-button>
+      <div v-if="authStateText" class="form-row"><label>认证</label><span class="hint">{{ authStateText }}</span></div>
+      <el-button size="small" type="primary" @click="saveSteamCmdSettings">保存设置</el-button>
     </ArkTechPanel>
 
     <ArkTechPanel title="当前服务器">

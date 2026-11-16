@@ -222,17 +222,32 @@ export interface LogData {
 
 // ---- SteamCMD ----
 
+export type SteamCmdLoginMode = "cached" | "password";
+
+export type SteamCmdAuthState =
+  | "idle"
+  | "cached_login"
+  | "password_login"
+  | "waiting_guard"
+  | "guard_timeout"
+  | "auth_failed"
+  | "authenticated";
+
 export interface SteamCmdStatusData {
   isRunning: boolean;
   isBusy?: boolean;
   isInstalled?: boolean;
   isAborted?: boolean;
   currentOperation?: string;
+  loginMode?: SteamCmdLoginMode;
+  authState?: SteamCmdAuthState;
+  hasCredentials?: boolean;
 }
 
 export interface SteamCmdSettingsData {
   username: string;
   hasPassword: boolean;
+  loginMode?: SteamCmdLoginMode;
   workshopRoot: string;
   serverInstallPath: string;
   steamCmdDir: string;
@@ -421,4 +436,8 @@ export interface CronJobEntry {
   remark?: string;
   enabled?: boolean;
   status?: number;
+  /** 禁更窗开始 HH:mm（含）；与 quietHoursEnd 同时配置时生效 */
+  quietHoursStart?: string;
+  /** 禁更窗结束 HH:mm（不含跨日时按当日；跨日则覆盖午夜） */
+  quietHoursEnd?: string;
 }

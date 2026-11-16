@@ -76,10 +76,50 @@ Restart=on-failure
 WantedBy=multi-user.target
 ```
 
-远程访问时务必设置 `API_TOKEN` 并配置防火墙。
+远程访问时务必设置 `API_TOKEN` 并配置防火墙。`HOST=0.0.0.0`（或其它非 loopback）且未配置 `API_TOKEN` 时，Service **拒绝**除 `/api/v1/health`、`/api/v1/actions` 外的管理 API。
+
+`GET /api/v1/health` 会如实返回：
+
+- `remoteAccessEnabled`：是否绑定非本机地址
+- `authConfigured`：是否已设置 `API_TOKEN`
+- `bindHost` / `bindPort`：实际监听配置
+
+## 反向代理与 HTTPS（推荐）
+
+公网不要直接暴露 `:19580`。在网关终止 TLS，并把管理流量转到本机 Service；网关可用后再用防火墙限制后端仅本机可达。
+
+### Caddy 示例
+
+```caddyfile
+a3st.example.com {
+  encode gzip
+  reverse_proxy 127.0.0.1:19580 {
+    # SSE / 长连接（SteamCMD 进度流）
+    flush_interval -1
+  }
+}
+```
+
+### Nginx 示例要点
+
+- `proxy_http_version 1.1` + `Connection ""`（或按 SSE 需求调整）
+- 对 `/api/v1/steamcmd/stream` 等 SSE：关闭或拉长缓冲（`proxy_buffering off`）
+- 上传限制：`client_max_body_size 100m`（与 Service PBO 上限一致）
+- 鉴权：优先让浏览器/客户端使用 `Authorization: Bearer <API_TOKEN>`；`?token=` 仅因 EventSource 无法设头而保留，**勿写入访问日志明文**（脱敏 `token=`）
+- 同源：若 UI 与 API 同域反代，可减少 CORS 问题；跨域时需保留 CORS 与凭据策略
+
+Service 侧环境变量建议：
+
+```bash
+export HOST=127.0.0.1   # 仅本机，由反向代理对外
+export PORT=19580
+export API_TOKEN='long-random-secret'
+export WEB_ROOT=/opt/arma3-server-tool/packages/web/dist
+```
 
 ## 限制
 
 - **Electron 桌面壳** 未提供 Linux 安装包；请用浏览器或自行用 systemd 托管 Service。
 - **监控 RVExtension**（`DestinyServerMonitoring`）若为 Windows DLL，Linux 上需单独编译或禁用监控模组。
 - **BattlEye / RCon** 行为与 Windows 一致，但请在生产环境实测防火墙与端口。
+

@@ -23,6 +23,8 @@ export interface ServiceOptions {
   apiToken?: string;
 }
 
+import { isLoopbackHost } from "./util/host.js";
+
 const LISTEN_RETRY_CODES = new Set(["EADDRINUSE", "EACCES", "EADDRNOTAVAIL"]);
 
 async function listenWithRetry(
@@ -92,6 +94,7 @@ export async function createService(options: ServiceOptions) {
   app.decorate("steamCmdSettingsStore", steamCmdSettingsStore);
   app.decorate("asyncTaskManager", asyncTaskManager);
   app.decorate("dataDir", options.dataDir);
+  app.decorate("serviceOptions", options);
 
   // Auth hook
   app.decorateRequest("authenticated", false);
@@ -107,7 +110,20 @@ export async function createService(options: ServiceOptions) {
     if (pathOnly === "/api/v1/health" || pathOnly === "/api/v1/actions") {
       return;
     }
-    const token = options.apiToken;
+
+    const token = options.apiToken?.trim() ?? "";
+    const publicBind = !isLoopbackHost(options.host);
+
+    // 公网/非本机绑定且未配置 API_TOKEN：拒绝一切管理能力（健康检查除外）。
+    if (publicBind && !token) {
+      reply.status(401).send({
+        success: false,
+        message: "Unauthorized: non-loopback bind requires API_TOKEN",
+        code: "AUTH_REQUIRED",
+      });
+      return;
+    }
+
     if (!token) {
       (request as { authenticated: boolean }).authenticated = true;
       return;
@@ -121,6 +137,7 @@ export async function createService(options: ServiceOptions) {
       (request as { authenticated: boolean }).authenticated = true;
       return;
     }
+    // EventSource 无法设 Authorization，仅 SSE 等场景允许 ?token=（勿记入日志）。
     const query = request.query as { token?: string };
     if (query.token === token) {
       (request as { authenticated: boolean }).authenticated = true;

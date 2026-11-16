@@ -396,6 +396,7 @@ export class A3stClient {
   async saveSteamCmdSettings(body: {
     username?: string;
     password?: string;
+    loginMode?: "cached" | "password";
     workshopRoot?: string;
     serverInstallPath?: string;
   }): Promise<ApiResponse<SteamCmdSettingsData>> {

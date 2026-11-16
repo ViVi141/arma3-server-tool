@@ -11,6 +11,7 @@ import type { RptLogReader } from "../logs/reader.js";
 import type { UiSettingsStore } from "../settings/ui-settings.js";
 import type { ModScanPathStore } from "../mods/scan-path-store.js";
 import type { SteamCmdSettingsStore } from "../settings/steamcmd-settings.js";
+import type { ServiceOptions } from "../app.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -27,6 +28,7 @@ declare module "fastify" {
     steamCmdSettingsStore: SteamCmdSettingsStore;
     asyncTaskManager: AsyncTaskManager;
     dataDir: string;
+    serviceOptions: ServiceOptions;
   }
   interface FastifyRequest {
     authenticated: boolean;

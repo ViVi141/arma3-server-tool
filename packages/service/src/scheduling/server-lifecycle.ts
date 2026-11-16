@@ -236,8 +236,18 @@ export async function detectRestartServer(
   return startServer(app, uuid);
 }
 
-export function resolveCronAction(actionText: string): "restart" | "start" | "stop" | "detect" {
+export type CronActionKind = "restart" | "start" | "stop" | "detect" | "update_mods";
+
+export function resolveCronAction(actionText: string): CronActionKind {
   const text = actionText.trim().toLowerCase();
+  if (
+    text === "update_mods"
+    || text.includes("update_mods")
+    || text.includes("更新模组")
+    || text.includes("检查模组")
+  ) {
+    return "update_mods";
+  }
   if (text === "1" || text.includes("start") || text.includes("启动")) {
     return "start";
   }
@@ -253,9 +263,17 @@ export function resolveCronAction(actionText: string): "restart" | "start" | "st
 export async function executeCronAction(
   app: FastifyInstance,
   uuid: string,
-  actionText: string
+  actionText: string,
+  options: { quietHoursStart?: string; quietHoursEnd?: string } = {},
 ): Promise<{ success: boolean; message: string }> {
   const action = resolveCronAction(actionText);
+  if (action === "update_mods") {
+    const { runScheduledModUpdate } = await import("./mod-update-cron.js");
+    return runScheduledModUpdate(app, uuid, {
+      quietHoursStart: options.quietHoursStart,
+      quietHoursEnd: options.quietHoursEnd,
+    });
+  }
   if (action === "stop") {
     return stopServer(app, uuid);
   }

@@ -9,6 +9,12 @@ import {
   buildWorkshopDownloadArguments,
   redactPasswordInArguments,
 } from "./arguments.js";
+import {
+  authStateLabel,
+  detectAuthStateFromOutput,
+  type SteamCmdAuthState,
+  type SteamCmdLoginMode,
+} from "./login-mode.js";
 import { sanitizeSteamCmdOutput } from "./output-sanitize.js";
 import {
   hasWorkshopDownloadFailure,
@@ -55,6 +61,8 @@ export class SteamCmdManager extends EventEmitter {
   private sessionLogDir: string;
   private _username = "";
   private _password = "";
+  private _loginMode: SteamCmdLoginMode = "password";
+  private _authState: SteamCmdAuthState = "idle";
   private _workshopRoot = "";
   private _serverInstallPath = "";
   private sessionOutput = "";
@@ -85,6 +93,10 @@ export class SteamCmdManager extends EventEmitter {
     this._password = password;
   }
 
+  setLoginMode(mode: SteamCmdLoginMode): void {
+    this._loginMode = mode === "cached" ? "cached" : "password";
+  }
+
   setWorkshopRoot(workshopRoot: string): void {
     this._workshopRoot = normalizeWorkshopRoot(this._pathContext, workshopRoot);
   }
@@ -105,8 +117,22 @@ export class SteamCmdManager extends EventEmitter {
     return this._serverInstallPath;
   }
 
+  get loginMode(): SteamCmdLoginMode {
+    return this._loginMode;
+  }
+
+  get authState(): SteamCmdAuthState {
+    return this._authState;
+  }
+
   get hasCredentials(): boolean {
-    return !!(this._username && this._password);
+    if (!this._username) {
+      return false;
+    }
+    if (this._loginMode === "cached") {
+      return true;
+    }
+    return !!this._password;
   }
 
   get isInstalled(): boolean {
@@ -241,10 +267,12 @@ export class SteamCmdManager extends EventEmitter {
       this.requireCredentials();
       this.throwIfStaleOrAborted(runId);
       const installDir = serverDir ?? this._serverInstallPath ?? this.installDir;
+      this.markLoginAttempt();
       const argumentsString = buildDedicatedServerUpdateArguments(
         this._username,
         this._password,
         installDir,
+        { loginMode: this._loginMode },
       );
       await this.runSteamCmdArguments(runId, argumentsString, onOutput, { isAppUpdate: true });
     });
@@ -270,11 +298,13 @@ export class SteamCmdManager extends EventEmitter {
       ensureWorkshopContentDirectory(workshopRoot);
 
       const uniqueIds = dedupePositiveIds(modIds);
+      this.markLoginAttempt();
       const batchArgs = buildWorkshopDownloadArguments(
         this._username,
         this._password,
         workshopRoot,
         uniqueIds,
+        { loginMode: this._loginMode },
       );
       let batchOutput = "";
       try {
@@ -315,7 +345,7 @@ export class SteamCmdManager extends EventEmitter {
           this._password,
           workshopRoot,
           remaining,
-          { validate: isLastRound },
+          { validate: isLastRound, loginMode: this._loginMode },
         );
         let retryOutput = "";
         try {
@@ -371,6 +401,41 @@ export class SteamCmdManager extends EventEmitter {
     if (!this._username) {
       throw new Error("SteamCMD 账号未配置。请在「工具 → SteamCMD 设置」中填写账号。");
     }
+    if (this._loginMode === "password" && !this._password) {
+      throw new Error(
+        "SteamCMD 密码未配置。请填写密码，或将登录模式改为「优先使用本机登录缓存」。",
+      );
+    }
+  }
+
+  private markLoginAttempt(): void {
+    this._authState = this._loginMode === "cached" ? "cached_login" : "password_login";
+    const hint =
+      this._loginMode === "cached"
+        ? "[登录] 优先使用本机登录缓存（仅用户名，省略密码参数）\n"
+        : "[登录] 使用用户名/密码登录\n";
+    this.appendSessionOutput(hint);
+    this.emit("output", hint);
+  }
+
+  private updateAuthStateFromOutput(output: string): void {
+    const detected = detectAuthStateFromOutput(output);
+    if (detected) {
+      this._authState = detected;
+    }
+  }
+
+  private throwIfGuardPending(output: string): void {
+    this.updateAuthStateFromOutput(output);
+    if (this._authState !== "waiting_guard" && !this.needsSteamGuard(output)) {
+      return;
+    }
+    this._authState = "waiting_guard";
+    const label = authStateLabel(this._authState);
+    throw new Error(
+      `SteamCMD 需要手机确认（${label}）。已停止自动重试以避免连续认证请求；`
+      + `请在手机上批准后，再手动重新触发一次下载/更新以完成重新授权。`,
+    );
   }
 
   /** 使用与 C# ProcessStartInfo.Arguments 相同的参数字符串启动 SteamCMD。 */
@@ -411,6 +476,12 @@ export class SteamCmdManager extends EventEmitter {
       argumentsString,
     };
     this.writeSessionLogFile(sessionLogPath, captureResult, flags);
+    this.updateAuthStateFromOutput(combined);
+
+    // Guard / 手机确认：绝不自动重试，避免连续认证请求。
+    if (this.needsSteamGuard(combined) || this._authState === "waiting_guard") {
+      this.throwIfGuardPending(combined);
+    }
 
     if (flags.isWorkshop && hasWorkshopDownloadFailure(combined)) {
       // 部分失败：不抛错，交由调用方按缺失列表统一重试/判定，避免重复登录风暴。
@@ -418,6 +489,9 @@ export class SteamCmdManager extends EventEmitter {
     }
 
     if (exitCode === 0 || this.isSteamCmdOutputSuccess(combined, flags)) {
+      if (!this.needsSteamGuard(combined)) {
+        this._authState = "authenticated";
+      }
       if (shouldEmitComplete) {
         this.emit("complete", combined);
       }
@@ -428,6 +502,7 @@ export class SteamCmdManager extends EventEmitter {
       && runId === this._runId
       && retryCount < 1
       && this.shouldRetrySteamCmd(exitCode, combined)
+      && !this.needsSteamGuard(combined)
     ) {
       this.throwIfStaleOrAborted(runId);
       const retryHint = "Update complete, launching SteamCMD...\n";
@@ -541,7 +616,8 @@ export class SteamCmdManager extends EventEmitter {
 
   /** 检查 Steam 是否需要 Guard 验证 */
   needsSteamGuard(logText: string): boolean {
-    return logText.includes("Steam Guard") || logText.includes("Two-factor") || logText.includes("email");
+    return detectAuthStateFromOutput(logText) === "waiting_guard"
+      || /Steam Guard|Two-factor|Waiting for confirmation/i.test(logText);
   }
 
   async getLatestLog(maxLines = 300): Promise<string> {

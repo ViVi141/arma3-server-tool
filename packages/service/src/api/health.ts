@@ -1,16 +1,31 @@
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { getServicePlatformInfo } from "../platform/index.js";
+import { isLoopbackHost } from "../util/host.js";
 
 export async function healthRoutes(app: FastifyInstance) {
   app.get("/health", async (_req, _reply) => {
     const platform = getServicePlatformInfo();
+    const opts = (app as { serviceOptions?: { port: number; host: string; apiToken?: string } }).serviceOptions
+      ?? { port: 19580, host: "127.0.0.1" };
+    const addr = app.server.address();
+    const boundPort =
+      addr && typeof addr !== "string" ? addr.port : opts.port;
+    const bindHost = opts.host;
+    const authConfigured = Boolean(opts.apiToken?.trim());
+    const remoteAccessEnabled = !isLoopbackHost(bindHost);
+
     return {
       success: true,
       service: "Arma3ServerTools.Service",
       version: "2.0.0-alpha.16",
-      remoteAccessEnabled: false,
-      publicBaseUrl: `http://127.0.0.1:${(app.server.address() as { port: number })?.port ?? 19580}`,
+      remoteAccessEnabled,
+      authConfigured,
+      bindHost,
+      bindPort: boundPort,
+      publicBaseUrl: remoteAccessEnabled
+        ? `http://${bindHost === "0.0.0.0" ? "<host>" : bindHost}:${boundPort}`
+        : `http://127.0.0.1:${boundPort}`,
       platform: platform.os,
       defaultServerExecutable: platform.serverExecutable,
       defaultServerDir: platform.serverDirExample,
@@ -55,6 +70,7 @@ export async function healthRoutes(app: FastifyInstance) {
           { method: "POST", path: "/api/v1/task" },
           { method: "GET", path: "/api/v1/tasks/{taskId}" },
           { method: "DELETE", path: "/api/v1/tasks/{taskId}" },
+          { method: "POST", path: "/api/v1/servers/{uuid}/mods/import-preview" },
         ],
         fileUploads: [
           "/api/v1/servers/{uuid}/files/mission-pbo",
