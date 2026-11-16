@@ -2,7 +2,11 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.17] — 当前
+## [2.0.0-alpha.18] — 当前
+
+- 安全依赖：`electron-builder` 升至 26.18（`afterPack` 恢复 service `node_modules`），并用 overrides 钉住 `tar` / `builder-util-runtime` / `minimatch` / `glob`；`npm audit` 归零。
+
+## [2.0.0-alpha.17]
 
 - SteamCMD 支持「优先缓存登录」（只传用户名，省略密码）；Guard 等待时不再自动重试。
 - 定时任务新增「检查/更新模组」：禁更窗外发现启用模组有更新时，先停全部服务器再下载并重启先前在跑的服。

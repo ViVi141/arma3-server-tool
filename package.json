@@ -1,6 +1,6 @@
 {
   "name": "arma3-server-tools-monorepo",
-  "version": "2.0.0-alpha.17",
+  "version": "2.0.0-alpha.18",
   "private": true,
   "description": "Arma3 Server Tools — Vue + Electron + Service monorepo",
   "workspaces": [
@@ -31,5 +31,22 @@
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "overrides": {
+    "tar": "7.5.22",
+    "builder-util-runtime": "9.7.0",
+    "minimatch": "11.0.1",
+    "glob": "14.0.6",
+    "@electron/asar": {
+      "glob": "14.0.6"
+    },
+    "rimraf": {
+      "glob": "14.0.6"
+    },
+    "temp": {
+      "rimraf": {
+        "glob": "14.0.6"
+      }
+    }
   }
 }
