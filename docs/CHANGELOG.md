@@ -2,7 +2,14 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.16] — 当前
+## [2.0.0-alpha.17] — 当前
+
+- SteamCMD 支持「优先缓存登录」（只传用户名，省略密码）；Guard 等待时不再自动重试。
+- 定时任务新增「检查/更新模组」：禁更窗外发现启用模组有更新时，先停全部服务器再下载并重启先前在跑的服。
+- 模组 HTML 导入 `mode` 真正生效（仅下载 / 合并启用 / 替换启用）；PBO 上传加固文件名与大小限制。
+- 非 loopback 绑定且未配置 `API_TOKEN` 时拒绝管理 API；健康检查如实反映绑定与鉴权；补充反向代理说明。
+
+## [2.0.0-alpha.16]
 
 - 修复安装包启动报 `Cannot find package 'fastify'`：electron-builder 退回 25（v26 会剥离 extraResources 里的 service `node_modules`）。
 

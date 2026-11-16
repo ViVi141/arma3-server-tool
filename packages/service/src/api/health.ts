@@ -18,7 +18,7 @@ export async function healthRoutes(app: FastifyInstance) {
     return {
       success: true,
       service: "Arma3ServerTools.Service",
-      version: "2.0.0-alpha.16",
+      version: "2.0.0-alpha.17",
       remoteAccessEnabled,
       authConfigured,
       bindHost,
