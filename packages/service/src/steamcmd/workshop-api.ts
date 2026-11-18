@@ -1,4 +1,5 @@
 import { proxyFetch } from "./proxy-fetch.js";
+import { loadWorkshopAcfTimesForLocalMods } from "./workshop-acf.js";
 import {
   type LocalModRef,
   formatUnixTime,
@@ -303,6 +304,18 @@ export async function fetchWorkshopModDetails(
   for (const item of localMods) {
     if (item.modId > 0) {
       localById.set(item.modId, item);
+    }
+  }
+
+  // Prefer Steam ACF timeupdated over pack-preserved file mtimes when deciding
+  // outdated vs up_to_date (avoids permanent "有更新" after a real sync).
+  const acfTimes = loadWorkshopAcfTimesForLocalMods(localMods);
+  for (const [modId, timeUpdated] of acfTimes) {
+    const existing = localById.get(modId);
+    if (existing) {
+      localById.set(modId, { ...existing, workshopAcfTimeUpdated: timeUpdated });
+    } else {
+      localById.set(modId, { modId, workshopAcfTimeUpdated: timeUpdated });
     }
   }
 

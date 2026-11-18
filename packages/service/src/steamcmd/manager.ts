@@ -25,6 +25,7 @@ import {
   normalizeWorkshopRoot,
   type SteamCmdPathContext,
 } from "./path-helper.js";
+import { markWorkshopModsSynced } from "./workshop-update.js";
 import { ensureWorkshopContentDirectory } from "../settings/steamcmd-settings.js";
 import {
   isLinux,
@@ -374,6 +375,10 @@ export class SteamCmdManager extends EventEmitter {
           + `大体积模组（如 CUP Terrains - Core / 583496184）可稍后再单独下载，或检查磁盘空间与网络。`,
         );
       }
+
+      // Pack mtimes often lag Workshop time_updated; stamp synced folders so the
+      // UI / cron stop reporting permanent "有更新" after a confirmed download.
+      markWorkshopModsSynced(workshopRoot, uniqueIds);
 
       this.emit("complete", this.sessionOutput);
     });

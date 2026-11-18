@@ -2,7 +2,11 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.18] — 当前
+## [2.0.0-alpha.19] — 当前
+
+- 修复已同步模组仍显示「有更新」：比对时优先读 Steam `appworkshop_107410.acf` 的 `timeupdated`，下载成功后再写入 `.a3st-synced` 并刷新目录时间，避免作者包内旧 mtime 误报。
+
+## [2.0.0-alpha.18]
 
 - 安全依赖：`electron-builder` 升至 26.18（`afterPack` 恢复 service `node_modules`），并用 overrides 钉住 `tar` / `builder-util-runtime` / `minimatch` / `glob`；`npm audit` 归零。
 
