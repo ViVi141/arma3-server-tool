@@ -114,4 +114,17 @@ describe("ConfigStore", () => {
     const loaded = store.load("uuid-1");
     expect(loaded).not.toBeNull();
   });
+
+  it("SEC-4 rejects path traversal and invalid IDs in load, save, delete, getServerConfigDir, and invalidateCache", () => {
+    const badIds = ["../escape", "..\\escape", "a/b", "a\0b", ".", "..", ""];
+    for (const bad of badIds) {
+      expect(() => store.load(bad)).toThrow();
+      expect(() => store.save(bad, { formatVersion: 2 })).toThrow();
+      expect(() => store.delete(bad)).toThrow();
+      expect(() => store.getServerConfigDir(bad)).toThrow();
+      expect(() => store.invalidateCache(bad)).toThrow();
+    }
+    // Calling invalidateCache() with undefined still clears all cache entries
+    expect(() => store.invalidateCache()).not.toThrow();
+  });
 });

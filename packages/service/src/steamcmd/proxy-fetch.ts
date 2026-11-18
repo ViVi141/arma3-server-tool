@@ -1,5 +1,22 @@
 import { ProxyAgent, fetch as undiciFetch, type Response as UndiciResponse } from "undici";
 
+const proxyAgentCache = new Map<string, ProxyAgent>();
+
+function getProxyAgent(proxyUrl: string): ProxyAgent {
+  let agent = proxyAgentCache.get(proxyUrl);
+  if (!agent) {
+    agent = new ProxyAgent(proxyUrl);
+    proxyAgentCache.set(proxyUrl, agent);
+  }
+  return agent;
+}
+
+export async function closeProxyAgents(): Promise<void> {
+  const agents = Array.from(proxyAgentCache.values());
+  proxyAgentCache.clear();
+  await Promise.allSettled(agents.map((agent) => agent.close()));
+}
+
 function resolveProxyUrl(): string | undefined {
   const fromEnv =
     process.env.https_proxy ||
@@ -35,7 +52,7 @@ export async function proxyFetch(url: string, init?: ProxyFetchInit): Promise<Un
   };
 
   if (proxyUrl) {
-    const dispatcher = new ProxyAgent(proxyUrl);
+    const dispatcher = getProxyAgent(proxyUrl);
     return undiciFetch(url, {
       ...requestInit,
       dispatcher,

@@ -17,7 +17,7 @@ const router = useRouter();
 const store = useConnectionsStore();
 const actions = inject(CONSOLE_ACTIONS_KEY);
 
-const DEPLOY_STEPS = ["STEAMCMD", "DEDICATED", "INSTANCE", "LAUNCH"];
+const DEPLOY_STEPS = ["SteamCMD", "专用服务器", "实例", "启动"];
 
 const steamInstalled = ref(false);
 const hasServerDir = ref(false);
@@ -88,10 +88,9 @@ function openWizard() {
 
 <template>
   <section v-if="showTrack" class="dash-deploy" data-testid="dashboard-deploy-track">
-    <article class="dash-module dash-module--dark dash-deploy__card">
-      <p class="dash-module__code">SRV-03 / DEPLOY</p>
-      <h3>首服序列</h3>
-      <p class="dash-module__body">
+    <article class="dash-deploy__card">
+      <h3 class="dash-deploy__title">首服序列</h3>
+      <p class="dash-deploy__body">
         SteamCMD → 专用服务器 → 创建实例 → 写入配置并启动。
       </p>
       <div class="dash-deploy__steps" aria-label="部署进度">
@@ -108,14 +107,14 @@ function openWizard() {
         </span>
       </div>
       <div class="dash-deploy__actions">
-        <button type="button" class="dash-module__link" data-testid="dashboard-deploy-wizard" @click="openWizard">
-          {{ UI_COPY.firstServerWizard }} →
+        <button type="button" class="dash-deploy__link" data-testid="dashboard-deploy-wizard" @click="openWizard">
+          {{ UI_COPY.firstServerWizard }}
         </button>
-        <button v-if="!steamInstalled" type="button" class="dash-module__link" @click="goTab('steamcmd')">
-          SteamCMD →
+        <button v-if="!steamInstalled" type="button" class="dash-deploy__link" @click="goTab('steamcmd')">
+          SteamCMD
         </button>
-        <button v-if="!cfgWritten" type="button" class="dash-module__link" @click="goTab('preflight')">
-          {{ UI_COPY.preflight }} →
+        <button v-if="!cfgWritten" type="button" class="dash-deploy__link" @click="goTab('preflight')">
+          {{ UI_COPY.preflight }}
         </button>
       </div>
     </article>

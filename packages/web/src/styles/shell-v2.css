@@ -458,13 +458,13 @@
     display: none;
   }
 
-  .shell-v2__rail {
-    width: 3.5rem;
-  }
-
-  .shell-v2__rail-label {
-    font-size: 0.55rem;
-  }
+  /*
+   * 769px–800px 属于桌面窄窗口：竖排 rail 由 m3-theme.css 的
+   * @media (min-width: 769px) 接管（196px 横排、label-large 字号）。
+   * 这里曾把 rail 压到 3.5rem、label 压到 0.55rem(8.8px)，
+   * 结果落在 769–800 这段时标签被挤成一条几乎不可读的细字。
+   * 纵向 rail 的紧凑尺寸只在 <=768px 的底栏形态里才成立，故此处不再覆盖。
+   */
 }
 
 /* —— 手机 / 窄屏：底栏导航，不再用竖排 rail —— */
@@ -503,12 +503,8 @@
 
   .shell-v2__instance-trigger {
     max-width: none;
-    min-height: 2.5rem;
+    min-height: 2.75rem;
     padding: 8px 10px;
-  }
-
-  .shell-v2__picker {
-    display: none;
   }
 
   .shell-v2__body {
@@ -668,9 +664,7 @@ html[data-app-mode="mobile"] .shell-v2 {
 }
 
 html.is-mobile-app .shell-v2__relay,
-html[data-app-mode="mobile"] .shell-v2__relay,
-html.is-mobile-app .shell-v2__picker,
-html[data-app-mode="mobile"] .shell-v2__picker {
+html[data-app-mode="mobile"] .shell-v2__relay {
   display: none;
 }
 
@@ -1114,4 +1108,28 @@ html[data-app-mode="mobile"] .mods-bar {
 html.is-mobile-app .console-page__toolbar,
 html[data-app-mode="mobile"] .console-page__toolbar {
   flex-wrap: wrap;
+}
+
+/*
+ * 触控热区基线：Capacitor 应用内底栏/顶栏强制横排，横屏或平板 WebView 宽度常 >768px，
+ * 于是 m3-theme.css 的 <=768px 触控规则不再命中，顶栏图标按钮(40px)、搜索触发器(36px)、
+ * 登出链接会掉回桌面尺寸。这里按 html.is-mobile-app 单独兜底到 44px。
+ */
+html.is-mobile-app .m3-icon-btn,
+html[data-app-mode="mobile"] .m3-icon-btn,
+html.is-mobile-app .m3-search-trigger,
+html[data-app-mode="mobile"] .m3-search-trigger,
+html.is-mobile-app .shell-v2__link,
+html[data-app-mode="mobile"] .shell-v2__link,
+html.is-mobile-app .shell-v2__instance-trigger,
+html[data-app-mode="mobile"] .shell-v2__instance-trigger,
+html.is-mobile-app .title-link,
+html[data-app-mode="mobile"] .title-link {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+html.is-mobile-app .shell-v2__rail-item,
+html[data-app-mode="mobile"] .shell-v2__rail-item {
+  min-height: 2.75rem;
 }

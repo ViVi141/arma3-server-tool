@@ -11,6 +11,7 @@ import {
   CONFIG_FOLDER,
 } from "../config/game-config-writer.js";
 import { runPreflightChecks } from "../preflight/checker.js";
+import { describeRptSearch } from "../logs/reader.js";
 import { fetchRconPlayers, resolveRconOptions, countOnlinePlayers } from "../rcon/helpers.js";
 import { maybeAutoSnapshot } from "../config/auto-snapshot.js";
 import { evaluateSyncState } from "../config/sync-state.js";
@@ -30,6 +31,7 @@ import {
 import {
   assertMissionPboFileName,
   assertSafeTargetPath,
+  isSafeId,
   MISSION_PBO_MAX_BYTES,
 } from "../util/upload-safety.js";
 import { getServerKeysDirectory } from "../mods/bikey-service.js";
@@ -67,10 +69,24 @@ import { syncCronJobsForServer } from "../scheduling/cron-sync.js";
 import { isValidCron } from "../scheduling/cron.js";
 import { validateServerPath } from "../utils/path-validation.js";
 import { defaultServerExecutable } from "../platform/index.js";
-import { verifyProcessIdentity } from "../process/identity.js";
+import { verifyProcessIdentity, isValidPid } from "../process/identity.js";
 import { taskCommandsInvolveSteamCmd } from "../task/manager.js";
+import type { PlayerRecord } from "../monitoring/db.js";
 
 export async function apiRoutes(app: FastifyInstance) {
+  app.addHook("preValidation", async (req, reply) => {
+    const params = req.params as { uuid?: unknown; snapshotId?: unknown } | undefined;
+    if (params && params.uuid !== undefined && !isSafeId(params.uuid)) {
+      reply.status(400);
+      return reply.send(envelope(false, null, "INVALID_UUID", ""));
+    }
+    if (params && params.snapshotId !== undefined && !isSafeId(params.snapshotId)) {
+      reply.status(400);
+      return reply.send(
+        envelope(false, null, "INVALID_SNAPSHOT_ID", String(params.uuid ?? ""))
+      );
+    }
+  });
   // ===================== Servers CRUD =====================
 
   app.get("/servers", async (req) => {
@@ -108,13 +124,14 @@ export async function apiRoutes(app: FastifyInstance) {
   });
 
   // Config read/write
-  app.get("/servers/:uuid/config", async (req) => {
+  app.get("/servers/:uuid/config", async (req, reply) => {
     const { uuid } = req.params as { uuid: string };
     const query = req.query as { reload?: string };
     const forceDisk =
       parseQueryBool(query.reload) && app.uiSettingsStore.load().allowExternalConfigRefresh;
     const config = app.configStore.load(uuid, { forceDisk });
     if (!config) {
+      reply.status(404);
       return envelope(false, null, "NOT_FOUND", uuid);
     }
     return envelope(true, config, null, uuid);
@@ -274,13 +291,22 @@ export async function apiRoutes(app: FastifyInstance) {
   app.put("/servers/:uuid/rename", async (req, reply) => {
     const { uuid } = req.params as { uuid: string };
     const body = req.body as { newName?: string } | null;
+    const newName = typeof body?.newName === "string" ? body.newName.trim() : "";
+    if (!newName) {
+      reply.status(400);
+      return envelope(false, null, "INVALID_BODY", uuid);
+    }
     const config = app.configStore.load(uuid);
     if (!config) {
       reply.status(404);
       return envelope(false, null, "NOT_FOUND", uuid);
     }
-    app.configStore.save(uuid, config, body?.newName);
-    return envelope(true, { message: "已重命名" }, null, uuid);
+    config.server = {
+      ...config.server,
+      configName: newName,
+    };
+    app.configStore.save(uuid, config, newName);
+    return envelope(true, { message: "已重命名", configName: newName }, null, uuid);
   });
 
   // ===================== SteamCMD =====================
@@ -427,7 +453,7 @@ export async function apiRoutes(app: FastifyInstance) {
 
   app.get("/steamcmd/log", async (req) => {
     const query = req.query as { tail?: string };
-    const maxLines = parseInt(query.tail ?? "300", 10);
+    const maxLines = parsePositiveInt(query.tail, 300, 10_000);
     const text = await app.steamCmd.getLatestLog(maxLines);
     return envelope(true, { text, source: "aggregated" }, null, "");
   });
@@ -448,17 +474,18 @@ export async function apiRoutes(app: FastifyInstance) {
 
   // ===================== Preflight =====================
 
-  app.get("/servers/:uuid/preflight", async (req) => {
+  app.get("/servers/:uuid/preflight", async (req, reply) => {
     const { uuid } = req.params as { uuid: string };
     const config = app.configStore.load(uuid);
     if (!config) {
+      reply.status(404);
       return envelope(false, null, "NOT_FOUND", uuid);
     }
 
     const state = app.processManager.getState(uuid, config ?? undefined);
     const modPaths = collectModPaths(app, config);
     const scannedMods = modPaths.length > 0
-      ? scanModsForConfig(app, config)
+      ? scanModsForConfig(app, config, { skipSize: true })
       : [];
 
     const result = runPreflightChecks(uuid, config, {
@@ -575,7 +602,7 @@ export async function apiRoutes(app: FastifyInstance) {
     }
     const state = app.processManager.getState(uuid, config ?? undefined);
     const modPaths = collectModPaths(app, config);
-    const scannedMods = modPaths.length > 0 ? scanModsForConfig(app, config) : [];
+    const scannedMods = modPaths.length > 0 ? scanModsForConfig(app, config, { skipSize: true }) : [];
     const result = runFullDiagnostics(app, uuid, config, {
       isRunning: state.isRunning,
       scannedMods,
@@ -610,10 +637,11 @@ export async function apiRoutes(app: FastifyInstance) {
     );
   });
 
-  app.get("/servers/:uuid/dashboard", async (req) => {
+  app.get("/servers/:uuid/dashboard", async (req, reply) => {
     const { uuid } = req.params as { uuid: string };
     const config = app.configStore.load(uuid);
     if (!config) {
+      reply.status(404);
       return envelope(false, null, "NOT_FOUND", uuid);
     }
 
@@ -688,9 +716,19 @@ export async function apiRoutes(app: FastifyInstance) {
       lastModified: item.lastModified.toISOString(),
       kind: item.kind,
     }));
+    // 找不到 RPT 时，把"搜过哪些目录、是否存在、以及是否被 -noLogs 关闭"一并回给界面，
+    // 运维能据此判断是参数问题、权限问题还是服务器根本没起来。
+    const basic = (config.basic ?? {}) as Record<string, unknown>;
+    const noLogs = basic.noLogs === true || basic.noLogs === 1 || basic.noLogs === "true";
     return envelope(
       true,
-      { kind, serverDir: config.server.serverDir, files },
+      {
+        kind,
+        serverDir: config.server.serverDir,
+        files,
+        noLogs,
+        searchedDirs: kind === "rpt" || kind === "all" ? describeRptSearch(config.server.serverDir, uuid) : [],
+      },
       null,
       uuid
     );
@@ -705,7 +743,7 @@ export async function apiRoutes(app: FastifyInstance) {
       return envelope(false, { message: "未设置服务器目录" }, "NO_SERVER_DIR", uuid);
     }
     const kind = (query.kind ?? "rpt") as "rpt" | "battleye" | "console" | "all";
-    const maxLines = parseInt(query.tail ?? "200", 10);
+    const maxLines = parsePositiveInt(query.tail, 200, 10_000);
     const target = app.rptLogReader.resolveAllowedLogPath(
       config.server.serverDir,
       uuid,
@@ -735,7 +773,7 @@ export async function apiRoutes(app: FastifyInstance) {
   app.get("/servers/:uuid/monitoring/stats", async (req) => {
     const { uuid } = req.params as { uuid: string };
     const query = req.query as { hours?: string };
-    const hours = parseInt(query.hours ?? "24", 10);
+    const hours = parsePositiveInt(query.hours, 24, 8760);
     const stats = app.monitorDb.getStats(uuid, hours);
     return envelope(true, { stats }, null, uuid);
   });
@@ -759,22 +797,22 @@ export async function apiRoutes(app: FastifyInstance) {
         continue;
       }
       let playerCount = 0;
+      let playerRecords: PlayerRecord[] = [];
       const online = await countOnlinePlayers(config);
       if (online !== null) {
         playerCount = online;
         const players = await fetchRconPlayers(config);
-        for (const player of players) {
-          if (player.guid) {
-            app.monitorDb.recordPlayer({
-              playerGuid: player.guid,
-              playerName: player.name ?? player.guid,
-              serverUuid: s.uuid,
-              lastSeen: new Date().toISOString(),
-            });
-          }
-        }
+        const nowIso = new Date().toISOString();
+        playerRecords = players
+          .filter((player) => Boolean(player.guid))
+          .map((player) => ({
+            playerGuid: player.guid,
+            playerName: player.name ?? player.guid,
+            serverUuid: s.uuid,
+            lastSeen: nowIso,
+          }));
       }
-      app.monitorDb.recordStats(s.uuid, playerCount);
+      app.monitorDb.recordCollectionTick(s.uuid, playerCount, playerRecords);
       count++;
     }
     return envelope(true, { collected: count }, null, "");
@@ -800,16 +838,16 @@ export async function apiRoutes(app: FastifyInstance) {
       return envelope(false, null, "NOT_FOUND", uuid);
     }
     const players = await fetchRconPlayers(config);
-    for (const player of players) {
-      if (player.guid) {
-        app.monitorDb.recordPlayer({
-          playerGuid: player.guid,
-          playerName: player.name ?? player.guid,
-          serverUuid: uuid,
-          lastSeen: new Date().toISOString(),
-        });
-      }
-    }
+    const nowIso = new Date().toISOString();
+    const playerRecords: PlayerRecord[] = players
+      .filter((player) => Boolean(player.guid))
+      .map((player) => ({
+        playerGuid: player.guid,
+        playerName: player.name ?? player.guid,
+        serverUuid: uuid,
+        lastSeen: nowIso,
+      }));
+    app.monitorDb.batchInsertPlayers(playerRecords);
     return envelope(true, { synced: players.length }, null, uuid);
   });
 
@@ -857,17 +895,24 @@ export async function apiRoutes(app: FastifyInstance) {
     return envelope(true, { jobs: app.scheduler.list() }, null, "");
   });
 
-  app.post("/schedule/restart", async (req) => {
+  app.post("/schedule/restart", async (req, reply) => {
     const body = req.body as { serverUuid?: string; cron?: string } | null;
     const uuid = body?.serverUuid;
     if (!uuid || !body?.cron) {
+      reply.status(400);
       return envelope(false, null, "INVALID_REQUEST", "");
     }
+    if (!isSafeId(uuid)) {
+      reply.status(400);
+      return envelope(false, null, "INVALID_UUID", "");
+    }
     if (!isValidCron(body.cron)) {
+      reply.status(400);
       return envelope(false, { message: `非法的 cron 表达式: ${body.cron}` }, "INVALID_CRON", uuid);
     }
     const config = app.configStore.load(uuid);
     if (!config) {
+      reply.status(404);
       return envelope(false, null, "NOT_FOUND", uuid);
     }
     // 写入配置并通过统一同步管道注册（作业名 ${uuid}-restart 与
@@ -901,10 +946,13 @@ export async function apiRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post("/servers/:uuid/snapshots/:snapshotId/restore", async (req) => {
+  app.post("/servers/:uuid/snapshots/:snapshotId/restore", async (req, reply) => {
     const { uuid, snapshotId } = req.params as { uuid: string; snapshotId: string };
     const ok = app.snapshotStore.restore(uuid, snapshotId);
-    if (!ok) return envelope(false, null, "NOT_FOUND", uuid);
+    if (!ok) {
+      reply.status(404);
+      return envelope(false, null, "NOT_FOUND", uuid);
+    }
     app.configStore.invalidateCache(uuid);
     return envelope(true, { message: "快照已恢复" }, null, uuid);
   });
@@ -948,6 +996,10 @@ export async function apiRoutes(app: FastifyInstance) {
       reply.status(400);
       return envelope(false, { message: "请提供 serverUuid 参数" }, "MISSING_UUID", "");
     }
+    if (!isSafeId(query.serverUuid)) {
+      reply.status(400);
+      return envelope(false, null, "INVALID_UUID", "");
+    }
     const config = app.configStore.load(query.serverUuid);
     if (!config?.server?.serverDir) {
       reply.status(400);
@@ -983,10 +1035,10 @@ export async function apiRoutes(app: FastifyInstance) {
         html = Buffer.concat(chunks).toString("utf-8");
       }
     } else {
-      html = req.body as string;
+      html = typeof req.body === "string" ? req.body : "";
     }
 
-    if (!html) {
+    if (!html.trim()) {
       reply.status(400);
       return envelope(false, null, "NO_CONTENT", uuid);
     }
@@ -1032,7 +1084,7 @@ export async function apiRoutes(app: FastifyInstance) {
     let installedIds: number[] = [];
     try {
       if (collectModPaths(app, config).length) {
-        installedIds = scanModsForConfig(app, config)
+        installedIds = scanModsForConfig(app, config, { skipSize: true })
           .filter((m) => m.workshopId > 0 && m.path)
           .map((m) => m.workshopId);
       }
@@ -1105,7 +1157,7 @@ export async function apiRoutes(app: FastifyInstance) {
     const overwrite = fs.existsSync(fullPath);
     fs.writeFileSync(fullPath, Buffer.concat(chunks));
 
-    if (query.addToMissionList === "true") {
+    if (parseQueryBool(query.addToMissionList)) {
       const template = path.basename(safeName, path.extname(safeName));
       const missions = config.tasks?.missions ?? [];
       if (!missions.some((m) => m.template === template)) {
@@ -1115,6 +1167,19 @@ export async function apiRoutes(app: FastifyInstance) {
       app.configStore.save(uuid, config);
     }
 
+    let cfgWritten = false;
+    let writeCfgMessage: string | undefined;
+    if (parseQueryBool(query.writeCfg)) {
+      maybeAutoSnapshot(app, uuid, "write");
+      const writeResult = writeAll(uuid, config);
+      if (!writeResult.success) {
+        reply.status(400);
+        return envelope(false, { message: writeResult.message }, "WRITE_CFG_FAILED", uuid);
+      }
+      cfgWritten = true;
+      writeCfgMessage = writeResult.message;
+    }
+
     return envelope(true, {
       template: path.basename(safeName, ".pbo"),
       fullPath,
@@ -1122,6 +1187,8 @@ export async function apiRoutes(app: FastifyInstance) {
       sizeBytes: total,
       maxBytes: MISSION_PBO_MAX_BYTES,
       overwritten: overwrite,
+      cfgWritten,
+      writeCfgMessage,
       sharedServerWarning: sharedDirs.length
         ? `该 MPMissions 目录与另外 ${sharedDirs.length} 台服务器共享，覆盖会影响它们`
         : null,
@@ -1144,7 +1211,11 @@ export async function apiRoutes(app: FastifyInstance) {
 
     if (!task.serverUuid || !task.commands?.length) {
       reply.status(400);
-      return envelope(false, null, "INVALID_TASK", task.serverUuid ?? "");
+      return envelope(false, null, "INVALID_TASK", "");
+    }
+    if (!isSafeId(task.serverUuid)) {
+      reply.status(400);
+      return envelope(false, null, "INVALID_UUID", "");
     }
 
     const uuid = task.serverUuid as string;
@@ -1171,10 +1242,11 @@ export async function apiRoutes(app: FastifyInstance) {
     );
   });
 
-  app.get("/tasks/:taskId", async (req) => {
+  app.get("/tasks/:taskId", async (req, reply) => {
     const { taskId } = req.params as { taskId: string };
     const task = app.asyncTaskManager.get(taskId);
     if (!task) {
+      reply.status(404);
       return envelope(false, null, "NOT_FOUND", taskId);
     }
     return envelope(true, {
@@ -1240,7 +1312,8 @@ function sanitizeImportedProcessId(
     };
   }
 
-  const importedPid = config.tasks?.processById ?? 0;
+  const rawPid = config.tasks?.processById;
+  const importedPid = isValidPid(rawPid) ? rawPid : 0;
   if (importedPid <= 0) {
     return {
       ...config,
@@ -1340,6 +1413,21 @@ function parseQueryBool(value: unknown): boolean {
     return true;
   }
   return false;
+}
+
+function parsePositiveInt(
+  raw: string | undefined,
+  fallback: number,
+  max = 10_000
+): number {
+  if (!raw) {
+    return fallback;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return Math.min(parsed, max);
 }
 
 async function executeCommand(
@@ -1487,7 +1575,7 @@ async function executeCommand(
       if (!modPaths.length) {
         return fail("未配置模组扫描路径。请在「扫描路径」或 SteamCMD 页设置 Workshop 根目录。");
       }
-      const result = scanModsForConfig(app, config);
+      const result = scanModsForConfig(app, config, { skipSize: true });
       return ok(`扫描完成，发现 ${result.length} 个模组（${modPaths.length} 个路径）`);
     }
     case "download_mods": {
@@ -1547,7 +1635,7 @@ async function executeCommand(
       const modPaths = collectModPaths(app, config);
       if (!modPaths.length) return fail("未配置模组扫描路径");
 
-      const scanned = scanModsForConfig(app, config);
+      const scanned = scanModsForConfig(app, config, { skipSize: true });
       if (!scanned.length) {
         return fail("未扫描到模组，请先点击「扫描刷新」");
       }
@@ -1593,7 +1681,7 @@ async function executeCommand(
       if (!config) return fail("未找到服务器配置");
       const state = app.processManager.getState(uuid, config ?? undefined);
       const modPaths = collectModPaths(app, config);
-      const scannedMods = modPaths.length > 0 ? scanModsForConfig(app, config) : [];
+      const scannedMods = modPaths.length > 0 ? scanModsForConfig(app, config, { skipSize: true }) : [];
       const result = runPreflightChecks(uuid, config, {
         isRunning: state.isRunning,
         scannedMods,
@@ -1712,7 +1800,33 @@ async function executeCommand(
             return ok(r.message);
           }
           case "rcon_ban": {
-            const r = await client.ban(cmd.playerGuid as string, cmd.playerId as unknown as number, cmd.reason as string);
+            const target =
+              typeof cmd.playerGuid === "string" && cmd.playerGuid.trim()
+                ? cmd.playerGuid.trim()
+                : typeof cmd.playerId === "string" && cmd.playerId.trim()
+                  ? cmd.playerId.trim()
+                  : "";
+            if (!target) {
+              return fail("缺少 playerGuid 或 playerId");
+            }
+            let timeMinutes: number | undefined;
+            if (
+              typeof cmd.timeMinutes === "number"
+              && Number.isFinite(cmd.timeMinutes)
+              && cmd.timeMinutes >= 0
+            ) {
+              timeMinutes = cmd.timeMinutes;
+            } else if (
+              cmd.timeMinutes === undefined
+              && typeof cmd.playerId === "number"
+              && Number.isFinite(cmd.playerId)
+              && cmd.playerId >= 0
+            ) {
+              // Legacy RconView.vue passes ban duration in numeric playerId
+              timeMinutes = cmd.playerId;
+            }
+            const reason = typeof cmd.reason === "string" ? cmd.reason : undefined;
+            const r = await client.ban(target, timeMinutes, reason);
             return ok(r.message);
           }
           case "rcon_broadcast": {
@@ -1720,7 +1834,13 @@ async function executeCommand(
             return ok(r.message);
           }
           case "rcon_mission": {
-            const r = await client.loadMission(cmd.missionTemplate as string);
+            const missionName =
+              typeof cmd.rconMissionName === "string"
+                ? cmd.rconMissionName
+                : typeof cmd.missionTemplate === "string"
+                  ? cmd.missionTemplate
+                  : "";
+            const r = await client.loadMission(missionName);
             return ok(r.message);
           }
           case "rcon_command": {

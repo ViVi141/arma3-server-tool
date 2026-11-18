@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -76,5 +76,50 @@ describe("MonitoringDb", () => {
     expect(s.avgPlayers).toBe(0);
     expect(s.peakPlayers).toBe(0);
     expect(s.totalEntries).toBe(0);
+  });
+
+  it("PERF-2 batchInsertPlayers([]) is a no-op and non-empty batch writes disk once", () => {
+    const saveSpy = vi.spyOn(db as unknown as { save: () => void }, "save");
+    db.batchInsertPlayers([]);
+    expect(saveSpy).not.toHaveBeenCalled();
+
+    const players = Array.from({ length: 10 }, (_, i) => ({
+      playerGuid: `batch-guid-${i}`,
+      playerName: `Player_${i}`,
+      serverUuid: "uuid-batch",
+      lastSeen: "",
+    }));
+    db.batchInsertPlayers(players);
+    expect(saveSpy).toHaveBeenCalledTimes(1);
+    expect(db.listPlayers("uuid-batch")).toHaveLength(10);
+    saveSpy.mockRestore();
+  });
+
+  it("PERF-2 recordCollectionTick persists stats and players with a single save()", () => {
+    const saveSpy = vi.spyOn(db as unknown as { save: () => void }, "save");
+    const players = Array.from({ length: 5 }, (_, i) => ({
+      playerGuid: `tick-guid-${i}`,
+      playerName: `TickPlayer_${i}`,
+      serverUuid: "uuid-tick",
+      lastSeen: "",
+    }));
+    db.recordCollectionTick("uuid-tick", 5, players, 48.5);
+    expect(saveSpy).toHaveBeenCalledTimes(1);
+    expect(db.getSummary("uuid-tick").totalEntries).toBe(1);
+    expect(db.getSummary("uuid-tick").peakPlayers).toBe(5);
+    expect(db.listPlayers("uuid-tick")).toHaveLength(5);
+    saveSpy.mockRestore();
+  });
+
+  it("BUG-13 close() is idempotent across repeated calls", async () => {
+    const localDir = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-mon-close-"));
+    try {
+      const localDb = new MonitoringDb(localDir);
+      await localDb.waitReady();
+      expect(() => localDb.close()).not.toThrow();
+      expect(() => localDb.close()).not.toThrow();
+    } finally {
+      fs.rmSync(localDir, { recursive: true, force: true });
+    }
   });
 });

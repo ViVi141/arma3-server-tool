@@ -3,6 +3,7 @@
 export interface TabEntry {
   name: string;
   label: string;
+  icon?: string;
   advancedOnly?: boolean;
 }
 
@@ -14,34 +15,38 @@ export interface NavGroup {
 const DEFAULT_TAB = "dashboard";
 
 const MAIN_TABS: TabEntry[] = [
-  { name: "dashboard", label: "概览" },
-  { name: "basic", label: "基本" },
-  { name: "mods", label: "模组" },
-  { name: "missions", label: "地图任务", advancedOnly: true },
-  { name: "rcon", label: "远程控制" },
-  { name: "bans", label: "封禁文件" },
-  { name: "steamcmd", label: "SteamCMD", advancedOnly: true },
+  { name: "dashboard", label: "概览", icon: "dashboard" },
+  { name: "basic", label: "基本", icon: "tune" },
+  { name: "mods", label: "模组", icon: "extension" },
+  { name: "missions", label: "地图任务", icon: "map", advancedOnly: true },
+  { name: "rcon", label: "远程控制", icon: "terminal" },
+  { name: "bans", label: "封禁文件", icon: "gavel" },
+  { name: "steamcmd", label: "SteamCMD", icon: "cloud_download", advancedOnly: true },
 ];
 
 const SETTINGS_TABS: TabEntry[] = [
-  { name: "performance", label: "性能", advancedOnly: true },
-  { name: "network", label: "网络", advancedOnly: true },
-  { name: "security", label: "安全", advancedOnly: true },
-  { name: "difficulty", label: "难度", advancedOnly: true },
-  { name: "log", label: "日志选项", advancedOnly: true },
+  { name: "performance", label: "性能", icon: "speed", advancedOnly: true },
+  { name: "network", label: "网络", icon: "lan", advancedOnly: true },
+  { name: "security", label: "安全", icon: "shield", advancedOnly: true },
+  { name: "difficulty", label: "难度", icon: "gamepad", advancedOnly: true },
+  { name: "log", label: "日志选项", icon: "receipt_long", advancedOnly: true },
 ];
 
 const TOOL_TABS: TabEntry[] = [
-  { name: "statistics", label: "统计", advancedOnly: true },
-  { name: "scheduler", label: "定时", advancedOnly: true },
-  { name: "snapshots", label: "快照" },
-  { name: "logs", label: "RPT 日志" },
-  { name: "preflight", label: "开服检查" },
-  { name: "config", label: "配置包", advancedOnly: true },
-  { name: "about", label: "关于" },
+  { name: "statistics", label: "统计", icon: "monitoring", advancedOnly: true },
+  { name: "scheduler", label: "定时", icon: "schedule", advancedOnly: true },
+  { name: "snapshots", label: "快照", icon: "history" },
+  { name: "logs", label: "RPT 日志", icon: "description" },
+  { name: "preflight", label: "开服检查", icon: "fact_check" },
+  { name: "config", label: "配置包", icon: "code", advancedOnly: true },
+  { name: "about", label: "关于", icon: "info" },
 ];
 
 const ALL_TAB_ENTRIES: TabEntry[] = [...MAIN_TABS, ...SETTINGS_TABS, ...TOOL_TABS];
+
+export function getAllTabs(): TabEntry[] {
+  return ALL_TAB_ENTRIES;
+}
 
 const TAB_NAMES = new Set(ALL_TAB_ENTRIES.map((t) => t.name));
 

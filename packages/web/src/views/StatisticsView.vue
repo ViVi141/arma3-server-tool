@@ -2,16 +2,32 @@
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
 import SettingsViewLayout from "@/components/console/SettingsViewLayout.vue";
 import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
-import { ref, onMounted, onUnmounted } from "vue";
+import { computed, ref, onMounted, onUnmounted } from "vue";
+import { Line } from "vue-chartjs";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  Filler,
+  Legend,
+  LineElement,
+  LinearScale,
+  PointElement,
+  Tooltip,
+} from "chart.js";
+import { useThemeMode } from "@/config/theme";
 import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import { useConfigSessionStore } from "@/stores/configSession";
+import { useConfigEditorRegistration } from "@/composables/configEditor";
 import { applyDefaults } from "@/utils/defaults";
 import type { MonitoringPlayerRow, MonitoringStatsPoint } from "@a3st/api-client";
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
 const configSession = useConfigSessionStore();
+const { themeMode } = useThemeMode();
 
 const activeSubTab = ref("overview");
 const chartData = ref<{ labels: string[]; online: number[]; fps: number[] }>({ labels: [], online: [], fps: [] });
@@ -58,9 +74,12 @@ async function saveMonitoringConfig() {
     if (!client) {
       return;
     }
-    await client.patchConfig(props.serverUuid, {
+    const res = await client.patchConfig(props.serverUuid, {
       monitoring: { enabled: monitoringEnabled.value },
     } as never);
+    if (!res.success) {
+      throw new Error(res.error ?? "保存失败");
+    }
     configSession.markClean(props.serverUuid);
     ElMessage.success("监控设置已保存");
   } catch (e: unknown) {
@@ -69,6 +88,13 @@ async function saveMonitoringConfig() {
     savingMonitoring.value = false;
   }
 }
+
+// 监控开关属于"点保存才生效"的配置项，接入未保存拦截
+const { markDirty } = useConfigEditorRegistration(() => props.serverUuid, {
+  label: "监控",
+  save: saveMonitoringConfig,
+  reload: loadMonitoringConfig,
+});
 
 async function collectNow() {
   try {
@@ -150,6 +176,70 @@ async function exportCsv() {
   }
 }
 
+// —— 趋势图：chart.js + M3 语义色（颜色取自运行期 token，主题切换用 key 重建） ——
+function tokenColor(name: string, fallback: string): string {
+  if (typeof document === "undefined") {
+    return fallback;
+  }
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return raw || fallback;
+}
+
+function trendDatasets(
+  label: string,
+  series: number[],
+  config: { line: string; area: string }
+) {
+  return [
+    {
+      label,
+      data: series,
+      borderColor: config.line,
+      backgroundColor: config.area,
+      borderWidth: 2,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      fill: true,
+      tension: 0.35,
+    },
+  ];
+}
+
+const trendOptions = computed(() => {
+  const grid = tokenColor("--md-sys-color-outline-variant", "rgba(120,120,120,0.24)");
+  const tick = tokenColor("--md-sys-color-on-surface-variant", "#5f5b66");
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 240 },
+    interaction: { mode: "index" as const, intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: { backgroundColor: tokenColor("--md-sys-color-surface-container-highest", "#e8e0ec") },
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: tick, maxTicksLimit: 6 } },
+      y: { beginAtZero: true, grid: { color: grid, drawTicks: false }, ticks: { color: tick } },
+    },
+  };
+});
+
+const onlineChartData = computed(() => ({
+  labels: chartData.value.labels,
+  datasets: trendDatasets("在线人数", chartData.value.online, {
+    line: tokenColor("--md-sys-color-primary", "#6750a4"),
+    area: tokenColor("--md-sys-color-primary-container", "rgba(103,80,164,0.18)"),
+  }),
+}));
+
+const fpsChartData = computed(() => ({
+  labels: chartData.value.labels,
+  datasets: trendDatasets("FPS", chartData.value.fps, {
+    line: tokenColor("--md-sys-color-tertiary", "#7d5260"),
+    area: tokenColor("--md-sys-color-tertiary-container", "rgba(125,82,96,0.18)"),
+  }),
+}));
+
 async function exportHtml() {
   try {
     const client = store.getClient();
@@ -189,14 +279,22 @@ async function exportHtml() {
             <el-col :span="8"><div class="ov"><span class="ov-l">采样点数</span><span class="ov-v">{{ summary.totalEntries }}</span></div></el-col>
           </el-row>
           <el-row :gutter="8">
-            <el-col :span="12"><el-card shadow="never"><template #header><span>在线人数趋势 (24h)</span></template>
-              <div style="height:200px;display:flex;align-items:flex-end;gap:2px;overflow-x:auto;">
-                <div v-for="(v,i) in chartData.online" :key="i" :title="`${v}人`" :style="{height:Math.max(4,v*20)+'px',width:'8px',background:'#409eff',borderRadius:'1px',flexShrink:0}"/>
-              </div></el-card></el-col>
-            <el-col :span="12"><el-card shadow="never"><template #header><span>FPS 趋势 (24h)</span></template>
-              <div style="height:200px;display:flex;align-items:flex-end;gap:2px;overflow-x:auto;">
-                <div v-for="(v,i) in chartData.fps" :key="i" :title="`${v.toFixed(1)} FPS`" :style="{height:Math.max(4,v*2)+'px',width:'8px',background:'#67c23a',borderRadius:'1px',flexShrink:0}"/>
-              </div></el-card></el-col>
+            <el-col :span="12">
+              <el-card shadow="never">
+                <template #header><span>在线人数趋势 (24h)</span></template>
+                <div class="chart-wrap">
+                  <Line :key="`online-${themeMode}`" :data="onlineChartData" :options="trendOptions" />
+                </div>
+              </el-card>
+            </el-col>
+            <el-col :span="12">
+              <el-card shadow="never">
+                <template #header><span>FPS 趋势 (24h)</span></template>
+                <div class="chart-wrap">
+                  <Line :key="`fps-${themeMode}`" :data="fpsChartData" :options="trendOptions" />
+                </div>
+              </el-card>
+            </el-col>
           </el-row>
           <el-card shadow="never" style="margin-top:8px;">
             <template #header><span>玩家记录</span></template>
@@ -218,8 +316,7 @@ async function exportHtml() {
           <SettingsViewLayout kicker="LOGS / 04 · MON" title="监控设置">
           <ArkTechPanel title="采集开关" code="MON-01">
             <div class="form-row">
-              <label>启用监控</label>
-              <el-switch v-model="monitoringEnabled" />
+              <el-checkbox v-model="monitoringEnabled" @change="markDirty()">启用监控</el-checkbox>
             </div>
             <div class="form-row">
               <el-button size="small" type="primary" :loading="savingMonitoring" @click="saveMonitoringConfig">保存</el-button>
@@ -241,10 +338,21 @@ async function exportHtml() {
 .sub-tabs :deep(.el-tabs__header) { flex-shrink: 0; margin: 0; padding: 0 8px; background: var(--a3st-toolbar); border-bottom: 1px solid var(--a3st-border-subtle); }
 .sub-tabs :deep(.el-tabs__content) { flex: 1; min-height: 0; overflow: hidden; }
 .sub-tabs :deep(.el-tab-pane) { height: 100%; overflow: hidden; }
-.stats-body { padding: 6px 8px; }
-.ov { display: flex; justify-content: space-between; padding: 5px 8px; background: var(--a3st-bg-panel); border: 1px solid var(--a3st-border-subtle); font-size: 12px; }
-.ov-l { color: var(--a3st-text-muted); }
-.ov-v { font-weight: 600; font-family: var(--a3st-font-mono); }
+.stats-body { padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
+.chart-wrap { height: 220px; position: relative; }
+
+/* 指标卡：用 M3 语义角色，不再叠一层描边 */
+.ov {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  border-radius: var(--md-sys-shape-corner-md);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
+}
+.ov-l { color: var(--md-sys-color-on-surface-variant); font-size: var(--md-sys-typescale-label-medium-size); }
+.ov-v { font-family: var(--md-ref-typeface-brand); font-size: var(--md-sys-typescale-headline-small-size); font-weight: 400; line-height: 1.1; }
 .form-row label { width: 100px; }
 .hint { font-size: 11px; color: var(--a3st-text-dim); margin-top: 8px; }
 </style>

@@ -5,6 +5,8 @@ import {
   buildWorkshopDownloadArguments,
   countDistinctModIds,
   quoteSteamCmdArgument,
+  redactPasswordInArguments,
+  redactSteamCmdConsoleChunk,
 } from "./arguments.js";
 import { normalizeWorkshopRoot } from "./path-helper.js";
 
@@ -76,5 +78,39 @@ describe("normalizeWorkshopRoot", () => {
       "",
     );
     expect(normalized).toBe(path.join(userData, "extension"));
+  });
+});
+
+describe("SEC-2 password redaction in arguments and console chunks", () => {
+  it("redacts quoted and escaped passwords with quotes and backslashes", () => {
+    const pw = 'pa"ss\\word!123';
+    const args = buildWorkshopDownloadArguments("builder", pw, "C:\\ws", [450814997]);
+    const redacted = redactPasswordInArguments(args, pw);
+    expect(redacted).not.toContain(pw);
+    expect(redacted).not.toContain('pa\\"ss\\\\word!123');
+    expect(redacted).toContain('+login "builder" "***"');
+  });
+
+  it("keeps cached +login <user> +quit intact without redacting +quit", () => {
+    const args = buildWorkshopDownloadArguments("builder", "ignored", "C:\\ws", [450814997], {
+      loginMode: "cached",
+    });
+    const redacted = redactPasswordInArguments(args, "ignored");
+    expect(redacted).toContain('+login "builder" +workshop_download_item');
+    const cachedOnly = '+force_install_dir "C:\\ws" +login "builder" +quit';
+    expect(redactPasswordInArguments(cachedOnly, "")).toBe(cachedOnly);
+  });
+
+  it("redacts +login password tokens even when password is unknown and scrubs debug lines", () => {
+    const line = '[调试] ProcessStartInfo.Arguments: +login "builder" "SuperSecret!99" +quit\n';
+    const clean = redactSteamCmdConsoleChunk(line, "SuperSecret!99");
+    expect(clean).not.toContain("SuperSecret!99");
+    expect(clean).toContain('+login "builder" "***" +quit');
+
+    const fallbackClean = redactSteamCmdConsoleChunk(
+      '[调试] ProcessStartInfo.Arguments: +login "builder" "UnknownSecret" +quit\n'
+    );
+    expect(fallbackClean).not.toContain("UnknownSecret");
+    expect(fallbackClean).toContain('+login "builder" "***" +quit');
   });
 });

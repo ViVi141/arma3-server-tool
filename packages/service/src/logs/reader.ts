@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { decodeLogBytes } from "./decode.js";
 import { CONFIG_FOLDER } from "../config/game-config-writer.js";
+import { assertSafeSubdirPath } from "../util/upload-safety.js";
 
 export type LogKind = "rpt" | "battleye" | "console";
 export type LogKindFilter = LogKind | "all";
@@ -16,21 +17,103 @@ export interface RptLogEntry {
 
 const BATTLEYE_EXCLUDED = new Set(["bans.txt", "beserver_x64.cfg", "beserver.cfg"]);
 
+export interface LogSearchDir {
+  path: string;
+  exists: boolean;
+  note: string;
+}
+
+/** Arma 把 profile（含 .rpt）放在 -profiles 指定的目录下；2.x 起是 <profiles>/Users/<name>/ */
+function externalProfileDirs(serverUuid: string): string[] {
+  const home = process.env.USERPROFILE ?? process.env.HOME;
+  if (!home) {
+    return [];
+  }
+  const docs = path.join(home, "Documents");
+  return [
+    path.join(docs, "Arma 3 - Other Profiles", serverUuid),
+    path.join(docs, "Arma 3 - Other Profiles"),
+    path.join(docs, "Arma 3", "Users", serverUuid),
+    path.join(docs, "Arma 3"),
+    path.join(home, "OneDrive", "Documents", "Arma 3 - Other Profiles", serverUuid),
+  ];
+}
+
+function uniqueDirs(dirs: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const dir of dirs) {
+    const key = path.resolve(dir).toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    out.push(dir);
+  }
+  return out;
+}
+
+/**
+ * RPT 可能出现在多个位置：我们显式传了 -profiles，但旧版本/权限不足/
+ * 启动时参数被截断时，Arma 会退回用户文档目录。这里把所有候选目录都列出来，
+ * 找不到时也能把"到底找过哪些目录"回给界面。
+ */
 function profileSearchDirs(serverDir: string, serverUuid: string): string[] {
   if (!serverUuid) {
     return [serverDir];
   }
-  return [
+  const profileRoot = assertSafeSubdirPath(
+    path.join(serverDir, CONFIG_FOLDER),
+    serverUuid,
+    "服务器 UUID"
+  );
+  return uniqueDirs([
+    profileRoot,
+    path.join(profileRoot, "Users", serverUuid),
+    path.join(profileRoot, "Users"),
     serverDir,
-    path.join(serverDir, CONFIG_FOLDER, serverUuid),
-    path.join(serverDir, CONFIG_FOLDER, serverUuid, "Users", serverUuid),
-  ];
+    path.join(serverDir, "Profiles"),
+    path.join(serverDir, "Users", serverUuid),
+    ...externalProfileDirs(serverUuid),
+  ]);
+}
+
+export function describeRptSearch(serverDir: string, serverUuid: string): LogSearchDir[] {
+  return profileSearchDirs(serverDir, serverUuid).map((dir) => {
+    let exists = false;
+    try {
+      exists = fs.existsSync(dir);
+    } catch {
+      exists = false;
+    }
+    const lower = dir.toLowerCase();
+    const usersLayout = lower.includes(`${path.sep}users${path.sep}`) || lower.endsWith(`${path.sep}users`);
+    let note: string;
+    if (path.resolve(dir) === path.resolve(serverDir)) {
+      note = "服务器安装目录（部分旧版把 .rpt 写在 exe 旁）";
+    } else if (lower.includes("a3st_serverconfig")) {
+      note = usersLayout
+        ? "本工具的 -profiles 目录下的 Users 布局（Arma 3 2.x 默认位置）"
+        : "本工具通过 -profiles 指定的目录";
+    } else if (lower.includes("documents")) {
+      note = "Arma 默认文档目录（-profiles 未生效时的回退位置）";
+    } else if (lower.includes("profiles")) {
+      note = "服务器目录下的 Profiles 子目录";
+    } else {
+      note = "其它候选位置";
+    }
+    return { path: dir, exists, note };
+  });
 }
 
 function battleyeSearchDirs(serverDir: string, serverUuid: string): string[] {
   const dirs = [path.join(serverDir, "BattlEye")];
   if (serverUuid) {
-    const profileRoot = path.join(serverDir, CONFIG_FOLDER, serverUuid);
+    const profileRoot = assertSafeSubdirPath(
+      path.join(serverDir, CONFIG_FOLDER),
+      serverUuid,
+      "服务器 UUID"
+    );
     dirs.push(path.join(profileRoot, "BattlEye"));
     dirs.push(path.join(profileRoot, "Users", serverUuid, "BattlEye"));
   }

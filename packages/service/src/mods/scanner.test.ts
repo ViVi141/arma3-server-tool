@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { ModScanner } from "./scanner.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -238,6 +238,51 @@ describe("ModScanner", () => {
     } finally {
       fs.rmSync(modDir, { recursive: true, force: true });
       fs.rmSync(serverDir, { recursive: true, force: true });
+    }
+  });
+
+  it("PERF-1 skipSize omits calculateSize and summarizeBikeys delegates with skipSize: true", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-mod-skipsize-"));
+    try {
+      const modDir = path.join(root, "@skip_test");
+      fs.mkdirSync(path.join(modDir, "addons"), { recursive: true });
+      fs.writeFileSync(path.join(modDir, "addons", "chunk.pbo"), Buffer.alloc(2048));
+      fs.writeFileSync(path.join(modDir, "meta.cpp"), "publishedid = 450814997;\n", "utf-8");
+
+      const scanner = new ModScanner();
+      const calcSpy = vi.spyOn(
+        scanner as unknown as { calculateSize: (p: string) => number },
+        "calculateSize"
+      );
+
+      const skipped = scanner.scan({
+        modPaths: [root],
+        enabledIds: [450814997],
+        serverModIds: [450814997],
+        skipSize: true,
+      });
+      expect(skipped).toHaveLength(1);
+      expect(skipped[0].sizeBytes).toBeUndefined();
+      expect(calcSpy).not.toHaveBeenCalled();
+
+      const summary = scanner.summarizeBikeys({
+        modPaths: [root],
+        enabledIds: [450814997],
+        serverModIds: [450814997],
+      });
+      expect(summary.enabled).toBe(1);
+      expect(calcSpy).not.toHaveBeenCalled();
+
+      const full = scanner.scan({
+        modPaths: [root],
+        enabledIds: [],
+        serverModIds: [],
+      });
+      // chunk.pbo (2048) + meta.cpp (25)
+      expect(full[0].sizeBytes).toBe(2073);
+      expect(calcSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
     }
   });
 });

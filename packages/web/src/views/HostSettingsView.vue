@@ -129,7 +129,7 @@ onMounted(loadSettings);
         </el-form-item>
 
         <el-form-item label="允许远程控制">
-          <el-switch v-model="remoteEnabled" />
+          <el-checkbox v-model="remoteEnabled" />
           <span class="field-hint">开启后监听 0.0.0.0，外部可连接</span>
         </el-form-item>
 

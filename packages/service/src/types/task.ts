@@ -25,13 +25,17 @@ export type TaskAction =
 export interface AutomationCommand {
   action: TaskAction;
   missionTemplate?: string;
+  rconMissionName?: string;
   missionDifficulty?: number;
   writeCfgAfter?: boolean;
   restartAfter?: boolean;
   modIds?: number[];
   broadcastMessage?: string;
-  playerId?: string;
+  playerId?: string | number;
   playerGuid?: string;
+  timeMinutes?: number;
+  reason?: string;
+  rconCommandText?: string;
   logKind?: "rpt" | "battleye" | "console" | "all";
 }
 

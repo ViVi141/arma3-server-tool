@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed, provide } from "vue";
-import { getVisualTheme } from "@/utils/visualTheme";
+import { ref, nextTick, onMounted, onUnmounted, watch, computed, provide } from "vue";
 import { CONSOLE_ACTIONS_KEY } from "@/composables/consoleActions";
 import { UI_COPY } from "@/constants/uiCopy";
-import { useRoute, useRouter } from "vue-router";
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import { useUiSettingsStore } from "@/stores/uiSettings";
 import { useConfigSessionStore } from "@/stores/configSession";
+import { cycleThemeMode } from "@/config/theme";
 import {
   consoleModes,
   modeForTab,
@@ -16,12 +16,14 @@ import {
   modeShowsProcActions,
   modeShowsCfgActions,
 } from "@/config/console-modes";
-import { resolveTabName } from "@/config/tab-registry";
+import { getTabEntry, resolveTabName } from "@/config/tab-registry";
 import ConsoleShell from "@/components/console/ConsoleShell.vue";
+import M3Icon from "@/components/M3Icon.vue";
 import { openPath, isElectron } from "@/utils/electron";
 import { resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 import { CONFIG_EDITOR_KEY, type ConfigEditorRegistration } from "@/composables/configEditor";
 import UnsavedChangesDialog from "@/components/UnsavedChangesDialog.vue";
+import GlobalSettingsPopover from "@/components/console/GlobalSettingsPopover.vue";
 import NewServerDialog from "@/components/NewServerDialog.vue";
 import FirstServerWizard from "@/components/FirstServerWizard.vue";
 import type { ServerSummary, ServerStatus, ServerSyncState } from "@a3st/api-client";
@@ -82,47 +84,27 @@ const activeModeId = computed(() => modeForTab(activeTab.value));
 
 const subTabs = computed(() => subTabsForMode(activeModeId.value, uiSettings.showAdvancedSettings));
 
-const showProcActions = computed(() => modeShowsProcActions(activeModeId.value));
+const showProcInToolbar = computed(() => modeShowsProcActions(activeModeId.value));
 
-const showCfgActions = computed(() => modeShowsCfgActions(activeModeId.value));
+// 这些页签自己带页级「保存」（SettingsViewLayout 的 btn-page-save），
+// 顶栏再放一个同名按钮就变成两个保存入口，容易误点。
+const PAGE_OWN_SAVE_TABS = new Set(["basic", "performance", "network", "security", "difficulty", "log"]);
 
-const showProcInToolbar = computed(() => {
-  if (!showProcActions.value) {
-    return false;
-  }
-  if (getVisualTheme() === "ark") {
-    return false;
-  }
-  return true;
-});
+// 窄屏（<=768px）走紧凑动作栏：一行主操作 + 「更多」折叠菜单，
+// 避免一排按钮折成三行把内容挤下去。移动 App 本来就走这套。
+const narrowMq = typeof window !== "undefined" ? window.matchMedia("(max-width: 768px)") : null;
+const isNarrowViewport = ref(narrowMq?.matches ?? false);
+const onNarrowChange = (event: MediaQueryListEvent) => {
+  isNarrowViewport.value = event.matches;
+};
+const compactActions = computed(() => isMobile || isNarrowViewport.value);
 
-const showDeployCfgInToolbar = computed(() => {
-  if (getVisualTheme() === "ark" && activeModeId.value === "deploy") {
-    return false;
-  }
-  return true;
-});
-
-const showSaveInToolbar = computed(() => {
-  if (!showCfgActions.value) {
-    return false;
-  }
-  return true;
-});
+const showSaveInToolbar = computed(
+  () => modeShowsCfgActions(activeModeId.value) && !PAGE_OWN_SAVE_TABS.has(activeTab.value)
+);
 
 const showWriteCfgInToolbar = computed(() => {
-  if (!showCfgActions.value) {
-    return false;
-  }
-  if (activeModeId.value === "workshop") {
-    return false;
-  }
-  if (getVisualTheme() === "ark") {
-    if (activeModeId.value === "overview" || activeModeId.value === "deploy") {
-      return false;
-    }
-  }
-  return true;
+  return modeShowsCfgActions(activeModeId.value) && activeModeId.value !== "workshop";
 });
 
 const selectedServer = computed(() => {
@@ -157,7 +139,16 @@ const hasDirtyChanges = computed(() => {
   return configSession.isDirty(selectedUuid.value);
 });
 
+function onBeforeUnload(event: BeforeUnloadEvent): void {
+  if (hasDirtyChanges.value) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+}
+
 onMounted(async () => {
+  window.addEventListener("beforeunload", onBeforeUnload);
+  narrowMq?.addEventListener("change", onNarrowChange);
   store.setActive(connectionId());
   const client = store.getClient();
   if (client) {
@@ -171,6 +162,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  window.removeEventListener("beforeunload", onBeforeUnload);
+  narrowMq?.removeEventListener("change", onNarrowChange);
   if (statusPollTimer) {
     clearInterval(statusPollTimer);
     statusPollTimer = null;
@@ -231,57 +224,160 @@ async function loadServers(forceReload = false) {
   }
 }
 
+let pendingLeaveCheck: Promise<boolean> | null = null;
+
 async function confirmLeaveCurrent(): Promise<boolean> {
   if (!selectedUuid.value || !configSession.isDirty(selectedUuid.value)) {
     return true;
   }
-  const dialog = unsavedDialog.value;
-  if (!dialog) {
-    return true;
+  if (pendingLeaveCheck) {
+    return pendingLeaveCheck;
   }
-  const action = await dialog.open();
-  if (action === "cancel") {
-    return false;
-  }
-  if (action === "discard") {
-    if (activeEditor.value) {
-      await activeEditor.value.discard();
-    } else {
-      configSession.markClean(selectedUuid.value);
+  pendingLeaveCheck = (async () => {
+    const dialog = unsavedDialog.value;
+    if (!dialog) {
+      return true;
     }
-    return true;
-  }
-  if (activeEditor.value?.isDirty()) {
-    const ok = await activeEditor.value.save();
-    if (!ok) {
+    const action = await dialog.open();
+    if (action === "cancel") {
       return false;
     }
+    if (action === "discard") {
+      if (activeEditor.value) {
+        await activeEditor.value.discard();
+      } else {
+        configSession.markClean(selectedUuid.value);
+      }
+      return true;
+    }
+    if (activeEditor.value?.isDirty()) {
+      const ok = await activeEditor.value.save();
+      if (!ok) {
+        return false;
+      }
+      return true;
+    }
+    configSession.markClean(selectedUuid.value);
+    return true;
+  })();
+  try {
+    return await pendingLeaveCheck;
+  } finally {
+    pendingLeaveCheck = null;
+  }
+}
+
+onBeforeRouteUpdate(async (to, from) => {
+  if (to.params.tab === from.params.tab && to.params.connectionId === from.params.connectionId) {
     return true;
   }
-  configSession.markClean(selectedUuid.value);
-  return true;
+  return await confirmLeaveCurrent();
+});
+
+onBeforeRouteLeave(async () => {
+  return await confirmLeaveCurrent();
+});
+
+async function navigateToTab(next: string): Promise<void> {
+  if (next === activeTab.value) {
+    return;
+  }
+  await router.replace({ path: `/console/${connectionId()}/${next}` });
 }
 
 async function navigateToMode(modeId: string): Promise<void> {
   if (modeId === activeModeId.value) {
     return;
   }
-  const ok = await confirmLeaveCurrent();
-  if (!ok) {
-    return;
-  }
-  activeTab.value = defaultTabForMode(modeId, uiSettings.showAdvancedSettings);
+  const next = defaultTabForMode(modeId, uiSettings.showAdvancedSettings);
+  await navigateToTab(next);
 }
 
-async function navigateToTab(next: string): Promise<void> {
-  if (next === activeTab.value) {
+let highlightTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function navigateFromPalette(
+  tab: string,
+  highlight?: string,
+  highlightAliases?: string[]
+): Promise<void> {
+  await navigateToTab(tab);
+  if (activeTab.value !== tab) {
     return;
   }
-  const ok = await confirmLeaveCurrent();
-  if (!ok) {
+  const entry = getTabEntry(tab);
+  if (entry?.advancedOnly && !uiSettings.showAdvancedSettings) {
+    uiSettings.setShowAdvanced(true);
+    ElMessage.info("已展开高级设置页面");
+  }
+  if (!highlight) {
     return;
   }
-  activeTab.value = next;
+  await nextTick();
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  const container = document.querySelector(".shell-v2__page");
+  if (!container) {
+    return;
+  }
+  // 逐个 needle 重试：注册表给出的中文标签优先，英文键名/别名兜底。
+  // 单个 needle 命中不到对应行时不要让整次跳转静默失败。
+  const needles = [highlight, ...(highlightAliases ?? [])]
+    .map((n) => n.trim().toLowerCase())
+    .filter((n, i, arr) => n.length > 0 && arr.indexOf(n) === i);
+  const FORM_TARGETS = ".form-row, .m3-check-item, .ark-tech-panel__title";
+  // 快照/封禁/体检/RCon/日志这类页面没有 form-row，只有工具栏和表格：
+  // 命不中表单项时退到页面级容器，避免"选中配置项却毫无反应"。
+  const PAGE_TARGETS = ".console-page__toolbar, .toolbar, .el-table";
+  const candidates = Array.from(container.querySelectorAll<HTMLElement>(FORM_TARGETS));
+  const pageCandidates = Array.from(container.querySelectorAll<HTMLElement>(PAGE_TARGETS));
+
+  const pick = (pool: HTMLElement[]): HTMLElement | null => {
+    for (const needle of needles) {
+      const row = pool.find((el) => (el.textContent ?? "").toLowerCase().includes(needle));
+      if (row) {
+        return row.closest<HTMLElement>(".form-row, .m3-check-item") ?? row;
+      }
+    }
+    return null;
+  };
+  const target = pick(candidates) ?? pick(pageCandidates);
+  if (!target) {
+    return;
+  }
+  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  target.scrollIntoView({
+    block: "center",
+    behavior: reducedMotion ? "auto" : "smooth",
+  });
+  target.classList.add("m3-setting-highlight");
+  if (highlightTimer) {
+    clearTimeout(highlightTimer);
+  }
+  highlightTimer = setTimeout(() => {
+    target.classList.remove("m3-setting-highlight");
+    highlightTimer = null;
+  }, 2000);
+}
+
+async function execActionFromPalette(actionId: string): Promise<void> {
+  if (actionId === "write_cfg" || actionId === "preflight" || actionId === "save") {
+    await execAction(actionId);
+    return;
+  }
+  if (actionId === "theme_cycle") {
+    cycleThemeMode();
+    return;
+  }
+  if (actionId === "open_wizard") {
+    openFirstServerWizard();
+    return;
+  }
+  if (actionId === "create_server") {
+    createServer();
+    return;
+  }
+  if (actionId === "nav_connections") {
+    await router.push("/connections");
+  }
 }
 
 function createServer() {
@@ -548,15 +644,6 @@ async function execAction(action: string) {
   }
 }
 
-async function saveGlobalUiSettings(): Promise<void> {
-  const client = store.getClient();
-  if (!client) {
-    return;
-  }
-  await uiSettings.saveToApi(client);
-  ElMessage.success("全局设置已保存");
-}
-
 async function openPathTarget(label: string, target?: string): Promise<void> {
   if (!target) {
     ElMessage.warning(`未设置${label}`);
@@ -632,6 +719,13 @@ const instanceLabel = computed(() => selectedServer.value?.configName ?? "INSTAN
 
 const cfgWritten = computed(() => syncState.value?.cfgWritten === true);
 
+const DIR_ITEMS: Array<{ label: string; handler: () => Promise<void> }> = [
+  { label: "服务器目录", handler: openServerDir },
+  { label: "工具配置目录", handler: openToolConfigDir },
+  { label: "服务器配置目录", handler: openServerConfigDir },
+  { label: "日志目录", handler: openLogDir },
+];
+
 provide(CONSOLE_ACTIONS_KEY, {
   execAction,
   execSave,
@@ -662,7 +756,9 @@ provide(CONSOLE_ACTIONS_KEY, {
     @update:search-text="searchText = $event"
     @navigate-mode="navigateToMode"
     @navigate-tab="navigateToTab"
+    @navigate-tab-from-palette="navigateFromPalette"
     @select-server="selectServer"
+    @exec-action-from-palette="execActionFromPalette"
     @create-server="createServer"
     @open-wizard="openFirstServerWizard"
     @rename="renameServer"
@@ -671,7 +767,7 @@ provide(CONSOLE_ACTIONS_KEY, {
     @open-dir="openServerDir"
   >
     <template #actions>
-      <template v-if="selectedUuid && isMobile">
+      <template v-if="selectedUuid && compactActions">
         <span v-if="showProcInToolbar" class="shell-v2__action-group mobile-action-primary">
           <el-button type="success" data-testid="btn-start" :disabled="procButtonDisabled('start')" :loading="busyAction === 'start'" @click="execAction('start')">启动</el-button>
           <el-button type="warning" data-testid="btn-restart" :disabled="procButtonDisabled('restart')" :loading="busyAction === 'restart'" @click="execAction('restart')">重启</el-button>
@@ -701,59 +797,34 @@ provide(CONSOLE_ACTIONS_KEY, {
                 {{ UI_COPY.writeGameCfg }}
               </el-dropdown-item>
               <el-dropdown-item
-                v-if="activeModeId === 'deploy' && showDeployCfgInToolbar"
+                v-if="activeModeId === 'deploy'"
                 data-testid="btn-preflight"
                 @click="execAction('preflight')"
               >
                 {{ UI_COPY.preflight }}
               </el-dropdown-item>
-              <el-dropdown-item @click="reloadFromDisk">读盘刷新</el-dropdown-item>
-              <el-dropdown-item @click="openServerDir">服务器目录</el-dropdown-item>
-              <el-dropdown-item @click="openToolConfigDir">工具配置目录</el-dropdown-item>
-              <el-dropdown-item @click="openServerConfigDir">服务器配置目录</el-dropdown-item>
-              <el-dropdown-item @click="openLogDir">日志目录</el-dropdown-item>
+              <el-dropdown-item @click="reloadFromDisk">重新读取配置</el-dropdown-item>
+              <el-dropdown-item
+                v-for="dir in DIR_ITEMS"
+                :key="dir.label"
+                @click="dir.handler"
+              >
+                {{ dir.label }}
+              </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-popover trigger="click" width="280" popper-class="global-popover">
-          <template #reference>
-            <el-button class="mobile-action-secondary">全局设置</el-button>
-          </template>
-          <div class="global-settings">
-            <div class="row">
-              <span>显示高级设置</span>
-              <el-switch v-model="uiSettings.showAdvancedSettings" size="small" />
-            </div>
-            <div class="row">
-              <span>读盘模式</span>
-              <el-switch v-model="uiSettings.allowExternalConfigRefresh" size="small" />
-            </div>
-            <div class="row">
-              <span>自动快照</span>
-              <el-select v-model="uiSettings.autoSnapshotMode" size="small" style="width: 130px;">
-                <el-option label="关闭" value="Off" />
-                <el-option label="保存前" value="BeforeSave" />
-                <el-option label="写入前" value="BeforeWrite" />
-              </el-select>
-            </div>
-            <div class="row">
-              <span>异步快照</span>
-              <el-switch v-model="uiSettings.autoSnapshotAsync" size="small" />
-            </div>
-            <el-button size="small" type="primary" @click="saveGlobalUiSettings">保存</el-button>
-          </div>
-        </el-popover>
       </template>
       <template v-else-if="selectedUuid">
         <span v-if="showProcInToolbar" class="shell-v2__action-group">
-          <span class="shell-v2__action-label">PROC</span>
+          <span class="shell-v2__action-label">进程</span>
           <el-button size="small" type="success" data-testid="btn-start" :disabled="procButtonDisabled('start')" :loading="busyAction === 'start'" @click="execAction('start')">启动</el-button>
           <el-button size="small" type="warning" data-testid="btn-restart" :disabled="procButtonDisabled('restart')" :loading="busyAction === 'restart'" @click="execAction('restart')">重启</el-button>
           <el-button size="small" type="danger" data-testid="btn-stop" :disabled="procButtonDisabled('stop')" :loading="busyAction === 'stop'" @click="execAction('stop')">停止</el-button>
         </span>
         <span v-if="showProcInToolbar && showSaveInToolbar" class="shell-v2__action-sep" />
         <span v-if="showSaveInToolbar || showWriteCfgInToolbar" class="shell-v2__action-group">
-          <span class="shell-v2__action-label">CFG</span>
+          <span class="shell-v2__action-label">配置</span>
           <el-button
             v-if="showSaveInToolbar"
             size="small"
@@ -772,7 +843,7 @@ provide(CONSOLE_ACTIONS_KEY, {
             {{ UI_COPY.writeGameCfg }}
           </el-button>
           <el-button
-            v-if="activeModeId === 'deploy' && showDeployCfgInToolbar"
+            v-if="activeModeId === 'deploy'"
             size="small"
             data-testid="btn-preflight"
             @click="execAction('preflight')"
@@ -782,49 +853,26 @@ provide(CONSOLE_ACTIONS_KEY, {
         </span>
         <span class="shell-v2__action-sep" />
         <span class="shell-v2__action-group">
-          <span class="shell-v2__action-label">SYS</span>
-          <el-popover trigger="click" width="300" popper-class="global-popover">
-            <template #reference>
-              <el-button size="small">全局设置</el-button>
-            </template>
-            <div class="global-settings">
-              <div class="row">
-                <span>显示高级设置</span>
-                <el-switch v-model="uiSettings.showAdvancedSettings" size="small" />
-              </div>
-              <div class="row">
-                <span>读盘模式</span>
-                <el-switch v-model="uiSettings.allowExternalConfigRefresh" size="small" />
-              </div>
-              <div class="row">
-                <span>自动快照</span>
-                <el-select v-model="uiSettings.autoSnapshotMode" size="small" style="width: 130px;">
-                  <el-option label="关闭" value="Off" />
-                  <el-option label="保存前" value="BeforeSave" />
-                  <el-option label="写入前" value="BeforeWrite" />
-                </el-select>
-              </div>
-              <div class="row">
-                <span>异步快照</span>
-                <el-switch v-model="uiSettings.autoSnapshotAsync" size="small" />
-              </div>
-              <el-button size="small" type="primary" @click="saveGlobalUiSettings">保存</el-button>
-            </div>
-          </el-popover>
-          <el-button size="small" @click="reloadFromDisk">读盘刷新</el-button>
+          <span class="shell-v2__action-label">系统</span>
+          <el-button size="small" @click="reloadFromDisk">重新读取配置</el-button>
           <el-dropdown trigger="click">
             <el-button size="small">打开目录</el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item @click="openServerDir">服务器目录</el-dropdown-item>
-                <el-dropdown-item @click="openToolConfigDir">工具配置目录</el-dropdown-item>
-                <el-dropdown-item @click="openServerConfigDir">服务器配置目录</el-dropdown-item>
-                <el-dropdown-item @click="openLogDir">日志目录</el-dropdown-item>
+                <el-dropdown-item
+                  v-for="dir in DIR_ITEMS"
+                  :key="dir.label"
+                  @click="dir.handler"
+                >
+                  {{ dir.label }}
+                </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
         </span>
       </template>
+
+      <GlobalSettingsPopover v-if="selectedUuid" :compact="compactActions" />
     </template>
 
     <div v-if="!selectedUuid" class="shell-v2__content-empty" data-testid="content-empty-state">
@@ -837,8 +885,37 @@ provide(CONSOLE_ACTIONS_KEY, {
       </div>
     </div>
     <template v-else>
+      <div
+        v-if="hasDirtyChanges || syncState?.cfgStale"
+        class="m3-sync-banner"
+        role="status"
+        data-testid="sync-banner"
+      >
+        <M3Icon name="sync" :size="18" class="m3-sync-banner__icon" />
+        <span class="m3-sync-banner__text">
+          <template v-if="hasDirtyChanges">
+            当前页面有未保存的修改，保存并写入游戏配置后将在下次启动或重启时生效。
+          </template>
+          <template v-else>
+            配置包已更新，但尚未写入游戏配置文件（server.cfg / basic.cfg）。
+          </template>
+        </span>
+        <el-button
+          size="small"
+          type="primary"
+          data-testid="btn-sync-banner-write"
+          @click="execAction('write_cfg')"
+        >
+          立即写入配置
+        </el-button>
+      </div>
       <div class="shell-v2__page" :key="selectedUuid">
-      <DashboardView v-if="activeTab === 'dashboard'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <DashboardView
+        v-if="activeTab === 'dashboard'"
+        :connection-id="connectionId()"
+        :server-uuid="selectedUuid"
+        @refresh-shell-status="refreshStatus"
+      />
       <BasicSettings v-else-if="activeTab === 'basic'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
       <PerformanceView v-else-if="activeTab === 'performance'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
       <NetworkView v-else-if="activeTab === 'network'" :connection-id="connectionId()" :server-uuid="selectedUuid" />

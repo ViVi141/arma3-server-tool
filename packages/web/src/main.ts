@@ -1,10 +1,12 @@
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import ElementPlus from "element-plus";
+import zhCn from "element-plus/es/locale/lang/zh-cn";
 import "element-plus/dist/index.css";
 import "@/styles/desktop-theme.css";
 import "@/styles/ark-visual.css";
 import "@/styles/shell-v2.css";
+import "@/styles/m3-theme.css";
 import App from "./App.vue";
 import { router } from "./router";
 import { initSystemTheme } from "@/utils/systemTheme";
@@ -39,6 +41,7 @@ app.config.errorHandler = (err, _instance, info) => {
   root.prepend(banner);
 };
 app.use(createPinia());
-app.use(ElementPlus, { size: appMode === "mobile" ? "default" : "small" });
+// 组件库自带文案（表格空态、分页、日期等）统一走中文，避免中英混杂
+app.use(ElementPlus, { size: appMode === "mobile" ? "default" : "small", locale: zhCn });
 app.use(router);
 app.mount("#app");

@@ -4,6 +4,7 @@ import { getServerKeysDirectory } from "../mods/bikey-service.js";
 import { execSync } from "node:child_process";
 import type { ServerConfigPackage } from "../types/config.js";
 import {
+  ensureProfileRoot,
   getServerExecutablePath,
   serverCfgExists,
 } from "../config/game-config-writer.js";
@@ -114,6 +115,32 @@ export function runPreflightChecks(
       severity: "info",
       message: `服务器已在运行 (UDP ${port})`,
     });
+  }
+
+  // 日志：RPT 是否还能生成（-noLogs / profile 目录不可写都会导致“日志页空白”）
+  const noLogsOn = basic.noLogs === true || basic.noLogs === 1 || basic.noLogs === "1";
+  if (noLogsOn) {
+    issues.push({
+      category: "日志",
+      severity: "warning",
+      message: "已开启 -noLogs：服务器不会生成 RPT，日志页将没有内容",
+    });
+  } else if (serverDir) {
+    try {
+      const profileRoot = ensureProfileRoot(serverDir, uuid);
+      fs.accessSync(profileRoot, fs.constants.W_OK);
+      issues.push({
+        category: "日志",
+        severity: "info",
+        message: `RPT 将写入 ${profileRoot}`,
+      });
+    } catch (error) {
+      issues.push({
+        category: "日志",
+        severity: "error",
+        message: `profile 目录不可写，RPT 可能无法生成：${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
   }
 
   const hostname = String(basic.hostname ?? "").trim();

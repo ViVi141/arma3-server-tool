@@ -354,7 +354,7 @@ async function finish() {
     <div v-else-if="step === 3" class="wizard-body">
       <el-form label-width="96px" size="small">
         <el-form-item label="BattlEye">
-          <el-switch v-model="battlEye" />
+          <el-checkbox v-model="battlEye" />
         </el-form-item>
         <el-form-item label="RCon 密码">
           <div class="rcon-row">

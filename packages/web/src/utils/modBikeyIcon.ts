@@ -27,11 +27,11 @@ export function formatBikeySummary(summary: {
   allValid?: boolean;
 }): string {
   if (summary.enabled === 0) {
-    return "Bikey 验证 · 已启用模组: 0";
+    return "签名校验 · 已启用 0 个模组";
   }
-  let text = `Bikey 验证 · 已启用 ${summary.enabled} · 🟢 ${summary.ready} · 🟡 ${summary.notCopied} · 🟠 ${summary.noKey} · 🔴 ${summary.unsigned}`;
+  let text = `签名校验 · 已启用 ${summary.enabled} 个 · 🟢 通过 ${summary.ready} · 🟡 未复制 ${summary.notCopied} · 🟠 缺密钥 ${summary.noKey} · 🔴 未签名 ${summary.unsigned}`;
   if (summary.unchecked > 0) {
-    text += ` · ⚫ ${summary.unchecked}`;
+    text += ` · ⚫ 未检查 ${summary.unchecked}`;
   }
   if (summary.allValid === false && summary.ready < summary.enabled) {
     text += " · 未全部通过";

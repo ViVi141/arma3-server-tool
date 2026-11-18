@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import { processManager, ProcessManager } from "./process/index.js";
@@ -10,17 +11,35 @@ import { MonitoringDb } from "./monitoring/index.js";
 import { Scheduler } from "./scheduling/index.js";
 import { asyncTaskManager } from "./task/index.js";
 import { RptLogReader } from "./logs/index.js";
-import { sseManager } from "./api/sse.js";
+import { SseManager } from "./api/sse.js";
 import { UiSettingsStore } from "./settings/ui-settings.js";
 import { ModScanPathStore } from "./mods/scan-path-store.js";
 import { SteamCmdSettingsStore } from "./settings/steamcmd-settings.js";
 import { applySteamCmdSettings } from "./settings/apply-steamcmd-settings.js";
+import { stopAllHeadlessClients } from "./process/headless.js";
+import { closeProxyAgents } from "./steamcmd/proxy-fetch.js";
 
 export interface ServiceOptions {
   port: number;
   host: string;
   dataDir: string;
   apiToken?: string;
+  logStream?: NodeJS.WritableStream;
+}
+
+const TOKEN_COMPARE_KEY = randomBytes(32);
+
+export function redactQueryToken(url: string): string {
+  return url.replace(/([?&]token=)[^&#]*/gi, "$1***");
+}
+
+export function safeTokenEquals(provided: unknown, expected: string): boolean {
+  if (typeof provided !== "string" || !expected) {
+    return false;
+  }
+  const a = createHmac("sha256", TOKEN_COMPARE_KEY).update(provided, "utf8").digest();
+  const b = createHmac("sha256", TOKEN_COMPARE_KEY).update(expected, "utf8").digest();
+  return timingSafeEqual(a, b);
 }
 
 import { isLoopbackHost } from "./util/host.js";
@@ -57,7 +76,28 @@ async function listenWithRetry(
 }
 
 export async function createService(options: ServiceOptions) {
-  const app = Fastify({ logger: true });
+  const app = Fastify({
+    logger: {
+      redact: {
+        paths: ["req.headers.authorization", 'req.headers["x-api-key"]'],
+        censor: "[REDACTED]",
+      },
+      serializers: {
+        req(request) {
+          const acceptVersion = request.headers?.["accept-version"];
+          return {
+            method: request.method,
+            url: redactQueryToken(request.url),
+            version: typeof acceptVersion === "string" ? acceptVersion : undefined,
+            host: request.host,
+            remoteAddress: request.ip,
+            remotePort: request.socket?.remotePort,
+          };
+        },
+      },
+      ...(options.logStream ? { stream: options.logStream } : {}),
+    },
+  });
 
   // Instantiate services
   const configStore = new ConfigStore(options.dataDir);
@@ -68,6 +108,7 @@ export async function createService(options: ServiceOptions) {
   });
   const modScanner = new ModScanner();
   const monitorDb = new MonitoringDb(options.dataDir);
+  await monitorDb.waitReady();
   const scheduler = new Scheduler();
   const rptLogReader = new RptLogReader();
   const uiSettingsStore = new UiSettingsStore(options.dataDir);
@@ -129,17 +170,18 @@ export async function createService(options: ServiceOptions) {
       return;
     }
     const auth = request.headers.authorization;
-    if (auth?.startsWith("Bearer ") && auth.slice(7) === token) {
+    const bearerToken = auth?.startsWith("Bearer ") ? auth.slice(7) : undefined;
+    if (safeTokenEquals(bearerToken, token)) {
       (request as { authenticated: boolean }).authenticated = true;
       return;
     }
-    if (request.headers["x-api-key"] === token) {
+    if (safeTokenEquals(request.headers["x-api-key"], token)) {
       (request as { authenticated: boolean }).authenticated = true;
       return;
     }
     // EventSource 无法设 Authorization，仅 SSE 等场景允许 ?token=（勿记入日志）。
     const query = request.query as { token?: string };
-    if (query.token === token) {
+    if (safeTokenEquals(query.token, token)) {
       (request as { authenticated: boolean }).authenticated = true;
       return;
     }
@@ -160,13 +202,26 @@ export async function createService(options: ServiceOptions) {
     allowedHeaders: ["Authorization", "Content-Type", "X-Api-Key", "Accept"],
   });
   await app.register(multipart, { limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
+  app.addContentTypeParser("text/html", { parseAs: "string" }, (_req, body, done) => {
+    done(null, body);
+  });
 
-  // Wire SSE to SteamCMD events
-  sseManager.wireSteamCmd(steamCmd);
+  // Wire SSE to SteamCMD events (per-service instance to avoid listener leaks)
+  const instanceSseManager = new SseManager();
+  instanceSseManager.wireSteamCmd(steamCmd);
+
+  app.addHook("onClose", async () => {
+    scheduler.clear();
+    instanceSseManager.unwireSteamCmd(steamCmd);
+    instanceSseManager.closeAll();
+    stopAllHeadlessClients();
+    await closeProxyAgents();
+    monitorDb.close();
+  });
 
   // Routes
   await app.register(healthRoutes, { prefix: "/api/v1" });
-  sseManager.registerRoutes(app, steamCmd, "/api/v1");
+  instanceSseManager.registerRoutes(app, steamCmd, "/api/v1");
   await app.register(apiRoutes, { prefix: "/api/v1" });
 
   const webRoot = resolveWebRoot();

@@ -53,7 +53,7 @@ export async function runScheduledModUpdate(
   let localMods: { modId: number; path?: string; updatedAt?: string }[] = [];
   try {
     if (collectModPaths(app, config).length) {
-      const scanned = scanModsForConfig(app, config);
+      const scanned = scanModsForConfig(app, config, { skipSize: true });
       localMods = scanned
         .filter((m) => m.workshopId > 0)
         .map((m) => ({

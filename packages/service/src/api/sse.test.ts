@@ -111,4 +111,28 @@ describe("SseManager + SteamCmdManager integration", () => {
     // Should not throw
     expect(() => steamCmd.emit("output", "test")).not.toThrow();
   });
+
+  it("unwireSteamCmd removes listeners and closeAll clears keepalive and ends streams", () => {
+    const sse = new SseManager();
+    const steamCmd = new SteamCmdManager(tmpDir);
+    sse.wireSteamCmd(steamCmd);
+    expect(steamCmd.listenerCount("output")).toBe(1);
+
+    const endMock = vi.fn();
+    const writeMock = vi.fn();
+    const keepAlive = setInterval(() => {}, 15000);
+    const client = {
+      raw: { write: writeMock, end: endMock, on: vi.fn() },
+    } as unknown as import("fastify").FastifyReply;
+
+    sse.addSteamCmdClient("c1", client, keepAlive);
+    sse.unwireSteamCmd(steamCmd);
+    expect(steamCmd.listenerCount("output")).toBe(0);
+
+    steamCmd.emit("output", "should not broadcast");
+    expect(writeMock).not.toHaveBeenCalled();
+
+    sse.closeAll();
+    expect(endMock).toHaveBeenCalledTimes(1);
+  });
 });

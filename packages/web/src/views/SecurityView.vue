@@ -5,7 +5,7 @@ import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { useSettingsPage } from "@/composables/useSettingsPage";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
-const { cfg, loading, saving, save } = useSettingsPage(() => props.serverUuid, "安全", () => ({ basic: b(), battleye: be() }));
+const { cfg, loading, saving, save, resetAll } = useSettingsPage(() => props.serverUuid, "安全", () => ({ basic: b(), battleye: be() }));
 const b = () => (cfg.value.basic ?? {}) as Record<string, unknown>;
 const be = () => (cfg.value.battleye ?? {}) as Record<string, unknown>;
 </script>
@@ -16,13 +16,21 @@ const be = () => (cfg.value.battleye ?? {}) as Record<string, unknown>;
       kicker="CONFIG / 05 · SEC"
       title="安全"
       :show-save="true"
+      :allow-reset="true"
+      @reset="resetAll"
       :saving="saving"
       @save="save"
     >
     <ArkTechPanel title="BattlEye" code="SEC-01">
-      <div class="form-row"><label>BattlEye</label><el-switch v-model="b().battlEye" size="small"/></div>
+      <div class="form-row">
+          <el-checkbox v-model="b().battlEye" size="small">BattlEye</el-checkbox>
+          <ParamHint path="basic.battlEye" />
+        </div>
       <div class="form-row"><label>签名验证</label><el-select v-model="b().verifySignatures" size="small"><el-option :value="0" label="关闭"/><el-option :value="1" label="警告"/><el-option :value="2" label="禁止"/></el-select></div>
-      <div class="form-row"><label>踢出重复</label><el-switch v-model="b().kickDuplicate" size="small"/></div>
+      <div class="form-row">
+          <el-checkbox v-model="b().kickDuplicate" size="small">踢出重复</el-checkbox>
+          <ParamHint path="basic.kickDuplicate" />
+        </div>
       <div class="form-row"><label>允许文件修补</label><el-select v-model="b().allowedFilePatching" size="small"><el-option :value="0" label="禁止"/><el-option :value="1" label="客户端"/><el-option :value="2" label="所有人"/></el-select></div>
       <div class="form-row"><label>文件修补例外</label><el-input v-model="b().filePatchingExceptions" placeholder="逗号分隔的 Steam64 ID" size="small"/></div>
       <div class="form-row"><label>BE 最大 Ping</label><el-input-number v-model="be().beMaxPing" :min="0" :max="500" size="small" controls-position="right"/></div>

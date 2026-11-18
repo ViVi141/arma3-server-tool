@@ -24,6 +24,9 @@ const loading = ref(false);
 const autoRefresh = ref(false);
 const errorMsg = ref("");
 const logDir = ref("");
+const searchedDirs = ref<{ path: string; exists: boolean; note: string }[]>([]);
+const noLogs = ref(false);
+const diagOpen = ref(false);
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
 function formatLogLabel(file: LogFileEntry): string {
@@ -39,6 +42,24 @@ function formatLogLabel(file: LogFileEntry): string {
   return file.fileName;
 }
 
+/**
+ * 服务器还没配置目录时，后端 /logs 与 /logs/read 会返回 400（NO_SERVER_DIR）。
+ * 浏览器对 4xx 会无条件打一条 console.error，与其"发出再吞掉"，不如先看配置再决定是否请求。
+ */
+async function hasServerDir(): Promise<boolean> {
+  const client = store.getClient();
+  if (!client) {
+    return false;
+  }
+  try {
+    const res = await client.getConfig(props.serverUuid);
+    const server = (res.data as { server?: { serverDir?: string } } | undefined)?.server;
+    return Boolean(server?.serverDir);
+  } catch {
+    return false;
+  }
+}
+
 async function loadFileList() {
   try {
     const client = store.getClient();
@@ -49,6 +70,8 @@ async function loadFileList() {
     if (res.success) {
       files.value = res.data.files ?? [];
       logDir.value = res.data.serverDir ?? "";
+      searchedDirs.value = res.data.searchedDirs ?? [];
+      noLogs.value = res.data.noLogs === true;
       if (files.value.length > 0 && !selectedFile.value) {
         selectedFile.value = files.value[0].filePath;
       }
@@ -65,6 +88,11 @@ async function loadLogs() {
     const client = store.getClient();
     if (!client) {
       throw new Error("无连接");
+    }
+    if (!(await hasServerDir())) {
+      files.value = [];
+      lines.value = ["[尚未设置服务器目录，无法读取日志]"];
+      return;
     }
     await loadFileList();
     const res = await client.readLogs(props.serverUuid, logKind.value, {
@@ -168,6 +196,38 @@ onUnmounted(stopAutoRefresh);
 
     <el-alert v-if="errorMsg" :title="errorMsg" type="error" show-icon style="margin-bottom: 12px;" />
 
+    <section
+      v-if="!loading && logKind !== 'console' && files.length === 0"
+      class="log-diag"
+      data-testid="log-diagnosis"
+    >
+      <h3 class="log-diag__title">没有找到 RPT 日志</h3>
+      <ul class="log-diag__list">
+        <li v-if="noLogs" class="log-diag__item is-warn">
+          配置里开启了「禁用 RPT（-noLogs）」，服务器不会生成 .rpt 文件。
+          到 配置 → 日志选项 关掉后重启服务器即可。
+        </li>
+        <li class="log-diag__item">
+          服务器必须完整启动过一次才会写 RPT；如果进程起不来（路径 / DLL / 权限），
+          请先看 Console 日志或开服检查结果。
+        </li>
+        <li class="log-diag__item">
+          已按下列目录查找 <code>.rpt</code>：
+          <ul class="log-diag__dirs">
+            <li v-for="dir in searchedDirs" :key="dir.path">
+              <span class="log-diag__flag" :class="{ 'is-ok': dir.exists }">{{ dir.exists ? "存在" : "不存在" }}</span>
+              <code>{{ dir.path }}</code>
+              <span class="log-diag__note">{{ dir.note }}</span>
+            </li>
+          </ul>
+        </li>
+      </ul>
+      <div class="log-diag__actions">
+        <el-button size="small" :loading="loading" @click="loadLogs">重新检测</el-button>
+        <el-button v-if="!isMobile" size="small" @click="openLogDirectory">打开日志目录</el-button>
+      </div>
+    </section>
+
     <el-card v-if="lines.length">
       <pre class="log-pre">{{ lines.join('\n') }}</pre>
     </el-card>
@@ -177,6 +237,65 @@ onUnmounted(stopAutoRefresh);
 </template>
 
 <style scoped>
+.log-diag {
+  margin: 12px 16px;
+  padding: 16px 18px;
+  border-radius: var(--md-sys-shape-corner-md);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
+}
+
+.log-diag__title {
+  margin: 0 0 10px;
+  font-size: var(--md-sys-typescale-title-small-size);
+  font-weight: 500;
+}
+
+.log-diag__list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: 1.55;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.log-diag__item.is-warn {
+  color: var(--md-sys-color-error);
+}
+
+.log-diag__dirs {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.log-diag__flag {
+  display: inline-block;
+  min-width: 3.2em;
+  margin-right: 6px;
+  color: var(--md-sys-color-error);
+}
+
+.log-diag__flag.is-ok {
+  color: var(--md-sys-color-primary);
+}
+
+.log-diag__note {
+  margin-left: 8px;
+  opacity: 0.8;
+}
+
+.log-diag__actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
 .logs-title {
   font-size: 14px;
   font-weight: 600;

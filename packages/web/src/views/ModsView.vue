@@ -4,11 +4,10 @@ import ModDownloadConfirmDialog from "@/components/mods/ModDownloadConfirmDialog
 import HtmlModEnableDialog from "@/components/mods/HtmlModEnableDialog.vue";
 import ModBikeyListDialog from "@/components/mods/ModBikeyListDialog.vue";
 import { ref, computed, onMounted } from "vue";
-import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { ArrowDown } from "@element-plus/icons-vue";
 import { useConnectionsStore } from "@/stores/connections";
-import { useUiSettingsStore } from "@/stores/uiSettings";
+import { useBackgroundTasksStore } from "@/stores/backgroundTasks";
 import type {
   AutomationCommand,
   AsyncTaskResponse,
@@ -21,20 +20,17 @@ import PathInput from "@/components/PathInput.vue";
 import { isElectron, openPath, pickDirectory, pickFile, readTextFile } from "@/utils/electron";
 import { bikeyStatusIcon, bikeyStatusHint, bikeyStatusLabel, formatBikeySummary } from "@/utils/modBikeyIcon";
 import { parseWorkshopIdsFromClipboard } from "@/utils/modClipboard";
-import { extractTaskSteps, lastTaskStep, resolvePollTaskMessage, resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
+import { extractTaskSteps, lastTaskStep, resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
-const uiSettings = useUiSettingsStore();
-const router = useRouter();
+const bgTasks = useBackgroundTasksStore();
 const isMobile = import.meta.env.VITE_APP_MODE === "mobile";
 const expandedModPaths = ref<Record<string, boolean>>({});
 let sortSelectStyle: Record<string, string> = { width: "140px" };
-let visibilitySelectStyle: Record<string, string> = { width: "140px" };
 let scanPathDialogWidth = "760px";
 if (isMobile) {
   sortSelectStyle = { width: "100%", maxWidth: "100%" };
-  visibilitySelectStyle = { width: "100%", maxWidth: "100%" };
   scanPathDialogWidth = "92vw";
 }
 
@@ -87,7 +83,13 @@ const autoCopyBikey = ref(true);
 const dlcMods = ref({ contact: false, gm: false, csla: false, ws: false, vn: false });
 
 const sortMode = ref<"scanOrder" | "dirName" | "name" | "updated">("scanOrder");
-const visibilityFilter = ref<"all" | "selected" | "unselected">("all");
+const statusFilter = ref<"all" | "enabled" | "outdated" | "bikey">("all");
+const statusFilterChips = [
+  { id: "all" as const, label: "全部", testId: "mods-filter-all" },
+  { id: "enabled" as const, label: "已启用", testId: "mods-filter-enabled" },
+  { id: "outdated" as const, label: "有更新", testId: "mods-filter-outdated" },
+  { id: "bikey" as const, label: "签名异常", testId: "mods-filter-bikey-issue" },
+];
 
 const showScanPathDialog = ref(false);
 const scanPaths = ref<ModScanPathEntry[]>([]);
@@ -108,13 +110,6 @@ const bikeyListFiles = ref<{ name: string; fullPath: string }[]>([]);
 const steamCmdReady = ref(false);
 const checkingUpdates = ref(false);
 const autoCheckUpdates = ref(false);
-
-function goToSteamCmd() {
-  if (!uiSettings.showAdvancedSettings) {
-    uiSettings.setShowAdvanced(true);
-  }
-  router.replace({ path: `/console/${props.connectionId}/steamcmd` });
-}
 
 function mapModRow(m: ModMetaRow): ModRow {
   const status = m.bikeyStatus ?? "unknown";
@@ -206,7 +201,7 @@ async function saveDlc() {
   if (!client) {
     return;
   }
-  await client.patchConfig(props.serverUuid, {
+  const res = await client.patchConfig(props.serverUuid, {
     startup: {
       dlcContact: dlcMods.value.contact,
       dlcGm: dlcMods.value.gm,
@@ -215,6 +210,10 @@ async function saveDlc() {
       dlcVn: dlcMods.value.vn,
     },
   } as never);
+  if (!res.success) {
+    ElMessage.error(res.error ?? "保存失败");
+    return;
+  }
   ElMessage.success("DLC 设置已保存");
 }
 
@@ -397,6 +396,14 @@ async function copyBikeysForPath(modPath: string) {
 }
 
 async function onRoleChange(row: ModRow, field: "client" | "server" | "hc", value: boolean) {
+  // 角色切换是"立即生效"的：先乐观更新，保存失败必须回滚，
+  // 否则界面显示的加载角色会和服务器上的配置包不一致。
+  const prev = {
+    client: row.isClientMod,
+    server: row.isServerMod,
+    hc: row.isHcMod,
+    enabled: row.enabled,
+  };
   if (field === "client") {
     row.isClientMod = value;
   } else if (field === "server") {
@@ -412,6 +419,10 @@ async function onRoleChange(row: ModRow, field: "client" | "server" | "hc", valu
     await loadMods();
     await loadBikeySummary();
   } catch (e: unknown) {
+    row.isClientMod = prev.client;
+    row.isServerMod = prev.server;
+    row.isHcMod = prev.hc;
+    row.enabled = prev.enabled;
     ElMessage.error(e instanceof Error ? e.message : "操作失败");
   }
 }
@@ -510,9 +521,13 @@ async function saveAutoCopyBikey() {
   if (!client) {
     return;
   }
-  await client.patchConfig(props.serverUuid, {
+  const res = await client.patchConfig(props.serverUuid, {
     mods: { autoCopyBikey: autoCopyBikey.value },
   } as never);
+  if (!res.success) {
+    ElMessage.error(res.error ?? "保存失败");
+    return;
+  }
   ElMessage.success("已保存 Bikey 设置");
 }
 
@@ -613,18 +628,18 @@ async function runDownload(modIds: number[]) {
   if (!taskId) {
     throw new Error("未收到任务 ID");
   }
-  goToSteamCmd();
-  ElMessage.info("SteamCMD 已开始下载，请在终端查看进度；可随时「取消当前操作（不再重试）」");
-  const finalTask = await client.pollTask(taskId, 2000, 900000);
-  if (finalTask.status === "Cancelled") {
-    ElMessage.info(resolvePollTaskMessage(finalTask as never, "下载已取消"));
-    return;
-  }
-  if (finalTask.status === "Failed") {
-    throw new Error(resolvePollTaskMessage(finalTask as never, "下载失败"));
-  }
-  ElMessage.success(resolvePollTaskMessage(finalTask as never, "模组下载已完成"));
-  await doScan();
+  // 非阻塞：提交后交给全局后台任务 Store 轮询，页面停留在 ModsView，
+  // 用顶栏之外的进度条/Snackbar 汇报进度，完成后再刷新扫描结果。
+  await bgTasks.startTask(
+    `下载模组（${modIds.length} 个）`,
+    async () => taskId,
+    async (task) => {
+      if (task.status === "Succeeded") {
+        await loadMods();
+        await loadBikeySummary();
+      }
+    }
+  );
 }
 
 async function onDownloadConfirm(ids: number[]) {
@@ -832,7 +847,7 @@ async function addLocalModPath() {
     return;
   }
   const folderName = picked.split(/[/\\]/).pop() ?? picked;
-  await client.patchConfig(props.serverUuid, {
+  const res = await client.patchConfig(props.serverUuid, {
     mods: {
       localMods: [...localMods, {
         path: picked,
@@ -845,6 +860,10 @@ async function addLocalModPath() {
       enabledLocalPaths: [...new Set([...enabledLocalPaths, picked])],
     },
   } as never);
+  if (!res.success) {
+    ElMessage.error(res.error ?? "添加本地模组失败");
+    return;
+  }
   ElMessage.success("本地模组已添加");
   await doScan();
 }
@@ -917,10 +936,15 @@ function onBikeyMenu(command: string) {
 
 const filteredList = computed(() => {
   let list = [...modList.value];
-  if (visibilityFilter.value === "selected") {
+  if (statusFilter.value === "enabled") {
     list = list.filter((m) => m.enabled);
-  } else if (visibilityFilter.value === "unselected") {
-    list = list.filter((m) => !m.enabled);
+  } else if (statusFilter.value === "outdated") {
+    list = list.filter((m) => m.updateStatus === "outdated");
+  } else if (statusFilter.value === "bikey") {
+    // 签名异常 = 未签名 / 缺 key / 尚未复制；unknown 是"没扫到"，不算异常
+    list = list.filter(
+      (m) => m.bikeyStatus === "unsigned" || m.bikeyStatus === "no_key" || m.bikeyStatus === "not_copied"
+    );
   }
   if (sortMode.value === "dirName") {
     list.sort((a, b) => a.dirName.localeCompare(b.dirName));
@@ -965,11 +989,11 @@ const filteredList = computed(() => {
           </template>
         </el-dropdown>
         <el-dropdown size="small" data-testid="bikey-menu" @command="onBikeyMenu">
-          <el-button size="small">Bikey 管理</el-button>
+          <el-button size="small">签名管理</el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="manage">管理 Bikey</el-dropdown-item>
-              <el-dropdown-item command="copy_all">复制全部 Bikey</el-dropdown-item>
+              <el-dropdown-item command="manage">管理签名文件</el-dropdown-item>
+              <el-dropdown-item command="copy_all">复制全部签名文件</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -986,12 +1010,20 @@ const filteredList = computed(() => {
             <el-option value="name" label="模组名" />
             <el-option value="updated" label="更新时间" />
           </el-select>
-          <span class="mods-bar-label">可见性</span>
-          <el-select v-model="visibilityFilter" size="small" :style="visibilitySelectStyle">
-            <el-option value="all" label="显示全部" />
-            <el-option value="selected" label="仅已选择" />
-            <el-option value="unselected" label="仅未选择" />
-          </el-select>
+          <div class="m3-chip-row" role="group" aria-label="模组筛选">
+            <button
+              v-for="chip in statusFilterChips"
+              :key="chip.id"
+              type="button"
+              class="m3-chip"
+              :class="{ 'is-selected': statusFilter === chip.id }"
+              :aria-pressed="statusFilter === chip.id"
+              :data-testid="chip.testId"
+              @click="statusFilter = chip.id"
+            >
+              {{ chip.label }}
+            </button>
+          </div>
           <el-checkbox v-model="autoCheckUpdates" size="small">扫描后自动检查 Workshop 更新</el-checkbox>
         </div>
 
@@ -1012,16 +1044,16 @@ const filteredList = computed(() => {
             data-testid="btn-copy-missing-bikey"
             @click="copyBikeys({ missingOnly: true })"
           >
-            复制缺失 Bikey
+            复制缺失签名
           </el-button>
         </div>
 
         <div class="mods-archive-head">
           <div>
             <p class="mods-archive-kicker">WORKSHOP / SYNC</p>
-            <h2 class="mods-archive-title">MOD ARCHIVE</h2>
+            <h2 class="mods-archive-title">模组列表</h2>
           </div>
-          <span class="mods-archive-count">{{ filteredList.length }} ENTRIES</span>
+          <span class="mods-archive-count">共 {{ filteredList.length }} 项</span>
         </div>
 
         <div v-if="isMobile" class="mods-card-list" data-testid="mods-card-list">
@@ -1048,30 +1080,36 @@ const filteredList = computed(() => {
               </el-tag>
             </div>
             <div class="mods-card__roles">
-              <label class="mods-card__role">
-                <span>客户端</span>
-                <el-switch
-                  :model-value="row.isClientMod"
-                  size="small"
-                  @change="(v: boolean) => onRoleChange(row, 'client', v)"
-                />
-              </label>
-              <label class="mods-card__role">
-                <span>服务器</span>
-                <el-switch
-                  :model-value="row.isServerMod"
-                  size="small"
-                  @change="(v: boolean) => onRoleChange(row, 'server', v)"
-                />
-              </label>
-              <label class="mods-card__role">
-                <span>HC</span>
-                <el-switch
-                  :model-value="row.isHcMod"
-                  size="small"
-                  @change="(v: boolean) => onRoleChange(row, 'hc', v)"
-                />
-              </label>
+              <button
+                type="button"
+                class="m3-role-chip"
+                :class="{ 'is-on': row.isClientMod }"
+                :aria-pressed="row.isClientMod"
+                data-testid="mod-role-client"
+                @click="onRoleChange(row, 'client', !row.isClientMod)"
+              >
+                客模
+              </button>
+              <button
+                type="button"
+                class="m3-role-chip"
+                :class="{ 'is-on': row.isServerMod }"
+                :aria-pressed="row.isServerMod"
+                data-testid="mod-role-server"
+                @click="onRoleChange(row, 'server', !row.isServerMod)"
+              >
+                服模
+              </button>
+              <button
+                type="button"
+                class="m3-role-chip"
+                :class="{ 'is-on': row.isHcMod }"
+                :aria-pressed="row.isHcMod"
+                data-testid="mod-role-hc"
+                @click="onRoleChange(row, 'hc', !row.isHcMod)"
+              >
+                HC
+              </button>
             </div>
             <div class="mods-card__footer">
               <span class="bikey-status-cell">
@@ -1100,19 +1138,46 @@ const filteredList = computed(() => {
             </el-table-column>
             <el-table-column prop="dirName" label="文件夹名" min-width="120" show-overflow-tooltip />
             <el-table-column prop="name" label="模组名" min-width="140" show-overflow-tooltip />
-            <el-table-column label="客户端模组" width="88" align="center">
+            <el-table-column label="客模" width="76" align="center">
               <template #default="{ row }">
-                <el-switch :model-value="row.isClientMod" size="small" @change="(v: boolean) => onRoleChange(row, 'client', v)" />
+                <button
+                  type="button"
+                  class="m3-role-chip"
+                  :class="{ 'is-on': row.isClientMod }"
+                  :aria-pressed="row.isClientMod"
+                  data-testid="mod-role-client"
+                  @click="onRoleChange(row, 'client', !row.isClientMod)"
+                >
+                  客模
+                </button>
               </template>
             </el-table-column>
-            <el-table-column label="服务器模组" width="88" align="center">
+            <el-table-column label="服模" width="76" align="center">
               <template #default="{ row }">
-                <el-switch :model-value="row.isServerMod" size="small" @change="(v: boolean) => onRoleChange(row, 'server', v)" />
+                <button
+                  type="button"
+                  class="m3-role-chip"
+                  :class="{ 'is-on': row.isServerMod }"
+                  :aria-pressed="row.isServerMod"
+                  data-testid="mod-role-server"
+                  @click="onRoleChange(row, 'server', !row.isServerMod)"
+                >
+                  服模
+                </button>
               </template>
             </el-table-column>
-            <el-table-column label="无头客户端模组" width="110" align="center">
+            <el-table-column label="HC" width="68" align="center">
               <template #default="{ row }">
-                <el-switch :model-value="row.isHcMod" size="small" @change="(v: boolean) => onRoleChange(row, 'hc', v)" />
+                <button
+                  type="button"
+                  class="m3-role-chip"
+                  :class="{ 'is-on': row.isHcMod }"
+                  :aria-pressed="row.isHcMod"
+                  data-testid="mod-role-hc"
+                  @click="onRoleChange(row, 'hc', !row.isHcMod)"
+                >
+                  HC
+                </button>
               </template>
             </el-table-column>
             <el-table-column label="本地导入" width="72" align="center">
@@ -1150,9 +1215,9 @@ const filteredList = computed(() => {
 
         <div class="mods-options">
           <el-checkbox v-model="autoCopyBikey" @change="saveAutoCopyBikey">
-            扫描模组时自动复制 bikey 到服务器 Keys 目录
+            扫描后自动把签名文件复制到服务器 keys 目录
           </el-checkbox>
-          <p class="mods-hint">提示：Keys 目录中多余的 bikey 不影响服务器运行，游戏按实际加载的模组按需使用密钥。</p>
+          <p class="mods-hint">提示：keys 目录里多余的签名文件不影响服务器运行，游戏只按实际加载的模组取用。</p>
           <div class="mods-dlc-row">
             <el-checkbox v-model="dlcMods.contact" @change="saveDlc">Contact 资料片</el-checkbox>
             <el-checkbox v-model="dlcMods.gm" @change="saveDlc">GM 资料片</el-checkbox>

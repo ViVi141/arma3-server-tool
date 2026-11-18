@@ -8,6 +8,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     ArkTechPanel: typeof import('./src/components/console/ArkTechPanel.vue')['default']
+    CommandPalette: typeof import('./src/components/CommandPalette.vue')['default']
     ConsolePageLayout: typeof import('./src/components/ConsolePageLayout.vue')['default']
     ConsoleShell: typeof import('./src/components/console/ConsoleShell.vue')['default']
     DashboardDeployTrack: typeof import('./src/components/dashboard/DashboardDeployTrack.vue')['default']
@@ -47,10 +48,13 @@ declare module 'vue' {
     ElTag: typeof import('element-plus/es')['ElTag']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
     FirstServerWizard: typeof import('./src/components/FirstServerWizard.vue')['default']
+    GlobalSettingsPopover: typeof import('./src/components/console/GlobalSettingsPopover.vue')['default']
     HtmlModEnableDialog: typeof import('./src/components/mods/HtmlModEnableDialog.vue')['default']
+    M3Icon: typeof import('./src/components/M3Icon.vue')['default']
     ModBikeyListDialog: typeof import('./src/components/mods/ModBikeyListDialog.vue')['default']
     ModDownloadConfirmDialog: typeof import('./src/components/mods/ModDownloadConfirmDialog.vue')['default']
     NewServerDialog: typeof import('./src/components/NewServerDialog.vue')['default']
+    ParamHint: typeof import('./src/components/console/ParamHint.vue')['default']
     PathInput: typeof import('./src/components/PathInput.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

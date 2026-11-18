@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A3ST — Material Design 3 Skill 规范版</title>
+  <style>
+    :root {
+      --md-ref-typeface-plain: "Google Sans Text", "Roboto", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+      --md-ref-typeface-brand: "Google Sans", "Roboto", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+      --md-ref-typeface-mono: "Roboto Mono", "Cascadia Mono", Consolas, monospace;
+      --md-sys-shape-corner-xs: 4px;
+      --md-sys-shape-corner-sm: 8px;
+      --md-sys-shape-corner-md: 12px;
+      --md-sys-shape-corner-lg: 16px;
+      --md-sys-shape-corner-full: 9999px;
+    }
+
+    /* Official Material 3 Light Color Roles (Google Blue seed #1A73E8) */
+    [data-theme="light"] {
+      color-scheme: light;
+      --md-sys-color-primary: #0b57d0;
+      --md-sys-color-on-primary: #ffffff;
+      --md-sys-color-primary-container: #d3e3fd;
+      --md-sys-color-on-primary-container: #041e49;
+      --md-sys-color-secondary: #5e5e5e;
+      --md-sys-color-secondary-container: #c2e7ff;
+      --md-sys-color-on-secondary-container: #001d35;
+      --md-sys-color-surface: #ffffff;
+      --md-sys-color-surface-dim: #d3dbe5;
+      --md-sys-color-surface-container-lowest: #ffffff;
+      --md-sys-color-surface-container-low: #f8fafd;
+      --md-sys-color-surface-container: #f0f4f9;
+      --md-sys-color-surface-container-high: #e9eef6;
+      --md-sys-color-surface-container-highest: #dde3ea;
+      --md-sys-color-on-surface: #1f1f1f;
+      --md-sys-color-on-surface-variant: #444746;
+      --md-sys-color-outline: #747775;
+      --md-sys-color-outline-variant: #c4c7c5;
+      --md-sys-color-error: #b3261e;
+      --md-sys-color-on-error: #ffffff;
+      --md-sys-color-error-container: #f9dedc;
+      --md-sys-color-on-error-container: #410e0b;
+      --md-sys-color-success: #146c2e;
+      --md-sys-color-success-container: #e6f4ea;
+      --md-sys-color-warning: #8c5000;
+      --md-sys-color-warning-container: #fef7e0;
+      --md-sys-color-inverse-surface: #303030;
+      --md-sys-color-inverse-on-surface: #f2f2f2;
+      --md-sys-color-inverse-primary: #a8c7fa;
+    }
+
+    /* Official Material 3 Dark Color Roles */
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --md-sys-color-primary: #a8c7fa;
+      --md-sys-color-on-primary: #062e6f;
+      --md-sys-color-primary-container: #0842a0;
+      --md-sys-color-on-primary-container: #d3e3fd;
+      --md-sys-color-secondary: #c4c7c5;
+      --md-sys-color-secondary-container: #004a77;
+      --md-sys-color-on-secondary-container: #c2e7ff;
+      --md-sys-color-surface: #131314;
+      --md-sys-color-surface-dim: #131314;
+      --md-sys-color-surface-container-lowest: #0e0e0f;
+      --md-sys-color-surface-container-low: #1b1c1d;
+      --md-sys-color-surface-container: #1e1f20;
+      --md-sys-color-surface-container-high: #282a2c;
+      --md-sys-color-surface-container-highest: #333537;
+      --md-sys-color-on-surface: #e3e3e3;
+      --md-sys-color-on-surface-variant: #c4c7c5;
+      --md-sys-color-outline: #8e918f;
+      --md-sys-color-outline-variant: #444746;
+      --md-sys-color-error: #f2b8b5;
+      --md-sys-color-on-error: #601410;
+      --md-sys-color-error-container: #8c1d18;
+      --md-sys-color-on-error-container: #f9dedc;
+      --md-sys-color-success: #81c995;
+      --md-sys-color-success-container: #0f5223;
+      --md-sys-color-warning: #fdd663;
+      --md-sys-color-warning-container: #5c3c00;
+      --md-sys-color-inverse-surface: #e3e3e3;
+      --md-sys-color-inverse-on-surface: #303030;
+      --md-sys-color-inverse-primary: #0b57d0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--md-ref-typeface-plain);
+      background: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+      font-size: 14px;
+      line-height: 1.45;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--md-sys-color-primary);
+      outline-offset: 2px;
+    }
+
+    svg.icon {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+      flex-shrink: 0;
+    }
+
+    /* Top App Bar (M3 Standard Flat Surface Container) */
+    .top-app-bar {
+      height: 64px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+      background: var(--md-sys-color-surface-container-low);
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    }
+
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--md-sys-shape-corner-full);
+      border: none;
+      background: transparent;
+      color: var(--md-sys-color-on-surface-variant);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+    .icon-btn:hover { background: var(--md-sys-color-surface-container-high); }
+
+    .app-title {
+      font-family: var(--md-ref-typeface-brand);
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--md-sys-color-on-surface);
+      margin-right: 8px;
+    }
+
+    /* Exposed Instance Picker (M3 Outlined Button role) */
+    .instance-picker {
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      border-radius: var(--md-sys-shape-corner-sm);
+      border: 1px solid var(--md-sys-color-outline);
+      background: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .instance-picker:hover { background: var(--md-sys-color-surface-container); }
+
+    /* M3 Search Bar (Docked in Top App Bar) */
+    .search-bar {
+      flex: 1;
+      max-width: 480px;
+      height: 44px;
+      margin-left: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+      border-radius: var(--md-sys-shape-corner-full);
+      background: var(--md-sys-color-surface-container-high);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .search-bar input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--md-sys-color-on-surface);
+      font: inherit;
+      outline: none;
+    }
+
+    .top-bar-end {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* M3 Action Hierarchy: Filled > Tonal > Outlined > Text */
+    .btn {
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 16px;
+      border-radius: var(--md-sys-shape-corner-full);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+    .btn-filled {
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+    }
+    .btn-filled:hover { filter: brightness(1.06); }
+    .btn-tonal {
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+    }
+    .btn-tonal:hover { filter: brightness(0.96); }
+    .btn-outlined {
+      background: transparent;
+      border-color: var(--md-sys-color-outline);
+      color: var(--md-sys-color-primary);
+    }
+    .btn-outlined:hover { background: var(--md-sys-color-surface-container); }
+    .btn-text {
+      background: transparent;
+      color: var(--md-sys-color-primary);
+      padding: 0 12px;
+    }
+    .btn-text:hover { background: var(--md-sys-color-surface-container); }
+    .btn-danger-tonal {
+      background: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+
+    /* Layout Shell: No giant floating shell, pure M3 flat/tonal regions */
+    .shell {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+    }
+
+    /* M3 Standard Navigation Drawer */
+    .nav-drawer {
+      width: 244px;
+      flex-shrink: 0;
+      background: var(--md-sys-color-surface-container-low);
+      border-right: 1px solid var(--md-sys-color-outline-variant);
+      padding: 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .nav-section {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--md-sys-color-on-surface-variant);
+      padding: 12px 16px 4px;
+    }
+    .nav-item {
+      height: 44px;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+      border-radius: var(--md-sys-shape-corner-full);
+      border: none;
+      background: transparent;
+      color: var(--md-sys-color-on-surface-variant);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: left;
+    }
+    .nav-item:hover {
+      background: var(--md-sys-color-surface-container-high);
+      color: var(--md-sys-color-on-surface);
+    }
+    .nav-item.active {
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+    }
+    .nav-badge {
+      margin-left: auto;
+      font-size: 12px;
+      font-family: var(--md-ref-typeface-mono);
+      color: var(--md-sys-color-warning);
+    }
+
+    /* Main Content Region */
+    .main-region {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--md-sys-color-surface);
+      overflow: hidden;
+    }
+
+    /* Actionable Sync Banner */
+    .sync-banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 24px;
+      background: var(--md-sys-color-warning-container);
+      color: var(--md-sys-color-warning);
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+      font-size: 13px;
+    }
+    .sync-banner.hidden { display: none; }
+
+    .main-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 32px 64px;
+    }
+    .content-container {
+      max-width: 1120px;
+    }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* Page Header: Clean title + single dominant action */
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .page-header h1 {
+      font-family: var(--md-ref-typeface-brand);
+      font-size: 24px;
+      font-weight: 400;
+    }
+    .action-cluster {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* M3 Tonal Metrics Strip (Unframed / Tonal Surface, NOT nested bordered cards!) */
+    .tonal-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .tonal-cell {
+      padding: 16px 18px;
+      border-radius: var(--md-sys-shape-corner-md);
+      background: var(--md-sys-color-surface-container);
+    }
+    .tonal-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .tonal-value {
+      font-size: 24px;
+      font-weight: 500;
+      margin: 4px 0 2px;
+      font-family: var(--md-ref-typeface-mono);
+    }
+    .tonal-sub {
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    /* Status Chip (Semantic color + icon/text, never color alone) */
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: var(--md-sys-shape-corner-sm);
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .status-ok { background: var(--md-sys-color-success-container); color: var(--md-sys-color-success); }
+    .status-warn { background: var(--md-sys-color-warning-container); color: var(--md-sys-color-warning); }
+    .status-err { background: var(--md-sys-color-error-container); color: var(--md-sys-color-error); }
+
+    /* Unframed Section + Divider Lists (per M3 containment budget) */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 24px;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: 500;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .list-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 4px;
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    }
+    .list-row:last-child { border-bottom: none; }
+
+    /* Mods Table: Clean dense M3 Data Table */
+    .filter-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .filter-chip {
+      height: 32px;
+      padding: 0 12px;
+      border-radius: var(--md-sys-shape-corner-sm);
+      border: 1px solid var(--md-sys-color-outline);
+      background: transparent;
+      color: var(--md-sys-color-on-surface-variant);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .filter-chip.selected {
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+      border-color: transparent;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    th {
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--md-sys-color-on-surface-variant);
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    }
+    td {
+      padding: 12px;
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+      vertical-align: middle;
+    }
+    tr:hover td { background: var(--md-sys-color-surface-container-low); }
+
+    /* M3 Outlined TextField (Constrained width on wide screens) */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 380px));
+      gap: 20px 24px;
+      margin-bottom: 24px;
+    }
+    .md-outlined-field {
+      position: relative;
+    }
+    .md-outlined-field input {
+      width: 100%;
+      height: 48px;
+      padding: 12px 14px 4px;
+      border: 1px solid var(--md-sys-color-outline);
+      border-radius: var(--md-sys-shape-corner-xs);
+      background: transparent;
+      color: var(--md-sys-color-on-surface);
+      font: inherit;
+      font-size: 14px;
+    }
+    .md-outlined-field label {
+      position: absolute;
+      left: 12px;
+      top: -8px;
+      padding: 0 4px;
+      background: var(--md-sys-color-surface);
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .md-outlined-field input:focus {
+      outline: none;
+      border: 2px solid var(--md-sys-color-primary);
+      padding: 11px 13px 3px;
+    }
+    .md-outlined-field input:focus + label {
+      color: var(--md-sys-color-primary);
+    }
+
+    /* M3 Checkbox (for deferred form settings) vs Switch (for immediate settings) */
+    .check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 0;
+      cursor: pointer;
+    }
+    .check-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin-top: 2px;
+      accent-color: var(--md-sys-color-primary);
+      cursor: pointer;
+    }
+
+    /* M3 Snackbar (Inverse Surface) */
+    .snackbar {
+      position: fixed;
+      left: 268px;
+      bottom: 24px;
+      min-width: 300px;
+      padding: 12px 16px;
+      border-radius: var(--md-sys-shape-corner-xs);
+      background: var(--md-sys-color-inverse-surface);
+      color: var(--md-sys-color-inverse-on-surface);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: 13px;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.28);
+      opacity: 0;
+      transform: translateY(16px);
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .snackbar.show {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .snackbar button {
+      border: none;
+      background: transparent;
+      color: var(--md-sys-color-inverse-primary);
+      font: inherit;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+    @media (max-width: 1024px) {
+      .tonal-strip { grid-template-columns: repeat(2, 1fr); }
+      .two-col, .form-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top-app-bar">
+    <button class="icon-btn" aria-label="切换导航抽屉">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+    </button>
+    <span class="app-title">Arma3 Server Tools</span>
+
+    <button class="instance-picker" onclick="showSnackbar('切换实例：CN-Alpha · Altis Coop')">
+      <span>CN-Alpha · Altis</span>
+      <svg class="icon" style="width:16px;height:16px;" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+    </button>
+
+    <div class="search-bar">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <input id="searchInput" placeholder="搜索配置项、模组或操作 (Ctrl+K)" aria-label="全局搜索" />
+    </div>
+
+    <div class="top-bar-end">
+      <button class="icon-btn" aria-label="切换明暗主题" onclick="toggleTheme()">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>
+      </button>
+      <button class="btn btn-text" onclick="showSnackbar('已返回主机连接列表')">登出</button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <nav class="nav-drawer" aria-label="主导航">
+      <button class="nav-item active" onclick="switchView('overview', this)">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+        <span>概览</span>
+      </button>
+      <button class="nav-item" onclick="switchView('mods', this)">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7s2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>
+        <span>模组管理</span>
+        <span class="nav-badge">3</span>
+      </button>
+      <button class="nav-item" onclick="switchView('settings', this)">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        <span>基本设置</span>
+      </button>
+
+      <div class="nav-section">运维与诊断</div>
+      <button class="nav-item" onclick="showSnackbar('已跳转 RCon 玩家控制')">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 14H4v-4h11v4zm0-5H4V9h11v4zm5 5h-4V9h4v9z"/></svg>
+        <span>RCon 控制</span>
+      </button>
+      <button class="nav-item" onclick="showSnackbar('已跳转 RPT 日志')">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+        <span>RPT 日志</span>
+      </button>
+      <button class="nav-item" onclick="showSnackbar('已跳转开服检查')">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+        <span>开服检查</span>
+      </button>
+    </nav>
+
+    <main class="main-region">
+      <div id="syncBanner" class="sync-banner">
+        <span>配置包有修改尚未写入游戏 <strong>server.cfg</strong>，写入后生效。</span>
+        <button class="btn btn-tonal" style="height: 30px; margin-left: auto;" onclick="applySync()">立即写入配置</button>
+      </div>
+
+      <div class="main-scroll">
+        <div class="content-container">
+          <!-- VIEW: OVERVIEW -->
+          <section id="view-overview" class="view active">
+            <div class="page-header">
+              <div>
+                <h1>[CN] Altis Tactical Coop #01</h1>
+                <div style="margin-top: 6px; display: flex; align-items: center; gap: 10px;">
+                  <span class="status-chip status-ok">● 运行中 · PID 18492</span>
+                  <span style="font-size: 13px; color: var(--md-sys-color-on-surface-variant);">端口 2302 · Liberation RX (Altis)</span>
+                </div>
+              </div>
+              <!-- M3 Rule: One dominant filled action per region -->
+              <div class="action-cluster">
+                <button class="btn btn-outlined" onclick="showSnackbar('正在重启服务器...')">重启</button>
+                <button class="btn btn-danger-tonal" onclick="showSnackbar('已停止服务器')">停止</button>
+                <button class="btn btn-filled" onclick="applySync()">写入游戏配置</button>
+              </div>
+            </div>
+
+            <!-- Tonal Metrics (No nested borders, no decorative shadows) -->
+            <div class="tonal-strip">
+              <div class="tonal-cell">
+                <div class="tonal-label">在线玩家</div>
+                <div class="tonal-value">28 / 64</div>
+                <div class="tonal-sub">今日峰值 41</div>
+              </div>
+              <div class="tonal-cell">
+                <div class="tonal-label">Server FPS</div>
+                <div class="tonal-value">48.6</div>
+                <div class="tonal-sub">24 小时均值 46.2</div>
+              </div>
+              <div class="tonal-cell">
+                <div class="tonal-label">已启用模组</div>
+                <div class="tonal-value">42</div>
+                <div class="tonal-sub">3 个有可用更新</div>
+              </div>
+              <div class="tonal-cell">
+                <div class="tonal-label">运行时长</div>
+                <div class="tonal-value">04:27</div>
+                <div class="tonal-sub">内存 6.4 GB · CPU 34%</div>
+              </div>
+            </div>
+
+            <div class="two-col">
+              <div>
+                <div class="section-title">
+                  <span>在线人数趋势（近 12 小时）</span>
+                  <button class="btn btn-text" onclick="showSnackbar('跳转统计详情')">查看全部</button>
+                </div>
+                <div class="tonal-cell" style="padding: 16px;">
+                  <svg viewBox="0 0 540 160" style="width: 100%; height: 160px; display: block;">
+                    <line x1="28" y1="20" x2="530" y2="20" stroke="var(--md-sys-color-outline-variant)" stroke-dasharray="3 3"/>
+                    <line x1="28" y1="75" x2="530" y2="75" stroke="var(--md-sys-color-outline-variant)" stroke-dasharray="3 3"/>
+                    <line x1="28" y1="130" x2="530" y2="130" stroke="var(--md-sys-color-outline-variant)"/>
+                    <text x="4" y="24" fill="var(--md-sys-color-on-surface-variant)" font-size="11">60</text>
+                    <text x="4" y="79" fill="var(--md-sys-color-on-surface-variant)" font-size="11">30</text>
+                    <text x="10" y="134" fill="var(--md-sys-color-on-surface-variant)" font-size="11">0</text>
+                    <path d="M28,110 L78,100 L128,104 L178,78 L228,68 L278,82 L328,56 L378,42 L428,30 L478,44 L530,60" fill="none" stroke="var(--md-sys-color-primary)" stroke-width="2.5" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+              </div>
+
+              <div>
+                <div class="section-title">
+                  <span>开服就绪检查</span>
+                  <button class="btn btn-text" onclick="showSnackbar('重新执行开服检查')">重新检查</button>
+                </div>
+                <div class="list-row"><span>SteamCMD 环境</span><span class="status-chip status-ok">就绪</span></div>
+                <div class="list-row"><span>arma3server_x64.exe</span><span class="status-chip status-ok">已验证</span></div>
+                <div class="list-row"><span>Bikey 签名密钥</span><span class="status-chip status-ok">42 / 42</span></div>
+                <div class="list-row"><span>Workshop 更新</span><span class="status-chip status-warn">3 个待更新</span></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- VIEW: MODS -->
+          <section id="view-mods" class="view">
+            <div class="page-header">
+              <h1>模组管理</h1>
+              <div class="action-cluster">
+                <button class="btn btn-outlined" onclick="showSnackbar('导入 HTML 预设')">导入 HTML</button>
+                <button class="btn btn-tonal" onclick="showSnackbar('正在扫描本地模组...')">扫描目录</button>
+                <button class="btn btn-filled" onclick="showSnackbar('正在检查 Workshop 更新...')">检查更新</button>
+              </div>
+            </div>
+
+            <div class="filter-row">
+              <button class="filter-chip selected">全部 (42)</button>
+              <button class="filter-chip">已启用 (18)</button>
+              <button class="filter-chip">有更新 (3)</button>
+              <button class="filter-chip">签名缺失 (2)</button>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>模组名称</th>
+                  <th>Workshop ID</th>
+                  <th>加载角色</th>
+                  <th>Bikey 状态</th>
+                  <th>版本状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>CBA_A3</strong><div style="font-size:12px;color:var(--md-sys-color-on-surface-variant);font-family:var(--md-ref-typeface-mono)">@CBA_A3</div></td>
+                  <td style="font-family: var(--md-ref-typeface-mono);">450814997</td>
+                  <td>客模 · HC</td>
+                  <td><span class="status-chip status-ok">已复制</span></td>
+                  <td><span class="status-chip status-ok">已最新</span></td>
+                </tr>
+                <tr>
+                  <td><strong>ACE3</strong><div style="font-size:12px;color:var(--md-sys-color-on-surface-variant);font-family:var(--md-ref-typeface-mono)">@ace</div></td>
+                  <td style="font-family: var(--md-ref-typeface-mono);">463939057</td>
+                  <td>客模 · HC</td>
+                  <td><span class="status-chip status-ok">已复制</span></td>
+                  <td><span class="status-chip status-warn">有更新</span></td>
+                </tr>
+                <tr>
+                  <td><strong>RHSUSAF</strong><div style="font-size:12px;color:var(--md-sys-color-on-surface-variant);font-family:var(--md-ref-typeface-mono)">@RHSUSAF</div></td>
+                  <td style="font-family: var(--md-ref-typeface-mono);">843577117</td>
+                  <td>客模</td>
+                  <td><span class="status-chip status-err">缺失密钥</span></td>
+                  <td><span class="status-chip status-ok">已最新</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <!-- VIEW: SETTINGS -->
+          <section id="view-settings" class="view">
+            <div class="page-header">
+              <h1>基本设置</h1>
+              <div class="action-cluster">
+                <button class="btn btn-text" onclick="showSnackbar('已还原修改')">重置</button>
+                <button class="btn btn-filled" onclick="applySync()">保存并写入 cfg</button>
+              </div>
+            </div>
+
+            <div class="form-grid">
+              <div class="md-outlined-field">
+                <input id="f-name" value="CN-Alpha · Altis Coop" />
+                <label for="f-name">配置名称</label>
+              </div>
+              <div class="md-outlined-field">
+                <input id="f-host" value="[CN] Altis Tactical Coop #01" />
+                <label for="f-host">服务器名称 (hostname)</label>
+              </div>
+              <div class="md-outlined-field">
+                <input id="f-port" type="number" value="2302" />
+                <label for="f-port">端口 (UDP)</label>
+              </div>
+              <div class="md-outlined-field">
+                <input id="f-players" type="number" value="64" />
+                <label for="f-players">最大玩家数</label>
+              </div>
+            </div>
+
+            <!-- Per M3 Skill: Use Checkbox (not Switch) for options taking effect after Save/Apply -->
+            <div class="section-title" style="margin-top: 8px;"><span>运行选项（保存并写入 cfg 后生效）</span></div>
+            <label class="check-item">
+              <input type="checkbox" checked />
+              <div><strong>BattlEye 反作弊</strong><div style="font-size:12px;color:var(--md-sys-color-on-surface-variant);">公网联机建议开启</div></div>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" checked />
+              <div><strong>Persistent 持久运行</strong><div style="font-size:12px;color:var(--md-sys-color-on-surface-variant);">玩家全退后保持任务进度</div></div>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" />
+              <div><strong>AutoInit 自动初始化</strong><div style="font-size:12px;color:var(--md-sys-color-on-surface-variant);">启动即自动加载任务</div></div>
+            </label>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="snackbar" class="snackbar" role="status" aria-live="polite">
+    <span id="snackbarText">已完成</span>
+    <button onclick="document.getElementById('snackbar').classList.remove('show')">关闭</button>
+  </div>
+
+  <script>
+    function toggleTheme() {
+      const root = document.documentElement;
+      root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    }
+    function switchView(name, btn) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById('view-' + name).classList.add('active');
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+    }
+    let timer = null;
+    function showSnackbar(msg) {
+      const el = document.getElementById('snackbar');
+      document.getElementById('snackbarText').textContent = msg;
+      el.classList.add('show');
+      clearTimeout(timer);
+      timer = setTimeout(() => el.classList.remove('show'), 3000);
+    }
+    function applySync() {
+      document.getElementById('syncBanner').classList.add('hidden');
+      showSnackbar('已保存到配置包并写入 server.cfg');
+    }
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        document.getElementById('searchInput').focus();
+      }
+    });
+  </script>
+</body>
+</html>

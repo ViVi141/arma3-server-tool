@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { RptLogReader } from "./reader.js";
+import { RptLogReader, describeRptSearch } from "./reader.js";
 
 let tmpDir: string;
 let reader: RptLogReader;
@@ -25,6 +25,26 @@ function touch(filePath: string, content = "", mtime?: Date): void {
 const TEST_UUID = "00000000-0000-0000-0000-000000000001";
 
 describe("RptLogReader", () => {
+  it("finds .rpt in the -profiles Users/<uuid> layout", () => {
+    // Arma 3 2.x 把 profile 放在 <profiles>/Users/<name>/，RPT 也在那里
+    const rptPath = path.join(tmpDir, "a3st_serverconfig", TEST_UUID, "Users", TEST_UUID, `${TEST_UUID}.rpt`);
+    touch(rptPath, "rpt");
+    const logs = reader.listLogs(tmpDir, TEST_UUID, "rpt");
+    expect(logs.map((l) => l.filePath)).toContain(rptPath);
+  });
+
+  it("describeRptSearch reports every candidate dir with existence", () => {
+    fs.mkdirSync(path.join(tmpDir, "a3st_serverconfig", TEST_UUID), { recursive: true });
+    const dirs = describeRptSearch(tmpDir, TEST_UUID);
+    const paths = dirs.map((d) => d.path.toLowerCase());
+    expect(paths.some((p) => p.includes("a3st_serverconfig") && p.includes(TEST_UUID.toLowerCase()))).toBe(true);
+    expect(paths.some((p) => p.includes("users"))).toBe(true);
+    expect(paths.some((p) => p.includes("arma 3"))).toBe(true);
+    expect(dirs.every((d) => typeof d.exists === "boolean")).toBe(true);
+    expect(dirs.every((d) => d.note.length > 0)).toBe(true);
+    expect(dirs.some((d) => d.exists && d.path.toLowerCase().includes("a3st_serverconfig"))).toBe(true);
+  });
+
   it("listLogs returns empty for missing server dir", () => {
     expect(reader.listLogs("/does/not/exist", TEST_UUID, "rpt")).toEqual([]);
   });

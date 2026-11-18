@@ -23,6 +23,7 @@ export interface ModScannerOptions {
   localMods?: LocalModEntry[];
   enabledLocalPaths?: string[];
   serverDir?: string;
+  skipSize?: boolean;
 }
 
 export class ModScanner {
@@ -94,7 +95,7 @@ export class ModScanner {
     unchecked: number;
     allValid: boolean;
   } {
-    const mods = this.scan(options);
+    const mods = this.scan({ ...options, skipSize: true });
     const activeMods = mods.filter((m) => m.enabled);
     let ready = 0;
     let notCopied = 0;
@@ -213,7 +214,7 @@ export class ModScanner {
       bikeyPresent: isModBikeyValidationPassed(bikeyInspection.status),
       bikeyStatus: bikeyInspection.status,
       bikeyLabel: bikeyInspection.label,
-      sizeBytes: this.calculateSize(modPath),
+      sizeBytes: options.skipSize ? undefined : this.calculateSize(modPath),
       updatedAt: updated.updatedAt,
       updatedTime: updated.updatedTime,
       scanOrder: 0,

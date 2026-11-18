@@ -86,7 +86,10 @@ async function save() {
   }
   const sched = scheduler();
   sched.cronJobs = buildCronJobsMap();
-  await client.patchConfig(props.serverUuid, { scheduler: sched } as never);
+  const res = await client.patchConfig(props.serverUuid, { scheduler: sched } as never);
+  if (!res.success) {
+    throw new Error(res.error ?? "保存失败");
+  }
   ElMessage.success("定时设置已保存");
 }
 
@@ -237,7 +240,7 @@ onMounted(() => {
           </el-table-column>
           <el-table-column label="启用" width="70">
             <template #default="{ row }">
-              <el-switch v-model="row.enabled" size="small" />
+              <el-checkbox v-model="row.enabled" size="small" />
             </template>
           </el-table-column>
         </el-table>

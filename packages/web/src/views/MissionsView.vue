@@ -138,7 +138,7 @@ async function saveMissions() {
   }
   saving.value = true;
   try {
-    await client.patchConfig(
+    const res = await client.patchConfig(
       props.serverUuid,
       {
         tasks: {
@@ -157,6 +157,9 @@ async function saveMissions() {
         },
       } as never
     );
+    if (!res.success) {
+      throw new Error(res.error ?? "保存失败");
+    }
     markCleanRef();
     ElMessage.success("任务设置已保存");
   } finally {
@@ -252,12 +255,12 @@ onMounted(() => {
         </el-table-column>
         <el-table-column label="白名单" width="80">
           <template #default="{ row }">
-            <el-switch v-model="row.whiteList" size="small" />
+            <el-checkbox v-model="row.whiteList" size="small" />
           </template>
         </el-table-column>
         <el-table-column label="选用" width="70">
           <template #default="{ row }">
-            <el-switch v-model="row.choose" size="small" />
+            <el-checkbox v-model="row.choose" size="small" />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="140">

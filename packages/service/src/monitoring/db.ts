@@ -37,6 +37,7 @@ export class MonitoringDb {
   private db!: SqlDb;
   private dbPath: string;
   private ready: Promise<void>;
+  private closed = false;
 
   constructor(dbPath: string) {
     this.dbPath = path.join(dbPath, "a3st_statistics.db");
@@ -54,11 +55,6 @@ export class MonitoringDb {
         this.db = new SQL.Database(buffer);
       } else {
         this.db = new SQL.Database();
-      }
-      try {
-        this.db.run("PRAGMA journal_mode=WAL");
-      } catch (pragmaError) {
-        console.error("PRAGMA journal_mode=WAL skipped:", pragmaError);
       }
       this.ensureSchema();
       this.save();
@@ -143,18 +139,71 @@ export class MonitoringDb {
   }
 
   batchInsertPlayers(players: PlayerRecord[]): void {
-    if (!this.db) {
+    if (!this.db || this.closed || players.length === 0) {
       return;
     }
+    this.db.run("BEGIN TRANSACTION");
     const stmt = this.db.prepare(
       `INSERT INTO a3st_players (guid, name, server_uuid, last_seen)
        VALUES (?, ?, ?, datetime('now'))
        ON CONFLICT(guid) DO UPDATE SET name = excluded.name, last_seen = datetime('now')`
     );
-    for (const p of players) {
-      stmt.run([p.playerGuid, p.playerName, p.serverUuid]);
+    try {
+      for (const p of players) {
+        stmt.run([p.playerGuid, p.playerName, p.serverUuid]);
+      }
+      this.db.run("COMMIT");
+    } catch (error) {
+      try {
+        this.db.run("ROLLBACK");
+      } catch {
+        /* ignore rollback error */
+      }
+      throw error;
+    } finally {
+      stmt.free();
     }
-    stmt.free();
+    this.save();
+  }
+
+  recordCollectionTick(
+    serverUuid: string,
+    playerCount: number,
+    players: PlayerRecord[],
+    fps?: number
+  ): void {
+    if (!this.db || this.closed) {
+      return;
+    }
+    this.db.run("BEGIN TRANSACTION");
+    try {
+      this.db.run(
+        "INSERT INTO a3st_statistics (server_uuid, player_count, server_fps) VALUES (?, ?, ?)",
+        [serverUuid, playerCount, fps ?? null]
+      );
+      if (players.length > 0) {
+        const stmt = this.db.prepare(
+          `INSERT INTO a3st_players (guid, name, server_uuid, last_seen)
+           VALUES (?, ?, ?, datetime('now'))
+           ON CONFLICT(guid) DO UPDATE SET name = excluded.name, last_seen = datetime('now')`
+        );
+        try {
+          for (const p of players) {
+            stmt.run([p.playerGuid, p.playerName, p.serverUuid]);
+          }
+        } finally {
+          stmt.free();
+        }
+      }
+      this.db.run("COMMIT");
+    } catch (error) {
+      try {
+        this.db.run("ROLLBACK");
+      } catch {
+        /* ignore rollback error */
+      }
+      throw error;
+    }
     this.save();
   }
 
@@ -225,9 +274,10 @@ export class MonitoringDb {
   }
 
   close(): void {
-    if (!this.db) {
+    if (!this.db || this.closed) {
       return;
     }
+    this.closed = true;
     this.save();
     this.db.close();
   }

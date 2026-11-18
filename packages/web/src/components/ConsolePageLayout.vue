@@ -39,23 +39,23 @@ withDefaults(
 
 .console-page__toolbar {
   flex-shrink: 0;
-  padding: 4px 8px;
+  padding: 8px 16px;
   display: flex;
-  gap: 4px;
+  gap: 8px;
   flex-wrap: wrap;
   align-items: center;
-  border-bottom: 1px solid var(--a3st-border-subtle);
-  background: var(--a3st-toolbar);
-  min-height: 28px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  min-height: 40px;
 }
 
 .console-page__hint {
   flex-shrink: 0;
-  padding: 5px 10px;
-  font-size: 11px;
-  color: var(--a3st-text-muted);
-  background: var(--a3st-bg-elevated);
-  border-bottom: 1px solid var(--a3st-border-subtle);
+  padding: 8px 16px;
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .console-page__scroll {
@@ -72,6 +72,6 @@ withDefaults(
 }
 
 .console-page__inner--padded {
-  padding: 6px 8px;
+  padding: 12px 16px 24px;
 }
 </style>

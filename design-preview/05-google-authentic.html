@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A3ST — Google Cloud &amp; Material 3 风格</title>
+  <style>
+    :root {
+      --font-sans: "Google Sans", "Roboto", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+      --font-mono: "Roboto Mono", "Cascadia Mono", Consolas, monospace;
+      --g-blue: #1a73e8;
+      --g-red: #ea4335;
+      --g-yellow: #fbbc04;
+      --g-green: #34a853;
+    }
+
+    [data-theme="light"] {
+      --bg-app: #f8f9fa;
+      --bg-drawer: #f8f9fa;
+      --bg-surface: #ffffff;
+      --bg-surface-tonal: #f1f3f4;
+      --bg-search: #eaf1fb;
+      --bg-hover: rgba(60, 64, 67, 0.06);
+      --bg-active-pill: #d3e3fd;
+      --text-primary: #202124;
+      --text-secondary: #5f6368;
+      --text-disabled: #9aa0a6;
+      --border: #dadce0;
+      --border-subtle: #e8eaed;
+      --primary: #1a73e8;
+      --primary-hover: #1765cc;
+      --primary-text: #ffffff;
+      --primary-tonal: #e8f0fe;
+      --primary-tonal-text: #1967d2;
+      --green-text: #137333;
+      --green-bg: #e6f4ea;
+      --amber-text: #b06000;
+      --amber-bg: #fef7e0;
+      --red-text: #c5221f;
+      --red-bg: #fce8e6;
+      --shadow-1: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+      --shadow-2: 0 2px 6px 2px rgba(60, 64, 67, 0.15), 0 1px 2px 0 rgba(60, 64, 67, 0.3);
+    }
+
+    [data-theme="dark"] {
+      --bg-app: #131314;
+      --bg-drawer: #131314;
+      --bg-surface: #1e1f20;
+      --bg-surface-tonal: #282a2c;
+      --bg-search: #282a2c;
+      --bg-hover: rgba(232, 234, 237, 0.08);
+      --bg-active-pill: #004a77;
+      --text-primary: #e3e3e3;
+      --text-secondary: #9aa0a6;
+      --text-disabled: #5f6368;
+      --border: #3c4043;
+      --border-subtle: #2d2e30;
+      --primary: #8ab4f8;
+      --primary-hover: #aecbfa;
+      --primary-text: #062e6f;
+      --primary-tonal: rgba(138, 180, 248, 0.14);
+      --primary-tonal-text: #8ab4f8;
+      --green-text: #81c995;
+      --green-bg: rgba(129, 201, 149, 0.14);
+      --amber-text: #fdd663;
+      --amber-bg: rgba(253, 214, 99, 0.14);
+      --red-text: #f28b82;
+      --red-bg: rgba(242, 139, 130, 0.14);
+      --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.45);
+      --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.55);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-app);
+      color: var(--text-primary);
+      font-size: 14px;
+      line-height: 1.45;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    svg.icon {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+      flex-shrink: 0;
+    }
+    svg.icon-sm {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+      flex-shrink: 0;
+    }
+
+    /* Google Top App Bar */
+    .g-header {
+      height: 64px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      background: var(--bg-app);
+    }
+
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    .g-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-right: 12px;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+    .g-logo {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+    }
+    .g-brand-name {
+      font-size: 18px;
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      color: var(--text-secondary);
+    }
+    .g-brand-name strong {
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    /* Project / Instance Selector (Google Cloud style) */
+    .project-selector {
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .project-selector:hover { background: var(--bg-hover); }
+    .dot-live {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--g-green);
+    }
+
+    /* Google Wide Pill Search */
+    .g-search-wrap {
+      position: relative;
+      flex: 1;
+      max-width: 560px;
+      margin: 0 auto 0 16px;
+    }
+    .g-search {
+      height: 46px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+      border-radius: 9999px;
+      background: var(--bg-search);
+      color: var(--text-secondary);
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    .g-search:focus-within {
+      background: var(--bg-surface);
+      box-shadow: var(--shadow-1);
+    }
+    .g-search input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--text-primary);
+      font-size: 14px;
+      outline: none;
+      font-family: inherit;
+    }
+    .g-search input::placeholder { color: var(--text-secondary); }
+    .g-kbd {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      background: var(--bg-surface);
+    }
+
+    .g-header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .avatar-pill {
+      height: 32px;
+      padding: 0 12px 0 6px;
+      border-radius: 9999px;
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+    .avatar-circle {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--g-blue);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      display: grid;
+      place-items: center;
+    }
+
+    /* Main Shell */
+    .g-shell {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+    }
+
+    /* Google Left Drawer */
+    .g-drawer {
+      width: 248px;
+      flex-shrink: 0;
+      padding: 8px 12px 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .drawer-cta {
+      height: 48px;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 20px;
+      border-radius: 16px;
+      border: none;
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: var(--shadow-1);
+      cursor: pointer;
+      width: fit-content;
+      font-family: inherit;
+      transition: box-shadow 0.15s, background 0.15s;
+    }
+    .drawer-cta:hover {
+      box-shadow: var(--shadow-2);
+      background: var(--primary-tonal);
+    }
+
+    .drawer-group-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      padding: 4px 16px;
+    }
+
+    .drawer-item {
+      width: 100%;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+      border-radius: 9999px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: left;
+      font-family: inherit;
+      transition: background 0.12s;
+    }
+    .drawer-item:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+    .drawer-item.active {
+      background: var(--bg-active-pill);
+      color: var(--primary-tonal-text);
+    }
+    .drawer-badge {
+      margin-left: auto;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--amber-text);
+      background: var(--amber-bg);
+      padding: 1px 8px;
+      border-radius: 9999px;
+    }
+
+    /* Main Workspace Card (Google Drive / Workspace rounded white pane) */
+    .g-main {
+      flex: 1;
+      min-width: 0;
+      margin: 0 16px 16px 0;
+      background: var(--bg-surface);
+      border-radius: 16px;
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Google Material Banner */
+    .g-banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 24px;
+      background: var(--amber-bg);
+      color: var(--amber-text);
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 13px;
+    }
+    .g-banner.hidden { display: none; }
+    .g-banner-actions { margin-left: auto; display: flex; gap: 8px; }
+
+    .g-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 28px 64px;
+    }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* Google Buttons */
+    .g-btn {
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 18px;
+      border-radius: 9999px;
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      color: var(--primary);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    .g-btn:hover { background: var(--primary-tonal); border-color: transparent; }
+    .g-btn-filled {
+      background: var(--primary);
+      color: var(--primary-text);
+      border-color: transparent;
+    }
+    .g-btn-filled:hover {
+      background: var(--primary-hover);
+      box-shadow: var(--shadow-1);
+    }
+    .g-btn-text {
+      border-color: transparent;
+      background: transparent;
+    }
+    .g-btn-danger {
+      color: var(--red-text);
+      border-color: var(--border);
+    }
+    .g-btn-danger:hover { background: var(--red-bg); border-color: transparent; }
+
+    /* Page Title Row */
+    .page-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .page-top h1 {
+      font-size: 22px;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+    }
+    .page-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* Google Cloud Metric Cards */
+    .metrics-4 {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .g-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+    .metric-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .metric-val {
+      font-size: 28px;
+      font-weight: 400;
+      margin: 8px 0 4px;
+      letter-spacing: -0.02em;
+    }
+    .metric-sub {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* Google Cloud Chart + Status Grid */
+    .cloud-grid {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 500;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-link {
+      font-size: 13px;
+      color: var(--primary);
+      text-decoration: none;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .card-link:hover { text-decoration: underline; }
+
+    /* Google Cloud Data Table */
+    .g-table-wrap {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .g-table-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .g-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 28px;
+      padding: 0 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .chip-green { background: var(--green-bg); color: var(--green-text); }
+    .chip-amber { background: var(--amber-bg); color: var(--amber-text); }
+    .chip-red { background: var(--red-bg); color: var(--red-text); }
+    .chip-blue { background: var(--primary-tonal); color: var(--primary-tonal-text); }
+
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th {
+      padding: 12px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-surface-tonal);
+    }
+    td {
+      padding: 13px 16px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-hover); }
+
+    /* Authentic Material Outlined TextField (Notched Label!) */
+    .md-field {
+      position: relative;
+      margin-bottom: 4px;
+    }
+    .md-field input {
+      width: 100%;
+      height: 52px;
+      padding: 14px 16px 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .md-field label {
+      position: absolute;
+      left: 12px;
+      top: -8px;
+      padding: 0 4px;
+      background: var(--bg-surface);
+      font-size: 12px;
+      color: var(--text-secondary);
+      pointer-events: none;
+    }
+    .md-field input:focus {
+      border: 2px solid var(--primary);
+      padding: 13px 15px 0;
+    }
+    .md-field input:focus + label {
+      color: var(--primary);
+      font-weight: 500;
+    }
+
+    /* Authentic Material 3 Switch */
+    .md-switch {
+      width: 52px;
+      height: 32px;
+      border-radius: 9999px;
+      background: var(--bg-surface-tonal);
+      border: 2px solid var(--text-secondary);
+      position: relative;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .md-switch::after {
+      content: "";
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      top: 6px;
+      left: 6px;
+      transition: all 0.2s;
+    }
+    .md-switch.on {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+    .md-switch.on::after {
+      width: 24px;
+      height: 24px;
+      background: var(--primary-text);
+      top: 2px;
+      left: 22px;
+    }
+
+    .form-2col {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+    }
+
+    /* Google Material Snackbar */
+    .g-snackbar {
+      position: fixed;
+      left: 268px;
+      bottom: 28px;
+      min-width: 320px;
+      max-width: 480px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      background: #303134;
+      color: #e8eaed;
+      box-shadow: var(--shadow-2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: 13px;
+      z-index: 60;
+      transform: translateY(120px);
+      opacity: 0;
+      transition: all 0.25s cubic-bezier(0.2, 0, 0, 1);
+    }
+    .g-snackbar.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    .g-snackbar button {
+      border: none;
+      background: transparent;
+      color: #8ab4f8;
+      font-weight: 500;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    @media (max-width: 1080px) {
+      .metrics-4 { grid-template-columns: repeat(2, 1fr); }
+      .cloud-grid, .form-2col { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Google Top App Bar -->
+  <header class="g-header">
+    <button class="icon-btn" title="折叠导航">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+    </button>
+
+    <a href="#" class="g-brand" onclick="return false">
+      <div class="g-logo" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M12 2L4 6.5v5.5c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V6.5L12 2z" opacity="0.16"/>
+          <path fill="#1a73e8" d="M12 2L4 6.5v2.2l8-4.5 8 4.5V6.5L12 2z"/>
+          <path fill="#34a853" d="M4 12c0 4.6 3.1 8.8 7.5 10.4v-4.2C9.2 17 7.5 14.7 7.5 12V8.7L4 6.7V12z"/>
+          <path fill="#fbbc04" d="M20 12V6.7l-3.5 2V12c0 2.7-1.7 5-4 6.2v4.2C16.9 20.8 20 16.6 20 12z"/>
+        </svg>
+      </div>
+      <span class="g-brand-name"><strong>Arma3</strong> Server Tools</span>
+    </a>
+
+    <button class="project-selector" onclick="showToast('已切换实例视图：CN-Alpha · Altis Coop')">
+      <span class="dot-live"></span>
+      <span>CN-Alpha · Altis</span>
+      <svg class="icon-sm" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+    </button>
+
+    <div class="g-search-wrap">
+      <div class="g-search">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input id="globalSearch" placeholder="搜索服务器配置、模组、RCon 或开服检查" />
+        <span class="g-kbd">Ctrl K</span>
+      </div>
+    </div>
+
+    <div class="g-header-right">
+      <button class="icon-btn" title="切换浅色 / 深色主题" onclick="toggleTheme()">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>
+      </button>
+      <button class="icon-btn" title="打开目录" onclick="showToast('已打开服务器目录 D:\\SteamLibrary\\arma3_dedicated')">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+      </button>
+      <button class="avatar-pill" onclick="showToast('当前连接：本机被控端 127.0.0.1:19580')">
+        <span class="avatar-circle">L</span>
+        <span>本机主机</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="g-shell">
+    <!-- Google Left Navigation Drawer -->
+    <aside class="g-drawer">
+      <button class="drawer-cta" onclick="showToast('打开首服创建向导')">
+        <svg class="icon" style="color: var(--primary);" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        <span>新建服务器</span>
+      </button>
+
+      <div>
+        <button class="drawer-item active" onclick="switchView('overview', this)">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+          <span>概览仪表盘</span>
+        </button>
+        <button class="drawer-item" onclick="switchView('mods', this)">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7s2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>
+          <span>模组与签名</span>
+          <span class="drawer-badge">3</span>
+        </button>
+        <button class="drawer-item" onclick="switchView('settings', this)">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+          <span>基本设置</span>
+        </button>
+      </div>
+
+      <div>
+        <div class="drawer-group-label">监控与运维</div>
+        <button class="drawer-item" onclick="showToast('已切换至 RCon 远程控制')">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 14H4v-4h11v4zm0-5H4V9h11v4zm5 5h-4V9h4v9z"/></svg>
+          <span>RCon 玩家控制</span>
+        </button>
+        <button class="drawer-item" onclick="showToast('已切换至 RPT 实时日志')">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+          <span>RPT 日志</span>
+        </button>
+        <button class="drawer-item" onclick="showToast('已切换至开服检查')">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+          <span>开服检查</span>
+        </button>
+        <button class="drawer-item" onclick="showToast('已切换至快照与定时')">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+          <span>快照与定时</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Surface -->
+    <main class="g-main">
+      <div id="syncBanner" class="g-banner">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+        <span>配置包有修改尚未写入 <strong>server.cfg</strong>，写入后即可在下次启动或重启时生效。</span>
+        <div class="g-banner-actions">
+          <button class="g-btn g-btn-filled" style="height: 30px; padding: 0 14px;" onclick="applySync()">立即写入配置</button>
+        </div>
+      </div>
+
+      <div class="g-scroll">
+        <!-- VIEW: OVERVIEW -->
+        <section id="view-overview" class="view active">
+          <div class="page-top">
+            <div>
+              <h1>[CN] Altis Tactical Coop #01</h1>
+              <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px;">
+                <span class="g-chip chip-green">运行中 · PID 18492</span>
+                <span style="font-size: 13px; color: var(--text-secondary);">端口 2302 · Liberation RX · Altis</span>
+              </div>
+            </div>
+            <div class="page-actions">
+              <button class="g-btn" onclick="showToast('正在重启服务器...')">
+                <svg class="icon-sm" viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                重启
+              </button>
+              <button class="g-btn g-btn-danger" onclick="showToast('已发送停止信号')">
+                <svg class="icon-sm" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+                停止
+              </button>
+              <button class="g-btn g-btn-filled" onclick="applySync()">保存并写入 cfg</button>
+            </div>
+          </div>
+
+          <!-- 4 Google Cloud Metric Cards -->
+          <div class="metrics-4">
+            <div class="g-card">
+              <div class="metric-label"><span>在线玩家</span><span class="g-chip chip-blue">实时</span></div>
+              <div class="metric-val">28 <span style="font-size: 16px; color: var(--text-secondary);">/ 64</span></div>
+              <div class="metric-sub">今日峰值 41 · 1 个无头客户端</div>
+            </div>
+            <div class="g-card">
+              <div class="metric-label"><span>Server FPS</span><span class="g-chip chip-green">稳定</span></div>
+              <div class="metric-val">48.6</div>
+              <div class="metric-sub">24 小时均值 46.2 FPS</div>
+            </div>
+            <div class="g-card">
+              <div class="metric-label"><span>模组与 Bikey</span><span class="g-chip chip-amber">3 更新</span></div>
+              <div class="metric-val">42</div>
+              <div class="metric-sub">42/42 签名文件已就绪</div>
+            </div>
+            <div class="g-card">
+              <div class="metric-label"><span>资源占用</span></div>
+              <div class="metric-val">6.4 GB</div>
+              <div class="metric-sub">CPU 34% · 运行 4 小时 27 分</div>
+            </div>
+          </div>
+
+          <!-- Google Cloud Monitoring Chart + Status Table -->
+          <div class="cloud-grid">
+            <div class="g-card">
+              <div class="card-title">
+                <span>在线人数与帧率趋势 (过去 12 小时)</span>
+                <a class="card-link" onclick="showToast('打开完整监控统计')">查看详情</a>
+              </div>
+              <svg viewBox="0 0 560 170" style="width: 100%; height: 170px; display: block;">
+                <defs>
+                  <linearGradient id="gArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#1a73e8" stop-opacity="0.22"/>
+                    <stop offset="100%" stop-color="#1a73e8" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <!-- Gridlines -->
+                <line x1="30" y1="20" x2="550" y2="20" stroke="var(--border-subtle)" stroke-dasharray="3 3"/>
+                <line x1="30" y1="60" x2="550" y2="60" stroke="var(--border-subtle)" stroke-dasharray="3 3"/>
+                <line x1="30" y1="100" x2="550" y2="100" stroke="var(--border-subtle)" stroke-dasharray="3 3"/>
+                <line x1="30" y1="140" x2="550" y2="140" stroke="var(--border)"/>
+                <!-- Y labels -->
+                <text x="4" y="24" fill="var(--text-secondary)" font-size="10">60</text>
+                <text x="4" y="64" fill="var(--text-secondary)" font-size="10">40</text>
+                <text x="4" y="104" fill="var(--text-secondary)" font-size="10">20</text>
+                <text x="10" y="144" fill="var(--text-secondary)" font-size="10">0</text>
+                <!-- Area + Line -->
+                <path d="M30,115 L80,105 L130,110 L180,82 L230,72 L280,86 L330,60 L380,45 L430,32 L480,48 L550,64 L550,140 L30,140 Z" fill="url(#gArea)"/>
+                <path d="M30,115 L80,105 L130,110 L180,82 L230,72 L280,86 L330,60 L380,45 L430,32 L480,48 L550,64" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linejoin="round"/>
+                <!-- Green FPS line -->
+                <path d="M30,38 L80,36 L130,40 L180,44 L230,42 L280,46 L330,49 L380,52 L430,56 L480,48 L550,43" fill="none" stroke="var(--g-green)" stroke-width="2" stroke-dasharray="5 3"/>
+                <text x="30" y="160" fill="var(--text-secondary)" font-size="10">08:00</text>
+                <text x="275" y="160" fill="var(--text-secondary)" font-size="10">14:00</text>
+                <text x="520" y="160" fill="var(--text-secondary)" font-size="10">20:00</text>
+              </svg>
+            </div>
+
+            <div class="g-card">
+              <div class="card-title">
+                <span>开服就绪检查</span>
+                <a class="card-link" onclick="showToast('重新执行开服检查')">重新检查</a>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px;">
+                <div style="display: flex; justify-content: space-between;"><span>SteamCMD 运行环境</span><span class="g-chip chip-green">正常</span></div>
+                <div style="display: flex; justify-content: space-between;"><span>arma3server_x64.exe</span><span class="g-chip chip-green">已验证</span></div>
+                <div style="display: flex; justify-content: space-between;"><span>Bikey 签名密钥</span><span class="g-chip chip-green">42 / 42</span></div>
+                <div style="display: flex; justify-content: space-between;"><span>Workshop 模组更新</span><span class="g-chip chip-amber">3 个待更新</span></div>
+                <div style="display: flex; justify-content: space-between;"><span>BattlEye &amp; RCon</span><span class="g-chip chip-green">已启用</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW: MODS -->
+        <section id="view-mods" class="view">
+          <div class="page-top">
+            <h1>模组与签名</h1>
+            <div class="page-actions">
+              <button class="g-btn" onclick="showToast('选择本地 HTML 模组预设文件')">导入 HTML</button>
+              <button class="g-btn" onclick="showToast('已扫描 Workshop 目录')">扫描目录</button>
+              <button class="g-btn g-btn-filled" onclick="showToast('正在后台检查 Workshop 更新...')">检查更新</button>
+            </div>
+          </div>
+
+          <div class="g-table-wrap">
+            <div class="g-table-toolbar">
+              <div style="display: flex; gap: 8px;">
+                <button class="g-chip chip-blue" style="border:none; cursor:pointer;">全部 (42)</button>
+                <button class="g-chip" style="border:1px solid var(--border); background:transparent; cursor:pointer; color:var(--text-secondary);">已启用 (18)</button>
+                <button class="g-chip" style="border:1px solid var(--border); background:transparent; cursor:pointer; color:var(--text-secondary);">有更新 (3)</button>
+              </div>
+              <span style="font-size: 12px; color: var(--text-secondary);">输出：-mod=15 · -serverMod=3</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>模组名称</th>
+                  <th>Workshop ID</th>
+                  <th>加载角色</th>
+                  <th>Bikey 状态</th>
+                  <th>版本状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>CBA_A3</strong><div style="font-size:12px;color:var(--text-secondary);font-family:var(--font-mono)">@CBA_A3</div></td>
+                  <td style="font-family: var(--font-mono);">450814997</td>
+                  <td><span class="g-chip chip-blue">客模</span> <span class="g-chip chip-blue">HC</span></td>
+                  <td><span class="g-chip chip-green">已复制</span></td>
+                  <td><span class="g-chip chip-green">已最新</span></td>
+                </tr>
+                <tr>
+                  <td><strong>ACE3</strong><div style="font-size:12px;color:var(--text-secondary);font-family:var(--font-mono)">@ace</div></td>
+                  <td style="font-family: var(--font-mono);">463939057</td>
+                  <td><span class="g-chip chip-blue">客模</span> <span class="g-chip chip-blue">HC</span></td>
+                  <td><span class="g-chip chip-green">已复制</span></td>
+                  <td><span class="g-chip chip-amber">有更新</span></td>
+                </tr>
+                <tr>
+                  <td><strong>RHSUSAF</strong><div style="font-size:12px;color:var(--text-secondary);font-family:var(--font-mono)">@RHSUSAF</div></td>
+                  <td style="font-family: var(--font-mono);">843577117</td>
+                  <td><span class="g-chip chip-blue">客模</span></td>
+                  <td><span class="g-chip chip-red">缺失密钥</span></td>
+                  <td><span class="g-chip chip-green">已最新</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- VIEW: SETTINGS (Material Outlined Fields + M3 Switches) -->
+        <section id="view-settings" class="view">
+          <div class="page-top">
+            <h1>基本设置</h1>
+            <div class="page-actions">
+              <button class="g-btn g-btn-text" onclick="showToast('已还原上次保存的配置')">重置</button>
+              <button class="g-btn g-btn-filled" onclick="applySync()">保存并写入 cfg</button>
+            </div>
+          </div>
+
+          <div class="g-card" style="margin-bottom: 16px;">
+            <div class="card-title"><span>服务器标识（Material Outlined 输入框）</span></div>
+            <div class="form-2col">
+              <div class="md-field">
+                <input value="CN-Alpha · Altis Coop" />
+                <label>配置名称</label>
+              </div>
+              <div class="md-field">
+                <input value="[CN] Altis Tactical Coop #01" />
+                <label>服务器显示名 (hostname)</label>
+              </div>
+              <div class="md-field">
+                <input type="number" value="2302" />
+                <label>游戏端口 (UDP)</label>
+              </div>
+              <div class="md-field">
+                <input type="number" value="64" />
+                <label>最大玩家数</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="g-card">
+            <div class="card-title"><span>运行与安全开关（Material 3 Switch）</span></div>
+            <div class="form-2col">
+              <div style="display:flex; align-items:center; justify-content:space-between; padding: 6px 0;">
+                <div><strong>BattlEye 反作弊</strong><div style="font-size:12px; color:var(--text-secondary);">公网联机建议开启</div></div>
+                <div class="md-switch on" onclick="this.classList.toggle('on')"></div>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:space-between; padding: 6px 0;">
+                <div><strong>Persistent 持久运行</strong><div style="font-size:12px; color:var(--text-secondary);">玩家全退后保持任务进度</div></div>
+                <div class="md-switch on" onclick="this.classList.toggle('on')"></div>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:space-between; padding: 6px 0;">
+                <div><strong>AutoInit 自动初始化</strong><div style="font-size:12px; color:var(--text-secondary);">启动即自动加载任务</div></div>
+                <div class="md-switch" onclick="this.classList.toggle('on')"></div>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:space-between; padding: 6px 0;">
+                <div><strong>x64 专用服务端</strong><div style="font-size:12px; color:var(--text-secondary);">使用 arma3server_x64.exe</div></div>
+                <div class="md-switch on" onclick="this.classList.toggle('on')"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Google Material Snackbar -->
+  <div id="snackbar" class="g-snackbar">
+    <span id="snackbarText">操作已完成</span>
+    <button onclick="document.getElementById('snackbar').classList.remove('show')">知道了</button>
+  </div>
+
+  <script>
+    function toggleTheme() {
+      const root = document.documentElement;
+      root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    }
+    function switchView(name, btn) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById('view-' + name).classList.add('active');
+      document.querySelectorAll('.drawer-item').forEach(p => p.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+    }
+    let toastTimer = null;
+    function showToast(msg) {
+      const el = document.getElementById('snackbar');
+      document.getElementById('snackbarText').textContent = msg;
+      el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+    }
+    function applySync() {
+      document.getElementById('syncBanner').classList.add('hidden');
+      showToast('已保存到配置包并写入 server.cfg');
+    }
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        document.getElementById('globalSearch').focus();
+      }
+    });
+  </script>
+</body>
+</html>

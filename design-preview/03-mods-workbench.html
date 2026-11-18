@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A3ST — 方案 03 · 模组与签名工作台 (Mods Workbench)</title>
+  <style>
+    :root {
+      --bg: #0c1016;
+      --surface: #131922;
+      --surface-2: #19212c;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.15);
+      --text: #edf2f7;
+      --muted: #94a3b8;
+      --dim: #64748b;
+      --accent: #38bdf8;
+      --accent-soft: rgba(56, 189, 248, 0.14);
+      --green: #4ade80;
+      --green-soft: rgba(74, 222, 128, 0.12);
+      --amber: #fbbf24;
+      --amber-soft: rgba(251, 191, 36, 0.14);
+      --red: #f87171;
+      --red-soft: rgba(248, 113, 113, 0.14);
+      --purple: #c084fc;
+      --purple-soft: rgba(192, 132, 252, 0.14);
+      --font-sans: "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+      --font-mono: "Cascadia Code", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.45;
+      padding: 24px 28px 60px;
+    }
+
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .page-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .kicker {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+    h1 { font-size: 22px; font-weight: 700; }
+    .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 13px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    .btn:hover { background: var(--surface-2); border-color: var(--border-strong); }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #06131c;
+      font-weight: 600;
+    }
+    .btn-primary:hover { filter: brightness(1.1); background: var(--accent); }
+    .btn-amber {
+      background: var(--amber-soft);
+      border-color: rgba(251, 191, 36, 0.35);
+      color: var(--amber);
+    }
+
+    /* Summary Strip */
+    .summary-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 13px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .stat-label { font-size: 12px; color: var(--muted); }
+    .stat-num { font-family: var(--font-mono); font-size: 20px; font-weight: 700; margin-top: 2px; }
+
+    /* Filter Bar */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 9px 9px 0 0;
+      flex-wrap: wrap;
+    }
+
+    .filter-pills {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .filter-pill {
+      padding: 5px 11px;
+      border-radius: 99px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .filter-pill:hover { color: var(--text); background: var(--surface-2); }
+    .filter-pill.active {
+      background: var(--accent-soft);
+      border-color: rgba(56, 189, 248, 0.4);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .search-input {
+      width: 260px;
+      padding: 6px 11px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+      font-family: inherit;
+    }
+    .search-input:focus { border-color: var(--accent); }
+
+    /* Table */
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 9px 9px;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    th {
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.015);
+    }
+    td {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+    .mod-name { font-weight: 600; color: var(--text); }
+    .mod-dir {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--dim);
+      margin-top: 2px;
+    }
+
+    /* Interactive Role Pills */
+    .role-group {
+      display: inline-flex;
+      gap: 5px;
+    }
+    .role-pill {
+      padding: 3px 8px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--dim);
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.12s;
+    }
+    .role-pill:hover { border-color: var(--border-strong); color: var(--muted); }
+    .role-pill.on-client {
+      background: var(--accent-soft);
+      border-color: rgba(56, 189, 248, 0.4);
+      color: var(--accent);
+    }
+    .role-pill.on-server {
+      background: var(--purple-soft);
+      border-color: rgba(192, 132, 252, 0.4);
+      color: var(--purple);
+    }
+    .role-pill.on-hc {
+      background: var(--green-soft);
+      border-color: rgba(74, 222, 128, 0.35);
+      color: var(--green);
+    }
+
+    /* Status Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 9px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .badge-ok { background: var(--green-soft); color: var(--green); }
+    .badge-warn { background: var(--amber-soft); color: var(--amber); }
+    .badge-err { background: var(--red-soft); color: var(--red); }
+
+    .switch {
+      width: 34px;
+      height: 18px;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.12);
+      position: relative;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform 0.15s;
+    }
+    .switch.on { background: var(--green); }
+    .switch.on::after { transform: translateX(16px); }
+
+    @media (max-width: 900px) {
+      .summary-strip { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="page-header">
+      <div>
+        <div class="kicker">03 / WORKSHOP &amp; MODS WORKBENCH</div>
+        <h1>模组与 Bikey 签名工作台</h1>
+        <p class="sub">用可点击的角色标签替代密集复选框，支持按更新状态、签名异常快速筛选。</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn">导入 HTML / 剪贴板</button>
+        <button class="btn">扫描本地目录</button>
+        <button class="btn btn-amber">一键补全缺失 Bikey (2)</button>
+        <button class="btn btn-primary">检查 Workshop 更新</button>
+      </div>
+    </header>
+
+    <section class="summary-strip">
+      <div class="stat-card">
+        <div><div class="stat-label">已扫描模组</div><div class="stat-num">42</div></div>
+        <span class="badge badge-ok">18 已启用</span>
+      </div>
+      <div class="stat-card">
+        <div><div class="stat-label">Workshop 更新</div><div class="stat-num" style="color: var(--amber);">3</div></div>
+        <span class="badge badge-warn">待更新</span>
+      </div>
+      <div class="stat-card">
+        <div><div class="stat-label">Bikey 签名状态</div><div class="stat-num" style="color: var(--red);">2</div></div>
+        <span class="badge badge-err">未复制密钥</span>
+      </div>
+      <div class="stat-card">
+        <div><div class="stat-label">输出参数预览</div><div class="stat-num" style="font-size: 13px; color: var(--accent); margin-top: 6px;">-mod=15 · -serverMod=3</div></div>
+      </div>
+    </section>
+
+    <div class="filter-bar">
+      <div class="filter-pills">
+        <button class="filter-pill active" onclick="filterRows('all', this)">全部 (6)</button>
+        <button class="filter-pill" onclick="filterRows('enabled', this)">已启用 (5)</button>
+        <button class="filter-pill" onclick="filterRows('outdated', this)">有更新 (2)</button>
+        <button class="filter-pill" onclick="filterRows('bikey_warn', this)">签名异常 (2)</button>
+      </div>
+      <input class="search-input" placeholder="按模组名、@目录或 Workshop ID 搜索..." oninput="searchRows(this.value)" />
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 60px;">启用</th>
+            <th>模组名称 / 目录</th>
+            <th>Workshop ID</th>
+            <th>加载角色（点击切换）</th>
+            <th>Bikey 签名</th>
+            <th>版本状态</th>
+          </tr>
+        </thead>
+        <tbody id="modTbody">
+          <tr data-tags="enabled">
+            <td><div class="switch on" onclick="this.classList.toggle('on')"></div></td>
+            <td>
+              <div class="mod-name">CBA_A3</div>
+              <div class="mod-dir">@CBA_A3</div>
+            </td>
+            <td style="font-family: var(--font-mono); color: var(--muted);">450814997</td>
+            <td>
+              <div class="role-group">
+                <button class="role-pill on-client" onclick="this.classList.toggle('on-client')">客模</button>
+                <button class="role-pill" onclick="this.classList.toggle('on-server')">服模</button>
+                <button class="role-pill on-hc" onclick="this.classList.toggle('on-hc')">HC</button>
+              </div>
+            </td>
+            <td><span class="badge badge-ok">● 已复制到 keys</span></td>
+            <td><span class="badge badge-ok">已最新</span></td>
+          </tr>
+
+          <tr data-tags="enabled outdated">
+            <td><div class="switch on" onclick="this.classList.toggle('on')"></div></td>
+            <td>
+              <div class="mod-name">ACE3 (Advanced Combat Environment)</div>
+              <div class="mod-dir">@ace</div>
+            </td>
+            <td style="font-family: var(--font-mono); color: var(--muted);">463939057</td>
+            <td>
+              <div class="role-group">
+                <button class="role-pill on-client" onclick="this.classList.toggle('on-client')">客模</button>
+                <button class="role-pill" onclick="this.classList.toggle('on-server')">服模</button>
+                <button class="role-pill on-hc" onclick="this.classList.toggle('on-hc')">HC</button>
+              </div>
+            </td>
+            <td><span class="badge badge-ok">● 已复制到 keys</span></td>
+            <td><span class="badge badge-warn">⬆ 有新版本</span></td>
+          </tr>
+
+          <tr data-tags="enabled bikey_warn">
+            <td><div class="switch on" onclick="this.classList.toggle('on')"></div></td>
+            <td>
+              <div class="mod-name">RHSUSAF</div>
+              <div class="mod-dir">@RHSUSAF</div>
+            </td>
+            <td style="font-family: var(--font-mono); color: var(--muted);">843577117</td>
+            <td>
+              <div class="role-group">
+                <button class="role-pill on-client" onclick="this.classList.toggle('on-client')">客模</button>
+                <button class="role-pill" onclick="this.classList.toggle('on-server')">服模</button>
+                <button class="role-pill" onclick="this.classList.toggle('on-hc')">HC</button>
+              </div>
+            </td>
+            <td><span class="badge badge-warn">▲ 缺失（待复制）</span></td>
+            <td><span class="badge badge-ok">已最新</span></td>
+          </tr>
+
+          <tr data-tags="enabled">
+            <td><div class="switch on" onclick="this.classList.toggle('on')"></div></td>
+            <td>
+              <div class="mod-name">LAMBS_Danger.fsm</div>
+              <div class="mod-dir">@LAMBS_Danger</div>
+            </td>
+            <td style="font-family: var(--font-mono); color: var(--muted);">1858075458</td>
+            <td>
+              <div class="role-group">
+                <button class="role-pill" onclick="this.classList.toggle('on-client')">客模</button>
+                <button class="role-pill on-server" onclick="this.classList.toggle('on-server')">服模</button>
+                <button class="role-pill on-hc" onclick="this.classList.toggle('on-hc')">HC</button>
+              </div>
+            </td>
+            <td><span class="badge badge-ok">● 服务端无需</span></td>
+            <td><span class="badge badge-ok">已最新</span></td>
+          </tr>
+
+          <tr data-tags="enabled outdated bikey_warn">
+            <td><div class="switch on" onclick="this.classList.toggle('on')"></div></td>
+            <td>
+              <div class="mod-name">Task Force Arrowhead Radio (BETA!!!)</div>
+              <div class="mod-dir">@TFAR_BETA</div>
+            </td>
+            <td style="font-family: var(--font-mono); color: var(--muted);">894678801</td>
+            <td>
+              <div class="role-group">
+                <button class="role-pill on-client" onclick="this.classList.toggle('on-client')">客模</button>
+                <button class="role-pill" onclick="this.classList.toggle('on-server')">服模</button>
+                <button class="role-pill" onclick="this.classList.toggle('on-hc')">HC</button>
+              </div>
+            </td>
+            <td><span class="badge badge-err">✕ 模组未带签名</span></td>
+            <td><span class="badge badge-warn">⬆ 有新版本</span></td>
+          </tr>
+
+          <tr data-tags="">
+            <td><div class="switch" onclick="this.classList.toggle('on')"></div></td>
+            <td>
+              <div class="mod-name">CUP Terrains - Core</div>
+              <div class="mod-dir">@CUP_Terrains_Core</div>
+            </td>
+            <td style="font-family: var(--font-mono); color: var(--muted);">583496184</td>
+            <td>
+              <div class="role-group">
+                <button class="role-pill" onclick="this.classList.toggle('on-client')">客模</button>
+                <button class="role-pill" onclick="this.classList.toggle('on-server')">服模</button>
+                <button class="role-pill" onclick="this.classList.toggle('on-hc')">HC</button>
+              </div>
+            </td>
+            <td><span class="badge badge-ok">● 已复制到 keys</span></td>
+            <td><span class="badge badge-ok">已最新</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    function filterRows(tag, btn) {
+      document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('#modTbody tr').forEach(tr => {
+        if (tag === 'all') {
+          tr.style.display = '';
+        } else {
+          const tags = (tr.dataset.tags || '').split(' ');
+          tr.style.display = tags.includes(tag) ? '' : 'none';
+        }
+      });
+    }
+    function searchRows(q) {
+      const kw = q.trim().toLowerCase();
+      document.querySelectorAll('#modTbody tr').forEach(tr => {
+        tr.style.display = tr.textContent.toLowerCase().includes(kw) ? '' : 'none';
+      });
+    }
+  </script>
+</body>
+</html>

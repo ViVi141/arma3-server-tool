@@ -5,7 +5,7 @@ import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { useSettingsPage } from "@/composables/useSettingsPage";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
-const { cfg, loading, saving, save } = useSettingsPage(() => props.serverUuid, "性能", () => ({ startup: s() }));
+const { cfg, loading, saving, save, resetAll } = useSettingsPage(() => props.serverUuid, "性能", () => ({ startup: s() }));
 const s = () => (cfg.value.startup ?? {}) as Record<string, unknown>;
 </script>
 
@@ -15,6 +15,8 @@ const s = () => (cfg.value.startup ?? {}) as Record<string, unknown>;
       kicker="CONFIG / 05 · PERF"
       title="性能"
       :show-save="true"
+      :allow-reset="true"
+      @reset="resetAll"
       :saving="saving"
       @save="save"
     >
@@ -29,13 +31,34 @@ const s = () => (cfg.value.startup ?? {}) as Record<string, unknown>;
       <div class="form-row"><label>地形网格</label><el-input-number v-model="s().terrainGrid" :min="1" :max="50" size="small" controls-position="right"/></div>
     </ArkTechPanel>
     <ArkTechPanel title="高级">
-      <div class="form-row"><label>超线程 (-enableHT)</label><el-switch v-model="s().enableHT" size="small"/></div>
-      <div class="form-row"><label>大页内存 (-hugepages)</label><el-switch v-model="s().hugepages" size="small"/></div>
-      <div class="form-row"><label>任务预加载</label><el-switch v-model="s().loadMissionToMemory" size="small"/></div>
-      <div class="form-row"><label>禁用服务端线程</label><el-switch v-model="s().disableServerThread" size="small"/></div>
-      <div class="form-row"><label>日志·缺失对象</label><el-switch v-model="s().logObjectNotFound" size="small"/></div>
-      <div class="form-row"><label>跳过 description.ext 解析</label><el-switch v-model="s().skipDescriptionParsing" size="small"/></div>
-      <div class="form-row"><label>忽略任务加载错误</label><el-switch v-model="s().ignoreMissionLoadErrors" size="small"/></div>
+      <div class="form-row">
+          <el-checkbox v-model="s().enableHT" size="small">超线程 (-enableHT)</el-checkbox>
+          <ParamHint path="startup.enableHT" />
+        </div>
+      <div class="form-row">
+          <el-checkbox v-model="s().hugepages" size="small">大页内存 (-hugepages)</el-checkbox>
+          <ParamHint path="startup.hugepages" />
+        </div>
+      <div class="form-row">
+          <el-checkbox v-model="s().loadMissionToMemory" size="small">任务预加载</el-checkbox>
+          <ParamHint path="startup.loadMissionToMemory" />
+        </div>
+      <div class="form-row">
+          <el-checkbox v-model="s().disableServerThread" size="small">禁用服务端线程</el-checkbox>
+          <ParamHint path="startup.disableServerThread" />
+        </div>
+      <div class="form-row">
+          <el-checkbox v-model="s().logObjectNotFound" size="small">日志·缺失对象</el-checkbox>
+          <ParamHint path="startup.logObjectNotFound" />
+        </div>
+      <div class="form-row">
+          <el-checkbox v-model="s().skipDescriptionParsing" size="small">跳过 description.ext 解析</el-checkbox>
+          <ParamHint path="startup.skipDescriptionParsing" />
+        </div>
+      <div class="form-row">
+          <el-checkbox v-model="s().ignoreMissionLoadErrors" size="small">忽略任务加载错误</el-checkbox>
+          <ParamHint path="startup.ignoreMissionLoadErrors" />
+        </div>
       <div class="form-row"><label>消息队列阈值(字节)</label><el-input-number v-model="s().queueSizeLogG" :min="0" :max="99999999" size="small" controls-position="right"/></div>
     </ArkTechPanel>
     </SettingsViewLayout>

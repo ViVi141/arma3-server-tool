@@ -5,7 +5,7 @@ import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { useSettingsPage } from "@/composables/useSettingsPage";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
-const { cfg, loading, saving, save } = useSettingsPage(() => props.serverUuid, "网络", () => ({ basic: b() }));
+const { cfg, loading, saving, save, resetAll } = useSettingsPage(() => props.serverUuid, "网络", () => ({ basic: b() }));
 const b = () => (cfg.value.basic ?? {}) as Record<string, unknown>;
 </script>
 
@@ -15,30 +15,65 @@ const b = () => (cfg.value.basic ?? {}) as Record<string, unknown>;
       kicker="CONFIG / 05 · NET"
       title="网络"
       :show-save="true"
+      :allow-reset="true"
+      @reset="resetAll"
       :saving="saving"
       @save="save"
     >
     <ArkTechPanel title="basic.cfg 网络参数" code="NET-01">
-      <div class="form-row"><label>MaxMsgSend</label><el-input-number v-model="b().maxMsgSend" :min="64" :max="512" size="small" controls-position="right"/></div>
-      <div class="form-row"><label>MaxSizeGuaranteed</label><el-input-number v-model="b().maxSizeGuaranteed" :min="128" :max="1024" size="small" controls-position="right"/></div>
-      <div class="form-row"><label>MaxSizeNonguaranteed</label><el-input-number v-model="b().maxSizeNonguaranteed" :min="64" :max="512" size="small" controls-position="right"/></div>
-      <div class="form-row"><label>MinBandwidth</label><el-input-number v-model="b().minBandwidth" :min="16384" :max="1048576" size="small" controls-position="right"/></div>
-      <div class="form-row"><label>MaxBandwidth</label><el-input-number v-model="b().maxBandwidth" :min="131072" :max="10485760" size="small" controls-position="right"/></div>
-      <div class="form-row"><label>MinErrorToSend</label><el-input-number v-model="b().minErrorToSend" :min="0" :max="1" :step="0.001" size="small" controls-position="right"/></div>
-      <div class="form-row"><label>MinErrorToSendNear</label><el-input-number v-model="b().minErrorToSendNear" :min="0" :max="1" :step="0.001" size="small" controls-position="right"/></div>
-      <div class="form-row"><label>MaxPacketSize</label><el-input-number v-model="b().maxPacketSize" :min="500" :max="2000" size="small" controls-position="right"/></div>
-      <div class="form-row"><label>MaxCustomFileSize</label><el-input-number v-model="b().maxCustomFileSize" :min="0" :max="100" size="small" controls-position="right"/></div>
+      <p class="form-hint">
+        以下几项写入 basic.cfg（网络调优）：带宽单位是 bps，尺寸单位是字节。不确定时保持默认——
+        调得过激进会同时增加延迟与 CPU 占用。
+      </p>
+      <div class="form-row">
+        <label>每帧聚合包数上限（MaxMsgSend）</label>
+        <el-input-number v-model="b().maxMsgSend" :min="64" :max="512" size="small" controls-position="right"/>
+        <p class="form-hint">默认 128。上行带宽充足时调高可减少高负载下的卡顿。</p>
+      </div>
+      <div class="form-row"><label>保证包最大负载（MaxSizeGuaranteed）</label><el-input-number v-model="b().maxSizeGuaranteed" :min="128" :max="1024" size="small" controls-position="right"/></div>
+      <div class="form-row"><label>非保证包最大负载（MaxSizeNonguaranteed）</label><el-input-number v-model="b().maxSizeNonguaranteed" :min="64" :max="512" size="small" controls-position="right"/></div>
+      <div class="form-row"><label>保证可用带宽（MinBandwidth）</label><el-input-number v-model="b().minBandwidth" :min="16384" :max="1048576" size="small" controls-position="right"/></div>
+      <div class="form-row"><label>带宽上限（MaxBandwidth）</label><el-input-number v-model="b().maxBandwidth" :min="131072" :max="10485760" size="small" controls-position="right"/></div>
+      <div class="form-row"><label>远距离更新误差（MinErrorToSend）</label><el-input-number v-model="b().minErrorToSend" :min="0" :max="1" :step="0.001" size="small" controls-position="right"/></div>
+      <div class="form-row"><label>近距离更新误差（MinErrorToSendNear）</label><el-input-number v-model="b().minErrorToSendNear" :min="0" :max="1" :step="0.001" size="small" controls-position="right"/></div>
+      <div class="form-row"><label>单包最大尺寸（MaxPacketSize）</label><el-input-number v-model="b().maxPacketSize" :min="500" :max="2000" size="small" controls-position="right"/></div>
+      <div class="form-row"><label>自定义文件上限（MaxCustomFileSize）</label><el-input-number v-model="b().maxCustomFileSize" :min="0" :max="100" size="small" controls-position="right"/></div>
     </ArkTechPanel>
     <ArkTechPanel title="超时 / 限制" code="NET-02">
-      <div class="form-row"><label>断线超时(秒)</label><el-input-number v-model="b().disconnectTimeout" :min="0" :max="600" size="small" controls-position="right"/></div>
-      <div class="form-row"><label>最大 Desync</label><el-input-number v-model="b().maxDesync" :min="50" :max="500" size="small" controls-position="right"/></div>
-      <div class="form-row"><label>最大 Ping</label><el-input-number v-model="b().maxPing" :min="50" :max="500" size="small" controls-position="right"/></div>
-      <div class="form-row"><label>最大丢包</label><el-input-number v-model="b().maxPacketLoss" :min="0" :max="50" size="small" controls-position="right"/></div>
+      <div class="form-row">
+        <label>断线判定超时（DisconnectTimeout，秒）</label>
+        <el-input-number v-model="b().disconnectTimeout" :min="1" :max="90" size="small" controls-position="right"/>
+        <p class="form-hint">官方范围 1–90 秒，默认 15。</p>
+      </div>
+      <div class="form-row">
+        <label>最大失同步（MaxDesync）</label>
+        <el-input-number v-model="b().maxDesync" :min="-1" :max="500" size="small" controls-position="right"/>
+        <p class="form-hint">−1 = 不因该项踢人（官方默认）。</p>
+      </div>
+      <div class="form-row">
+        <label>最大延迟（MaxPing）</label>
+        <el-input-number v-model="b().maxPing" :min="-1" :max="500" size="small" controls-position="right"/>
+        <p class="form-hint">−1 = 不因该项踢人（官方默认）。</p>
+      </div>
+      <div class="form-row">
+        <label>最大丢包率（MaxPacketLoss，%）</label>
+        <el-input-number v-model="b().maxPacketLoss" :min="-1" :max="50" size="small" controls-position="right"/>
+        <p class="form-hint">−1 = 不因该项踢人（官方默认）。</p>
+      </div>
     </ArkTechPanel>
     <ArkTechPanel title="开关">
-      <div class="form-row"><label>UPnP</label><el-switch v-model="b().upnp" size="small"/></div>
-      <div class="form-row"><label>Loopback</label><el-switch v-model="b().loopback" size="small"/></div>
-      <div class="form-row"><label>带宽算法</label><el-switch v-model="b().bandwidthAlg" size="small"/></div>
+      <div class="form-row">
+          <el-checkbox v-model="b().upnp" size="small">UPnP</el-checkbox>
+          <ParamHint path="basic.upnp" />
+        </div>
+      <div class="form-row">
+          <el-checkbox v-model="b().loopback" size="small">Loopback</el-checkbox>
+          <ParamHint path="basic.loopback" />
+        </div>
+      <div class="form-row">
+          <el-checkbox v-model="b().bandwidthAlg" size="small">带宽算法</el-checkbox>
+          <ParamHint path="basic.bandwidthAlg" />
+        </div>
     </ArkTechPanel>
     </SettingsViewLayout>
   </ConsolePageLayout>

@@ -67,16 +67,41 @@ export class RconClient extends EventEmitter {
       const socket = dgram.createSocket("udp4");
       this.socket = socket;
 
+      let settled = false;
+      let failTimer: ReturnType<typeof setTimeout> | null = null;
+      let retryTimer: ReturnType<typeof setInterval> | null = null;
+
+      const clearConnectTimers = () => {
+        if (failTimer !== null) {
+          clearTimeout(failTimer);
+          failTimer = null;
+        }
+        if (retryTimer !== null) {
+          clearInterval(retryTimer);
+          retryTimer = null;
+        }
+      };
+
       socket.on("message", (msg) => this.onMessage(msg));
       socket.on("error", (err) => {
+        if (settled) {
+          this.cleanup();
+          return;
+        }
+        settled = true;
+        clearConnectTimers();
         this.cleanup();
         reject(err);
       });
 
       const loginPacket = Buffer.from(encodeLoginRequest(this.options.password));
 
-      const failTimer = setTimeout(() => {
-        clearInterval(retryTimer);
+      failTimer = setTimeout(() => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearConnectTimers();
         this.cleanup();
         reject(
           new Error(
@@ -85,7 +110,7 @@ export class RconClient extends EventEmitter {
         );
       }, this.options.timeout);
 
-      const retryTimer = setInterval(() => {
+      retryTimer = setInterval(() => {
         this.trySend(loginPacket);
       }, this.options.retryIntervalMs);
 
@@ -96,8 +121,11 @@ export class RconClient extends EventEmitter {
         if (rp.kind !== "loginResponse") {
           return false;
         }
-        clearTimeout(failTimer);
-        clearInterval(retryTimer);
+        if (settled) {
+          return true;
+        }
+        settled = true;
+        clearConnectTimers();
         if (rp.loginOk) {
           this.state = "connected";
           this.startKeepAlive();
@@ -211,8 +239,7 @@ export class RconClient extends EventEmitter {
 
     if (pkt.fragCount && pkt.fragCount > 1) {
       const index = pkt.fragIndex ?? 0;
-      const existing = (entry.chunks.get(index) ?? "") + pkt.message;
-      entry.chunks.set(index, existing);
+      entry.chunks.set(index, pkt.message);
       entry.fragCount = pkt.fragCount;
       if (entry.chunks.size >= pkt.fragCount) {
         const full = Array.from(entry.chunks.keys())
@@ -227,11 +254,11 @@ export class RconClient extends EventEmitter {
     // Single (or first) fragment. Some servers still split with a leading
     // count==1 header; treat as complete.
     entry.gotSingle = true;
-    entry.chunks.set(0, (entry.chunks.get(0) ?? "") + pkt.message);
+    entry.chunks.set(0, pkt.message);
     entry.finish({
       success: true,
-      message: (entry.chunks.get(0) ?? "").trim(),
-      raw: entry.chunks.get(0) ?? "",
+      message: pkt.message.trim(),
+      raw: pkt.message,
     });
   }
 
@@ -303,6 +330,7 @@ export class RconClient extends EventEmitter {
   }
 
   private cleanup(): void {
+    const wasActive = this.state !== "disconnected" || this.socket !== null;
     this.state = "disconnected";
     if (this.keepAliveTimer) {
       clearInterval(this.keepAliveTimer);
@@ -322,6 +350,8 @@ export class RconClient extends EventEmitter {
       }
       this.socket = null;
     }
-    this.emit("disconnected");
+    if (wasActive) {
+      this.emit("disconnected");
+    }
   }
 }

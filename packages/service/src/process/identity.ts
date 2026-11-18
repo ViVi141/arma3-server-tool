@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -11,18 +11,45 @@ export interface ProcessIdentityMarkers {
   port?: number;
 }
 
+export function isValidPid(pid: unknown): pid is number {
+  return typeof pid === "number" && Number.isSafeInteger(pid) && pid > 0;
+}
+
+function encodePowerShellCommand(script: string): string {
+  return Buffer.from(script, "utf16le").toString("base64");
+}
+
+const EXE_PATH_PS_ENCODED = encodePowerShellCommand(
+  [
+    "$p = 0",
+    "if ([uint32]::TryParse($env:A3ST_TARGET_PID, [ref]$p) -and $p -gt 0) {",
+    "  (Get-Process -Id ([int]$p) -ErrorAction Stop).Path",
+    "}",
+  ].join("\n")
+);
+
+const CMDLINE_PS_ENCODED = encodePowerShellCommand(
+  [
+    "$p = 0",
+    "if ([uint32]::TryParse($env:A3ST_TARGET_PID, [ref]$p) -and $p -gt 0) {",
+    '  (Get-CimInstance Win32_Process -Filter ("ProcessId=" + $p)).CommandLine',
+    "}",
+  ].join("\n")
+);
+
 export function isProcessRunning(pid: number): boolean {
-  if (!pid || pid <= 0) {
+  if (!isValidPid(pid)) {
     return false;
   }
   try {
     if (process.platform === "win32") {
-      const out = execSync(`tasklist /FI "PID eq ${pid}" /NH`, {
+      const out = execFileSync("tasklist", ["/FI", `PID eq ${pid}`, "/NH"], {
         encoding: "utf-8",
         timeout: 2000,
         stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
       });
-      return out.includes(String(pid));
+      return new RegExp(`(?:^|\\s|,|")${pid}(?:\\s|,|"|$)`).test(out);
     }
     process.kill(pid, 0);
     return true;
@@ -32,14 +59,21 @@ export function isProcessRunning(pid: number): boolean {
 }
 
 export function getProcessExecutablePath(pid: number): string | null {
-  if (!pid || pid <= 0) {
+  if (!isValidPid(pid)) {
     return null;
   }
   try {
     if (process.platform === "win32") {
-      const out = execSync(
-        `powershell -NoProfile -Command "(Get-Process -Id ${pid} -ErrorAction Stop).Path"`,
-        { encoding: "utf-8", timeout: 3000, stdio: ["ignore", "pipe", "ignore"] }
+      const out = execFileSync(
+        "powershell",
+        ["-NoProfile", "-NonInteractive", "-EncodedCommand", EXE_PATH_PS_ENCODED],
+        {
+          encoding: "utf-8",
+          timeout: 3000,
+          env: { ...process.env, A3ST_TARGET_PID: String(pid) },
+          stdio: ["ignore", "pipe", "ignore"],
+          windowsHide: true,
+        }
       );
       const trimmed = out.trim();
       if (trimmed) {
@@ -58,14 +92,21 @@ export function getProcessExecutablePath(pid: number): string | null {
 }
 
 export function getProcessCommandLine(pid: number): string | null {
-  if (!pid || pid <= 0) {
+  if (!isValidPid(pid)) {
     return null;
   }
   try {
     if (process.platform === "win32") {
-      const out = execSync(
-        `powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter \\"ProcessId=${pid}\\").CommandLine"`,
-        { encoding: "utf-8", timeout: 4000, stdio: ["ignore", "pipe", "ignore"] }
+      const out = execFileSync(
+        "powershell",
+        ["-NoProfile", "-NonInteractive", "-EncodedCommand", CMDLINE_PS_ENCODED],
+        {
+          encoding: "utf-8",
+          timeout: 4000,
+          env: { ...process.env, A3ST_TARGET_PID: String(pid) },
+          stdio: ["ignore", "pipe", "ignore"],
+          windowsHide: true,
+        }
       );
       const trimmed = out.trim();
       if (trimmed) {
@@ -151,7 +192,7 @@ export function verifyProcessIdentity(
   expectedExecutable: string,
   markers?: ProcessIdentityMarkers
 ): ProcessIdentityStatus {
-  if (!expectedExecutable.trim()) {
+  if (!isValidPid(pid) || !expectedExecutable.trim()) {
     return "unknown";
   }
 
@@ -212,12 +253,16 @@ export function verifyProcessIdentity(
 }
 
 export function killProcessTree(pid: number): boolean {
-  if (!pid || pid <= 0) {
+  if (!isValidPid(pid)) {
     return false;
   }
   try {
     if (process.platform === "win32") {
-      execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore", timeout: 5000 });
+      execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], {
+        stdio: "ignore",
+        timeout: 5000,
+        windowsHide: true,
+      });
     } else {
       process.kill(pid, "SIGTERM");
     }

@@ -1,11 +1,11 @@
-import { spawn, ChildProcess, execSync } from "node:child_process";
+import { spawn, ChildProcess, execFileSync } from "node:child_process";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import { EventEmitter } from "node:events";
 import type { ServerConfigPackage } from "../types/config.js";
 import type { ServerProcessState } from "../types/server.js";
 import { isWindows } from "../platform/index.js";
-import { isProcessRunning, verifyProcessIdentity } from "./identity.js";
+import { isProcessRunning, isValidPid, verifyProcessIdentity } from "./identity.js";
 import { getServerExecutablePath, splitCommandLine } from "../config/game-config-writer.js";
 
 export interface SpawnOptions {
@@ -125,14 +125,14 @@ export class ProcessManager extends EventEmitter {
    * before a service restart) so stop/kill no longer silently no-ops.
    */
   adopt(uuid: string, pid: number): boolean {
-    if (!pid || pid <= 0 || !isProcessRunning(pid)) {
+    if (!isValidPid(pid) || !isProcessRunning(pid)) {
       return false;
     }
     const existing = this.processes.get(uuid);
     if (existing?.pid === pid) {
       return true;
     }
-    if (existing && existing.pid > 0 && isProcessRunning(existing.pid)) {
+    if (existing && isValidPid(existing.pid) && isProcessRunning(existing.pid)) {
       return false;
     }
     this.processes.set(uuid, { pid });
@@ -151,8 +151,14 @@ export class ProcessManager extends EventEmitter {
 
     const pid = entry.child?.pid ?? entry.pid;
     try {
-      if (isWindows()) {
-        execSync(`taskkill /PID ${pid} /T /F 2>nul`, { stdio: "ignore" });
+      if (!isValidPid(pid)) {
+        entry.child?.kill();
+      } else if (isWindows()) {
+        execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], {
+          stdio: "ignore",
+          timeout: 5000,
+          windowsHide: true,
+        });
       } else if (entry.child) {
         entry.child.kill("SIGTERM");
         const child = entry.child;
@@ -179,7 +185,7 @@ export class ProcessManager extends EventEmitter {
 
   getState(uuid: string, config?: ServerConfigPackage): ServerProcessState {
     const entry = this.processes.get(uuid);
-    if (entry && entry.pid > 0) {
+    if (entry && isValidPid(entry.pid)) {
       if (isProcessRunning(entry.pid)) {
         return { isRunning: true, pid: entry.pid };
       }
@@ -187,7 +193,7 @@ export class ProcessManager extends EventEmitter {
     }
 
     const persistedPid = config?.tasks?.processById ?? 0;
-    if (persistedPid > 0 && isProcessRunning(persistedPid)) {
+    if (isValidPid(persistedPid) && isProcessRunning(persistedPid)) {
       if (config?.server?.serverDir) {
         const executable = getServerExecutablePath(config);
         let expectedPort = 0;

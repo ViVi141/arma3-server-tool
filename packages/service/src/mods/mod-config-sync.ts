@@ -3,7 +3,11 @@ import type { ServerConfigPackage } from "../types/config.js";
 import { collectModPaths } from "./paths.js";
 import { refreshConfigModParameters } from "./mod-startup-sync.js";
 
-export function buildModScanOptions(app: FastifyInstance, config: ServerConfigPackage) {
+export function buildModScanOptions(
+  app: FastifyInstance,
+  config: ServerConfigPackage,
+  extra?: { skipSize?: boolean }
+) {
   const modPaths = collectModPaths(app, config);
   return {
     modPaths,
@@ -16,11 +20,16 @@ export function buildModScanOptions(app: FastifyInstance, config: ServerConfigPa
     localMods: config.mods?.localMods ?? [],
     enabledLocalPaths: config.mods?.enabledLocalPaths ?? [],
     serverDir: config.server?.serverDir,
+    skipSize: extra?.skipSize,
   };
 }
 
-export function scanModsForConfig(app: FastifyInstance, config: ServerConfigPackage) {
-  return app.modScanner.scan(buildModScanOptions(app, config));
+export function scanModsForConfig(
+  app: FastifyInstance,
+  config: ServerConfigPackage,
+  extra?: { skipSize?: boolean }
+) {
+  return app.modScanner.scan(buildModScanOptions(app, config, extra));
 }
 
 export function refreshConfigModParametersFromApp(

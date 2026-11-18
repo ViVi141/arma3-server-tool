@@ -16,6 +16,7 @@ import {
   serverExecutableName,
 } from "../platform/index.js";
 import { splitCommandLine as splitCommandLineFromPlatform } from "../platform/argv.js";
+import { assertSafeSubdirPath } from "../util/upload-safety.js";
 
 export const CONFIG_FOLDER = "a3st_serverconfig";
 
@@ -127,6 +128,20 @@ function difficultyName(level: number): string {
     return "none";
   }
   return "Custom";
+}
+
+function vonCodecValue(value: unknown): number {
+  if (typeof value === "number") {
+    return value === 0 ? 0 : 1;
+  }
+  const text = str(value).trim().toLowerCase();
+  if (text === "0" || text === "speex") {
+    return 0;
+  }
+  if (text === "1" || text === "opus") {
+    return 1;
+  }
+  return 1;
 }
 
 function timeStampFormat(value: unknown): string {
@@ -289,8 +304,22 @@ function writeMissionWhitelist(missions: unknown[]): string[] {
   return writeCfgArray("missionWhitelist[]", whitelist);
 }
 
+/**
+ * 启动前确保 -profiles 目录存在：目录不存在的，Arma 会退回文档目录，
+ * 结果就是 RPT 出现在用户 Documents 下（本工具早期版本读不到的那类情况）。
+ */
+export function ensureProfileRoot(serverDir: string, uuid: string): string {
+  const configRoot = getConfigRoot(serverDir, uuid);
+  ensureDirectories(configRoot, uuid);
+  return configRoot;
+}
+
 export function getConfigRoot(serverDir: string, uuid: string): string {
-  return path.join(serverDir, CONFIG_FOLDER, uuid);
+  return assertSafeSubdirPath(
+    path.join(serverDir, CONFIG_FOLDER),
+    uuid,
+    "服务器 UUID"
+  );
 }
 
 /**
@@ -328,10 +357,10 @@ function writeServerCfg(uuid: string, config: ServerConfigPackage, configRoot: s
   lines.push(quotedLine("hostname", str(basic.hostname, "Arma3 Server")));
   lines.push(quotedLine("password", str(basic.password)));
   lines.push(line("maxPlayers", num(basic.maxPlayers, 64)));
-  lines.push(line("persistent", bool(basic.persistent, true) ? 1 : 0));
-  lines.push(line("skipLobby", bool(basic.skipLobby).toString()));
-  lines.push(line("drawingInMap", bool(basic.drawingInMap, true).toString()));
-  lines.push(line("statisticsEnabled", num(basic.statisticsEnabled, 0)));
+  lines.push(line("persistent", bool(basic.persistent) ? 1 : 0));
+  lines.push(line("skipLobby", bool(basic.skipLobby) ? 1 : 0));
+  lines.push(line("drawingInMap", bool(basic.drawingInMap, true) ? 1 : 0));
+  lines.push(line("statisticsEnabled", num(basic.statisticsEnabled, 1)));
   lines.push(line("forceRotorLibSimulation", num(basic.forceRotorLibSimulation, 0)));
 
   const forcedDifficulty = str(basic.forcedDifficulty, "none");
@@ -349,10 +378,10 @@ function writeServerCfg(uuid: string, config: ServerConfigPackage, configRoot: s
     }
   }
 
-  lines.push(line("motdInterval", num(basic.motdInterval, 30)));
+  lines.push(line("motdInterval", num(basic.motdInterval, 5)));
   lines.push(line("disableVoN", bool(basic.disableVoN) ? 1 : 0));
-  lines.push(line("vonCodecQuality", num(basic.vonCodecQuality, 8)));
-  lines.push(line("vonCodec", str(basic.vonCodec, "SPEEX")));
+  lines.push(line("vonCodecQuality", num(basic.vonCodecQuality, 3)));
+  lines.push(line("vonCodec", vonCodecValue(basic.vonCodec)));
 
   const headless = parseList(basic.headlessClients);
   if (headless.length > 0) {
@@ -364,29 +393,23 @@ function writeServerCfg(uuid: string, config: ServerConfigPackage, configRoot: s
     lines.push(...writeCfgArray("LocalClient[]", localClients));
   }
 
-  const voteThreshold = num(basic.voteThreshold, 0);
-  if (voteThreshold !== 0) {
-    lines.push(line("voteThreshold", voteThreshold));
-  }
+  // voteThreshold 是 0..1 的比例（0.5 = 过半）；老配置里可能是百分数，做个兼容换算
+  const rawThreshold = num(basic.voteThreshold, 0.5);
+  const voteThreshold = rawThreshold > 1 ? Math.min(1, rawThreshold / 100) : rawThreshold;
+  lines.push(line("voteThreshold", voteThreshold));
 
-  const votingTimeout = num(basic.votingTimeout, 0);
-  if (votingTimeout !== 0) {
-    lines.push(line("votingTimeOut", votingTimeout));
-  }
+  lines.push(line("votingTimeOut", num(basic.votingTimeout, 60)));
 
-  lines.push(line("roleTimeOut", num(basic.roleTimeout, 0)));
-  lines.push(line("briefingTimeOut", num(basic.briefingTimeout, 0)));
-  lines.push(line("debriefingTimeOut", num(basic.debriefingTimeout, 0)));
+  lines.push(line("roleTimeOut", num(basic.roleTimeout, 90)));
+  lines.push(line("briefingTimeOut", num(basic.briefingTimeout, 60)));
+  lines.push(line("debriefingTimeOut", num(basic.debriefingTimeout, 45)));
   lines.push(line("lobbyIdleTimeout", num(basic.lobbyIdleTimeout, 0)));
 
-  const voteMissionPlayers = num(basic.voteMissionPlayers, 0);
-  if (voteMissionPlayers !== 0) {
-    lines.push(line("voteMissionPlayers", voteMissionPlayers));
-  }
+  lines.push(line("voteMissionPlayers", num(basic.voteMissionPlayers, 1)));
 
   lines.push(line("BattlEye", bool(basic.battlEye, true) ? 1 : 0));
   lines.push(line("verifySignatures", num(basic.verifySignatures, 2)));
-  lines.push(line("kickduplicate", bool(basic.kickDuplicate, true) ? 1 : 0));
+  lines.push(line("kickduplicate", bool(basic.kickDuplicate) ? 1 : 0));
   lines.push(line("allowedFilePatching", num(basic.allowedFilePatching, 0)));
 
   const patchExceptions = parseList(basic.filePatchingExceptions);
@@ -411,12 +434,12 @@ function writeServerCfg(uuid: string, config: ServerConfigPackage, configRoot: s
   lines.push(...writeCfgEvent("onUserKicked", basic.onUserKicked));
   lines.push(...writeCfgEvent("regularCheck", basic.regularCheck));
 
-  lines.push(line("upnp", bool(basic.upnp).toString()));
-  lines.push(line("loopback", bool(basic.loopback).toString()));
-  lines.push(line("disconnectTimeout", num(basic.disconnectTimeout, 90)));
-  lines.push(line("maxdesync", num(basic.maxDesync, 150)));
-  lines.push(line("maxping", num(basic.maxPing, 200)));
-  lines.push(line("maxpacketloss", num(basic.maxPacketLoss, 0)));
+  lines.push(line("upnp", bool(basic.upnp) ? 1 : 0));
+  lines.push(line("loopback", bool(basic.loopback) ? 1 : 0));
+  lines.push(line("disconnectTimeout", num(basic.disconnectTimeout, 15)));
+  lines.push(line("maxdesync", num(basic.maxDesync, -1)));
+  lines.push(line("maxping", num(basic.maxPing, -1)));
+  lines.push(line("maxpacketloss", num(basic.maxPacketLoss, -1)));
 
   const missions = Array.isArray(tasks.missions) ? tasks.missions : [];
   // 与 v1 一致：class Missions 只写当前激活任务（missions[0]），
@@ -453,19 +476,19 @@ function writeServerCfg(uuid: string, config: ServerConfigPackage, configRoot: s
 
   lines.push(quotedLine("logFile", resolveServerConsoleLogPath(configRoot, str(basic.logFile, "server_console.log"))));
   lines.push(quotedLine("timeStampFormat", timeStampFormat(basic.timeStampFormat)));
-  lines.push(line("callExtReportLimit", num(basic.callExtReportLimit, 10000)));
+  lines.push(line("callExtReportLimit", num(basic.callExtReportLimit, 1000)));
 
   if (
     bool(startup.logObjectNotFound)
     || bool(startup.skipDescriptionParsing)
-    || bool(startup.ignoreMissionLoadErrors, true)
+    || bool(startup.ignoreMissionLoadErrors)
     || num(startup.queueSizeLogG, 0) > 0
   ) {
     lines.push("class AdvancedOptions {");
-    lines.push(`  LogObjectNotFound=${bool(startup.logObjectNotFound).toString()};`);
-    lines.push(`  SkipDescriptionParsing=${bool(startup.skipDescriptionParsing).toString()};`);
-    lines.push(`  ignoreMissionLoadErrors=${bool(startup.ignoreMissionLoadErrors, true).toString()};`);
-    lines.push(`  queueSizeLogG=${num(startup.queueSizeLogG, 1000000)};`);
+    lines.push(`  LogObjectNotFound=${bool(startup.logObjectNotFound, true) ? 1 : 0};`);
+    lines.push(`  SkipDescriptionParsing=${bool(startup.skipDescriptionParsing) ? 1 : 0};`);
+    lines.push(`  ignoreMissionLoadErrors=${bool(startup.ignoreMissionLoadErrors) ? 1 : 0};`);
+    lines.push(`  queueSizeLogG=${num(startup.queueSizeLogG, 0)};`);
     lines.push("};");
   }
 
@@ -509,30 +532,30 @@ function writeProfile(uuid: string, config: ServerConfigPackage, configRoot: str
   lines.push("class DifficultyPresets {");
   lines.push("  class CustomDifficulty {");
   lines.push("    class Options {");
-  lines.push(`      groupIndicators=${num(basic.groupIndicators, 2)};`);
-  lines.push(`      friendlyTags=${num(basic.friendlyTags, 2)};`);
-  lines.push(`      enemyTags=${num(basic.enemyTags, 0)};`);
-  lines.push(`      detectedMines=${num(basic.detectedMines, 2)};`);
-  lines.push(`      commands=${num(basic.commands, 2)};`);
-  lines.push(`      waypoints=${num(basic.waypoints, 2)};`);
-  lines.push(`      tacticalPing=${num(basic.tacticalPing, 2)};`);
-  lines.push(`      weaponInfo=${num(basic.weaponInfo, 2)};`);
-  lines.push(`      stanceIndicator=${num(basic.stanceIndicator, 2)};`);
-  lines.push(`      staminaBar=${bool(basic.staminaBar, true)};`);
-  lines.push(`      weaponCrosshair=${bool(basic.weaponCrosshair, true)};`);
-  lines.push(`      visionAid=${bool(basic.visionAid)};`);
-  lines.push(`      thirdPersonView=${num(basic.thirdPerson, 1)};`);
-  lines.push(`      cameraShake=${bool(basic.cameraShake, true)};`);
-  lines.push(`      scoreTable=${bool(basic.scoreTable, true)};`);
-  lines.push(`      deathMessages=${bool(basic.deathMessages, true)};`);
-  lines.push(`      vonID=${bool(basic.vonId, true)};`);
-  lines.push(`      mapContent=${bool(basic.mapContent, true)};`);
-  lines.push(`      mapContentFriendly=${bool(basic.mapContentFriendly, true)};`);
-  lines.push(`      mapContentEnemy=${bool(basic.mapContentEnemy)};`);
-  lines.push(`      mapContentMines=${bool(basic.mapContentMines)};`);
-  lines.push(`      reducedDamage=${bool(basic.reducedDamage)};`);
-  lines.push(`      autoReport=${bool(basic.autoReport)};`);
-  lines.push(`      multipleSaves=${bool(basic.multipleSaves, true)};`);
+  lines.push(`      groupIndicators=${num(basic.groupIndicators, 0)};
+      friendlyTags=${num(basic.friendlyTags, 0)};
+      enemyTags=${num(basic.enemyTags, 0)};
+      detectedMines=${num(basic.detectedMines, 0)};
+      commands=${num(basic.commands, 1)};
+      waypoints=${num(basic.waypoints, 1)};
+      tacticalPing=${num(basic.tacticalPing, 0)};
+      weaponInfo=${num(basic.weaponInfo, 2)};
+      stanceIndicator=${num(basic.stanceIndicator, 2)};
+      staminaBar=${bool(basic.staminaBar) ? 1 : 0};
+      weaponCrosshair=${bool(basic.weaponCrosshair) ? 1 : 0};
+      visionAid=${bool(basic.visionAid) ? 1 : 0};
+      thirdPersonView=${num(basic.thirdPerson, 0)};
+      cameraShake=${bool(basic.cameraShake, true) ? 1 : 0};
+      scoreTable=${bool(basic.scoreTable, true) ? 1 : 0};
+      deathMessages=${bool(basic.deathMessages, true) ? 1 : 0};
+      vonID=${bool(basic.vonId, true) ? 1 : 0};
+      mapContent=${bool(basic.mapContent) ? 1 : 0};
+      mapContentFriendly=${bool(basic.mapContentFriendly, true) ? 1 : 0};
+      mapContentEnemy=${bool(basic.mapContentEnemy) ? 1 : 0};
+      mapContentMines=${bool(basic.mapContentMines) ? 1 : 0};
+      reducedDamage=${bool(basic.reducedDamage) ? 1 : 0};
+      autoReport=${bool(basic.autoReport) ? 1 : 0};
+      multipleSaves=${bool(basic.multipleSaves) ? 1 : 0};`);
   lines.push("    };");
   lines.push('    description="Arma3 Server Tools CustomDifficulty";');
   lines.push("    aiLevelPreset=3;");

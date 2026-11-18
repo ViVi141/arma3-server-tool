@@ -210,6 +210,9 @@ async function saveCredentials() {
     ElMessage.success(
       loginMode.value === "cached" ? "凭据已保存（缓存登录）" : "凭据已保存",
     );
+    // 密码交给服务端保管后立刻清空输入框：界面/内存里都不再保留明文，
+    // 后续保存也不会把回显的密码再写回配置。
+    steamPwd.value = "";
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : "保存失败");
   }

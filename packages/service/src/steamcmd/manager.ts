@@ -8,6 +8,7 @@ import {
   buildDedicatedServerUpdateArguments,
   buildWorkshopDownloadArguments,
   redactPasswordInArguments,
+  redactSteamCmdConsoleChunk,
 } from "./arguments.js";
 import {
   authStateLabel,
@@ -184,22 +185,53 @@ export class SteamCmdManager extends EventEmitter {
     }
     const reader = response.body.getReader();
     const writer = fs.createWriteStream(archivePath);
+    let streamError: unknown = null;
+    writer.on("error", (err) => {
+      streamError = err;
+    });
     const total = parseInt(response.headers.get("content-length") ?? "0", 10);
     let received = 0;
-    while (true) {
-      this.throwIfStaleOrAborted(runId);
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
+    try {
+      while (true) {
+        this.throwIfStaleOrAborted(runId);
+        if (streamError) {
+          throw streamError;
+        }
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        received += value.length;
+        writer.write(value);
+        if (total > 0) {
+          this.emit("progress", `下载 SteamCMD... ${Math.round((received / total) * 100)}%`);
+        }
       }
-      received += value.length;
-      writer.write(value);
-      if (total > 0) {
-        this.emit("progress", `下载 SteamCMD... ${Math.round((received / total) * 100)}%`);
+      writer.end();
+      await finished(writer);
+    } catch (err) {
+      await new Promise<void>((resolve) => {
+        if (writer.closed) {
+          resolve();
+          return;
+        }
+        const fallback = setTimeout(resolve, 200);
+        writer.once("close", () => {
+          clearTimeout(fallback);
+          resolve();
+        });
+        writer.destroy();
+      });
+      await reader.cancel().catch(() => {});
+      try {
+        if (fs.existsSync(archivePath)) {
+          fs.unlinkSync(archivePath);
+        }
+      } catch {
+        /* ignore cleanup error */
       }
+      throw err;
     }
-    writer.end();
-    await finished(writer);
 
     this.throwIfStaleOrAborted(runId);
     this.emit("progress", "解压 SteamCMD...");
@@ -533,12 +565,16 @@ export class SteamCmdManager extends EventEmitter {
       argumentsString,
       this.installDir,
       (chunk) => {
-        const clean = sanitizeSteamCmdOutput(chunk);
+        const clean = redactSteamCmdConsoleChunk(
+          sanitizeSteamCmdOutput(chunk),
+          this._password,
+        );
         this.appendSessionOutput(clean);
         this.emit("output", clean);
         onChunk(clean);
       },
       this.installDir,
+      { password: this._password },
     );
     this.activeCapture = capture;
     try {
@@ -750,10 +786,15 @@ export class SteamCmdManager extends EventEmitter {
   }
 }
 
+let sessionLogSeq = 0;
+
 function formatSessionLogStamp(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  const ms = String(d.getMilliseconds()).padStart(3, "0");
+  sessionLogSeq = (sessionLogSeq + 1) % 10000;
+  const seq = String(sessionLogSeq).padStart(4, "0");
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}_${ms}_${seq}`;
 }
 
 function dedupePositiveIds(modIds: readonly number[]): number[] {

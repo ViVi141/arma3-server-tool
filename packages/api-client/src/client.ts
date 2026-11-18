@@ -199,7 +199,14 @@ export class A3stClient {
   async listLogFiles(
     uuid: string,
     kind: "rpt" | "battleye" | "console" | "all" = "all"
-  ): Promise<ApiResponse<{ files: LogFileEntry[]; serverDir: string }>> {
+  ): Promise<
+    ApiResponse<{
+      files: LogFileEntry[];
+      serverDir: string;
+      noLogs?: boolean;
+      searchedDirs?: { path: string; exists: boolean; note: string }[];
+    }>
+  > {
     return this.get(`/api/v1/servers/${uuid}/logs?kind=${kind}`);
   }
 

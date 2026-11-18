@@ -10,12 +10,18 @@ export interface LocalBanEntry {
 }
 
 import { CONFIG_FOLDER } from "../config/game-config-writer.js";
+import { assertSafeSubdirPath } from "../util/upload-safety.js";
 
 export function getBanFilePaths(serverDir: string, serverUuid: string): string[] {
+  const profileRoot = assertSafeSubdirPath(
+    path.join(serverDir, CONFIG_FOLDER),
+    serverUuid,
+    "服务器 UUID"
+  );
   return [
     path.join(serverDir, "bans.txt"),
-    path.join(serverDir, CONFIG_FOLDER, serverUuid, "BattlEye", "bans.txt"),
-    path.join(serverDir, CONFIG_FOLDER, serverUuid, "Users", serverUuid, "bans.txt"),
+    path.join(profileRoot, "BattlEye", "bans.txt"),
+    path.join(profileRoot, "Users", serverUuid, "bans.txt"),
   ];
 }
 

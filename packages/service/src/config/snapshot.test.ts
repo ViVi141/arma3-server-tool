@@ -87,4 +87,15 @@ describe("ConfigSnapshotStore", () => {
   it("create throws for non-existent config", () => {
     expect(() => snapshot.create("no-such-uuid", "bad")).toThrow("配置不存在");
   });
+
+  it("SEC-4 rejects traversal uuid and snapshotId across create, list, restore, and prune", () => {
+    const badIds = ["../etc", "..\\etc", "a/b", ".", ".."];
+    for (const bad of badIds) {
+      expect(() => snapshot.create(bad, "label")).toThrow();
+      expect(() => snapshot.list(bad)).toThrow();
+      expect(() => snapshot.restore(bad, "snap12345678")).toThrow();
+      expect(() => snapshot.restore("uuid-1", bad)).toThrow();
+      expect(() => snapshot.prune(bad, 5)).toThrow();
+    }
+  });
 });

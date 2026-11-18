@@ -1,6 +1,11 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ServerConfigPackage } from "../types/config.js";
+import {
+  assertSafeId,
+  assertSafeSubdirPath,
+  assertSafeTargetPath,
+} from "../util/upload-safety.js";
 
 const CONFIG_DIR = "config";
 const MANIFEST_FILE = "manifest.json";
@@ -38,7 +43,8 @@ export class ConfigStore {
   }
 
   invalidateCache(uuid?: string): void {
-    if (uuid) {
+    if (uuid !== undefined) {
+      assertSafeId(uuid, "服务器 UUID");
       this.cache.delete(uuid);
       return;
     }
@@ -70,11 +76,16 @@ export class ConfigStore {
 
   /** Load a full config package */
   load(uuid: string, options?: { forceDisk?: boolean }): ServerConfigPackage | null {
+    const pkgDir = assertSafeSubdirPath(
+      path.join(this.baseDir, CONFIG_DIR),
+      uuid,
+      "服务器 UUID"
+    );
+
     if (!options?.forceDisk && this.cache.has(uuid)) {
       return structuredClone(this.cache.get(uuid)!);
     }
 
-    const pkgDir = path.join(this.baseDir, CONFIG_DIR, uuid);
     if (!fs.existsSync(pkgDir)) return null;
 
     const pkg: ServerConfigPackage = { formatVersion: 2 };
@@ -103,7 +114,12 @@ export class ConfigStore {
   }
 
   private readManifestConfigName(uuid: string): string | undefined {
-    const manifestPath = path.join(this.baseDir, CONFIG_DIR, uuid, MANIFEST_FILE);
+    const pkgDir = assertSafeSubdirPath(
+      path.join(this.baseDir, CONFIG_DIR),
+      uuid,
+      "服务器 UUID"
+    );
+    const manifestPath = path.join(pkgDir, MANIFEST_FILE);
     if (!fs.existsSync(manifestPath)) {
       return undefined;
     }
@@ -121,7 +137,11 @@ export class ConfigStore {
 
   /** Save a complete config package */
   save(uuid: string, config: ServerConfigPackage, configName?: string): void {
-    const pkgDir = path.join(this.baseDir, CONFIG_DIR, uuid);
+    const pkgDir = assertSafeSubdirPath(
+      path.join(this.baseDir, CONFIG_DIR),
+      uuid,
+      "服务器 UUID"
+    );
     fs.mkdirSync(pkgDir, { recursive: true });
 
     let resolvedName = uuid;
@@ -154,7 +174,7 @@ export class ConfigStore {
     }
 
     for (const [name, data] of Object.entries(sections)) {
-      const filePath = path.join(pkgDir, `${name}.json`);
+      const filePath = assertSafeTargetPath(pkgDir, `${name}.json`);
       fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
     }
 
@@ -163,7 +183,11 @@ export class ConfigStore {
 
   /** Delete a config package */
   delete(uuid: string): boolean {
-    const pkgDir = path.join(this.baseDir, CONFIG_DIR, uuid);
+    const pkgDir = assertSafeSubdirPath(
+      path.join(this.baseDir, CONFIG_DIR),
+      uuid,
+      "服务器 UUID"
+    );
     if (!fs.existsSync(pkgDir)) return false;
     fs.rmSync(pkgDir, { recursive: true, force: true });
     this.cache.delete(uuid);
@@ -175,6 +199,10 @@ export class ConfigStore {
   }
 
   getServerConfigDir(uuid: string): string {
-    return path.join(this.baseDir, CONFIG_DIR, uuid);
+    return assertSafeSubdirPath(
+      path.join(this.baseDir, CONFIG_DIR),
+      uuid,
+      "服务器 UUID"
+    );
   }
 }

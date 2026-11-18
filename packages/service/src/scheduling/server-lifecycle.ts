@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import type { ServerConfigPackage } from "../types/config.js";
 import {
   buildStartCommandLine,
+  ensureProfileRoot,
   getServerExecutablePath,
   serverCfgExists,
 } from "../config/game-config-writer.js";
@@ -129,6 +130,13 @@ export async function startServer(
     return { success: false, message: "尚未写入 server.cfg，请先点击「写入游戏配置」" };
   }
 
+  // 保证 profile 目录存在，RPT 才会稳定落在 <serverDir>/a3st_serverconfig/<uuid>/ 下
+  try {
+    ensureProfileRoot(serverDir, uuid);
+  } catch (error) {
+    console.warn("ensureProfileRoot failed:", error instanceof Error ? error.message : error);
+  }
+
   const executable = getServerExecutablePath(cfg);
   if (!fs.existsSync(executable)) {
     return { success: false, message: `可执行文件不存在: ${executable}` };
@@ -145,7 +153,7 @@ export async function startServer(
 
   let commandLine: string;
   try {
-    const mods = scanModsForConfig(app, cfg);
+    const mods = scanModsForConfig(app, cfg, { skipSize: true });
     commandLine = buildStartCommandLine(uuid, cfg, mods);
   } catch (error) {
     const message = error instanceof Error ? error.message : "构建启动命令行失败";

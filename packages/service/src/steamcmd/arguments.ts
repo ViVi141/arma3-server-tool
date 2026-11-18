@@ -96,10 +96,49 @@ export function countDistinctModIds(modIds: readonly number[]): number {
   return seen.size;
 }
 
+const LOGIN_PASSWORD_TOKEN_RE =
+  /(\+login\s+(?:"(?:\\.|[^"\\])*"|\S+)\s+)(?![+-])("(?:\\.|[^"\\])*"|\S+)/gi;
+
 /** Same as SteamCmdProcessRunner password redaction in log files. */
-export function redactPasswordInArguments(argumentsString: string, password: string): string {
-  if (!argumentsString || !password) {
+export function redactPasswordInArguments(argumentsString: string, password?: string): string {
+  if (!argumentsString) {
     return argumentsString;
   }
-  return argumentsString.replaceAll(password, "***");
+  let result = argumentsString.replace(LOGIN_PASSWORD_TOKEN_RE, '$1"***"');
+  if (!password) {
+    return result;
+  }
+  const quoted = quoteSteamCmdArgument(password);
+  const escaped = quoted.slice(1, -1);
+  result = result.replaceAll(quoted, '"***"');
+  if (escaped && escaped !== password) {
+    result = result.replaceAll(escaped, "***");
+  }
+  return result.replaceAll(password, "***");
+}
+
+/** Redact SteamCMD passwords and +login password tokens from live console chunks. */
+export function redactSteamCmdConsoleChunk(chunk: string, password?: string): string {
+  if (!chunk) {
+    return chunk;
+  }
+  let result = chunk.replace(
+    /(\[调试\]\s*ProcessStartInfo\.Arguments:\s*)(.+)/g,
+    (_m, prefix: string, argsPart: string) =>
+      `${prefix}${redactPasswordInArguments(argsPart, password)}`
+  );
+  result = result.replace(LOGIN_PASSWORD_TOKEN_RE, '$1"***"');
+  if (!password) {
+    return result;
+  }
+  const quoted = quoteSteamCmdArgument(password);
+  const escaped = quoted.slice(1, -1);
+  result = result.replaceAll(quoted, '"***"');
+  if (escaped.length >= 4 && escaped !== password) {
+    result = result.replaceAll(escaped, "***");
+  }
+  if (password.length >= 4) {
+    result = result.replaceAll(password, "***");
+  }
+  return result;
 }

@@ -57,18 +57,17 @@ export function syncCronJobsForServer(
         }
         const online = await countOnlinePlayers(latest);
         if (online !== null) {
-          app.monitorDb.recordStats(uuid, online);
           const players = await fetchRconPlayers(latest);
-          for (const player of players) {
-            if (player.guid) {
-              app.monitorDb.recordPlayer({
-                playerGuid: player.guid,
-                playerName: player.name ?? player.guid,
-                serverUuid: uuid,
-                lastSeen: new Date().toISOString(),
-              });
-            }
-          }
+          const nowIso = new Date().toISOString();
+          const playerRecords = players
+            .filter((player) => Boolean(player.guid))
+            .map((player) => ({
+              playerGuid: player.guid,
+              playerName: player.name ?? player.guid,
+              serverUuid: uuid,
+              lastSeen: nowIso,
+            }));
+          app.monitorDb.recordCollectionTick(uuid, online, playerRecords);
         }
       },
     });

@@ -4,10 +4,11 @@ import SettingsViewLayout from "@/components/console/SettingsViewLayout.vue";
 import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import PathInput from "@/components/PathInput.vue";
 import { UI_COPY } from "@/constants/uiCopy";
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import { asConfigString } from "@/utils/configStringField";
+import { useConfigEditorRegistration } from "@/composables/configEditor";
 import { resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
@@ -26,6 +27,25 @@ const sections = computed(() => ({
   scheduler: (rawConfig.value.scheduler ?? {}) as Record<string, unknown>,
 }));
 
+// 原始 JSON 视图的编辑都是"点保存才生效"，接入未保存变更拦截
+let applyingConfig = false;
+
+const { markDirty, markClean } = useConfigEditorRegistration(() => props.serverUuid, {
+  label: "配置包",
+  save: saveAllSections,
+  reload: loadConfig,
+});
+
+watch(
+  rawConfig,
+  () => {
+    if (!applyingConfig) {
+      markDirty();
+    }
+  },
+  { deep: true, flush: "sync" }
+);
+
 onMounted(loadConfig);
 
 async function loadConfig() {
@@ -37,11 +57,33 @@ async function loadConfig() {
     }
     const res = await client.getConfig(props.serverUuid);
     if (res.success) {
+      applyingConfig = true;
       rawConfig.value = res.data as Record<string, unknown>;
+      applyingConfig = false;
+      markClean();
     }
   } finally {
     loading.value = false;
   }
+}
+
+const CONFIG_SECTIONS = ["server", "startup", "basic", "battleye", "mods", "scheduler"] as const;
+
+async function saveAllSections(): Promise<void> {
+  const client = store.getClient();
+  if (!client) {
+    throw new Error("未连接");
+  }
+  const patch: Record<string, unknown> = {};
+  for (const key of CONFIG_SECTIONS) {
+    patch[key] = sections.value[key];
+  }
+  const res = await client.patchConfig(props.serverUuid, patch as never);
+  if (!res.success) {
+    throw new Error(res.error ?? "保存失败");
+  }
+  ElMessage.success("配置包已保存");
+  await loadConfig();
 }
 
 async function saveSection(section: string) {
@@ -53,7 +95,10 @@ async function saveSection(section: string) {
     }
     const patch: Record<string, unknown> = {};
     patch[section] = sections.value[section as keyof typeof sections.value];
-    await client.patchConfig(props.serverUuid, patch as never);
+    const res = await client.patchConfig(props.serverUuid, patch as never);
+    if (!res.success) {
+      throw new Error(res.error ?? "保存失败");
+    }
     ElMessage.success("已保存");
     await loadConfig();
   } catch (e) {
@@ -103,7 +148,10 @@ async function execAction(action: string) {
       <div class="form-row"><label>帧率上限</label><el-input-number v-model="sections.startup.limitFps" :min="1" :max="1000" size="small" controls-position="right" /></div>
       <div class="form-row"><label>视距</label><el-input-number v-model="sections.startup.viewDistance" :min="200" :step="100" size="small" controls-position="right" /></div>
       <div class="form-row"><label>端口</label><el-input-number v-model="sections.startup.port" :min="1024" :max="65535" size="small" controls-position="right" /></div>
-      <div class="form-row"><label>崩溃重启</label><el-switch v-model="sections.startup.restartOnCrash" size="small" /></div>
+      <div class="form-row">
+          <el-checkbox v-model="sections.startup.restartOnCrash" size="small">崩溃重启</el-checkbox>
+          <ParamHint path="startup.restartOnCrash" />
+        </div>
       <el-button size="small" @click="saveSection('startup')">保存启动参数</el-button>
     </ArkTechPanel>
 

@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A3ST — 方案 04 · Google Material 3 / Cloud Console 风格</title>
+  <style>
+    :root {
+      --font-sans: "Google Sans", "Roboto", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+      --font-mono: "Roboto Mono", "Cascadia Mono", Consolas, monospace;
+      --radius-pill: 9999px;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+    }
+
+    /* Material 3 Light Tonal Palette */
+    [data-theme="light"] {
+      --md-canvas: #f0f4f9;
+      --md-surface: #ffffff;
+      --md-surface-2: #f8fafd;
+      --md-surface-3: #e9eef6;
+      --md-on-surface: #1f1f1f;
+      --md-on-surface-var: #444746;
+      --md-outline: #c4c7c5;
+      --md-outline-var: #e0e3e7;
+      --md-primary: #0b57d0;
+      --md-on-primary: #ffffff;
+      --md-primary-container: #d3e3fd;
+      --md-on-primary-container: #041e49;
+      --md-secondary-container: #c2e7ff;
+      --md-green: #146c2e;
+      --md-green-bg: #e6f4ea;
+      --md-amber: #b06000;
+      --md-amber-bg: #fef7e0;
+      --md-red: #b3261e;
+      --md-red-bg: #fce8e6;
+      --md-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px 1px rgba(0, 0, 0, 0.04);
+      --md-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    /* Material 3 Dark Tonal Palette */
+    [data-theme="dark"] {
+      --md-canvas: #131314;
+      --md-surface: #1e1f20;
+      --md-surface-2: #282a2c;
+      --md-surface-3: #333537;
+      --md-on-surface: #e3e3e3;
+      --md-on-surface-var: #c4c7c5;
+      --md-outline: #5e5e5e;
+      --md-outline-var: #37393b;
+      --md-primary: #a8c7fa;
+      --md-on-primary: #062e6f;
+      --md-primary-container: #004a77;
+      --md-on-primary-container: #c2e7ff;
+      --md-secondary-container: #004a77;
+      --md-green: #81c995;
+      --md-green-bg: rgba(129, 201, 149, 0.14);
+      --md-amber: #fdd663;
+      --md-amber-bg: rgba(253, 214, 99, 0.14);
+      --md-red: #f28b82;
+      --md-red-bg: rgba(242, 139, 130, 0.14);
+      --md-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+      --md-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--md-canvas);
+      color: var(--md-on-surface);
+      font-size: 13px;
+      line-height: 1.5;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    /* Google Top App Bar */
+    .app-bar {
+      height: 60px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 20px;
+      background: var(--md-canvas);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 210px;
+    }
+    .brand-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: var(--md-primary);
+      color: var(--md-on-primary);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 13px;
+      font-family: var(--font-mono);
+    }
+    .brand-title {
+      font-size: 16px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+    }
+
+    /* Instance Dropdown Pill */
+    .instance-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 36px;
+      padding: 0 14px;
+      border-radius: var(--radius-sm);
+      background: var(--md-surface);
+      border: 1px solid var(--md-outline-var);
+      color: var(--md-on-surface);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      box-shadow: var(--md-shadow);
+    }
+    .instance-chip:hover { background: var(--md-surface-2); }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--md-green);
+    }
+
+    /* Google Search Bar */
+    .search-bar {
+      flex: 1;
+      max-width: 520px;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+      border-radius: var(--radius-pill);
+      background: var(--md-surface-3);
+      color: var(--md-on-surface-var);
+      cursor: text;
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    .search-bar:hover, .search-bar:focus-within {
+      background: var(--md-surface);
+      box-shadow: var(--md-shadow);
+    }
+    .search-bar input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--md-on-surface);
+      font-size: 13px;
+      outline: none;
+      font-family: inherit;
+    }
+    .kbd {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: var(--md-surface);
+      color: var(--md-on-surface-var);
+      border: 1px solid var(--md-outline-var);
+    }
+
+    .app-bar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Material 3 Buttons */
+    .m3-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 36px;
+      padding: 0 16px;
+      border-radius: var(--radius-pill);
+      border: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      transition: filter 0.15s, background 0.15s;
+    }
+    .m3-btn-filled {
+      background: var(--md-primary);
+      color: var(--md-on-primary);
+    }
+    .m3-btn-filled:hover { filter: brightness(1.08); }
+    .m3-btn-tonal {
+      background: var(--md-primary-container);
+      color: var(--md-on-primary-container);
+    }
+    .m3-btn-tonal:hover { filter: brightness(0.96); }
+    .m3-btn-outlined {
+      background: var(--md-surface);
+      color: var(--md-on-surface);
+      border: 1px solid var(--md-outline-var);
+    }
+    .m3-btn-outlined:hover { background: var(--md-surface-2); }
+    .m3-btn-danger {
+      background: var(--md-red-bg);
+      color: var(--md-red);
+    }
+    .m3-icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid var(--md-outline-var);
+      background: var(--md-surface);
+      color: var(--md-on-surface-var);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      font-size: 15px;
+    }
+    .m3-icon-btn:hover { background: var(--md-surface-2); color: var(--md-on-surface); }
+
+    /* Shell Body */
+    .shell-body {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      padding: 0 16px 16px 12px;
+      gap: 12px;
+    }
+
+    /* Material 3 Navigation Drawer */
+    .nav-drawer {
+      width: 236px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 4px 4px 12px;
+      overflow-y: auto;
+    }
+
+    .nav-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--md-on-surface-var);
+      padding: 4px 16px;
+      letter-spacing: 0.02em;
+    }
+
+    .nav-pill {
+      width: 100%;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+      border-radius: var(--radius-pill);
+      border: none;
+      background: transparent;
+      color: var(--md-on-surface-var);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: left;
+      font-family: inherit;
+      transition: background 0.15s, color 0.15s;
+    }
+    .nav-pill:hover {
+      background: var(--md-surface-3);
+      color: var(--md-on-surface);
+    }
+    .nav-pill.active {
+      background: var(--md-secondary-container);
+      color: var(--md-on-primary-container);
+      font-weight: 600;
+    }
+    .nav-count {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 1px 8px;
+      border-radius: var(--radius-pill);
+      background: var(--md-amber-bg);
+      color: var(--md-amber);
+    }
+
+    /* Rounded Surface Container (Google Workspace style) */
+    .surface-stage {
+      flex: 1;
+      min-width: 0;
+      background: var(--md-surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--md-outline-var);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Sync Banner */
+    .m3-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 24px;
+      background: var(--md-amber-bg);
+      color: var(--md-amber);
+      border-bottom: 1px solid var(--md-outline-var);
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .m3-banner.hidden { display: none; }
+
+    .stage-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 28px 60px;
+    }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* Page Header */
+    .page-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .page-title { font-size: 22px; font-weight: 500; letter-spacing: -0.01em; }
+    .page-desc { color: var(--md-on-surface-var); font-size: 13px; margin-top: 2px; }
+
+    /* Hero Tonal Card */
+    .hero-tonal {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 20px;
+      padding: 22px 24px;
+      border-radius: var(--radius-lg);
+      background: var(--md-surface-2);
+      border: 1px solid var(--md-outline-var);
+      margin-bottom: 22px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .chip-green { background: var(--md-green-bg); color: var(--md-green); }
+    .chip-amber { background: var(--md-amber-bg); color: var(--md-amber); }
+    .chip-red { background: var(--md-red-bg); color: var(--md-red); }
+    .chip-blue { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    .kpi-card {
+      padding: 14px 16px;
+      border-radius: var(--radius-md);
+      background: var(--md-surface);
+      border: 1px solid var(--md-outline-var);
+    }
+    .kpi-label { font-size: 12px; color: var(--md-on-surface-var); }
+    .kpi-value {
+      font-size: 22px;
+      font-weight: 600;
+      margin-top: 4px;
+      font-family: var(--font-mono);
+    }
+
+    /* Quick Route Cards */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+    .m3-card {
+      padding: 18px;
+      border-radius: var(--radius-md);
+      background: var(--md-surface);
+      border: 1px solid var(--md-outline-var);
+      cursor: pointer;
+      transition: box-shadow 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .m3-card:hover {
+      background: var(--md-surface-2);
+      border-color: var(--md-primary);
+      box-shadow: var(--md-shadow);
+    }
+    .m3-card h3 { font-size: 14px; font-weight: 600; margin: 10px 0 4px; }
+    .m3-card p { font-size: 12px; color: var(--md-on-surface-var); }
+
+    /* Mods Table */
+    .filter-chips {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .filter-chip {
+      height: 32px;
+      padding: 0 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--md-outline-var);
+      background: var(--md-surface);
+      color: var(--md-on-surface-var);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .filter-chip.active {
+      background: var(--md-secondary-container);
+      color: var(--md-on-primary-container);
+      border-color: transparent;
+      font-weight: 600;
+    }
+
+    .table-card {
+      border: 1px solid var(--md-outline-var);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th {
+      padding: 12px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--md-on-surface-var);
+      background: var(--md-surface-2);
+      border-bottom: 1px solid var(--md-outline-var);
+    }
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--md-outline-var);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--md-surface-2); }
+
+    .role-btn {
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--md-outline-var);
+      background: transparent;
+      color: var(--md-on-surface-var);
+      font-size: 12px;
+      cursor: pointer;
+      margin-right: 4px;
+      font-family: inherit;
+    }
+    .role-btn.on {
+      background: var(--md-primary-container);
+      color: var(--md-on-primary-container);
+      border-color: transparent;
+      font-weight: 600;
+    }
+
+    /* Settings Form */
+    .form-section {
+      padding: 20px 22px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--md-outline-var);
+      margin-bottom: 16px;
+    }
+    .form-section h2 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px 24px;
+    }
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--md-on-surface-var);
+      margin-bottom: 6px;
+    }
+    .m3-input {
+      width: 100%;
+      height: 40px;
+      padding: 0 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--md-outline);
+      background: var(--md-surface);
+      color: var(--md-on-surface);
+      font-size: 13px;
+      outline: none;
+      font-family: inherit;
+    }
+    .m3-input:focus {
+      border-color: var(--md-primary);
+      border-width: 2px;
+      padding: 0 11px;
+    }
+
+    /* Non-blocking Material Snackbar / Progress Card */
+    .task-card {
+      position: fixed;
+      right: 28px;
+      bottom: 28px;
+      width: 340px;
+      background: var(--md-surface);
+      border: 1px solid var(--md-outline-var);
+      border-radius: var(--radius-md);
+      box-shadow: var(--md-shadow-lg);
+      padding: 14px 16px;
+      z-index: 40;
+    }
+    .progress-bar {
+      height: 4px;
+      border-radius: 99px;
+      background: var(--md-surface-3);
+      overflow: hidden;
+      margin: 10px 0 6px;
+    }
+    .progress-inner {
+      height: 100%;
+      width: 72%;
+      background: var(--md-primary);
+      border-radius: 99px;
+    }
+
+    @media (max-width: 1024px) {
+      .hero-tonal, .cards-grid, .form-grid { grid-template-columns: 1fr; }
+      .nav-drawer { width: 196px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Google Top App Bar -->
+  <header class="app-bar">
+    <div class="brand">
+      <div class="brand-icon">A3</div>
+      <span class="brand-title">Arma3 Server Tools</span>
+    </div>
+
+    <button class="instance-chip">
+      <span class="status-dot"></span>
+      <span>CN-Alpha · Altis Coop</span>
+      <span style="color: var(--md-on-surface-var); font-size: 11px;">▾</span>
+    </button>
+
+    <div class="search-bar">
+      <span>🔍</span>
+      <input placeholder="搜索模组、配置项（如 BattlEye、RCon）或命令..." />
+      <span class="kbd">Ctrl K</span>
+    </div>
+
+    <div class="app-bar-right">
+      <button class="m3-icon-btn" title="切换浅色/深色主题" onclick="toggleTheme()">🌓</button>
+      <button class="m3-btn m3-btn-outlined">↻ 重启</button>
+      <button class="m3-btn m3-btn-danger">■ 停止</button>
+      <button class="m3-btn m3-btn-filled" onclick="applySync()">保存并写入 cfg</button>
+    </div>
+  </header>
+
+  <div class="shell-body">
+    <!-- Material 3 Navigation Drawer -->
+    <aside class="nav-drawer">
+      <div>
+        <div class="nav-section-title">监控与控制台</div>
+        <button class="nav-pill active" onclick="switchView('overview', this)">概览仪表盘</button>
+        <button class="nav-pill" onclick="switchView('mods', this)">模组与签名 <span class="nav-count">3 更新</span></button>
+        <button class="nav-pill" onclick="switchView('settings', this)">基本设置</button>
+      </div>
+      <div>
+        <div class="nav-section-title">联机与日志</div>
+        <button class="nav-pill">RCon 玩家控制</button>
+        <button class="nav-pill">RPT 实时日志</button>
+        <button class="nav-pill">统计趋势</button>
+      </div>
+      <div>
+        <div class="nav-section-title">部署与系统</div>
+        <button class="nav-pill">开服检查 (Preflight)</button>
+        <button class="nav-pill">SteamCMD 终端</button>
+        <button class="nav-pill">快照与定时任务</button>
+      </div>
+    </aside>
+
+    <!-- Rounded Main Surface -->
+    <main class="surface-stage">
+      <div id="syncBanner" class="m3-banner">
+        <span>配置包有未写入游戏 <strong>server.cfg</strong> 的更改，写入后即可在下次启动或重启时生效。</span>
+        <button class="m3-btn m3-btn-tonal" style="height: 30px; padding: 0 14px;" onclick="applySync()">立即写入 cfg</button>
+      </div>
+
+      <div class="stage-scroll">
+        <!-- VIEW 1: OVERVIEW -->
+        <section id="view-overview" class="view active">
+          <div class="page-head">
+            <div>
+              <h1 class="page-title">实例概览</h1>
+              <p class="page-desc">Material Design 3 Tonal 层次 · 清晰的状态对比与低视觉疲劳留白</p>
+            </div>
+            <span class="chip chip-green">● 运行中 · PID 18492</span>
+          </div>
+
+          <div class="hero-tonal">
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <span class="chip chip-blue">x64 Dedicated</span>
+                <span class="chip chip-green">BattlEye ON</span>
+              </div>
+              <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 6px;">[CN] Altis Tactical Coop #01</h2>
+              <p style="color: var(--md-on-surface-var); margin-bottom: 16px;">
+                当前地图：Altis · 任务：Liberation RX · 端口 2302 · 已加载 42 个模组
+              </p>
+              <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="m3-btn m3-btn-tonal" onclick="switchView('mods', document.querySelectorAll('.nav-pill')[1])">管理模组 (42)</button>
+                <button class="m3-btn m3-btn-outlined" onclick="switchView('settings', document.querySelectorAll('.nav-pill')[2])">编辑基本设置</button>
+              </div>
+            </div>
+
+            <div class="kpi-grid">
+              <div class="kpi-card">
+                <div class="kpi-label">在线玩家</div>
+                <div class="kpi-value" style="color: var(--md-primary);">28 / 64</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">Server FPS</div>
+                <div class="kpi-value" style="color: var(--md-green);">48.6</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">内存占用</div>
+                <div class="kpi-value">6.4 GB</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">Bikey 校验</div>
+                <div class="kpi-value" style="font-size: 16px; color: var(--md-green); padding-top: 4px;">42 / 42 通过</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cards-grid">
+            <div class="m3-card" onclick="switchView('mods', document.querySelectorAll('.nav-pill')[1])">
+              <span class="chip chip-amber">3 个待更新</span>
+              <h3>模组与 Workshop</h3>
+              <p>管理客模/服模/HC 角色、复制 Bikey 签名与导入 HTML 预设。</p>
+            </div>
+            <div class="m3-card">
+              <span class="chip chip-green">5 / 5 通过</span>
+              <h3>开服检查</h3>
+              <p>验证可执行文件、端口占用与配置文件完整性。</p>
+            </div>
+            <div class="m3-card">
+              <span class="chip chip-blue">28 在线</span>
+              <h3>RCon 远程控制</h3>
+              <p>查看在线玩家列表、发送全服公告与执行踢出/封禁。</p>
+            </div>
+            <div class="m3-card" onclick="switchView('settings', document.querySelectorAll('.nav-pill')[2])">
+              <span class="chip chip-blue">双栏表单</span>
+              <h3>服务器配置</h3>
+              <p>调整主机名、密码、性能带宽、安全与难度参数。</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 2: MODS -->
+        <section id="view-mods" class="view">
+          <div class="page-head">
+            <div>
+              <h1 class="page-title">模组与签名管理</h1>
+              <p class="page-desc">使用 Material Filter Chips 快速筛选，点击「客模 / 服模 / HC」即时切换加载角色</p>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="m3-btn m3-btn-outlined">导入 HTML / 剪贴板</button>
+              <button class="m3-btn m3-btn-tonal">一键补全 Bikey</button>
+              <button class="m3-btn m3-btn-filled">检查更新</button>
+            </div>
+          </div>
+
+          <div class="filter-chips">
+            <button class="filter-chip active">全部 (42)</button>
+            <button class="filter-chip">已启用 (18)</button>
+            <button class="filter-chip">有更新 (3)</button>
+            <button class="filter-chip">签名缺失 (2)</button>
+          </div>
+
+          <div class="table-card">
+            <table>
+              <thead>
+                <tr>
+                  <th>模组名称</th>
+                  <th>Workshop ID</th>
+                  <th>加载角色</th>
+                  <th>Bikey 状态</th>
+                  <th>版本</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>CBA_A3</strong><div style="font-size:11px;color:var(--md-on-surface-var);font-family:var(--font-mono)">@CBA_A3</div></td>
+                  <td style="font-family: var(--font-mono);">450814997</td>
+                  <td>
+                    <button class="role-btn on" onclick="this.classList.toggle('on')">客模</button>
+                    <button class="role-btn" onclick="this.classList.toggle('on')">服模</button>
+                    <button class="role-btn on" onclick="this.classList.toggle('on')">HC</button>
+                  </td>
+                  <td><span class="chip chip-green">已复制到 keys</span></td>
+                  <td><span class="chip chip-green">已最新</span></td>
+                </tr>
+                <tr>
+                  <td><strong>ACE3</strong><div style="font-size:11px;color:var(--md-on-surface-var);font-family:var(--font-mono)">@ace</div></td>
+                  <td style="font-family: var(--font-mono);">463939057</td>
+                  <td>
+                    <button class="role-btn on" onclick="this.classList.toggle('on')">客模</button>
+                    <button class="role-btn" onclick="this.classList.toggle('on')">服模</button>
+                    <button class="role-btn on" onclick="this.classList.toggle('on')">HC</button>
+                  </td>
+                  <td><span class="chip chip-green">已复制到 keys</span></td>
+                  <td><span class="chip chip-amber">有更新</span></td>
+                </tr>
+                <tr>
+                  <td><strong>RHSUSAF</strong><div style="font-size:11px;color:var(--md-on-surface-var);font-family:var(--font-mono)">@RHSUSAF</div></td>
+                  <td style="font-family: var(--font-mono);">843577117</td>
+                  <td>
+                    <button class="role-btn on" onclick="this.classList.toggle('on')">客模</button>
+                    <button class="role-btn" onclick="this.classList.toggle('on')">服模</button>
+                    <button class="role-btn" onclick="this.classList.toggle('on')">HC</button>
+                  </td>
+                  <td><span class="chip chip-red">未复制密钥</span></td>
+                  <td><span class="chip chip-green">已最新</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- VIEW 3: SETTINGS -->
+        <section id="view-settings" class="view">
+          <div class="page-head">
+            <div>
+              <h1 class="page-title">基本设置</h1>
+              <p class="page-desc">清晰的 Material 3 分组卡片与双栏输入域，点击右上角「保存并写入 cfg」一键生效</p>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h2>基础信息</h2>
+            <div class="form-grid">
+              <div class="field">
+                <label>配置名称</label>
+                <input class="m3-input" value="CN-Alpha · Altis Coop" />
+              </div>
+              <div class="field">
+                <label>服务器显示名 (hostname)</label>
+                <input class="m3-input" value="[CN] Altis Tactical Coop #01" />
+              </div>
+              <div class="field">
+                <label>服务器端口</label>
+                <input class="m3-input" type="number" value="2302" />
+              </div>
+              <div class="field">
+                <label>最大玩家数</label>
+                <input class="m3-input" type="number" value="64" />
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Non-blocking Material Task Card -->
+  <div class="task-card">
+    <div style="display: flex; justify-content: space-between; font-weight: 600; font-size: 13px;">
+      <span>SteamCMD 下载中 (2/3)</span>
+      <span style="color: var(--md-primary); cursor: pointer; font-size: 12px;">打开终端</span>
+    </div>
+    <div class="progress-bar"><div class="progress-inner"></div></div>
+    <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--md-on-surface-var); font-family: var(--font-mono);">
+      <span>@RHSUSAF (843577117)</span>
+      <span>72%</span>
+    </div>
+  </div>
+
+  <script>
+    function toggleTheme() {
+      const root = document.documentElement;
+      root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    }
+    function switchView(name, btn) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById('view-' + name).classList.add('active');
+      document.querySelectorAll('.nav-pill').forEach(p => p.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+    }
+    function applySync() {
+      document.getElementById('syncBanner').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>

@@ -1,7 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import Fastify from "fastify";
 import { healthRoutes } from "../api/health.js";
 import { apiRoutes } from "../api/routes.js";
+import { createService } from "../app.js";
+import { RconClient } from "../rcon/client.js";
 
 // We need the decorated service instances. For integration tests,
 // create a minimal Fastify instance with mock services.
@@ -326,5 +328,375 @@ describe("API Routes Integration", () => {
   it("GET /api/v1/monitoring/collect records stats", async () => {
     const res = await app.inject({ method: "POST", url: "/api/v1/monitoring/collect" });
     expect(res.statusCode).toBe(200);
+  });
+
+  it("SEC-1 sanitizes malicious string processById in PUT/PATCH config without spawning shell", async () => {
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/v1/servers",
+      payload: { configName: "PidInjection", serverDir: tmpDir },
+    });
+    const uuid = JSON.parse(createRes.payload).data.uuid as string;
+
+    const putRes = await app.inject({
+      method: "PUT",
+      url: `/api/v1/servers/${uuid}/config`,
+      payload: {
+        formatVersion: 2,
+        server: { configName: "PidInjection", serverDir: tmpDir },
+        tasks: { processById: "1); Start-Process calc; #" },
+      },
+    });
+    expect(putRes.statusCode).toBe(200);
+
+    const getRes = await app.inject({ method: "GET", url: `/api/v1/servers/${uuid}/config` });
+    expect(JSON.parse(getRes.payload).data.tasks.processById).toBe(0);
+
+    const patchRes = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/servers/${uuid}/config`,
+      payload: { tasks: { processById: "99 && whoami" } },
+    });
+    expect(patchRes.statusCode).toBe(200);
+    const getAfterPatch = await app.inject({ method: "GET", url: `/api/v1/servers/${uuid}/config` });
+    expect(JSON.parse(getAfterPatch.payload).data.tasks.processById).toBe(0);
+  });
+
+  it("SEC-4 returns 400 INVALID_UUID / INVALID_SNAPSHOT_ID on traversal params and queries", async () => {
+    const r1 = await app.inject({ method: "GET", url: "/api/v1/servers/..%5Cescape/config" });
+    expect(r1.statusCode).toBe(400);
+    expect(JSON.parse(r1.payload).error).toBe("INVALID_UUID");
+
+    const r2 = await app.inject({ method: "DELETE", url: "/api/v1/servers/bad.uuid" });
+    expect(r2.statusCode).toBe(400);
+    expect(JSON.parse(r2.payload).error).toBe("INVALID_UUID");
+
+    const r3 = await app.inject({
+      method: "POST",
+      url: "/api/v1/servers/uuid-1/snapshots/..%5Cescape/restore",
+    });
+    expect(r3.statusCode).toBe(400);
+    expect(JSON.parse(r3.payload).error).toBe("INVALID_SNAPSHOT_ID");
+
+    const r4 = await app.inject({
+      method: "GET",
+      url: "/api/v1/bans?serverUuid=..%2Fetc",
+    });
+    expect(r4.statusCode).toBe(400);
+    expect(JSON.parse(r4.payload).error).toBe("INVALID_UUID");
+
+    const r5 = await app.inject({
+      method: "POST",
+      url: "/api/v1/task",
+      payload: { serverUuid: "../etc", commands: [{ action: "status" }] },
+    });
+    expect(r5.statusCode).toBe(400);
+    expect(JSON.parse(r5.payload).error).toBe("INVALID_UUID");
+  });
+
+  it("BUG-3 passes timeMinutes (with RconView legacy numeric playerId fallback) and rconMissionName ?? missionTemplate", async () => {
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/v1/servers",
+      payload: { configName: "RconTest", serverDir: tmpDir },
+    });
+    const uuid = JSON.parse(createRes.payload).data.uuid as string;
+    await app.inject({
+      method: "PUT",
+      url: `/api/v1/servers/${uuid}/config`,
+      payload: {
+        formatVersion: 2,
+        server: { configName: "RconTest", serverDir: tmpDir },
+        battleye: { rconPort: 2302, rconPassword: "secret" },
+      },
+    });
+
+    const connectSpy = vi.spyOn(RconClient.prototype, "connect").mockResolvedValue();
+    const disconnectSpy = vi.spyOn(RconClient.prototype, "disconnect").mockImplementation(() => {});
+    const banSpy = vi
+      .spyOn(RconClient.prototype, "ban")
+      .mockResolvedValue({ success: true, message: "banned" });
+    const missionSpy = vi
+      .spyOn(RconClient.prototype, "loadMission")
+      .mockResolvedValue({ success: true, message: "loaded" });
+
+    try {
+      await app.inject({
+        method: "POST",
+        url: "/api/v1/task",
+        payload: {
+          serverUuid: uuid,
+          commands: [
+            {
+              action: "rcon_ban",
+              playerGuid: "guid123",
+              playerId: "2",
+              timeMinutes: 60,
+              reason: "TK",
+            },
+            {
+              action: "rcon_ban",
+              playerGuid: "guid456",
+              playerId: 30,
+              reason: "临时封禁",
+            },
+            {
+              action: "rcon_mission",
+              rconMissionName: "co10_Escape.Altis",
+            },
+            {
+              action: "rcon_mission",
+              missionTemplate: "Altis_Life.Altis",
+            },
+          ],
+        },
+      });
+
+      expect(banSpy).toHaveBeenNthCalledWith(1, "guid123", 60, "TK");
+      expect(banSpy).toHaveBeenNthCalledWith(2, "guid456", 30, "临时封禁");
+      expect(missionSpy).toHaveBeenNthCalledWith(1, "co10_Escape.Altis");
+      expect(missionSpy).toHaveBeenNthCalledWith(2, "Altis_Life.Altis");
+    } finally {
+      connectSpy.mockRestore();
+      disconnectSpy.mockRestore();
+      banSpy.mockRestore();
+      missionSpy.mockRestore();
+    }
+  });
+
+  it("PERF-2 /monitoring/collect and /monitoring/sync-players use batch persistence instead of N+1 recordPlayer", async () => {
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/v1/servers",
+      payload: { configName: "CollectTest", serverDir: tmpDir },
+    });
+    const uuid = JSON.parse(createRes.payload).data.uuid as string;
+    await app.inject({
+      method: "PUT",
+      url: `/api/v1/servers/${uuid}/config`,
+      payload: {
+        formatVersion: 2,
+        server: { configName: "CollectTest", serverDir: tmpDir },
+        battleye: { rconPort: 2302, rconPassword: "secret" },
+      },
+    });
+
+    const connectSpy = vi.spyOn(RconClient.prototype, "connect").mockResolvedValue();
+    const disconnectSpy = vi.spyOn(RconClient.prototype, "disconnect").mockImplementation(() => {});
+    const playersSpy = vi.spyOn(RconClient.prototype, "getPlayers").mockResolvedValue([
+      { num: 1, guid: "pguid-1", name: "Alpha" },
+      { num: 2, guid: "pguid-2", name: "Bravo" },
+    ]);
+    const stateSpy = vi.spyOn(processManager, "getState").mockImplementation((id) => ({
+      isRunning: id === uuid,
+      pid: id === uuid ? 5555 : undefined,
+    }));
+    const tickSpy = vi.spyOn(monitorDb, "recordCollectionTick");
+    const batchSpy = vi.spyOn(monitorDb, "batchInsertPlayers");
+    const recordPlayerSpy = vi.spyOn(monitorDb, "recordPlayer");
+
+    try {
+      const collectRes = await app.inject({ method: "POST", url: "/api/v1/monitoring/collect" });
+      expect(collectRes.statusCode).toBe(200);
+      expect(tickSpy).toHaveBeenCalledTimes(1);
+      expect(tickSpy).toHaveBeenCalledWith(
+        uuid,
+        2,
+        expect.arrayContaining([
+          expect.objectContaining({ playerGuid: "pguid-1", playerName: "Alpha" }),
+          expect.objectContaining({ playerGuid: "pguid-2", playerName: "Bravo" }),
+        ])
+      );
+      expect(recordPlayerSpy).not.toHaveBeenCalled();
+
+      const syncRes = await app.inject({
+        method: "POST",
+        url: `/api/v1/servers/${uuid}/monitoring/sync-players`,
+      });
+      expect(syncRes.statusCode).toBe(200);
+      expect(JSON.parse(syncRes.payload).data.synced).toBe(2);
+      expect(batchSpy).toHaveBeenCalledTimes(1);
+      expect(recordPlayerSpy).not.toHaveBeenCalled();
+    } finally {
+      connectSpy.mockRestore();
+      disconnectSpy.mockRestore();
+      playersSpy.mockRestore();
+      stateSpy.mockRestore();
+      tickSpy.mockRestore();
+      batchSpy.mockRestore();
+      recordPlayerSpy.mockRestore();
+    }
+  });
+
+  it("BUG-6 PUT /servers/:uuid/rename updates both manifest and config.server.configName and rejects blank names", async () => {
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/v1/servers",
+      payload: { configName: "OldName", serverDir: tmpDir },
+    });
+    const uuid = JSON.parse(createRes.payload).data.uuid as string;
+
+    const badRename = await app.inject({
+      method: "PUT",
+      url: `/api/v1/servers/${uuid}/rename`,
+      payload: { newName: "   " },
+    });
+    expect(badRename.statusCode).toBe(400);
+
+    const renameRes = await app.inject({
+      method: "PUT",
+      url: `/api/v1/servers/${uuid}/rename`,
+      payload: { newName: "NewName" },
+    });
+    expect(renameRes.statusCode).toBe(200);
+
+    const listRes = await app.inject({ method: "GET", url: "/api/v1/servers" });
+    const list = JSON.parse(listRes.payload) as { uuid: string; configName: string }[];
+    expect(list.find((s) => s.uuid === uuid)?.configName).toBe("NewName");
+
+    const cfgRes = await app.inject({ method: "GET", url: `/api/v1/servers/${uuid}/config` });
+    expect(JSON.parse(cfgRes.payload).data.server.configName).toBe("NewName");
+  });
+
+  it("BUG-14 bounds tail/hours query params and returns HTTP 404 on NOT_FOUND endpoints", async () => {
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/v1/servers",
+      payload: { configName: "Bug14", serverDir: tmpDir },
+    });
+    const uuid = JSON.parse(createRes.payload).data.uuid as string;
+    const logDir = path.join(tmpDir, "a3st_serverconfig", uuid);
+    fs.mkdirSync(logDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(logDir, "server.rpt"),
+      ["l1", "l2", "l3"].join("\n"),
+      "utf-8"
+    );
+
+    const logBadTail = await app.inject({
+      method: "GET",
+      url: `/api/v1/servers/${uuid}/logs/read?kind=rpt&tail=abc`,
+    });
+    expect(logBadTail.statusCode).toBe(200);
+    expect(JSON.parse(logBadTail.payload).data.lines).toEqual(["l1", "l2", "l3"]);
+
+    const steamLogBadTail = await app.inject({
+      method: "GET",
+      url: "/api/v1/steamcmd/log?tail=-10",
+    });
+    expect(steamLogBadTail.statusCode).toBe(200);
+
+    monitorDb.recordStats(uuid, 7);
+    const statsBadHours = await app.inject({
+      method: "GET",
+      url: `/api/v1/servers/${uuid}/monitoring/stats?hours=abc`,
+    });
+    expect(statsBadHours.statusCode).toBe(200);
+    expect(JSON.parse(statsBadHours.payload).data.stats).toHaveLength(1);
+
+    const statsZeroHours = await app.inject({
+      method: "GET",
+      url: `/api/v1/servers/${uuid}/monitoring/stats?hours=-5`,
+    });
+    expect(statsZeroHours.statusCode).toBe(200);
+    expect(JSON.parse(statsZeroHours.payload).data.stats).toHaveLength(1);
+
+    const notFoundCalls = [
+      { method: "GET" as const, url: "/api/v1/servers/missing-id/config" },
+      { method: "GET" as const, url: "/api/v1/servers/missing-id/preflight" },
+      { method: "GET" as const, url: "/api/v1/servers/missing-id/dashboard" },
+      {
+        method: "POST" as const,
+        url: "/api/v1/schedule/restart",
+        payload: { serverUuid: "missing-id", cron: "0 4 * * *" },
+      },
+      {
+        method: "POST" as const,
+        url: `/api/v1/servers/${uuid}/snapshots/missing-snap/restore`,
+      },
+      { method: "GET" as const, url: "/api/v1/tasks/missing-task" },
+    ];
+    for (const reqOpts of notFoundCalls) {
+      const r = await app.inject(reqOpts);
+      expect(r.statusCode).toBe(404);
+      const body = JSON.parse(r.payload);
+      expect(body.success).toBe(false);
+      expect(body.error).toBe("NOT_FOUND");
+    }
+  });
+
+  it("BUG-5 & BUG-7 via createService: accepts text/html, rejects JSON body 400, and writes server.cfg on mission-pbo?writeCfg=true", async () => {
+    const svcDir = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-svc-upload-"));
+    const svc = await createService({ port: 0, host: "127.0.0.1", dataDir: svcDir });
+    try {
+      const addr = svc.server.address();
+      if (!addr || typeof addr === "string") {
+        throw new Error("expected TCP address");
+      }
+      const baseUrl = `http://127.0.0.1:${addr.port}`;
+
+      const createRes = await fetch(`${baseUrl}/api/v1/servers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ configName: "UploadSvc", serverDir: svcDir }),
+      });
+      const uuid = ((await createRes.json()) as { data: { uuid: string } }).data.uuid;
+
+      // BUG-5: text/html accepted cleanly
+      const htmlRes = await fetch(
+        `${baseUrl}/api/v1/servers/${uuid}/files/mod-list-html?mode=merge_enable`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "text/html" },
+          body: '<a href="https://steamcommunity.com/sharedfiles/filedetails/?id=450814997">CBA</a>',
+        }
+      );
+      expect(htmlRes.status).toBe(200);
+      const htmlBody = (await htmlRes.json()) as { success: boolean; data: { modCount: number } };
+      expect(htmlBody.success).toBe(true);
+      expect(htmlBody.data.modCount).toBe(1);
+
+      // BUG-5: JSON object body returns 400 NO_CONTENT (never 500 TypeError)
+      const badBodyRes = await fetch(
+        `${baseUrl}/api/v1/servers/${uuid}/files/mod-list-html`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bad: true }),
+        }
+      );
+      expect(badBodyRes.status).toBe(400);
+      const badBody = (await badBodyRes.json()) as { success: boolean; error: string };
+      expect(badBody.success).toBe(false);
+      expect(badBody.error).toBe("NO_CONTENT");
+
+      // BUG-7: multipart mission-pbo with addToMissionList=true&writeCfg=true
+      const form = new FormData();
+      form.append(
+        "file",
+        new Blob([Buffer.from("fake-pbo-content")], { type: "application/octet-stream" }),
+        "TestMission.Altis.pbo"
+      );
+      const pboRes = await fetch(
+        `${baseUrl}/api/v1/servers/${uuid}/files/mission-pbo?addToMissionList=true&writeCfg=true`,
+        { method: "POST", body: form }
+      );
+      expect(pboRes.status).toBe(200);
+      const pboBody = (await pboRes.json()) as {
+        success: boolean;
+        data: { cfgWritten: boolean };
+      };
+      expect(pboBody.success).toBe(true);
+      expect(pboBody.data.cfgWritten).toBe(true);
+
+      const pboPath = path.join(svcDir, "MPMissions", "TestMission.Altis.pbo");
+      expect(fs.existsSync(pboPath)).toBe(true);
+      const cfgPath = path.join(svcDir, "a3st_serverconfig", uuid, "server.cfg");
+      expect(fs.existsSync(cfgPath)).toBe(true);
+      expect(fs.readFileSync(cfgPath, "utf-8")).toContain("TestMission.Altis");
+    } finally {
+      await svc.close();
+      fs.rmSync(svcDir, { recursive: true, force: true });
+    }
   });
 });

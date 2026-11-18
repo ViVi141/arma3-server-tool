@@ -2,6 +2,7 @@
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
 import DashboardHero from "@/components/dashboard/DashboardHero.vue";
 import DashboardDeployTrack from "@/components/dashboard/DashboardDeployTrack.vue";
+import M3Icon from "@/components/M3Icon.vue";
 import { UI_COPY } from "@/constants/uiCopy";
 import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
@@ -9,6 +10,10 @@ import { useConnectionsStore } from "@/stores/connections";
 import type { ServerStatus, DashboardData } from "@a3st/api-client";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
+
+// 仪表盘的「刷新状态」同时要把运行态同步给外壳操作栏（启动/停止按钮的可用性），
+// 否则刷新后按钮仍停留在旧状态。
+const emit = defineEmits<{ "refresh-shell-status": [] }>();
 const router = useRouter();
 const store = useConnectionsStore();
 
@@ -20,30 +25,29 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 const modules = [
   {
     code: "SRV-01",
-    title: "CALIBRATE",
-    subtitle: "开服检查",
+    icon: "fact_check",
+    title: "开服检查",
     body: "启动前体检路径、端口、模组与 cfg 是否就绪。",
     tab: "preflight",
   },
   {
     code: "SRV-02",
-    title: "WORKSHOP",
-    subtitle: "模组同步",
+    icon: "extension",
+    title: "模组同步",
     body: "扫描本地 Workshop 目录，对照远程更新时间。",
     tab: "mods",
-    dark: true,
   },
   {
     code: "SRV-03",
-    title: "LOGS",
-    subtitle: "RPT 日志",
+    icon: "description",
+    title: "RPT 日志",
     body: "查看最新 RPT 输出，排查启动与运行时错误。",
     tab: "logs",
   },
   {
     code: "SRV-04",
-    title: "CONFIG",
-    subtitle: "基本设置",
+    icon: "tune",
+    title: "基本设置",
     body: "主机名、端口、密码与 BattlEye 等核心参数。",
     tab: "basic",
   },
@@ -76,6 +80,7 @@ async function loadStatus() {
     /* ignore */
   } finally {
     loading.value = false;
+    emit("refresh-shell-status");
   }
 }
 
@@ -124,30 +129,30 @@ function goTab(tab: string) {
 
       <section class="dash-modules" aria-labelledby="dash-modules-title">
         <header class="dash-modules__head">
-          <p class="dash-modules__kicker">QUICK ROUTES</p>
-          <h2 id="dash-modules-title">MODULES</h2>
+          <h2 id="dash-modules-title">快捷入口</h2>
         </header>
         <div class="dash-modules__grid">
-          <article
+          <button
             v-for="mod in modules"
             :key="mod.code"
-            class="dash-module"
-            :class="{ 'dash-module--dark': mod.dark }"
+            type="button"
+            class="dash-card"
+            :data-testid="`dash-card-${mod.tab}`"
+            :aria-label="mod.title"
+            @click="goTab(mod.tab)"
           >
-            <p class="dash-module__code">{{ mod.code }} / {{ mod.title }}</p>
-            <h3>{{ mod.subtitle }}</h3>
-            <p class="dash-module__body">{{ mod.body }}</p>
-            <button type="button" class="dash-module__link" @click="goTab(mod.tab)">
-              打开 →
-            </button>
-          </article>
+            <span class="dash-card__icon" aria-hidden="true">
+              <M3Icon :name="mod.icon" :size="22" />
+            </span>
+            <span class="dash-card__title">{{ mod.title }}</span>
+            <span class="dash-card__body">{{ mod.body }}</span>
+          </button>
         </div>
       </section>
 
       <section class="dash-stats" aria-label="状态摘要">
         <header class="dash-modules__head dash-modules__head--compact">
-          <p class="dash-modules__kicker">READOUT</p>
-          <h2>STATUS</h2>
+          <h2>运行读数</h2>
         </header>
         <div class="stat-grid">
           <div class="stat-tile stat-tile--signal">
@@ -155,7 +160,7 @@ function goTab(tab: string) {
             <span class="stat-tile__value">{{ runningText() }}</span>
           </div>
           <div class="stat-tile">
-            <span class="stat-tile__label">进程 PID</span>
+            <span class="stat-tile__label">进程号</span>
             <span class="stat-tile__value">{{ status?.pid ?? "-" }}</span>
           </div>
           <div class="stat-tile stat-tile--signal">
@@ -171,23 +176,29 @@ function goTab(tab: string) {
             <span class="stat-tile__value">{{ dashboard?.port ?? "-" }}</span>
           </div>
           <div class="stat-tile">
-            <span class="stat-tile__label">监控 / 统计</span>
+            <span class="stat-tile__label">在线统计</span>
             <span class="stat-tile__value">{{ monitoringText() }}</span>
           </div>
           <div class="stat-tile">
-            <span class="stat-tile__label">定时 / 重启</span>
+            <span class="stat-tile__label">定时任务</span>
             <span class="stat-tile__value">{{ dashboard?.scheduleSummary ?? "-" }}</span>
           </div>
           <div class="stat-tile">
-            <span class="stat-tile__label">最新 RPT</span>
+            <span class="stat-tile__label">当前任务</span>
+            <span class="stat-tile__value stat-tile__value--truncate">
+              {{ status?.activeMissionTemplate ?? "-" }}
+            </span>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-tile__label">模组数</span>
+            <span class="stat-tile__value">{{ status?.serverModCount ?? "-" }}</span>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-tile__label">最新日志</span>
             <span class="stat-tile__value stat-tile__value--truncate">{{ dashboard?.latestRpt ?? "-" }}</span>
           </div>
         </div>
       </section>
-
-      <div v-if="dashboard && !dashboard.cfgWritten" class="notice-bar">
-        尚未写入游戏配置 — 请先在各设置页保存，再点击「{{ UI_COPY.writeGameCfg }}」。
-      </div>
 
       <div class="quick-actions dash-actions">
         <el-button size="small" :loading="loading" @click="loadStatus">刷新状态</el-button>

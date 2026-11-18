@@ -31,7 +31,7 @@ export function startHeadlessClient(
   stopHeadlessClient(uuid);
 
   const executable = getServerExecutablePath(config);
-  const mods = scanModsForConfig(app, config);
+  const mods = scanModsForConfig(app, config, { skipSize: true });
   let commandLine: string;
   try {
     commandLine = buildHeadlessClientCommandLine(uuid, config, mods);
@@ -57,8 +57,16 @@ export function startHeadlessClient(
   }
 
   hcProcesses.set(uuid, proc);
+  proc.on("error", (err) => {
+    if (hcProcesses.get(uuid) === proc) {
+      hcProcesses.delete(uuid);
+    }
+    app.log?.error?.({ err, uuid }, "Headless client process error");
+  });
   proc.on("exit", () => {
-    hcProcesses.delete(uuid);
+    if (hcProcesses.get(uuid) === proc) {
+      hcProcesses.delete(uuid);
+    }
   });
 
   return { success: true, message: `无头客户端已启动 PID ${proc.pid ?? "?"}` };
@@ -67,7 +75,17 @@ export function startHeadlessClient(
 export function stopHeadlessClient(uuid: string): void {
   const proc = hcProcesses.get(uuid);
   if (proc && !proc.killed) {
-    proc.kill();
+    try {
+      proc.kill();
+    } catch {
+      /* ignore */
+    }
   }
   hcProcesses.delete(uuid);
+}
+
+export function stopAllHeadlessClients(): void {
+  for (const uuid of Array.from(hcProcesses.keys())) {
+    stopHeadlessClient(uuid);
+  }
 }

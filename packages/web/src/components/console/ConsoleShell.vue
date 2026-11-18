@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted } from "vue";
 import type { ConsoleMode } from "@/config/console-modes";
 import type { TabEntry } from "@/config/tab-registry";
 import type { ServerSummary } from "@a3st/api-client";
-import { getThemeMode, setThemeMode, type ThemeMode } from "@/utils/systemTheme";
-import { ref, onMounted } from "vue";
+import M3Icon from "@/components/M3Icon.vue";
+import CommandPalette from "@/components/CommandPalette.vue";
+import { useThemeMode } from "@/config/theme";
+import { useUiSettingsStore } from "@/stores/uiSettings";
 
 const props = defineProps<{
   modes: ConsoleMode[];
@@ -26,7 +29,9 @@ const emit = defineEmits<{
   "update:searchText": [value: string];
   "navigate-mode": [modeId: string];
   "navigate-tab": [tabName: string];
+  "navigate-tab-from-palette": [tabName: string, highlight?: string, highlightAliases?: string[]];
   "select-server": [uuid: string];
+  "exec-action-from-palette": [actionId: string];
   "create-server": [];
   "open-wizard": [];
   rename: [];
@@ -36,16 +41,25 @@ const emit = defineEmits<{
 }>();
 
 const isMobile = import.meta.env.VITE_APP_MODE === "mobile";
-const themeMode = ref<ThemeMode>("system");
+const uiSettings = useUiSettingsStore();
+const { themeMode, themeIcon, themeLabel, cycleThemeMode } = useThemeMode();
+
+const paletteOpen = ref(false);
+
+function onGlobalKeydown(event: KeyboardEvent): void {
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "k" && !event.isComposing) {
+    event.preventDefault();
+    paletteOpen.value = !paletteOpen.value;
+  }
+}
 
 onMounted(() => {
-  themeMode.value = getThemeMode();
+  window.addEventListener("keydown", onGlobalKeydown);
 });
 
-function onThemeModeChange(mode: ThemeMode) {
-  themeMode.value = mode;
-  setThemeMode(mode);
-}
+onUnmounted(() => {
+  window.removeEventListener("keydown", onGlobalKeydown);
+});
 
 function onSubTabSelect(tabName: string | number | boolean | undefined) {
   if (typeof tabName !== "string" || !tabName) {
@@ -66,7 +80,9 @@ function subTabOptionLabel(tab: TabEntry): string {
   <div class="shell-v2" data-testid="console-shell">
     <header class="shell-v2__topbar">
       <div class="shell-v2__brand">
-        <span class="shell-v2__mark" aria-hidden="true"><i /><i /><i /></span>
+        <span class="shell-v2__mark" aria-hidden="true">
+          <M3Icon name="dns" :size="18" />
+        </span>
         <span class="shell-v2__wordmark">
           <strong>A3ST</strong>
           <small>CONSOLE</small>
@@ -86,7 +102,7 @@ function subTabOptionLabel(tab: TabEntry): string {
               servers.find((s) => s.uuid === selectedUuid)?.configName ?? "选择实例"
             }}
           </span>
-          <span class="shell-v2__instance-caret">▾</span>
+          <M3Icon name="expand_more" :size="16" class="shell-v2__instance-caret" />
         </button>
         <template #dropdown>
           <div class="shell-v2__instance-menu" data-testid="server-list">
@@ -134,20 +150,35 @@ function subTabOptionLabel(tab: TabEntry): string {
         {{ statusText }}
       </p>
 
+      <button
+        type="button"
+        class="m3-search-trigger"
+        data-testid="btn-command-palette"
+        aria-label="全局命令与配置搜索 (Ctrl+K)"
+        title="全局搜索 (Ctrl+K)"
+        @click="paletteOpen = true"
+      >
+        <M3Icon name="search" :size="18" />
+        <span class="m3-search-trigger__text">搜索配置、页面或操作...</span>
+        <kbd class="m3-search-trigger__kbd">Ctrl+K</kbd>
+      </button>
+
       <div class="shell-v2__topbar-right">
-        <label class="shell-v2__picker">
-          <span>明暗</span>
-          <select
-            data-testid="theme-mode-select"
-            :value="themeMode"
-            @change="onThemeModeChange(($event.target as HTMLSelectElement).value as ThemeMode)"
-          >
-            <option value="system">系统</option>
-            <option value="light">浅</option>
-            <option value="dark">深</option>
-          </select>
-        </label>
-        <router-link to="/connections" class="shell-v2__link" data-testid="nav-connections">登出</router-link>
+        <button
+          type="button"
+          class="m3-icon-btn"
+          data-testid="theme-mode-select"
+          :data-theme-mode="themeMode"
+          :aria-label="themeLabel"
+          :title="themeLabel"
+          @click="cycleThemeMode"
+        >
+          <M3Icon :name="themeIcon" :size="20" />
+        </button>
+        <router-link to="/connections" class="shell-v2__link" data-testid="nav-connections">
+          <M3Icon name="logout" :size="18" />
+          <span>登出</span>
+        </router-link>
       </div>
     </header>
 
@@ -163,7 +194,12 @@ function subTabOptionLabel(tab: TabEntry): string {
           :disabled="!selectedUuid && mode.id !== 'overview'"
           @click="$emit('navigate-mode', mode.id)"
         >
-          <span class="shell-v2__rail-index">{{ mode.index }}</span>
+          <M3Icon
+            :name="mode.icon"
+            :size="20"
+            :filled="activeModeId === mode.id"
+            class="shell-v2__rail-icon"
+          />
           <span class="shell-v2__rail-label">{{ mode.label }}</span>
         </button>
       </aside>
@@ -175,6 +211,7 @@ function subTabOptionLabel(tab: TabEntry): string {
           aria-label="子页面"
         >
           <el-select
+            :key="activeTab"
             :model-value="activeTab"
             :disabled="!selectedUuid"
             data-testid="nav-subtab-select"
@@ -204,8 +241,9 @@ function subTabOptionLabel(tab: TabEntry): string {
             :disabled="!selectedUuid"
             @click="$emit('navigate-tab', tab.name)"
           >
-            {{ tab.label
-            }}<span v-if="tab.name === activeTab && hasDirtyChanges" class="shell-v2__dirty">*</span>
+            <M3Icon v-if="tab.icon" :name="tab.icon" :size="16" />
+            <span>{{ tab.label }}</span>
+            <span v-if="tab.name === activeTab && hasDirtyChanges" class="shell-v2__dirty">*</span>
           </button>
         </nav>
 
@@ -229,30 +267,21 @@ function subTabOptionLabel(tab: TabEntry): string {
         </footer>
       </div>
     </div>
+
+    <CommandPalette
+      v-model="paletteOpen"
+      :servers="servers"
+      :selected-uuid="selectedUuid"
+      :show-advanced="uiSettings.showAdvancedSettings"
+      :active-tab="activeTab"
+      @navigate-tab="(tab, highlight, aliases) => $emit('navigate-tab-from-palette', tab, highlight, aliases)"
+      @select-server="(uuid) => $emit('select-server', uuid)"
+      @exec-action="(actionId) => $emit('exec-action-from-palette', actionId)"
+    />
   </div>
 </template>
 
 <style scoped>
-.shell-v2__mark i {
-  position: absolute;
-  width: 1.4rem;
-  height: 2px;
-  background: currentColor;
-  transform-origin: center;
-}
-
-.shell-v2__mark i:nth-child(1) {
-  transform: rotate(0deg);
-}
-
-.shell-v2__mark i:nth-child(2) {
-  transform: rotate(60deg);
-}
-
-.shell-v2__mark i:nth-child(3) {
-  transform: rotate(-60deg);
-}
-
 .shell-v2__instance-menu {
   min-width: 240px;
   padding: 8px;
@@ -266,7 +295,8 @@ function subTabOptionLabel(tab: TabEntry): string {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px;
+  padding: 8px 10px;
+  border-radius: var(--md-sys-shape-corner-sm);
   cursor: pointer;
   font-size: 13px;
 }
@@ -277,7 +307,8 @@ function subTabOptionLabel(tab: TabEntry): string {
 
 .shell-v2__instance-row.is-active {
   background: var(--a3st-bg-active);
-  box-shadow: inset 2px 0 0 var(--a3st-accent);
+  color: var(--md-sys-color-on-secondary-container);
+  font-weight: 500;
 }
 
 .shell-v2__instance-empty {
@@ -294,13 +325,5 @@ function subTabOptionLabel(tab: TabEntry): string {
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--a3st-border-subtle);
-}
-
-.global-settings .row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 12px;
 }
 </style>

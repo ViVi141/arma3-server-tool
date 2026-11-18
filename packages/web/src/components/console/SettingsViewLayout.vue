@@ -7,17 +7,20 @@ withDefaults(
     title: string;
     hint?: string;
     showSave?: boolean;
+    allowReset?: boolean;
     saving?: boolean;
   }>(),
   {
     hint: undefined,
     showSave: false,
+    allowReset: false,
     saving: false,
   }
 );
 
 const emit = defineEmits<{
   save: [];
+  reset: [];
 }>();
 </script>
 
@@ -29,6 +32,15 @@ const emit = defineEmits<{
       <div class="settings-page__rule" aria-hidden="true" />
       <p v-if="hint" class="settings-page__hint">{{ hint }}</p>
       <div v-if="showSave" class="settings-page__actions">
+        <el-button
+          v-if="allowReset"
+          text
+          size="small"
+          data-testid="btn-page-reset"
+          @click="emit('reset')"
+        >
+          恢复默认值
+        </el-button>
         <el-button
           type="primary"
           size="small"
