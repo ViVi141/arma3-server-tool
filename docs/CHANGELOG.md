@@ -2,7 +2,13 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.19] — 当前
+## [2.0.0-alpha.20] — 当前
+
+- 新增 Linux 便携包（Release 资产 `Arma3ServerTools-linux-<version>.tar.gz`）：内置 Service 与 Web 控制台，解压后 `bash start.sh` 即可在 VPS/小主机上用浏览器操作；附带 `a3st.env.example`、systemd 单元模板与部署 README。
+- 新增 `build:web:service`（`--base /`）：修复 Service 根路径托管时多级路由（如 `/console/:id/:tab`）刷新后静态资源 404 的问题；打包脚本会校验 base，防止误用相对路径产物。
+- Release 流水线新增 Linux 构建 job（构建并上传 tar.gz + sha256）；CI 增加打包脚本回归。
+
+## [2.0.0-alpha.19]
 
 - 修复已同步模组仍显示「有更新」：比对时优先读 Steam `appworkshop_107410.acf` 的 `timeupdated`，下载成功后再写入 `.a3st-synced` 并刷新目录时间，避免作者包内旧 mtime 误报。
 
