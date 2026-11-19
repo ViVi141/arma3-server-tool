@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { AsyncTaskManager } from "./manager.js";
 
 describe("AsyncTaskManager", () => {
@@ -180,5 +180,49 @@ describe("AsyncTaskManager", () => {
     releaseDl();
     releaseStatus();
     await new Promise((r) => setTimeout(r, 50));
+  });
+
+  it("caps finished task history at 100 entries", () => {
+    const mgr = new AsyncTaskManager();
+    const ids: string[] = [];
+    for (let i = 0; i < 105; i++) {
+      const id = mgr.create("uuid-1", [{ action: "status" }]);
+      mgr.complete(id);
+      ids.push(id);
+    }
+
+    // 新任务触发淘汰：最旧的历史任务被丢弃，最近的仍保留。
+    mgr.create("uuid-1", [{ action: "status" }]);
+    expect(mgr.get(ids[0])).toBeUndefined();
+    expect(mgr.get(ids[104])).toBeDefined();
+  });
+
+  it("drops finished tasks older than the TTL", () => {
+    vi.useFakeTimers();
+    try {
+      const mgr = new AsyncTaskManager();
+      const oldId = mgr.create("uuid-1", [{ action: "status" }]);
+      mgr.complete(oldId);
+
+      vi.setSystemTime(Date.now() + 2 * 60 * 60 * 1000);
+      mgr.create("uuid-1", [{ action: "status" }]);
+
+      expect(mgr.get(oldId)).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("caps per-task log growth", () => {
+    const mgr = new AsyncTaskManager();
+    const id = mgr.create("uuid-1", [{ action: "status" }]);
+    for (let i = 0; i < 520; i++) {
+      mgr.appendStep(id, "step", true, `line-${i}`);
+    }
+
+    const task = mgr.get(id)!;
+    expect(task.log).toHaveLength(500);
+    expect(task.log[0]).toContain("line-20");
+    expect(task.log[task.log.length - 1]).toContain("line-519");
   });
 });

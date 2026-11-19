@@ -23,18 +23,31 @@ const service = await createService({
 });
 
 // Graceful shutdown
-process.on("SIGINT", async () => {
-  service.log.info("Shutting down...");
+// A3ST_KEEP_SERVERS_ON_STOP=1：收到信号时保留游戏服务器进程（下次启动按 PID+身份收养），
+// 便于 systemd 重启 Service 而不打断正在运行的服务器；默认仍全部停止。
+function keepGameServersOnStop(): boolean {
+  const flag = (process.env.A3ST_KEEP_SERVERS_ON_STOP ?? "").trim().toLowerCase();
+  return flag === "1" || flag === "true" || flag === "yes";
+}
+
+async function shutdown(signal: string): Promise<void> {
+  service.log.info(`Shutting down (${signal})...`);
   service.steamCmd.requestAbort();
-  service.processManager.killAll();
+  if (keepGameServersOnStop()) {
+    service.log.info(
+      "A3ST_KEEP_SERVERS_ON_STOP enabled: game servers keep running and will be re-adopted on next start."
+    );
+  } else {
+    service.processManager.killAll();
+  }
   await service.close();
   process.exit(0);
+}
+
+process.on("SIGINT", () => {
+  void shutdown("SIGINT");
 });
 
-process.on("SIGTERM", async () => {
-  service.log.info("Shutting down...");
-  service.steamCmd.requestAbort();
-  service.processManager.killAll();
-  await service.close();
-  process.exit(0);
+process.on("SIGTERM", () => {
+  void shutdown("SIGTERM");
 });

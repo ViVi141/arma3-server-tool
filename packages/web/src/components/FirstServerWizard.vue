@@ -19,7 +19,7 @@ const emit = defineEmits<{
 const store = useConnectionsStore();
 const step = ref(0);
 const submitting = ref(false);
-const writeCfgOnFinish = ref(false);
+const writeCfgOnFinish = ref(true);
 const ensureSteamCmdOnFinish = ref(true);
 const installDedicatedOnFinish = ref(true);
 
@@ -40,7 +40,7 @@ const STEPS = ["欢迎", "目录", "基本", "安全", "SteamCMD", "完成"];
 function resetForm() {
   step.value = 0;
   submitting.value = false;
-  writeCfgOnFinish.value = false;
+  writeCfgOnFinish.value = true;
   ensureSteamCmdOnFinish.value = true;
   installDedicatedOnFinish.value = true;
   configName.value = "我的服务器";
@@ -387,7 +387,7 @@ async function finish() {
           完成后安装/更新专用服务器（需已填服务器目录）
         </el-checkbox>
         <el-checkbox v-model="writeCfgOnFinish" data-testid="wizard-opt-write-cfg">
-          完成后 {{ UI_COPY.writeGameCfg }}
+          完成后 {{ UI_COPY.writeGameCfg }}（server.cfg / basic.cfg）
         </el-checkbox>
       </div>
       <el-alert

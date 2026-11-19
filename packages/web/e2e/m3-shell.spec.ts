@@ -222,7 +222,7 @@ test.describe("F3: Offline Material Vector Icons (Tier 1)", () => {
       overview: "概览",
       deploy: "部署",
       workshop: "工坊",
-      logs: "日志",
+      logs: "运维",
       config: "配置",
       system: "系统",
     };
@@ -614,8 +614,9 @@ test.describe("F6: Action Entry Consolidation & Sync Banner (Tier 1)", () => {
   test("F6-T1-01 unique visible primary action button roles on dashboard", async ({ page }) => {
     await connectMockedConsole(page);
     await expect(page.getByRole("button", { name: "启动" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "保存" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "写入游戏配置" })).toBeVisible();
+    // 概览页没有注册配置编辑器，不再出现点了没反应的「保存」
+    await expect(page.getByTestId("btn-save")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "应用更改" })).toBeVisible();
   });
 
   test("F6-T1-02 shell-v2 actions btn-preflight contract preserved on deploy preflight", async ({ page }) => {
@@ -676,10 +677,10 @@ test.describe("F6: Action Entry Consolidation & Sync Banner (Tier 2)", () => {
     await connectMockedConsole(page);
     await expect(page.getByRole("button", { name: "启动" })).toHaveCount(1);
     await navigateConsoleTab(page, "basic");
-    // 设置页只保留页级「保存」，顶栏不再重复
+    // 设置页只保留页级「保存」，顶栏用「应用更改」完成写入/重启闭环
     await expect(page.getByTestId("btn-page-save")).toHaveCount(1);
     await expect(page.getByTestId("btn-save")).toHaveCount(0);
-    await expect(page.getByTestId("btn-write-cfg")).toHaveCount(1);
+    await expect(page.getByTestId("btn-apply")).toHaveCount(1);
   });
 
   test("F6-T2-03 sync banner distinguishes unsaved dirty state vs stale cfg state", async ({ page }) => {

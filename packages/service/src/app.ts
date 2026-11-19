@@ -43,6 +43,7 @@ export function safeTokenEquals(provided: unknown, expected: string): boolean {
 }
 
 import { isLoopbackHost } from "./util/host.js";
+import { isAllowedCorsOrigin, isAllowedRequestOrigin } from "./util/origin.js";
 
 const LISTEN_RETRY_CODES = new Set(["EADDRINUSE", "EACCES", "EADDRNOTAVAIL"]);
 
@@ -142,6 +143,20 @@ export async function createService(options: ServiceOptions) {
   app.addHook("onRequest", async (request, reply) => {
     const pathOnly = request.url.split("?")[0] ?? request.url;
 
+    // 任意网页不得驱动本机 API：Origin 不在白名单（且非同源）直接拒绝，
+    // 覆盖无需 CORS 预检的简单请求（表单 POST 等）。
+    if (
+      pathOnly.startsWith("/api/") &&
+      !isAllowedRequestOrigin(request.headers.origin, request.headers.host)
+    ) {
+      reply.status(403).send({
+        success: false,
+        message: "Forbidden: origin not allowed",
+        code: "ORIGIN_NOT_ALLOWED",
+      });
+      return;
+    }
+
     // 静态 UI（/, /assets/*）不能要求 Bearer：浏览器直接打开页面时没有 Authorization。
     if (!pathOnly.startsWith("/api/")) {
       (request as { authenticated: boolean }).authenticated = true;
@@ -188,15 +203,15 @@ export async function createService(options: ServiceOptions) {
     reply.status(401).send({ success: false, message: "Unauthorized" });
   });
 
-  // Capacitor WebView Origin 多为 http://localhost；手机连 LAN 时也允许反射任意 Origin。
-  // file:// / null Origin 用 *，避免浏览器 Failed to fetch。
+  // CORS 白名单：回环地址 / Capacitor / file://（Origin: null）/ A3ST_ALLOWED_ORIGINS。
+  // 其他站点不返回 CORS 头（浏览器读不到响应），并由 onRequest 直接拒绝。
   await app.register(cors, {
     origin: (origin, cb) => {
       if (!origin || origin === "null") {
         cb(null, "*");
         return;
       }
-      cb(null, origin);
+      cb(null, isAllowedCorsOrigin(origin) ? origin : false);
     },
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Authorization", "Content-Type", "X-Api-Key", "Accept"],

@@ -1,5 +1,5 @@
 /* Material Design 3 (Google Style) Theme Layer for A3ST
- * Loaded last in main.ts — overrides desktop-theme.css, ark-visual.css, shell-v2.css, and Element Plus defaults.
+ * Loaded last in main.ts — overrides shell-v2.css, desktop-theme.css, and Element Plus defaults.
  */
 
 :root {
@@ -739,8 +739,9 @@ body {
   letter-spacing: normal;
 }
 
+/* Material 3 data table：不使用斑马纹，行区分交给 hover 与分割线。 */
 .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background: var(--md-sys-color-surface-container-lowest) !important;
+  background: transparent !important;
 }
 
 /* Cards (Tonal, zero shadow, 1:3 containment safe) */
@@ -1309,18 +1310,19 @@ html[data-app-mode="mobile"] .m3-icon-btn {
 
 /* M3 Subnav Tabs */
 .shell-v2__subnav {
-  background: var(--md-sys-color-surface);
+  background: var(--md-sys-color-surface-container-low);
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
-  padding: 0 16px;
-  gap: 4px;
+  padding: 0 12px;
+  gap: 2px;
 }
 
 .shell-v2__subnav-item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 42px;
-  padding: 8px 14px;
+  min-height: 44px;
+  padding: 8px 16px;
+  border-radius: var(--md-sys-shape-corner-xs) var(--md-sys-shape-corner-xs) 0 0;
   font-family: var(--md-ref-typeface-plain);
   font-size: var(--md-sys-typescale-label-large-size);
   font-weight: 500;
@@ -1328,6 +1330,12 @@ html[data-app-mode="mobile"] .m3-icon-btn {
   text-transform: none;
   color: var(--md-sys-color-on-surface-variant);
   border-bottom: 2px solid transparent;
+  transition: background-color 150ms ease;
+}
+
+.shell-v2__subnav-item:hover:not(:disabled) {
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
 }
 
 .shell-v2__subnav-item.is-active {
@@ -1346,10 +1354,10 @@ html[data-app-mode="mobile"] .m3-icon-btn {
 }
 
 .shell-v2__action-label {
-  font-family: var(--md-ref-typeface-mono);
+  font-family: var(--md-ref-typeface-plain);
   font-size: var(--md-sys-typescale-label-small-size);
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   color: var(--md-sys-color-on-surface-variant);
   margin-right: 4px;
 }
@@ -1358,12 +1366,13 @@ html[data-app-mode="mobile"] .m3-icon-btn {
   background: var(--md-sys-color-outline-variant);
 }
 
+/* M3 底部状态行：surface-container 底 + 无衬线小标签 */
 .shell-v2__baseline {
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--md-sys-color-surface-container);
   color: var(--md-sys-color-on-surface-variant);
   border-top: 1px solid var(--md-sys-color-outline-variant);
   padding: 4px 16px;
-  font-family: var(--md-ref-typeface-mono);
+  font-family: var(--md-ref-typeface-plain);
   font-size: var(--md-sys-typescale-label-small-size);
   letter-spacing: normal;
 }
@@ -2496,4 +2505,172 @@ html[data-app-mode="mobile"] .m3-snackbar {
     width: 100%;
     opacity: 0.65;
   }
+}
+
+/* ==========================================================================
+   Connections view — M3 page header
+   The M3 shell treats the hero as the page title, so keep it visible with
+   M3 typography and surface tokens.
+   ========================================================================== */
+html[data-theme] .conn-page__hero {
+  display: block;
+  padding: 24px 24px 16px;
+  background: transparent;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface);
+}
+
+html[data-theme] .conn-page__kicker {
+  margin: 0 0 4px;
+  font-family: var(--md-ref-typeface-plain);
+  font-size: var(--md-sys-typescale-label-medium-size);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--md-sys-color-primary);
+}
+
+html[data-theme] .conn-page__kicker::before {
+  display: none;
+}
+
+html[data-theme] .conn-page__title {
+  margin: 0;
+  font-family: var(--md-ref-typeface-plain);
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 36px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--md-sys-color-on-surface);
+}
+
+html[data-theme] .conn-page__sub {
+  margin: 6px 0 0;
+  max-width: 72ch;
+  font-size: var(--md-sys-typescale-body-medium-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+@media (max-width: 768px) {
+  html[data-theme] .conn-page__hero {
+    padding: 16px 16px 12px;
+  }
+}
+
+/* ==========================================================================
+   页面级结构样式（自已删除的 ark-visual.css 迁移，全部改用 M3 token）
+
+   原文件里仍在用的只有两组：
+   - .conn-archive*：连接页的本机/远程归档列表
+   - .dash-deploy*：仪表盘「首服序列」部署进度
+   其余（dash-hero / deploy-ops 等）已确认无视图引用，随文件一并删除。
+   ========================================================================== */
+
+.conn-archive {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.conn-archive__row {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  cursor: default;
+}
+
+.conn-archive__row:hover {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.conn-archive__row.is-selected {
+  background: var(--md-sys-color-primary-container);
+  box-shadow: inset 3px 0 0 var(--md-sys-color-primary);
+}
+
+.conn-archive__tag {
+  font-family: var(--md-ref-typeface-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.conn-archive__body {
+  min-width: 0;
+}
+
+.conn-archive__name {
+  font-family: var(--md-ref-typeface-plain);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+}
+
+.conn-archive__url {
+  margin-top: 2px;
+  font-family: var(--md-ref-typeface-mono);
+  font-size: 12px;
+  color: var(--md-sys-color-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conn-archive__actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .conn-archive__row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+
+.dash-deploy {
+  margin-bottom: 12px;
+}
+
+.dash-deploy__card {
+  margin-bottom: 0;
+}
+
+.dash-deploy__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 12px;
+}
+
+.dash-deploy__step {
+  padding: 4px 8px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-sm);
+  font-family: var(--md-ref-typeface-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.dash-deploy__step.is-done {
+  border-color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-primary);
+}
+
+.dash-deploy__step.is-active {
+  border-color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.dash-deploy__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
 }

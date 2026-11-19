@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import type { ServerConfigPackage } from "../types/config.js";
 import type { ModMeta } from "../types/mods.js";
 import {
@@ -75,8 +75,16 @@ function line(key: string, value: string | number | boolean): string {
   return `${key}=${value};`;
 }
 
+/**
+ * Arma3 cfg 语法基于 SQF：字符串内的双引号用「重复双引号」表示（""），
+ * 不能用反斜杠转义（\" 会被解析为字符串结束 + 非法 token，破坏整份 cfg）。
+ */
+function escapeCfgString(value: string): string {
+  return value.replace(/"/g, '""');
+}
+
 function quotedLine(key: string, value: string): string {
-  return `${key}="${value.replace(/"/g, '\\"')}";`;
+  return `${key}="${escapeCfgString(value)}";`;
 }
 
 function parseList(value: unknown): string[] {
@@ -98,7 +106,7 @@ function writeCfgArray(key: string, items: string[]): string[] {
   const lines: string[] = [];
   lines.push(`${arrayKey}{`);
   for (let i = 0; i < items.length; i++) {
-    const item = items[i].replace(/"/g, '\\"');
+    const item = escapeCfgString(items[i]);
     const suffix = i < items.length - 1 ? "," : "";
     lines.push(`\t"${item}"${suffix}`);
   }
@@ -209,40 +217,60 @@ export function appendStartupExtraArgs(parts: string[], startConfigArgs: unknown
   }
 }
 
+/** 一次性读取当前占用的 UDP 端口集合（避免逐个端口 spawn netstat/ss）。 */
+function listUdpPortsInUse(): Set<number> {
+  const ports = new Set<number>();
+  try {
+    const out = process.platform === "win32"
+      ? execFileSync("netstat", ["-ano", "-p", "udp"], {
+          encoding: "utf-8",
+          timeout: 3000,
+          stdio: ["ignore", "pipe", "ignore"],
+        })
+      : execFileSync("ss", ["-uln"], {
+          encoding: "utf-8",
+          timeout: 3000,
+          stdio: ["ignore", "pipe", "ignore"],
+        });
+    const regex = /:(\d{1,5})(?=\s|$)/g;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(out)) !== null) {
+      const port = Number.parseInt(match[1], 10);
+      if (port > 0 && port <= 65535) {
+        ports.add(port);
+      }
+    }
+  } catch {
+    // 拿不到端口表时按「全部空闲」处理，由启动失败日志兜底。
+  }
+  return ports;
+}
+
 export function isPortInUse(port: number): boolean {
   if (port <= 0 || port > 65535) {
     return true;
   }
-  try {
-    if (process.platform === "win32") {
-      const out = execSync("netstat -ano -p udp", {
-        encoding: "utf-8",
-        timeout: 3000,
-        stdio: ["ignore", "pipe", "ignore"],
-      });
-      const pattern = new RegExp(`:${port}\\s`);
-      return pattern.test(out);
-    }
-    const out = execSync("ss -uln", {
-      encoding: "utf-8",
-      timeout: 3000,
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-    return out.includes(`:${port} `);
-  } catch {
-    return false;
-  }
+  return listUdpPortsInUse().has(port);
 }
 
+/**
+ * 为无头客户端挑一个未占用的 UDP 端口。
+ * 原实现随机取值且失败后返回已占端口，可能让 HC 与服务器或其他进程抢端口；
+ * 改为从 serverPort+1 起确定性扫描，并显式排除服务器端口本身。
+ */
 export function pickHeadlessProtPort(serverPort: number): number {
-  let hcPort = serverPort + 5;
-  for (let i = 0; i < 10; i++) {
-    hcPort = Math.floor(Math.random() * 100) + serverPort;
-    if (!isPortInUse(hcPort)) {
-      return hcPort;
+  const used = listUdpPortsInUse();
+  const base = serverPort > 0 && serverPort < 65535 ? serverPort : 2302;
+  for (let offset = 1; offset <= 100; offset++) {
+    const candidate = base + offset;
+    if (candidate > 65535) {
+      break;
+    }
+    if (!used.has(candidate)) {
+      return candidate;
     }
   }
-  return hcPort;
+  return 0;
 }
 
 function resolveMissionParamsText(
@@ -767,7 +795,10 @@ export function buildHeadlessClientCommandLine(
   parts.push("-limitFPS=1000");
   parts.push("-client");
   parts.push(`-connect=127.0.0.1:${serverPort}`);
-  parts.push(`-prot=${hcPort}`);
+  if (hcPort > 0) {
+    // 无可用端口时不传 -prot，交给游戏选择默认端口，避免显式传入 0。
+    parts.push(`-prot=${hcPort}`);
+  }
   parts.push(`"-profiles=${configRoot}"`);
   parts.push(`"-name=${uuid}"`);
 

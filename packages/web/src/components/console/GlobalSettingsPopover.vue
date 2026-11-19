@@ -61,7 +61,9 @@ async function save(): Promise<void> {
         </el-select>
       </div>
       <div class="row">
-        <el-checkbox v-model="uiSettings.autoSnapshotAsync" size="small">异步生成快照</el-checkbox>
+        <el-checkbox v-model="uiSettings.autoSnapshotAsync" size="small">
+          后台清理旧快照（快照本身始终在变更前同步生成）
+        </el-checkbox>
       </div>
       <el-button size="small" type="primary" :loading="saving" @click="save">保存</el-button>
     </div>

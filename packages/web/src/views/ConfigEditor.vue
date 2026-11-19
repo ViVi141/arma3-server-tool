@@ -3,13 +3,11 @@ import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
 import SettingsViewLayout from "@/components/console/SettingsViewLayout.vue";
 import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import PathInput from "@/components/PathInput.vue";
-import { UI_COPY } from "@/constants/uiCopy";
 import { ref, onMounted, computed, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import { asConfigString } from "@/utils/configStringField";
 import { useConfigEditorRegistration } from "@/composables/configEditor";
-import { resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
 const store = useConnectionsStore();
@@ -107,31 +105,11 @@ async function saveSection(section: string) {
     saving.value = false;
   }
 }
-
-async function execAction(action: string) {
-  try {
-    const client = store.getClient();
-    if (!client) {
-      return;
-    }
-    const res = await client.submitTask({ serverUuid: props.serverUuid, commands: [{ action: action as never }] });
-    const msg = resolveTaskMessage(res.data as never, `${action} 完成`);
-    if (taskSucceeded(res.data as never)) {
-      ElMessage.success(msg);
-    } else {
-      ElMessage.warning(msg);
-    }
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : "执行失败");
-  }
-}
 </script>
 
 <template>
   <ConsolePageLayout v-loading="loading" :padded="false">
     <template #toolbar>
-      <el-button size="small" type="primary" @click="execAction('write_cfg')">{{ UI_COPY.writeGameCfg }}</el-button>
-      <el-button size="small" @click="execAction('save')">{{ UI_COPY.saveShort }}</el-button>
       <el-button size="small" @click="loadConfig">刷新</el-button>
     </template>
     <SettingsViewLayout kicker="CONFIG / RAW" title="高级编辑">

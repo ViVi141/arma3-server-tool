@@ -122,4 +122,34 @@ describe("MonitoringDb", () => {
       fs.rmSync(localDir, { recursive: true, force: true });
     }
   });
+
+  it("debounces disk flushes, forces flush on close, and guards calls after close", async () => {
+    const localDir = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-mon-flush-"));
+    const filePath = path.join(localDir, "a3st_statistics.db");
+    try {
+      const localDb = new MonitoringDb(localDir);
+      await localDb.waitReady();
+
+      // 防抖：连续写入合并为一次延迟落盘；close() 前强制 flush。
+      localDb.recordStats("uuid-flush", 3);
+      localDb.recordStats("uuid-flush", 7);
+      expect(fs.existsSync(filePath)).toBe(false);
+
+      await new Promise((resolve) => setTimeout(resolve, 2300));
+      expect(fs.existsSync(filePath)).toBe(true);
+      expect(fs.statSync(filePath).size).toBeGreaterThan(0);
+
+      localDb.recordStats("uuid-flush", 9);
+      localDb.close();
+      expect(fs.statSync(filePath).size).toBeGreaterThan(0);
+
+      // closed 守卫：关闭后的读写调用不抛错、不返回数据。
+      expect(() => localDb.recordStats("uuid-flush", 11)).not.toThrow();
+      expect(localDb.getSummary("uuid-flush").totalEntries).toBe(0);
+      expect(localDb.getStats("uuid-flush", 24)).toEqual([]);
+      expect(localDb.listPlayers("uuid-flush")).toEqual([]);
+    } finally {
+      fs.rmSync(localDir, { recursive: true, force: true });
+    }
+  });
 });

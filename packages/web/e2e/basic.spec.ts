@@ -20,14 +20,15 @@ test.describe("Arma3 Server Tools Web UI", () => {
   test("loads connections page", async ({ page }) => {
     await expect(page.getByTestId("connections-page")).toBeVisible();
     await expect(
-      page.getByTestId("connections-page").getByText("主机连接", { exact: true })
+      page.getByTestId("connections-page").getByRole("heading", { name: "主机连接", exact: true })
     ).toBeVisible();
   });
 
   test("shows default local connection", async ({ page }) => {
-    await expect(page.getByTestId("connection-row-local")).toBeVisible();
-    await expect(page.getByText("本机")).toBeVisible();
-    await expect(page.getByText("127.0.0.1:19580")).toBeVisible();
+    const localRow = page.getByTestId("connection-row-local");
+    await expect(localRow).toBeVisible();
+    await expect(localRow.getByText("本机", { exact: true })).toBeVisible();
+    await expect(localRow.getByText("127.0.0.1:19580")).toBeVisible();
   });
 
   test("connect navigates to console", async ({ page }) => {
@@ -41,8 +42,10 @@ test.describe("Arma3 Server Tools Web UI", () => {
     await ensureTestServer(page);
     await expect(page.getByTestId("dashboard-page")).toBeVisible();
     await expect(page.getByRole("button", { name: "启动" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "保存" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "写入游戏配置" })).toBeVisible();
+    // 概览页没有可保存的编辑器，保存只能在设置页出现；配置动作收敛为「应用更改」。
+    await expect(page.getByRole("button", { name: "保存", exact: true })).toHaveCount(0);
+    await expect(page.getByTestId("btn-apply")).toBeVisible();
+    await expect(page.getByTestId("btn-apply")).toHaveText("应用更改");
     await navigateConsoleTab(page, "preflight");
     await expect(page.getByTestId("preflight-page")).toBeVisible();
     await expect(page.locator(".shell-v2__actions [data-testid='btn-preflight']")).toBeVisible();

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
-import DeployOpsBar from "@/components/console/DeployOpsBar.vue";
 import { ref, onMounted } from "vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import type { SnapshotEntry } from "@a3st/api-client";
 
@@ -54,6 +53,15 @@ async function createSnapshot() {
 
 async function restoreSnapshot(id: string) {
   try {
+    await ElMessageBox.confirm(
+      "恢复快照会覆盖当前配置包。建议先创建一个新快照留底，确定继续？",
+      "恢复快照",
+      { type: "warning", confirmButtonText: "恢复", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  try {
     const client = store.getClient();
     if (!client) {
       return;
@@ -69,7 +77,6 @@ async function restoreSnapshot(id: string) {
 
 <template>
   <ConsolePageLayout>
-    <DeployOpsBar />
     <template #toolbar>
       <span class="snapshots-title">配置快照</span>
       <el-input v-model="label" placeholder="快照备注" style="max-width: 300px;" />

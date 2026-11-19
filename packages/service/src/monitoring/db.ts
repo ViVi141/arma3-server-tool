@@ -38,6 +38,12 @@ export class MonitoringDb {
   private dbPath: string;
   private ready: Promise<void>;
   private closed = false;
+  private dirty = false;
+  private flushTimer: NodeJS.Timeout | null = null;
+  /** 合并高频写入：最多延迟 2s 落盘一次，close() 前强制 flush。 */
+  private static readonly FLUSH_DELAY_MS = 2000;
+  /** 统计明细默认保留 90 天，可用 A3ST_STATS_RETENTION_DAYS 覆盖。 */
+  private static readonly DEFAULT_RETENTION_DAYS = 90;
 
   constructor(dbPath: string) {
     this.dbPath = path.join(dbPath, "a3st_statistics.db");
@@ -57,6 +63,7 @@ export class MonitoringDb {
         this.db = new SQL.Database();
       }
       this.ensureSchema();
+      this.pruneOldStats();
       this.save();
     } catch (error) {
       console.error("Monitoring database init failed:", error);
@@ -96,18 +103,75 @@ export class MonitoringDb {
         last_seen TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `);
-
+    this.db.run(`
+      CREATE INDEX IF NOT EXISTS idx_players_server_time
+        ON a3st_players(server_uuid, last_seen)
+    `);
   }
 
+  private retentionDays(): number {
+    const raw = Number.parseInt(process.env.A3ST_STATS_RETENTION_DAYS ?? "", 10);
+    if (!Number.isFinite(raw) || raw <= 0) {
+      return MonitoringDb.DEFAULT_RETENTION_DAYS;
+    }
+    return Math.min(raw, 3650);
+  }
+
+  /** 按保留策略清理过期的统计明细，避免 SQLite 文件无限增长。 */
+  private pruneOldStats(): void {
+    try {
+      this.db.run("DELETE FROM a3st_statistics WHERE recorded_at < datetime('now', ?)", [
+        `-${this.retentionDays()} days`,
+      ]);
+    } catch (error) {
+      console.error("Monitoring database prune failed:", error);
+    }
+  }
+
+  /**
+   * 标记数据已变更并安排一次延迟落盘。
+   * sql.js 每次 export() 都会序列化整库，逐条写会让磁盘 IO 随库体积线性放大；
+   * 这里合并 2s 内的多次写入，close() 时强制 flush 保证不丢数据。
+   * 方法名保持为 save()，既有测试与调用方依赖该入口。
+   */
   private save(): void {
-    if (!this.db) {
+    if (!this.db || this.closed) {
       return;
     }
-    const data = this.db.export();
-    const buffer = Buffer.from(data);
-    const temp = this.dbPath + ".tmp";
-    fs.writeFileSync(temp, buffer);
-    replaceFile(temp, this.dbPath);
+    this.dirty = true;
+    if (this.flushTimer) {
+      return;
+    }
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null;
+      this.flush();
+    }, MonitoringDb.FLUSH_DELAY_MS);
+    this.flushTimer.unref?.();
+  }
+
+  /** 立即把内存数据库写入磁盘；失败时保留脏标记，等待下一次重试。 */
+  private flush(): void {
+    if (!this.db || !this.dirty) {
+      return;
+    }
+    this.dirty = false;
+    try {
+      const data = this.db.export();
+      const buffer = Buffer.from(data);
+      const temp = this.dbPath + ".tmp";
+      fs.writeFileSync(temp, buffer);
+      replaceFile(temp, this.dbPath);
+    } catch (error) {
+      this.dirty = true;
+      console.error("Monitoring database flush failed:", error);
+    }
+  }
+
+  private cancelFlushTimer(): void {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
   }
 
   async waitReady(): Promise<void> {
@@ -115,7 +179,7 @@ export class MonitoringDb {
   }
 
   recordStats(serverUuid: string, playerCount: number, fps?: number): void {
-    if (!this.db) {
+    if (!this.db || this.closed) {
       return;
     }
     this.db.run(
@@ -126,13 +190,16 @@ export class MonitoringDb {
   }
 
   recordPlayer(player: PlayerRecord): void {
-    if (!this.db) {
+    if (!this.db || this.closed) {
       return;
     }
     this.db.run(
       `INSERT INTO a3st_players (guid, name, server_uuid, last_seen)
        VALUES (?, ?, ?, datetime('now'))
-       ON CONFLICT(guid) DO UPDATE SET name = excluded.name, last_seen = datetime('now')`,
+       ON CONFLICT(guid) DO UPDATE SET
+         name = excluded.name,
+         server_uuid = excluded.server_uuid,
+         last_seen = datetime('now')`,
       [player.playerGuid, player.playerName, player.serverUuid]
     );
     this.save();
@@ -146,7 +213,10 @@ export class MonitoringDb {
     const stmt = this.db.prepare(
       `INSERT INTO a3st_players (guid, name, server_uuid, last_seen)
        VALUES (?, ?, ?, datetime('now'))
-       ON CONFLICT(guid) DO UPDATE SET name = excluded.name, last_seen = datetime('now')`
+       ON CONFLICT(guid) DO UPDATE SET
+         name = excluded.name,
+         server_uuid = excluded.server_uuid,
+         last_seen = datetime('now')`
     );
     try {
       for (const p of players) {
@@ -185,7 +255,10 @@ export class MonitoringDb {
         const stmt = this.db.prepare(
           `INSERT INTO a3st_players (guid, name, server_uuid, last_seen)
            VALUES (?, ?, ?, datetime('now'))
-           ON CONFLICT(guid) DO UPDATE SET name = excluded.name, last_seen = datetime('now')`
+           ON CONFLICT(guid) DO UPDATE SET
+             name = excluded.name,
+             server_uuid = excluded.server_uuid,
+             last_seen = datetime('now')`
         );
         try {
           for (const p of players) {
@@ -212,7 +285,7 @@ export class MonitoringDb {
     peakPlayers: number;
     totalEntries: number;
   } {
-    if (!this.db) {
+    if (!this.db || this.closed) {
       return { avgPlayers: 0, peakPlayers: 0, totalEntries: 0 };
     }
     const rows = this.db.exec(
@@ -234,7 +307,7 @@ export class MonitoringDb {
   }
 
   getStats(serverUuid: string, sinceHours = 24): StatsRecord[] {
-    if (!this.db) {
+    if (!this.db || this.closed) {
       return [];
     }
     const rows = this.db.exec(
@@ -250,7 +323,7 @@ export class MonitoringDb {
   }
 
   listPlayers(serverUuid: string, limit = 200): PlayerRecord[] {
-    if (!this.db) {
+    if (!this.db || this.closed) {
       return [];
     }
     const rows = this.db.exec(
@@ -277,8 +350,10 @@ export class MonitoringDb {
     if (!this.db || this.closed) {
       return;
     }
+    this.cancelFlushTimer();
+    // 关闭前强制落盘，避免 2s 合并窗口内的数据丢失。
+    this.flush();
     this.closed = true;
-    this.save();
     this.db.close();
   }
 

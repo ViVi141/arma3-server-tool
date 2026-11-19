@@ -3,6 +3,9 @@ dist/
 *.tsbuildinfo
 out/
 apps/desktop/electron-resources/
+# Electron 主进程/preload 与占位 stub 均由 vite 构建生成
+apps/desktop/dist-electron/
+apps/desktop/dist-stub/
 # Local CI / build artifacts
 artifacts/
 .tmp-build/
@@ -19,6 +22,7 @@ Desktop.ini
 # IDE
 .idea/
 .vs/
+.qoder/
 
 
 

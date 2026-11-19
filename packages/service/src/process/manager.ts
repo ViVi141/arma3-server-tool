@@ -5,7 +5,13 @@ import { EventEmitter } from "node:events";
 import type { ServerConfigPackage } from "../types/config.js";
 import type { ServerProcessState } from "../types/server.js";
 import { isWindows } from "../platform/index.js";
-import { isProcessRunning, isValidPid, verifyProcessIdentity } from "./identity.js";
+import {
+  invalidateProcessIdentityCache,
+  isProcessRunning,
+  isProcessRunningAsync,
+  isValidPid,
+  verifyProcessIdentityAsync,
+} from "./identity.js";
 import { getServerExecutablePath, splitCommandLine } from "../config/game-config-writer.js";
 
 export interface SpawnOptions {
@@ -113,7 +119,9 @@ export class ProcessManager extends EventEmitter {
       proc.on("error", (err) => {
         this.processes.delete(uuid);
         logStream?.end();
-        this.emit("error", uuid, err);
+        // 不能使用 "error" 事件名：EventEmitter 在无监听者时会直接抛出，
+        // 一次 spawn 失败就会拖垮整个 Service。改为普通事件，由 index.ts 兜底记录。
+        this.emit("spawn-error", uuid, err);
       });
 
       resolve(proc.pid);
@@ -162,9 +170,18 @@ export class ProcessManager extends EventEmitter {
       } else if (entry.child) {
         entry.child.kill("SIGTERM");
         const child = entry.child;
-        setTimeout(() => {
-          if (!child.killed) child.kill("SIGKILL");
+        const timer = setTimeout(() => {
+          // child.killed 只表示 kill() 调用过，不代表进程已退出；
+          // 必须看 exitCode/signalCode，否则升级 SIGKILL 永远不会发生。
+          if (child.exitCode === null && child.signalCode === null) {
+            try {
+              child.kill("SIGKILL");
+            } catch {
+              // already dead
+            }
+          }
         }, 5000);
+        timer.unref?.();
       } else {
         process.kill(pid, "SIGTERM");
       }
@@ -175,6 +192,9 @@ export class ProcessManager extends EventEmitter {
         // already dead
       }
     }
+    if (isValidPid(pid)) {
+      invalidateProcessIdentityCache(pid);
+    }
 
     // For adopted entries (no child) there is no exit event; drop the record here.
     if (!entry.child) {
@@ -183,17 +203,22 @@ export class ProcessManager extends EventEmitter {
     return true;
   }
 
-  getState(uuid: string, config?: ServerConfigPackage): ServerProcessState {
+  /**
+   * 查询服务器进程状态。
+   * 必须使用异步身份校验：Windows 下每次校验都会拉起 PowerShell，
+   * 同步调用会在状态接口轮询时阻塞整个事件循环数十毫秒到数秒。
+   */
+  async getState(uuid: string, config?: ServerConfigPackage): Promise<ServerProcessState> {
     const entry = this.processes.get(uuid);
     if (entry && isValidPid(entry.pid)) {
-      if (isProcessRunning(entry.pid)) {
+      if (await isProcessRunningAsync(entry.pid)) {
         return { isRunning: true, pid: entry.pid };
       }
       this.processes.delete(uuid);
     }
 
     const persistedPid = config?.tasks?.processById ?? 0;
-    if (isValidPid(persistedPid) && isProcessRunning(persistedPid)) {
+    if (isValidPid(persistedPid) && (await isProcessRunningAsync(persistedPid))) {
       if (config?.server?.serverDir) {
         const executable = getServerExecutablePath(config);
         let expectedPort = 0;
@@ -202,13 +227,14 @@ export class ProcessManager extends EventEmitter {
         } else if (config.basic?.port && config.basic.port > 0) {
           expectedPort = config.basic.port;
         }
-        const identity = verifyProcessIdentity(persistedPid, executable, {
+        const identity = await verifyProcessIdentityAsync(persistedPid, executable, {
           profileName: uuid,
           port: expectedPort > 0 ? expectedPort : undefined,
         });
         if (identity === "match") {
           // Re-attach so subsequent kill/stop actually reaches the process.
-          this.adopt(uuid, persistedPid);
+          this.processes.set(uuid, { pid: persistedPid });
+          this.emit("adopt", uuid, persistedPid);
           return { isRunning: true, pid: persistedPid };
         }
       }
@@ -222,8 +248,8 @@ export class ProcessManager extends EventEmitter {
     return pid && pid > 0 ? pid : undefined;
   }
 
-  isRunning(uuid: string, config?: ServerConfigPackage): boolean {
-    return this.getState(uuid, config).isRunning;
+  async isRunning(uuid: string, config?: ServerConfigPackage): Promise<boolean> {
+    return (await this.getState(uuid, config)).isRunning;
   }
 
   killAll(): void {

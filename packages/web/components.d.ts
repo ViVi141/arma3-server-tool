@@ -13,7 +13,6 @@ declare module 'vue' {
     ConsoleShell: typeof import('./src/components/console/ConsoleShell.vue')['default']
     DashboardDeployTrack: typeof import('./src/components/dashboard/DashboardDeployTrack.vue')['default']
     DashboardHero: typeof import('./src/components/dashboard/DashboardHero.vue')['default']
-    DeployOpsBar: typeof import('./src/components/console/DeployOpsBar.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCard: typeof import('element-plus/es')['ElCard']

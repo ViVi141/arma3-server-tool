@@ -43,10 +43,13 @@ function onlineText(): string {
       <h1 id="dash-hero-title" class="dash-band__title">{{ heroTitle }}</h1>
       <p class="dash-band__meta">
         <template v-if="isRunning">
-          已就绪 · {{ dashboard?.hostname ?? "—" }}:{{ dashboard?.port ?? "-" }}
+          运行中 · {{ dashboard?.hostname ?? "—" }}:{{ dashboard?.port ?? "-" }}
+        </template>
+        <template v-else-if="cfgWritten">
+          实例已停止 · 可从顶部操作栏启动
         </template>
         <template v-else>
-          实例已停止 · 写入配置后可从顶部操作栏启动
+          尚未写入游戏配置 · 先点顶部「应用更改」再启动
         </template>
       </p>
     </div>

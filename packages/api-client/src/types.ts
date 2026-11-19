@@ -22,6 +22,10 @@ export interface LegacyTaskResponse {
 export interface HealthData {
   service: string;
   version: string;
+  /** 本次 Service 进程的实例标识（用于桌面端身份校验）。 */
+  instanceId?: string;
+  /** Service 进程 PID（用于桌面端确认端口监听者）。 */
+  pid?: number;
   remoteAccessEnabled: boolean;
   publicBaseUrl?: string;
   platform?: string;

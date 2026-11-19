@@ -18,9 +18,9 @@ const modeAlertTitle = computed(() => {
 
 const modeAlertDescription = computed(() => {
   if (bridgeBroken) {
-    return "检测到 Electron 外壳，但 preload 未注入，被控设置不可用。请安装最新版 Setup（v2.0.0-alpha.4+），不要用浏览器打开 :19580。";
+    return "检测到 Electron 外壳，但 preload 未注入，服务设置不可用。请安装最新版 Setup（v2.0.0-alpha.4+），不要用浏览器打开 :19580。";
   }
-  return "被控端需通过 Electron 桌面版启动；纯浏览器无法改本机 Token/端口。";
+  return "服务设置需通过 Electron 桌面版打开；纯浏览器无法改本机 Token/端口。";
 });
 
 const localPort = ref("19580");
@@ -31,7 +31,7 @@ const saving = ref(false);
 
 async function loadSettings() {
   if (!window.electronAPI) {
-    serviceStatus.value = "浏览器模式（被控设置需 Electron 桌面版）";
+    serviceStatus.value = "浏览器模式（服务设置需 Electron 桌面版）";
     return;
   }
 
@@ -54,7 +54,7 @@ async function loadSettings() {
 
 async function saveSettings() {
   if (!window.electronAPI) {
-    ElMessage.warning("被控设置仅在 Electron 桌面版可用");
+    ElMessage.warning("服务设置仅在 Electron 桌面版可用");
     return;
   }
 
@@ -94,13 +94,13 @@ onMounted(loadSettings);
   <ConsolePageLayout :padded="false">
     <div class="host-settings-inner">
       <div class="host-settings-header">
-        <span>被控服务</span>
+        <span>本机服务</span>
         <router-link to="/connections" class="host-settings-back" data-testid="nav-back-connections">
           ← 返回主机连接
         </router-link>
       </div>
       <p class="hint">
-      配置 Node.js 被控服务（@a3st/service）的 HTTP 监听参数。修改后会自动重启 Service。
+      配置本机 Node.js 服务（@a3st/service）的 HTTP 监听参数。修改后会自动重启 Service。
     </p>
 
     <el-alert

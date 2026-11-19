@@ -1,8 +1,8 @@
-import { ref, watch, onMounted, provide, type InjectionKey } from "vue";
+import { ref, watch, onMounted, provide, inject, type InjectionKey } from "vue";
 import { ElMessage } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import { applyDefaults } from "@/utils/defaults";
-import { useConfigEditorRegistration } from "./configEditor";
+import { CONFIG_EDITOR_KEY, useConfigEditorRegistration } from "./configEditor";
 import { DEFAULTS } from "@/utils/defaults";
 import { cloneDefaultValue, defaultLabelOf, defaultValueOf, isBooleanLike } from "@/config/server-defaults";
 
@@ -19,6 +19,7 @@ export function useSettingsPage(
   buildPatch: () => Record<string, unknown>
 ) {
   const store = useConnectionsStore();
+  const editorCtx = inject(CONFIG_EDITOR_KEY, null);
   const cfg = ref<Record<string, unknown>>({});
   const loading = ref(false);
   const saving = ref(false);
@@ -57,6 +58,9 @@ export function useSettingsPage(
         throw new Error(res.error ?? "保存失败");
       }
       markCleanRef();
+      // 页内「保存」也要让外壳立刻知道配置包已更新（cfgStale），
+      // 否则同步横幅要等下一次轮询才出现。
+      editorCtx?.onSaved();
       ElMessage.success("已保存");
     } catch (e: unknown) {
       ElMessage.error(e instanceof Error ? e.message : "保存失败");

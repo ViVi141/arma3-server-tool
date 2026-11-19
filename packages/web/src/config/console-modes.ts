@@ -2,8 +2,6 @@ import { getTabEntry, type TabEntry } from "@/config/tab-registry";
 
 export interface ConsoleMode {
   id: string;
-  index: string;
-  code: string;
   label: string;
   icon: string;
   tabs: TabEntry[];
@@ -20,12 +18,12 @@ const MODE_TAB_NAMES: Record<string, string[]> = {
 };
 
 const MODE_META: Array<Omit<ConsoleMode, "tabs">> = [
-  { id: "overview", index: "01", code: "INDEX", label: "概览", icon: "dashboard" },
-  { id: "deploy", index: "02", code: "DEPLOY", label: "部署", icon: "rocket_launch" },
-  { id: "workshop", index: "03", code: "WORKSHOP", label: "工坊", icon: "extension" },
-  { id: "logs", index: "04", code: "LOGS", label: "日志", icon: "description" },
-  { id: "config", index: "05", code: "CONFIG", label: "配置", icon: "tune" },
-  { id: "system", index: "06", code: "SYSTEM", label: "系统", icon: "admin_panel_settings" },
+  { id: "overview", label: "概览", icon: "dashboard" },
+  { id: "deploy", label: "部署", icon: "rocket_launch" },
+  { id: "workshop", label: "工坊", icon: "extension" },
+  { id: "logs", label: "运维", icon: "description" },
+  { id: "config", label: "配置", icon: "tune" },
+  { id: "system", label: "系统", icon: "admin_panel_settings" },
 ];
 
 function filterTab(name: string, showAdvanced: boolean): TabEntry | null {

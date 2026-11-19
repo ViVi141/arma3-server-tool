@@ -70,16 +70,7 @@ function snackbarIcon(variant: "default" | "success" | "error"): string {
           class="title-link"
         >
           <M3Icon name="tune" :size="16" />
-          <span>被控设置</span>
-        </router-link>
-        <router-link
-          v-if="!isMobile"
-          to="/demo"
-          class="title-link"
-          data-testid="nav-style-demo"
-        >
-          <M3Icon name="palette" :size="16" />
-          <span>风格演示</span>
+          <span>服务设置</span>
         </router-link>
       </div>
     </div>

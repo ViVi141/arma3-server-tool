@@ -230,7 +230,7 @@ test.describe("F12: Full-Site Views & Chart.js M3 Upgrade (Tier 1)", () => {
 
     await page.goto("/#/settings/host");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByText("被控服务", { exact: true })).toBeVisible();
+    await expect(page.getByText("本机服务", { exact: true })).toBeVisible();
 
     // HostSettingsView 自身也有一个 nav-back-connections（返回主机连接），取顶栏那个
     await page.getByTestId("nav-back-connections").first().click();
@@ -407,6 +407,7 @@ test.describe("F13-F14: Backend Security, BUG & Perf Contracts (Tier 1)", () => 
     await expect(page.getByText("e2e-snap")).toBeVisible();
 
     await page.getByRole("button", { name: "恢复" }).first().click();
+    await page.locator(".el-message-box").getByRole("button", { name: "恢复" }).click();
     await expect
       .poll(() => mock.getRequests("POST", "/restore").length)
       .toBeGreaterThan(0);

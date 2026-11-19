@@ -31,6 +31,17 @@ export interface ServerManifest {
   formatVersion: number;
 }
 
+function sectionFileStem(key: keyof ServerConfigPackage): string {
+  return key === "missionParams" ? "missionparams" : String(key);
+}
+
+/** 原子写：先写临时文件再 rename，避免断电/崩溃留下半截 JSON。 */
+function writeJsonAtomic(filePath: string, data: unknown): void {
+  const tmpPath = `${filePath}.${process.pid}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf-8");
+  fs.renameSync(tmpPath, filePath);
+}
+
 export class ConfigStore {
   private baseDir: string;
   private cache = new Map<string, ServerConfigPackage>();
@@ -135,6 +146,35 @@ export class ConfigStore {
     }
   }
 
+  /** Resolve the display name that should be persisted into the manifest. */
+  private resolveConfigName(
+    uuid: string,
+    config: ServerConfigPackage,
+    configName?: string
+  ): string {
+    if (configName && configName.trim()) {
+      return configName.trim();
+    }
+    if (config.server?.configName && config.server.configName.trim()) {
+      return config.server.configName.trim();
+    }
+    return this.readManifestConfigName(uuid) ?? uuid;
+  }
+
+  private writeManifest(
+    pkgDir: string,
+    uuid: string,
+    config: ServerConfigPackage,
+    configName: string
+  ): void {
+    writeJsonAtomic(path.join(pkgDir, MANIFEST_FILE), {
+      uuid,
+      configName,
+      formatVersion: config.formatVersion,
+      lastModified: new Date().toISOString(),
+    });
+  }
+
   /** Save a complete config package */
   save(uuid: string, config: ServerConfigPackage, configName?: string): void {
     const pkgDir = assertSafeSubdirPath(
@@ -144,41 +184,85 @@ export class ConfigStore {
     );
     fs.mkdirSync(pkgDir, { recursive: true });
 
-    let resolvedName = uuid;
-    if (configName && configName.trim()) {
-      resolvedName = configName.trim();
-    } else if (config.server?.configName && config.server.configName.trim()) {
-      resolvedName = config.server.configName.trim();
-    } else {
-      const existingName = this.readManifestConfigName(uuid);
-      if (existingName) {
-        resolvedName = existingName;
-      }
-    }
+    const resolvedName = this.resolveConfigName(uuid, config, configName);
 
-    const sections: Record<string, unknown> = {
-      manifest: {
-        uuid,
-        configName: resolvedName,
-        formatVersion: config.formatVersion,
-        lastModified: new Date().toISOString(),
-      },
-    };
-
+    const sections: Record<string, unknown> = {};
     for (const [, key] of Object.entries(SECTION_MAP)) {
       const value = config[key];
       if (value !== undefined) {
-        const fileStem = key === "missionParams" ? "missionparams" : key;
-        sections[fileStem] = value;
+        sections[sectionFileStem(key)] = value;
       }
     }
 
-    for (const [name, data] of Object.entries(sections)) {
-      const filePath = assertSafeTargetPath(pkgDir, `${name}.json`);
-      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+    // 两阶段写入：先把所有 section 写到临时文件，再统一 rename。
+    // 任一临时写失败都不会破坏磁盘上的旧配置。
+    const pending: { tmpPath: string; filePath: string }[] = [];
+    try {
+      for (const [name, data] of Object.entries(sections)) {
+        const filePath = assertSafeTargetPath(pkgDir, `${name}.json`);
+        const tmpPath = `${filePath}.${process.pid}.tmp`;
+        fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf-8");
+        pending.push({ tmpPath, filePath });
+      }
+    } catch (err) {
+      for (const item of pending) {
+        try {
+          fs.rmSync(item.tmpPath, { force: true });
+        } catch {
+          // ignore cleanup failure
+        }
+      }
+      throw err;
     }
+    for (const item of pending) {
+      fs.renameSync(item.tmpPath, item.filePath);
+    }
+    this.writeManifest(pkgDir, uuid, config, resolvedName);
 
     this.cache.set(uuid, structuredClone(config));
+  }
+
+  /**
+   * 只更新单个 section（如 tasks.processById），避免整包重写：
+   * 1. 其他 section 文件保持原样，不会因部分写入失败而互相不一致；
+   * 2. 运行期频繁改 PID 时减少磁盘写入。
+   */
+  patchSection(
+    uuid: string,
+    key: keyof ServerConfigPackage,
+    patch: Record<string, unknown>
+  ): ServerConfigPackage | null {
+    const existing = this.load(uuid);
+    if (!existing) {
+      return null;
+    }
+    const pkgDir = assertSafeSubdirPath(
+      path.join(this.baseDir, CONFIG_DIR),
+      uuid,
+      "服务器 UUID"
+    );
+    const prev = existing[key] as unknown;
+    let next: unknown;
+    if (
+      prev !== null &&
+      typeof prev === "object" &&
+      !Array.isArray(prev) &&
+      patch !== null &&
+      typeof patch === "object" &&
+      !Array.isArray(patch)
+    ) {
+      next = { ...(prev as Record<string, unknown>), ...patch };
+    } else {
+      next = patch;
+    }
+    const updated = { ...existing, [key]: next } as ServerConfigPackage;
+
+    const filePath = assertSafeTargetPath(pkgDir, `${sectionFileStem(key)}.json`);
+    writeJsonAtomic(filePath, next);
+    this.writeManifest(pkgDir, uuid, updated, this.resolveConfigName(uuid, updated));
+
+    this.cache.set(uuid, structuredClone(updated));
+    return updated;
   }
 
   /** Delete a config package */

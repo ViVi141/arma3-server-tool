@@ -87,7 +87,7 @@ async function act(action: string) {
     <SettingsViewLayout
       kicker="CONFIG / 05 · BASIC"
       title="基本设置"
-      :hint="`修改后点「${UI_COPY.saveShort}」写入配置包；再点顶栏「${UI_COPY.writeGameCfg}」才会生成游戏 cfg 文件。`"
+      :hint="`修改后点「${UI_COPY.saveShort}」写入配置包；再点顶栏「${UI_COPY.applyChanges}」，会写入 cfg，运行中可选择立即重启。`"
       :show-save="true"
       :allow-reset="true"
       @reset="resetAll"

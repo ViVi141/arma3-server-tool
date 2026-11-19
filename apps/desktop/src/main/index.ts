@@ -97,6 +97,57 @@ function getPackagedWebRoot(): string {
   return path.join(process.resourcesPath, "web");
 }
 
+/** 只有 health 明确返回该标识时才认定端口上是本工具的服务。 */
+const SERVICE_SIGNATURE = "Arma3ServerTools.Service";
+
+interface ServiceHealthInfo {
+  service?: string;
+  version?: string;
+  instanceId?: string;
+  pid?: number;
+}
+
+function fetchServiceHealth(port: number, timeoutMs = 1500): Promise<ServiceHealthInfo | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value: ServiceHealthInfo | null) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(value);
+    };
+
+    const req = http.get(`http://127.0.0.1:${port}/api/v1/health`, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        finish(null);
+        return;
+      }
+      let body = "";
+      res.setEncoding("utf-8");
+      res.on("data", (chunk: string) => {
+        if (body.length < 64 * 1024) {
+          body += chunk;
+        }
+      });
+      res.on("end", () => {
+        try {
+          finish(JSON.parse(body) as ServiceHealthInfo);
+        } catch {
+          finish(null);
+        }
+      });
+      res.on("error", () => finish(null));
+    });
+    req.on("error", () => finish(null));
+    req.setTimeout(timeoutMs, () => {
+      req.destroy();
+      finish(null);
+    });
+  });
+}
+
 function probeService(port: number): Promise<ServiceProbe> {
   return new Promise((resolve) => {
     let settled = false;
@@ -109,27 +160,48 @@ function probeService(port: number): Promise<ServiceProbe> {
     };
 
     const req = http.get(`http://127.0.0.1:${port}/api/v1/health`, (res) => {
-      res.resume();
       if (res.statusCode !== 200) {
+        res.resume();
         finish("down");
         return;
       }
-      const pageReq = http.get(`http://127.0.0.1:${port}/`, (pageRes) => {
-        pageRes.resume();
-        const contentType = String(pageRes.headers["content-type"] ?? "");
-        if (pageRes.statusCode === 200 && contentType.includes("text/html")) {
-          finish("ui");
+      let body = "";
+      res.setEncoding("utf-8");
+      res.on("data", (chunk: string) => {
+        if (body.length < 64 * 1024) {
+          body += chunk;
+        }
+      });
+      res.on("end", () => {
+        let health: ServiceHealthInfo | null = null;
+        try {
+          health = JSON.parse(body) as ServiceHealthInfo;
+        } catch {
+          health = null;
+        }
+        // 端口上可能是任意程序：没有我们的签名一律视为「不是本工具的服务」。
+        if (!health || health.service !== SERVICE_SIGNATURE) {
+          finish("down");
           return;
         }
-        finish("api-only");
+        const pageReq = http.get(`http://127.0.0.1:${port}/`, (pageRes) => {
+          pageRes.resume();
+          const contentType = String(pageRes.headers["content-type"] ?? "");
+          if (pageRes.statusCode === 200 && contentType.includes("text/html")) {
+            finish("ui");
+            return;
+          }
+          finish("api-only");
+        });
+        pageReq.on("error", () => {
+          finish("api-only");
+        });
+        pageReq.setTimeout(1500, () => {
+          pageReq.destroy();
+          finish("api-only");
+        });
       });
-      pageReq.on("error", () => {
-        finish("api-only");
-      });
-      pageReq.setTimeout(1500, () => {
-        pageReq.destroy();
-        finish("api-only");
-      });
+      res.on("error", () => finish("down"));
     });
     req.on("error", () => {
       finish("down");
@@ -233,27 +305,119 @@ function killProcessOnly(pid: number): void {
   }
 }
 
-function adoptListenerIfPresent(port: number): void {
+/** 读取进程命令行；失败返回 null（权限不足/进程已退出）。 */
+function readProcessCommandLine(pid: number): string | null {
+  try {
+    if (process.platform === "win32") {
+      const out = execFileSync(
+        "powershell",
+        [
+          "-NoProfile",
+          "-Command",
+          `(Get-CimInstance Win32_Process -Filter "ProcessId=${pid}" -ErrorAction SilentlyContinue).CommandLine`,
+        ],
+        {
+          encoding: "utf-8",
+          windowsHide: true,
+          stdio: ["ignore", "pipe", "ignore"],
+        }
+      );
+      const line = out.trim();
+      return line.length > 0 ? line : null;
+    }
+    const raw = fs.readFileSync(`/proc/${pid}/cmdline`, "utf-8");
+    const line = raw.replace(/\0/g, " ").trim();
+    return line.length > 0 ? line : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 通过命令行判断是否为 Node 服务入口（health 不可用时的兜底校验）。 */
+function looksLikeA3stService(pid: number): boolean {
+  const commandLine = readProcessCommandLine(pid);
+  if (!commandLine) {
+    return false;
+  }
+  const normalized = commandLine.replace(/\\/g, "/").toLowerCase();
+  return (
+    normalized.includes("service/dist/index.js") ||
+    normalized.includes("service/dist/index.cjs")
+  );
+}
+
+/**
+ * 确认端口监听者身份。返回 "service" 才允许收养/结束进程：
+ * 先看 health 签名（最可靠），再用命令行兜底；两者都不匹配返回 null。
+ */
+async function identifyPortOccupant(pid: number, port: number): Promise<"service" | null> {
+  const health = await fetchServiceHealth(port);
+  if (health && health.service === SERVICE_SIGNATURE) {
+    // health 声明的 PID 与监听者不一致，说明中间还有端口转发/代理，
+    // 杀掉监听者不一定是结束我们的服务，按「非本服务」处理。
+    if (typeof health.pid === "number" && health.pid !== pid) {
+      console.warn(
+        `Port ${port} health belongs to PID ${health.pid}, but listener is PID ${pid}`
+      );
+      return null;
+    }
+    return "service";
+  }
+  if (looksLikeA3stService(pid)) {
+    return "service";
+  }
+  return null;
+}
+
+async function adoptListenerIfPresent(port: number): Promise<void> {
   const pid = findListenerPid(port);
   if (!pid || pid === process.pid) {
+    return;
+  }
+  const health = await fetchServiceHealth(port);
+  if (!health || health.service !== SERVICE_SIGNATURE) {
+    console.warn(`Not adopting listener PID ${pid} on port ${port}: health signature missing`);
+    return;
+  }
+  if (typeof health.pid === "number" && health.pid !== pid) {
+    console.warn(`Not adopting listener PID ${pid} on port ${port}: health reports PID ${health.pid}`);
     return;
   }
   adoptedServicePid = pid;
-  console.log(`Adopted existing listener on port ${port} as PID ${pid}`);
+  console.log(
+    `Adopted existing service on port ${port} (PID ${pid}, version ${health.version ?? "unknown"})`
+  );
 }
 
-function freeServicePort(port: number): void {
+/**
+ * 释放端口。只有在确认监听者是本工具的服务后才结束进程：
+ * 端口可能被任意程序占用，盲杀会误伤用户的其他软件。
+ */
+async function freeServicePort(port: number): Promise<boolean> {
   const pid = findListenerPid(port);
   if (!pid || pid === process.pid) {
-    return;
+    return true;
+  }
+  const identity = await identifyPortOccupant(pid, port);
+  if (identity !== "service") {
+    console.error(
+      `Port ${port} is held by PID ${pid} which could not be verified as an A3ST service; refusing to kill`
+    );
+    dialog.showErrorBox(
+      "端口被占用",
+      `端口 ${port} 已被其他程序占用（PID ${pid}），且无法确认是本工具的服务，已取消自动结束进程。\n\n` +
+        `请在被控设置中更换端口，或手动结束 PID ${pid} 后重试。`
+    );
+    return false;
   }
   // Soft kill only the listener: children (game servers) survive and are
   // adopted by the freshly started service.
-  console.log(`Freeing port ${port} by stopping listener PID ${pid} (children preserved)`);
+  console.log(`Freeing port ${port} by stopping service PID ${pid} (children preserved)`);
   killProcessOnly(pid);
   if (adoptedServicePid === pid) {
     adoptedServicePid = null;
   }
+  return true;
 }
 
 function readServiceLogTail(): string {
@@ -330,6 +494,8 @@ function buildServiceSpawnOptions(entry: string): {
     HOST: host,
     DATA_DIR: dir,
     API_TOKEN: settings.apiToken,
+    // 让 /health 的 version 与安装包保持一致（Service 侧回退自身 package.json）。
+    A3ST_VERSION: app.getVersion(),
   };
   if (!isDev) {
     baseEnv.WEB_ROOT = getPackagedWebRoot();
@@ -355,10 +521,18 @@ function buildServiceSpawnOptions(entry: string): {
   };
 }
 
-function startService(): boolean {
+/** 启动失败时是否已向用户解释原因（避免主流程重复弹窗）。 */
+let startupFailureExplained = false;
+
+async function startService(): Promise<boolean> {
   stopService();
+  startupFailureExplained = false;
   const settings = loadSettings();
-  freeServicePort(settings.port);
+  if (!(await freeServicePort(settings.port))) {
+    startupFailureExplained = true;
+    serviceExited = true;
+    return false;
+  }
   serviceGeneration += 1;
   const generation = serviceGeneration;
   serviceExited = false;
@@ -367,9 +541,10 @@ function startService(): boolean {
   if (!fs.existsSync(entry)) {
     console.warn(`Node service entry not found: ${entry}`);
     serviceExited = true;
+    startupFailureExplained = true;
     dialog.showErrorBox(
       "服务未找到",
-      `未找到 TypeScript 被控服务。\n\n请先执行：\nnpm run build:service\n\n路径：${entry}`
+      `未找到 Node 服务入口（@a3st/service）。\n\n请先执行：\nnpm run build:service\n\n路径：${entry}`
     );
     return false;
   }
@@ -479,7 +654,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.handle("service:restart", async () => {
-    const started = startService();
+    const started = await startService();
     if (!started) {
       preferFileUi = true;
       return getServiceStatus();
@@ -807,20 +982,20 @@ if (!gotLock) {
     const settings = loadSettings();
     let probe = await probeService(settings.port);
     if (probe === "down") {
-      const started = startService();
+      const started = await startService();
       if (started) {
         probe = await waitForServiceReady(settings.port, 30000);
       }
     } else {
-      adoptListenerIfPresent(settings.port);
+      await adoptListenerIfPresent(settings.port);
       console.log(`Reusing service already listening on ${settings.port} (${probe})`);
     }
     preferFileUi = probe !== "ui";
     if (probe === "down") {
       const startedEntry = fs.existsSync(getServiceEntryPath());
-      if (startedEntry) {
+      if (startedEntry && !startupFailureExplained) {
         const tail = readServiceLogTail();
-        let detail = `本机被控服务未能响应 http://127.0.0.1:${settings.port}/api/v1/health。\n\n日志：${path.join(dataDir(), "service.log")}`;
+        let detail = `本机服务未能响应 http://127.0.0.1:${settings.port}/api/v1/health。\n\n日志：${path.join(dataDir(), "service.log")}`;
         if (tail.length > 0) {
           detail = `${detail}\n\n${tail}`;
         }

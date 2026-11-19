@@ -367,14 +367,14 @@ body {
 }
 
 .el-table th.el-table__cell {
-  font-weight: 600 !important;
-  font-size: 11px !important;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-weight: 500 !important;
+  font-size: 12px !important;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background: var(--a3st-bg-panel) !important;
+  background: transparent !important;
 }
 
 .el-tabs__item {

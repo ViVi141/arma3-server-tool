@@ -51,7 +51,7 @@ export function syncCronJobsForServer(
         if (!latest) {
           return;
         }
-        const state = app.processManager.getState(uuid, latest);
+        const state = await app.processManager.getState(uuid, latest);
         if (!state.isRunning) {
           return;
         }

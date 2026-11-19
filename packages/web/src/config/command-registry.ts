@@ -94,7 +94,7 @@ const SETTING_ENTRIES: SettingIndexEntry[] = [
   { id: "s-preflight", label: "开服检查 / 全量体检", section: "部署检查", tab: "preflight", icon: "fact_check", keywords: ["preflight", "diagnostics", "开服检查", "体检"] },
   { id: "s-logs-view", label: "查看 Console / RPT / BattlEye 日志", section: "日志查看", tab: "logs", icon: "description", keywords: ["rpt", "battleye", "console", "日志"] },
   { id: "s-rcon-view", label: "在线玩家 / 踢出封禁 / 全员广播 / 锁服", section: "RCon 控制台", tab: "rcon", icon: "terminal", keywords: ["rcon", "kick", "ban", "broadcast", "lock", "广播", "锁服"] },
-  { id: "s-bans-view", label: "本地 bans.txt 封禁管理", section: "封禁文件", tab: "bans", icon: "gavel", keywords: ["bans.txt", "ban", "guid", "封禁"] },
+  { id: "s-bans-view", label: "本地 bans.txt 封禁管理", section: "本地封禁", tab: "bans", icon: "gavel", keywords: ["bans.txt", "ban", "guid", "封禁"] },
   { id: "s-stats-view", label: "在线人数与 FPS 趋势 / 启用监控 / CSV 导出", section: "运行统计", tab: "statistics", icon: "monitoring", advancedOnly: true, keywords: ["monitoringEnabled", "FPS", "CSV", "HTML", "启用监控", "趋势"] },
 ];
 
@@ -207,13 +207,13 @@ export function searchCommands(params: {
     keywords: string[];
     requiresServer?: boolean;
   }> = [
-    { id: "write_cfg", title: "写入游戏配置", subtitle: "保存并生成 server.cfg / basic.cfg", icon: "publish", keywords: ["write_cfg", "写入游戏配置", "cfg"], requiresServer: true },
+    { id: "write_cfg", title: "应用更改（写入 cfg）", subtitle: "生成 server.cfg / basic.cfg；运行中需重启后生效", icon: "publish", keywords: ["write_cfg", "写入游戏配置", "应用更改", "cfg"], requiresServer: true },
     { id: "preflight", title: "执行开服检查", subtitle: "体检路径、端口、模组与配置文件", icon: "fact_check", keywords: ["preflight", "开服检查", "体检"], requiresServer: true },
     { id: "save", title: "保存当前页配置", subtitle: "提交当前编辑器的未保存修改", icon: "save", keywords: ["save", "保存"], requiresServer: true },
     { id: "theme_cycle", title: "切换明暗主题", subtitle: "在跟随系统 / 浅色 / 深色之间循环切换", icon: "brightness_auto", keywords: ["theme", "dark", "light", "主题", "明暗"] },
     { id: "open_wizard", title: "打开首服向导", subtitle: "从零创建并配置服务器实例", icon: "auto_fix_high", keywords: ["wizard", "首服向导"] },
     { id: "create_server", title: "新建服务器配置", subtitle: "创建一个新的服务器配置实例", icon: "add", keywords: ["create", "new", "新建服务器"] },
-    { id: "nav_connections", title: "返回主机连接", subtitle: "切换到连接管理页面", icon: "logout", keywords: ["connections", "主机连接", "登出", "返回"] },
+    { id: "nav_connections", title: "切换主机", subtitle: "返回主机连接列表", icon: "logout", keywords: ["connections", "主机连接", "切换主机", "登出", "返回"] },
   ];
 
   for (const act of actions) {

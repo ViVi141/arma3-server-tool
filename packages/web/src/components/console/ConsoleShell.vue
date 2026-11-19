@@ -41,6 +41,7 @@ const emit = defineEmits<{
 }>();
 
 const isMobile = import.meta.env.VITE_APP_MODE === "mobile";
+const appVersion = __APP_VERSION__;
 const uiSettings = useUiSettingsStore();
 const { themeMode, themeIcon, themeLabel, cycleThemeMode } = useThemeMode();
 
@@ -85,7 +86,7 @@ function subTabOptionLabel(tab: TabEntry): string {
         </span>
         <span class="shell-v2__wordmark">
           <strong>A3ST</strong>
-          <small>CONSOLE</small>
+          <small>服务器控制台</small>
         </span>
       </div>
 
@@ -175,9 +176,14 @@ function subTabOptionLabel(tab: TabEntry): string {
         >
           <M3Icon :name="themeIcon" :size="20" />
         </button>
-        <router-link to="/connections" class="shell-v2__link" data-testid="nav-connections">
+        <router-link
+          to="/connections"
+          class="shell-v2__link"
+          data-testid="nav-connections"
+          title="返回主机连接列表"
+        >
           <M3Icon name="logout" :size="18" />
-          <span>登出</span>
+          <span>切换主机</span>
         </router-link>
       </div>
     </header>
@@ -257,13 +263,13 @@ function subTabOptionLabel(tab: TabEntry): string {
 
         <footer class="shell-v2__baseline" data-testid="status-bar">
           <span class="shell-v2__baseline-left">
-            <span class="shell-v2__baseline-tag">PATH</span>
+            <span class="shell-v2__baseline-tag">路径</span>
             <a href="#" class="shell-v2__baseline-link" @click.prevent="$emit('open-dir')">{{ statusBarDir }}</a>
             <span class="shell-v2__baseline-sep">|</span>
-            <span class="shell-v2__baseline-tag">SYNC</span>
+            <span class="shell-v2__baseline-tag">同步</span>
             <span>{{ syncStatusText }}</span>
           </span>
-          <span class="shell-v2__baseline-right">A3ST v2.0</span>
+          <span class="shell-v2__baseline-right">A3ST v{{ appVersion }}</span>
         </footer>
       </div>
     </div>

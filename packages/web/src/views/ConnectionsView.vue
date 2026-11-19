@@ -53,12 +53,12 @@ async function testConnection(baseUrl: string, token?: string): Promise<boolean>
     }
     return true;
   } catch (e) {
-    let message = "无法连接到被控服务";
+    let message = "无法连接到服务";
     if (e instanceof Error && e.message) {
       if (e.message === "Failed to fetch") {
         if (isMobile) {
           message =
-            "无法连接被控服务。请确认已填写局域网地址（如 http://192.168.x.x:19580）与 API Token，且手机与开服机同一 Wi‑Fi（关闭访客隔离）。";
+            "无法连接服务。请确认已填写局域网地址（如 http://192.168.x.x:19580）与 API Token，且手机与开服机同一 Wi‑Fi（关闭访客隔离）。";
         } else {
           message =
             "无法连接本机服务（默认 http://127.0.0.1:19580）。请等窗口完全启动后再点连接；若仍失败，用浏览器打开该地址的 /api/v1/health。";
@@ -125,16 +125,14 @@ async function doAdd() {
 }
 
 async function doRemove(id: string) {
-  if (isMobile) {
-    try {
-      await ElMessageBox.confirm("确定移除此主机？", "移除主机", {
-        type: "warning",
-        confirmButtonText: "移除",
-        cancelButtonText: "取消",
-      });
-    } catch {
-      return;
-    }
+  try {
+    await ElMessageBox.confirm("确定移除此主机？", "移除主机", {
+      type: "warning",
+      confirmButtonText: "移除",
+      cancelButtonText: "取消",
+    });
+  } catch {
+    return;
   }
   store.remove(id);
   if (selectedId.value === id) {
@@ -146,15 +144,14 @@ async function doRemove(id: string) {
 <template>
   <div class="conn-page connections-shell" data-testid="connections-page">
     <header class="conn-page__hero">
-      <p class="conn-page__kicker">OPERATOR / 主机连接</p>
-      <h1 class="conn-page__title">Nodes</h1>
+      <p class="conn-page__kicker">HOSTS / 主机连接</p>
+      <h1 class="conn-page__title">主机连接</h1>
       <p class="conn-page__sub">
-        选择被控 service 节点进入控制台。本地、局域网与远程均通过同一 HTTP API 连接。
+        选择本机或远程服务节点进入控制台。本地、局域网与远程均通过同一 HTTP API 连接。
       </p>
     </header>
 
     <div class="connections-toolbar">
-      <span class="connections-title conn-page__toolbar-title">{{ UI_COPY.connectionTitle }}</span>
       <el-button size="small" type="primary" data-testid="btn-add-host" @click="showAdd = true">
         {{ UI_COPY.addHost }}
       </el-button>
@@ -169,7 +166,7 @@ async function doRemove(id: string) {
           手机主控：点选主机即可连接。地址示例 http://192.168.31.176:19580，并填入 API Token。需与开服机同一局域网或经 Tailscale 可达。
         </template>
         <template v-else>
-          远程：开服机运行 @a3st/service 后添加 http://&lt;IP&gt;:19580 与 Token。双机见 docs/deployment-ab-openclaw.md；Electron 可在「被控设置」开启 0.0.0.0 监听。
+          远程：开服机运行 @a3st/service 后添加 http://&lt;IP&gt;:19580 与 Token。双机见 docs/deployment-ab-openclaw.md；Electron 可在「服务设置」开启 0.0.0.0 监听。
         </template>
       </p>
 
@@ -260,20 +257,12 @@ async function doRemove(id: string) {
 .connections-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 6px 10px;
   background: var(--a3st-toolbar);
   border-bottom: 1px solid var(--a3st-border-subtle);
   flex-shrink: 0;
   gap: 12px;
-}
-
-.connections-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--a3st-text-muted);
 }
 
 .connections-body {
@@ -308,13 +297,5 @@ async function doRemove(id: string) {
 
 .conn-archive__row.is-connecting {
   opacity: 0.85;
-}
-
-[data-visual="classic"] .conn-archive__tag {
-  display: none;
-}
-
-[data-visual="classic"] .conn-archive__row {
-  grid-template-columns: minmax(0, 1fr) auto;
 }
 </style>

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
-import DeployOpsBar from "@/components/console/DeployOpsBar.vue";
 import SettingsViewLayout from "@/components/console/SettingsViewLayout.vue";
 import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
 import { ref, onMounted, watch } from "vue";
@@ -169,7 +168,6 @@ onMounted(() => {
 
 <template>
   <ConsolePageLayout v-loading="loading" :padded="false">
-    <DeployOpsBar />
     <template #toolbar>
       <el-button size="small" :loading="syncing" @click="syncCron">保存并同步到调度器</el-button>
       <el-button size="small" @click="addCronRow">添加任务</el-button>

@@ -36,8 +36,52 @@ export function taskCommandsInvolveSteamCmd(
 export class AsyncTaskManager {
   private tasks = new Map<string, AsyncTask>();
   private cancelledIds = new Set<string>();
+  /** 任务与日志上限：长跑服务里任务只增不减会持续吃内存。 */
+  private static readonly MAX_TASKS = 100;
+  private static readonly MAX_LOG_LINES = 500;
+  private static readonly COMPLETED_TASK_TTL_MS = 60 * 60 * 1000;
+
+  private isFinished(task: AsyncTask): boolean {
+    return task.status === "Succeeded" || task.status === "Failed" || task.status === "Cancelled";
+  }
+
+  /** 清理过期/超额的历史任务（每次创建任务时顺带执行，无额外定时器）。 */
+  private pruneTasks(): void {
+    const now = Date.now();
+    for (const [taskId, task] of this.tasks) {
+      if (
+        this.isFinished(task) &&
+        task.completedAt &&
+        now - task.completedAt.getTime() > AsyncTaskManager.COMPLETED_TASK_TTL_MS
+      ) {
+        this.tasks.delete(taskId);
+        this.cancelledIds.delete(taskId);
+      }
+    }
+    if (this.tasks.size <= AsyncTaskManager.MAX_TASKS) {
+      return;
+    }
+    const finished = [...this.tasks.values()]
+      .filter((task) => this.isFinished(task))
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    for (const task of finished) {
+      if (this.tasks.size <= AsyncTaskManager.MAX_TASKS) {
+        break;
+      }
+      this.tasks.delete(task.taskId);
+      this.cancelledIds.delete(task.taskId);
+    }
+  }
+
+  private pushLog(task: AsyncTask, line: string): void {
+    task.log.push(line);
+    if (task.log.length > AsyncTaskManager.MAX_LOG_LINES) {
+      task.log.splice(0, task.log.length - AsyncTaskManager.MAX_LOG_LINES);
+    }
+  }
 
   create(serverUuid: string, commands: { action: string; [key: string]: unknown }[]): string {
+    this.pruneTasks();
     const taskId = randomUUID();
     this.tasks.set(taskId, {
       taskId,
@@ -89,7 +133,7 @@ export class AsyncTaskManager {
     task.status = "Cancelled";
     task.completedAt = new Date();
     task.error = "已取消";
-    task.log.push(`[${new Date().toISOString()}] cancel: 已取消`);
+    this.pushLog(task, `[${new Date().toISOString()}] cancel: 已取消`);
     return true;
   }
 
@@ -135,7 +179,7 @@ export class AsyncTaskManager {
       if (success) {
         outcome = "OK";
       }
-      task.log.push(`[${new Date().toISOString()}] ${action}: ${outcome} - ${message}`);
+      this.pushLog(task, `[${new Date().toISOString()}] ${action}: ${outcome} - ${message}`);
     }
   }
 

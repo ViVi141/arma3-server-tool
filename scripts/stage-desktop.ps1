@@ -53,11 +53,16 @@ if (-not $srcPkg.dependencies) {
     throw "packages/service/package.json has no dependencies."
 }
 
+# 发布版本以根 package.json 为唯一来源，避免子包版本漂移影响 /health 上报。
+$rootPkgPath = Join-Path $Root "package.json"
+Require-Path -Path $rootPkgPath -Hint "Root package.json missing."
+$rootPkg = Get-Content -Raw -Path $rootPkgPath | ConvertFrom-Json
+
 $runtimePkg = @{
     name = "a3st-service-runtime"
     private = $true
     type = "module"
-    version = [string]$srcPkg.version
+    version = [string]$rootPkg.version
     dependencies = $srcPkg.dependencies
 }
 $runtimePath = Join-Path $StageService "package.json"

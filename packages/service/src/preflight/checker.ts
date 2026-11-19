@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getServerKeysDirectory } from "../mods/bikey-service.js";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import type { ServerConfigPackage } from "../types/config.js";
 import {
   ensureProfileRoot,
@@ -28,7 +28,7 @@ export function isUdpPortInUse(port: number): boolean {
 
   if (process.platform === "win32") {
     try {
-      const output = execSync("netstat -an -p udp", { encoding: "utf-8", stdio: "pipe" });
+      const output = execFileSync("netstat", ["-an", "-p", "udp"], { encoding: "utf-8", stdio: "pipe" });
       const needle = `:${port} `;
       return output.includes(needle);
     } catch {
@@ -38,7 +38,7 @@ export function isUdpPortInUse(port: number): boolean {
 
   if (process.platform === "linux") {
     try {
-      const output = execSync("ss -uln", { encoding: "utf-8", stdio: "pipe", timeout: 3000 });
+      const output = execFileSync("ss", ["-uln"], { encoding: "utf-8", stdio: "pipe", timeout: 3000 });
       return output.includes(`:${port} `);
     } catch {
       return false;

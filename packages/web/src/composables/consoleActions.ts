@@ -1,8 +1,11 @@
 import type { ComputedRef, InjectionKey, Ref } from "vue";
 
 export interface ConsoleActionsContext {
-  execAction: (action: string) => Promise<void>;
+  execAction: (action: string) => Promise<boolean>;
   execSave: () => Promise<void>;
+  execApplyChanges: () => Promise<boolean>;
+  /** 模组等页面即时保存后，刷新外壳的「需写入/已写入」状态。 */
+  refreshSync: () => Promise<void>;
   isRunning: Ref<boolean>;
   hasDirtyChanges: Ref<boolean>;
   instanceLabel: ComputedRef<string>;

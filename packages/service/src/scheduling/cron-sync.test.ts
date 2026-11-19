@@ -33,7 +33,7 @@ describe("PERF-2 cron-sync monitoring tick batch persistence", () => {
         })),
       },
       processManager: {
-        getState: vi.fn(() => ({ isRunning: true, pid: 1234 })),
+        getState: vi.fn(async () => ({ isRunning: true, pid: 1234 })),
       },
       monitorDb: {
         recordCollectionTick,

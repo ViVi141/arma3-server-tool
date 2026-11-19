@@ -487,7 +487,7 @@ describe("API Routes Integration", () => {
       { num: 1, guid: "pguid-1", name: "Alpha" },
       { num: 2, guid: "pguid-2", name: "Bravo" },
     ]);
-    const stateSpy = vi.spyOn(processManager, "getState").mockImplementation((id) => ({
+    const stateSpy = vi.spyOn(processManager, "getState").mockImplementation(async (id) => ({
       isRunning: id === uuid,
       pid: id === uuid ? 5555 : undefined,
     }));

@@ -115,6 +115,42 @@ describe("ConfigStore", () => {
     expect(loaded).not.toBeNull();
   });
 
+  it("writes config without leaving temp files behind", () => {
+    store.save("uuid-1", { formatVersion: 2, basic: { hostname: "Atomic" } });
+
+    const pkgDir = path.join(tmpDir, "config", "uuid-1");
+    const leftovers = fs.readdirSync(pkgDir).filter((name) => name.endsWith(".tmp"));
+    expect(leftovers).toEqual([]);
+  });
+
+  it("patchSection updates a single section without rewriting others", () => {
+    store.save("uuid-1", {
+      formatVersion: 2,
+      server: { configName: "Test" },
+      basic: { hostname: "Keep Me" },
+      tasks: { processById: 111 },
+    });
+
+    const updated = store.patchSection("uuid-1", "tasks", { processById: 222 });
+    expect(updated?.tasks?.processById).toBe(222);
+
+    const loaded = store.load("uuid-1");
+    expect(loaded!.tasks?.processById).toBe(222);
+    expect(loaded!.basic?.hostname).toBe("Keep Me");
+
+    const pkgDir = path.join(tmpDir, "config", "uuid-1");
+    const tasksOnDisk = JSON.parse(
+      fs.readFileSync(path.join(pkgDir, "tasks.json"), "utf-8")
+    ) as { processById?: number };
+    expect(tasksOnDisk.processById).toBe(222);
+    expect(fs.readdirSync(pkgDir).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+  });
+
+  it("patchSection returns null for unknown servers and rejects bad IDs", () => {
+    expect(store.patchSection("missing", "tasks", { processById: 1 })).toBeNull();
+    expect(() => store.patchSection("../escape", "tasks", { processById: 1 })).toThrow();
+  });
+
   it("SEC-4 rejects path traversal and invalid IDs in load, save, delete, getServerConfigDir, and invalidateCache", () => {
     const badIds = ["../escape", "..\\escape", "a/b", "a\0b", ".", "..", ""];
     for (const bad of badIds) {

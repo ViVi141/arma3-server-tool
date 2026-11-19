@@ -107,57 +107,39 @@ export async function runScheduledModUpdate(
   modUpdateInFlight = true;
   const stoppedUuids: string[] = [];
   const previouslyRunning: string[] = [];
+  const restartedUuids: string[] = [];
+  let result: ModUpdateCronResult;
   try {
     const servers = app.configStore.listServers();
     for (const server of servers) {
       const cfg = app.configStore.load(server.uuid);
-      const state = app.processManager.getState(server.uuid, cfg ?? undefined);
+      const state = await app.processManager.getState(server.uuid, cfg ?? undefined);
       if (state.isRunning) {
         previouslyRunning.push(server.uuid);
       }
       const stopResult = await stopServer(app, server.uuid);
       if (!stopResult.success) {
-        return {
-          success: false,
-          message: `停止服务器 ${server.uuid} 失败: ${stopResult.message}`,
-          outdatedIds,
-          stoppedUuids,
-        };
+        throw new Error(`停止服务器 ${server.uuid} 失败: ${stopResult.message}`);
       }
       stoppedUuids.push(server.uuid);
     }
 
-    try {
-      await app.steamCmd.downloadWorkshopMods(outdatedIds, (line) => {
-        app.log.info({ steamcmd: line.slice(0, 200) }, "mod-update-cron");
-      });
-    } catch (err) {
-      return {
-        success: false,
-        message: `模组下载失败: ${err instanceof Error ? err.message : String(err)}`,
-        outdatedIds,
-        stoppedUuids,
-      };
-    }
+    await app.steamCmd.downloadWorkshopMods(outdatedIds, (line) => {
+      app.log.info({ steamcmd: line.slice(0, 200) }, "mod-update-cron");
+    });
 
-    const restartedUuids: string[] = [];
     for (const runningUuid of previouslyRunning) {
       const startResult = await startServer(app, runningUuid);
       if (!startResult.success) {
-        return {
-          success: false,
-          message:
-            `模组已更新，但重启 ${runningUuid} 失败: ${startResult.message}`
-            + `（已停服: ${stoppedUuids.join(", ")}）`,
-          outdatedIds,
-          stoppedUuids,
-          restartedUuids,
-        };
+        throw new Error(
+          `模组已更新，但重启 ${runningUuid} 失败: ${startResult.message}`
+          + `（已停服: ${stoppedUuids.join(", ")}）`,
+        );
       }
       restartedUuids.push(runningUuid);
     }
 
-    return {
+    result = {
       success: true,
       message:
         `已更新 ${outdatedIds.length} 个模组 (${outdatedIds.join(", ")})；`
@@ -166,9 +148,44 @@ export async function runScheduledModUpdate(
       stoppedUuids,
       restartedUuids,
     };
+  } catch (err) {
+    result = {
+      success: false,
+      message: err instanceof Error ? err.message : String(err),
+      outdatedIds,
+      stoppedUuids,
+      restartedUuids,
+    };
   } finally {
+    // 无论停服/下载/重启哪一步失败，都必须恢复「确认已停且先前在跑」的服务器，
+    // 避免定时更新的一次失败导致全服长期停机。未停成功的服保持原状，绝不重复 spawn。
+    for (const runningUuid of previouslyRunning) {
+      if (!stoppedUuids.includes(runningUuid) || restartedUuids.includes(runningUuid)) {
+        continue;
+      }
+      try {
+        const startResult = await startServer(app, runningUuid);
+        if (startResult.success) {
+          restartedUuids.push(runningUuid);
+        } else {
+          app.log.error(
+            { uuid: runningUuid, message: startResult.message },
+            "mod-update-cron 恢复服务器失败",
+          );
+        }
+      } catch (error) {
+        app.log.error(
+          {
+            uuid: runningUuid,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          "mod-update-cron 恢复服务器异常",
+        );
+      }
+    }
     modUpdateInFlight = false;
   }
+  return result;
 }
 
 /** 供测试重置互斥标志。 */

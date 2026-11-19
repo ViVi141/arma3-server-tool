@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import { finished } from "node:stream/promises";
@@ -87,7 +87,15 @@ export class SteamCmdManager extends EventEmitter {
     this.sessionLogDir = path.join(installDir, "logs", "steamcmd");
     fs.mkdirSync(this.sessionLogDir, { recursive: true });
     // 上次异常退出可能留下 steamcmd 占着安装目录，导致新任务立刻失败或被系统锁死。
-    this.purgeOrphanSteamCmdProcesses();
+    // 该清理在 Windows 上要拉起 PowerShell（最长 3s），不能同步阻塞服务启动：
+    // 延后到事件循环空闲执行，首次下载前足够完成。
+    setImmediate(() => {
+      try {
+        this.purgeOrphanSteamCmdProcesses();
+      } catch {
+        /* ignore cleanup errors */
+      }
+    });
   }
 
   setCredentials(username: string, password: string): void {
@@ -349,6 +357,11 @@ export class SteamCmdManager extends EventEmitter {
       } catch (err) {
         this.throwIfStaleOrAborted(runId);
         const msg = err instanceof Error ? err.message : String(err);
+        // Guard/手机确认必须立即上抛：继续重试会再次拉起 SteamCMD 登录，
+        // 形成连续认证请求（登录风暴），极易触发 Steam 风控。
+        if (this._authState === "waiting_guard" || this.needsSteamGuard(msg)) {
+          throw err;
+        }
         const hint = `[提示] 批量下载未完全成功，将检查失败项并重试。详情: ${msg.slice(0, 200)}\n`;
         this.appendSessionOutput(hint);
         this.emit("output", hint);
@@ -389,6 +402,10 @@ export class SteamCmdManager extends EventEmitter {
         } catch (err) {
           this.throwIfStaleOrAborted(runId);
           const msg = err instanceof Error ? err.message : String(err);
+          // 与批量轮一致：Guard 场景禁止任何后续重试。
+          if (this._authState === "waiting_guard" || this.needsSteamGuard(msg)) {
+            throw err;
+          }
           const failHint = `[失败] 重试轮出错: ${msg}\n`;
           this.appendSessionOutput(failHint);
           this.emit("output", failHint);
@@ -763,12 +780,22 @@ export class SteamCmdManager extends EventEmitter {
   }
 
   private async extractSteamCmdWindowsArchive(archivePath: string, destDir: string): Promise<void> {
-    const zipArg = archivePath.replace(/'/g, "''");
-    const destArg = destDir.replace(/'/g, "''");
+    // execFile + 参数数组：路径经环境变量传给 PowerShell，不拼接 shell 字符串，消除引号/元字符注入面。
     try {
-      execSync(
-        `powershell -NoProfile -Command "Expand-Archive -Path '${zipArg}' -DestinationPath '${destArg}' -Force"`,
-        { stdio: "pipe" }
+      execFileSync(
+        "powershell",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "Expand-Archive -LiteralPath $env:A3ST_ZIP -DestinationPath $env:A3ST_DEST -Force",
+        ],
+        {
+          stdio: "pipe",
+          timeout: 180000,
+          windowsHide: true,
+          env: { ...process.env, A3ST_ZIP: archivePath, A3ST_DEST: destDir },
+        }
       );
     } catch (err) {
       throw new Error(`解压 SteamCMD 失败: ${err instanceof Error ? err.message : String(err)}`);
@@ -776,10 +803,11 @@ export class SteamCmdManager extends EventEmitter {
   }
 
   private async extractSteamCmdLinuxArchive(archivePath: string, destDir: string): Promise<void> {
-    const tarArg = archivePath.replace(/'/g, "'\\''");
-    const destArg = destDir.replace(/'/g, "'\\''");
     try {
-      execSync(`tar -xzf '${tarArg}' -C '${destArg}'`, { stdio: "pipe" });
+      execFileSync("tar", ["-xzf", archivePath, "-C", destDir], {
+        stdio: "pipe",
+        timeout: 180000,
+      });
     } catch (err) {
       throw new Error(`解压 SteamCMD 失败: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -851,7 +879,7 @@ function killSteamCmdWindows(root: string): number {
   ].join("\n");
   const encoded = Buffer.from(script, "utf16le").toString("base64");
   try {
-    const out = execSync(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, {
+    const out = execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded], {
       encoding: "utf-8",
       timeout: 3000,
       env: { ...process.env, A3ST_STEAMCMD_ROOT: root },
@@ -872,7 +900,7 @@ function killSteamCmdUnix(root: string): number {
   const entry = resolveSteamCmdPath(root);
   let killed = 0;
   try {
-    const out = execSync("ps -eo pid=,args=", {
+    const out = execFileSync("ps", ["-eo", "pid=,args="], {
       encoding: "utf-8",
       timeout: 5000,
       stdio: ["ignore", "pipe", "ignore"],

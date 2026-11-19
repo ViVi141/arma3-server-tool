@@ -5,6 +5,7 @@ import { ref } from "vue";
 defineProps<{ connectionId: string; serverUuid: string }>();
 
 const showReward = ref(false);
+const appVersion = __APP_VERSION__;
 
 function openGithub() {
   window.open("https://github.com/ViVi141/arma3-server-tool", "_blank");
@@ -15,7 +16,7 @@ function openGithub() {
   <ConsolePageLayout>
     <h2>关于 Arma3 Server Tools</h2>
     <el-card style="max-width: 640px; margin-top: 12px;">
-      <h3>v2.0.0-alpha</h3>
+      <h3>v{{ appVersion }}</h3>
       <el-divider />
       <p><strong>项目来源:</strong> 从 C# / WinForms 迁移至 TypeScript 全栈</p>
       <p><strong>维护者:</strong> ViVi141</p>

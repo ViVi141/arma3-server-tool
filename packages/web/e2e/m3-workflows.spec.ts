@@ -216,8 +216,10 @@ test.describe("Tier 3: Cross-Feature Pairwise Combinations (14 Cases)", () => {
   test("T3-10 action consolidation + rail SVG icons across overview, deploy, and config", async ({ page }) => {
     await connectMockedConsole(page);
     await expect(page.getByRole("button", { name: "启动" })).toHaveCount(1);
-    await expect(page.getByRole("button", { name: "保存" })).toHaveCount(1);
-    await expect(page.getByRole("button", { name: "写入游戏配置" })).toHaveCount(1);
+    // 概览页没有页内编辑器：保存不出现，配置动作统一收敛到「应用更改」。
+    await expect(page.getByRole("button", { name: "保存", exact: true })).toHaveCount(0);
+    await expect(page.getByTestId("btn-apply")).toHaveCount(1);
+    await expect(page.getByTestId("btn-apply")).toHaveText("应用更改");
 
     await navigateConsoleTab(page, "preflight");
     await expect(page.locator(".shell-v2__actions [data-testid='btn-preflight']")).toHaveText("开服检查");
@@ -235,10 +237,10 @@ test.describe("Tier 3: Cross-Feature Pairwise Combinations (14 Cases)", () => {
     const moreMenu = page.getByTestId("btn-mobile-more-actions");
     if (await moreMenu.isVisible().catch(() => false)) {
       await moreMenu.click();
-      await expect(page.getByRole("button", { name: "保存" })).toBeVisible();
-    } else {
-      await expect(page.getByRole("button", { name: "启动" })).toBeVisible();
+      await expect(page.getByRole("menuitem", { name: "重新读取配置" })).toBeVisible();
     }
+    await expect(page.getByTestId("btn-apply")).toBeVisible();
+    await expect(page.getByTestId("btn-apply")).toHaveText("应用更改");
   });
 
   test("T3-12 active background task + Ctrl+K quick jump to RPT Logs keeps progress intact", async ({ page }) => {
@@ -308,7 +310,7 @@ test.describe("Tier 4: Real-World Application Scenarios (8 Full E2E Workflows)",
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    await expect(page.getByTestId("connections-page").getByText("主机连接", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("connections-page").getByRole("heading", { name: "主机连接", exact: true })).toBeVisible();
     await expect(page.getByTestId("connection-row-local")).toBeVisible();
     await connectConsole(page);
 
@@ -364,7 +366,8 @@ test.describe("Tier 4: Real-World Application Scenarios (8 Full E2E Workflows)",
 
     const banner = page.getByTestId("sync-banner");
     await expect(banner).toBeVisible();
-    await banner.getByRole("button").evaluate((el) => (el as HTMLElement).click());
+    await banner.getByRole("button").click();
+    await expect.poll(() => mock.getRequests("POST", "/api/v1/task").length).toBeGreaterThan(0);
     await expect(banner).not.toBeVisible();
 
     await page.getByTestId("nav-connections").click();
@@ -507,10 +510,10 @@ test.describe("Tier 4: Real-World Application Scenarios (8 Full E2E Workflows)",
     if (await copyMissing.isEnabled()) {
       await copyMissing.click();
     }
-    // 「写入游戏配置」属于配置类动作，工坊模式下按设计不显示，先切到配置页
+    // 「应用更改」属于配置类动作，工坊模式下按设计不显示，先切到配置页
     await navigateConsoleTab(page, "basic");
-    await expect(page.getByTestId("btn-write-cfg")).toBeVisible();
-    await page.getByTestId("btn-write-cfg").click();
+    await expect(page.getByTestId("btn-apply")).toBeVisible();
+    await page.getByTestId("btn-apply").click();
 
     await expect
       .poll(() => mock.getRequests("POST", "/api/v1/task").length)
@@ -538,6 +541,7 @@ test.describe("Tier 4: Real-World Application Scenarios (8 Full E2E Workflows)",
     await expect(page.getByText("pre-change")).toBeVisible();
 
     await page.getByRole("button", { name: "恢复" }).first().click();
+    await page.locator(".el-message-box").getByRole("button", { name: "恢复" }).click();
     await expect
       .poll(() => mock.getRequests("POST", "/restore").length)
       .toBeGreaterThan(0);

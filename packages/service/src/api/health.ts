@@ -2,6 +2,13 @@ import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { getServicePlatformInfo } from "../platform/index.js";
 import { isLoopbackHost } from "../util/host.js";
+import { SERVICE_VERSION } from "../version.js";
+
+/**
+ * 本次 Service 进程的实例标识。桌面端用它确认端口上监听的是「本工具的服务」
+ * 而不是恰好占用同一端口的其他程序（避免盲收养/盲杀）。
+ */
+const SERVICE_INSTANCE_ID = randomUUID();
 
 export async function healthRoutes(app: FastifyInstance) {
   app.get("/health", async (_req, _reply) => {
@@ -18,7 +25,9 @@ export async function healthRoutes(app: FastifyInstance) {
     return {
       success: true,
       service: "Arma3ServerTools.Service",
-      version: "2.0.0-alpha.19",
+      version: SERVICE_VERSION,
+      instanceId: SERVICE_INSTANCE_ID,
+      pid: process.pid,
       remoteAccessEnabled,
       authConfigured,
       bindHost,

@@ -11,7 +11,7 @@ import { scanModsForConfig } from "../mods/mod-config-sync.js";
 import {
   commandLineMatchesMarkers,
   isProcessRunning,
-  killProcessTree,
+  killProcessTreeAndWait,
   verifyProcessIdentity,
 } from "../process/identity.js";
 import { waitForPortReady } from "../process/port-check.js";
@@ -24,15 +24,9 @@ function patchProcessId(
   uuid: string,
   pid: number
 ): void {
-  const config = app.configStore.load(uuid);
-  if (!config) {
-    return;
-  }
-  config.tasks = {
-    ...config.tasks,
-    processById: pid,
-  };
-  app.configStore.save(uuid, config);
+  // 只写 tasks 这一个 section：进程 PID 在启停/重启时频繁变化，
+  // 整包重写既慢又可能与其他 section 的并发写入互相覆盖。
+  app.configStore.patchSection(uuid, "tasks", { processById: pid });
 }
 
 function resolveIdentityMarkers(
@@ -106,7 +100,17 @@ export async function stopServer(
 
   // 仅针对确认身份的 PID 执行树终止（不依赖 processManager 内存句柄，
   // 服务重启后收养的孤儿进程同样可以被停止）。
-  killProcessTree(runningPid);
+  // 必须等待进程真正退出：Linux 的 SIGTERM 是异步的，立即返回会误报已停止。
+  const killed = await killProcessTreeAndWait(runningPid, 8000);
+  if (!killed) {
+    // 终止失败时绝不能清零 PID：否则后续再也无法定位/停止该进程。
+    return {
+      success: false,
+      message:
+        `终止 PID=${runningPid} 失败或超时（进程仍在运行）。`
+        + `请手动结束该进程后重试，或检查文件占用/权限。`,
+    };
+  }
   app.processManager.forget(uuid);
   patchProcessId(app, uuid, 0);
   return { success: true, message: "服务器已停止" };
@@ -144,7 +148,7 @@ export async function startServer(
 
   // 防双实例：若已有本服务器的存活进程（含服务重启后遗留的孤儿），直接收养，
   // 绝不重复 spawn，避免同端口/同配置文件双实例互相“串台”。
-  const state = app.processManager.getState(uuid, cfg);
+  const state = await app.processManager.getState(uuid, cfg);
   if (state.isRunning && state.pid) {
     app.processManager.adopt(uuid, state.pid);
     patchProcessId(app, uuid, state.pid);
@@ -236,7 +240,7 @@ export async function detectRestartServer(
   uuid: string
 ): Promise<{ success: boolean; message: string }> {
   const config = app.configStore.load(uuid);
-  const state = app.processManager.getState(uuid, config ?? undefined);
+  const state = await app.processManager.getState(uuid, config ?? undefined);
   if (state.isRunning && state.pid) {
     app.processManager.adopt(uuid, state.pid);
     return { success: true, message: "服务器已在运行" };

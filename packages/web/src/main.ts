@@ -4,16 +4,13 @@ import ElementPlus from "element-plus";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import "element-plus/dist/index.css";
 import "@/styles/desktop-theme.css";
-import "@/styles/ark-visual.css";
 import "@/styles/shell-v2.css";
 import "@/styles/m3-theme.css";
 import App from "./App.vue";
 import { router } from "./router";
 import { initSystemTheme } from "@/utils/systemTheme";
-import { initVisualTheme } from "@/utils/visualTheme";
 
 initSystemTheme();
-initVisualTheme();
 
 const appMode = import.meta.env.VITE_APP_MODE === "mobile" ? "mobile" : "web";
 document.documentElement.dataset.appMode = appMode;

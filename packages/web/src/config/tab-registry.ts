@@ -20,7 +20,7 @@ const MAIN_TABS: TabEntry[] = [
   { name: "mods", label: "模组", icon: "extension" },
   { name: "missions", label: "地图任务", icon: "map", advancedOnly: true },
   { name: "rcon", label: "远程控制", icon: "terminal" },
-  { name: "bans", label: "封禁文件", icon: "gavel" },
+  { name: "bans", label: "本地封禁", icon: "gavel" },
   { name: "steamcmd", label: "SteamCMD", icon: "cloud_download", advancedOnly: true },
 ];
 

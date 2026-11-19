@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import type { RconPlayerRow } from "@a3st/api-client";
 import { parseRconBans, parseRconMissions } from "@/utils/rcon-parse";
@@ -91,18 +91,16 @@ function onPlayerRowClick(row: RconPlayerRow) {
   selectedPlayer.value = row;
 }
 
-function activePlayer(): RconPlayerRow | null {
+function requireSelectedPlayer(): RconPlayerRow | null {
   if (selectedPlayer.value) {
     return selectedPlayer.value;
   }
-  if (players.value.length > 0) {
-    return players.value[0];
-  }
+  ElMessage.warning("请先在在线玩家表中选择一名玩家");
   return null;
 }
 
 async function kickSelected() {
-  const sel = activePlayer();
+  const sel = requireSelectedPlayer();
   if (!sel) {
     return;
   }
@@ -111,16 +109,34 @@ async function kickSelected() {
 }
 
 async function banTemp() {
-  const sel = activePlayer();
+  const sel = requireSelectedPlayer();
   if (!sel) {
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定临时封禁 ${sel.name} ${banDuration.value} 分钟？`,
+      "临时封禁",
+      { type: "warning", confirmButtonText: "封禁", cancelButtonText: "取消" }
+    );
+  } catch {
     return;
   }
   await doAction("rcon_ban", { playerGuid: sel.guid, playerId: banDuration.value, reason: "临时封禁" });
 }
 
 async function banPerm() {
-  const sel = activePlayer();
+  const sel = requireSelectedPlayer();
   if (!sel) {
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定永久封禁 ${sel.name}（${sel.guid}）？此操作不可撤销。`,
+      "永久封禁",
+      { type: "error", confirmButtonText: "永久封禁", cancelButtonText: "取消" }
+    );
+  } catch {
     return;
   }
   await doAction("rcon_ban", { playerGuid: sel.guid, playerId: 0, reason: "永久封禁" });
@@ -221,9 +237,9 @@ const unlock = () => doAction("rcon_unlock");
 <div class="toolbar">
   <el-button size="small" type="primary" @click="connectRcon" :loading="loading">{{ connected ? '已连接' : '连接远程控制' }}</el-button>
   <el-button size="small" @click="refreshPlayers" :disabled="!connected">刷新玩家</el-button>
-  <el-button size="small" @click="kickSelected" :disabled="!connected || !players.length">踢出选中</el-button>
-  <el-button size="small" @click="banTemp" :disabled="!connected || !players.length">封禁(分钟)</el-button>
-  <el-button size="small" @click="banPerm" :disabled="!connected || !players.length">永久封禁</el-button>
+  <el-button size="small" @click="kickSelected" :disabled="!connected || !selectedPlayer">踢出选中</el-button>
+  <el-button size="small" @click="banTemp" :disabled="!connected || !selectedPlayer">临时封禁</el-button>
+  <el-button size="small" type="danger" @click="banPerm" :disabled="!connected || !selectedPlayer">永久封禁</el-button>
   <el-button size="small" @click="syncPlayers" :disabled="!connected">同步到玩家库</el-button>
 </div>
 <div class="toolbar" style="border-top:none;">
@@ -233,7 +249,11 @@ const unlock = () => doAction("rcon_unlock");
   <el-input v-model="newRconPassword" type="password" placeholder="新 RCon 密码" size="small" style="width:180px" show-password/>
   <el-button size="small" @click="changePwd">修改RCon密码</el-button>
 </div>
-<div class="status-line">{{ statusText }}</div>
+<div class="status-line">
+  {{ statusText }}
+  <template v-if="selectedPlayer"> · 已选中 {{ selectedPlayer.name }}</template>
+  <template v-else-if="connected && players.length"> · 请先在表中选择玩家</template>
+</div>
 
 <el-tabs v-model="activeTab" class="rcon-tabs">
   <el-tab-pane label="在线玩家" name="players">
@@ -249,13 +269,13 @@ const unlock = () => doAction("rcon_unlock");
       <el-table-column prop="guid" label="Steam GUID" width="180"/>
       <el-table-column label="操作" width="160">
         <template #default="{row}">
-          <el-button size="small" @click.stop="selectedPlayer = row; doAction('rcon_kick',{playerId:String(row.num),reason:kickReason})">踢出</el-button>
+          <el-button size="small" @click.stop="selectedPlayer = row; kickSelected()">踢出</el-button>
         </template>
       </el-table-column>
     </el-table>
     <el-empty v-if="!players.length" description="点击「连接远程控制」查看在线玩家"/>
   </el-tab-pane>
-  <el-tab-pane label="BattlEye 封禁" name="bans">
+  <el-tab-pane label="在线封禁（BattlEye）" name="bans">
     <div style="margin-bottom:8px;display:flex;gap:4px">
       <el-button size="small" @click="loadBans">LoadBans</el-button>
       <el-button size="small" @click="saveBans">SaveBans</el-button>
