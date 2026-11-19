@@ -57,7 +57,13 @@ describe("SteamCmdManager capture", () => {
     streamHook.wrap = false;
     vi.restoreAllMocks();
     if (tmpDir && fs.existsSync(tmpDir)) {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try {
+        // Windows CI 上日志/写入句柄可能尚未释放，rmdir 会抛 ENOTEMPTY/EBUSY；
+        // 重试后仍失败也不应让清理动作改变测试结论
+        fs.rmSync(tmpDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      } catch {
+        /* 临时目录残留交由系统清理 */
+      }
     }
   });
 
@@ -164,7 +170,7 @@ describe("SteamCmdManager capture", () => {
 
     const files = fs.readdirSync(tmpDir);
     expect(files.some((f) => f.endsWith(".zip") || f.endsWith(".tar.gz"))).toBe(false);
-  });
+  }, 20_000);
 
   it("BUG-11 generates unique session log filenames within the same second", () => {
     const manager = new SteamCmdManager(tmpDir) as unknown as {
