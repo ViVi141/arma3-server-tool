@@ -80,3 +80,38 @@ jobs:
             ${{ steps.assets.outputs.zip }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  linux-bundle:
+    name: Build Linux bundle (service + web UI)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: TypeScript Check
+        run: npm run typecheck
+
+      - name: Run Tests
+        run: npm test
+
+      - name: Pack Linux bundle (service + web UI)
+        run: npm run pack:linux
+
+      - name: Publish Linux bundle
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            artifacts/linux/Arma3ServerTools-linux-*.tar.gz
+            artifacts/linux/Arma3ServerTools-linux-*.tar.gz.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

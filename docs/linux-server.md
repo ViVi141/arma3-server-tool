@@ -1,6 +1,6 @@
 # Linux 开服指南（v2）
 
-> Service 与 SteamCMD 已支持 **Linux**；Electron 安装包仍为 Windows。  
+> Service 与 SteamCMD 已支持 **Linux**；Release 提供内置 Web UI 的便携包；Electron 安装包仍为 Windows。  
 > 关联：[v2-quickstart.md](v2-quickstart.md) · [first-server-guide.md](first-server-guide.md)
 
 ## 环境
@@ -10,6 +10,27 @@
 - **依赖**：`tar`（解压 SteamCMD）、`ss`（UDP 端口检测，通常随 iproute2 安装）
 - **路径**：服务器目录与 Workshop 路径建议英文/ASCII（与 Windows 相同约束）
 
+## 快速开始（Release 便携包，推荐）
+
+从 GitHub Releases 下载 `Arma3ServerTools-linux-<version>.tar.gz`。包内已含 Service、生产依赖与 Web 控制台，由 Service 直接托管前端，无需另行部署 Nginx 静态文件或 `dev:web`：
+
+```bash
+tar -xzf Arma3ServerTools-linux-*.tar.gz
+cd Arma3ServerTools-linux-*
+cp a3st.env.example a3st.env
+vi a3st.env            # 至少填写 API_TOKEN；VPS 直接访问时改 HOST=0.0.0.0
+bash start.sh
+```
+
+浏览器打开 `http://<服务器IP>:19580/` 即可操作（Bearer/`?token=` 使用 `API_TOKEN`）。脚本默认 `HOST=127.0.0.1`；非 loopback 且未设置 `API_TOKEN` 时会拒绝启动。包内另附 `a3st.service` systemd 单元模板与部署 README。
+
+维护者打包（产物同时由 release workflow 在 tag 时上传）：
+
+```bash
+npm run pack:linux
+# → artifacts/linux/Arma3ServerTools-linux-<version>.tar.gz(.sha256)
+```
+
 ## 快速开始（源码）
 
 ```bash
@@ -17,7 +38,7 @@ git clone https://github.com/ViVi141/arma3-server-tool.git
 cd arma3-server-tool
 npm ci
 npm run build:service
-npm run build:web
+npm run build:web:service   # base=/，由 Service 在根路径托管，深链刷新可用
 
 export DATA_DIR="$HOME/.a3st-data"
 export PORT=19580
@@ -52,10 +73,12 @@ Linux 下 `app_update` 使用 `validate` 分支（无 Windows 的 `creatordlc` b
 |----|-------|---------|
 | 专用服二进制 | `arma3server` | `arma3server_x64.exe` |
 | SteamCMD | `steamcmd.sh` | `steamcmd.exe` |
-| 安装包 | 源码 + 浏览器 / systemd | Electron + NSIS |
+| 安装包 | 便携包 tar.gz（内置 Web UI）/ 源码 + systemd | Electron + NSIS |
 | 进程启停 | `SIGTERM` / argv 解析 | `taskkill` / verbatim 命令行 |
 
 ## systemd 示例（可选）
+
+便携包内已附带 `a3st.service` 模板（预设 `WEB_ROOT`/`DATA_DIR`，安装步骤见包内 README）；源码部署可参考以下示例：
 
 ```ini
 [Unit]
@@ -119,7 +142,7 @@ export WEB_ROOT=/opt/arma3-server-tool/packages/web/dist
 
 ## 限制
 
-- **Electron 桌面壳** 未提供 Linux 安装包；请用浏览器或自行用 systemd 托管 Service。
+- **Electron 桌面壳** 未提供 Linux 安装包；请使用 Release 便携包（Service 自带 Web UI）或源码 + systemd。
 - **监控 RVExtension**（`DestinyServerMonitoring`）若为 Windows DLL，Linux 上需单独编译或禁用监控模组。
 - **BattlEye / RCon** 行为与 Windows 一致，但请在生产环境实测防火墙与端口。
 

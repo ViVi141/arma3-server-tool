@@ -42,6 +42,10 @@ jobs:
       - name: Build Web
         run: npm run build:web
 
+      - name: Pack Linux bundle (script regression check)
+        if: matrix.node-version == 20
+        run: npm run pack:linux
+
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
         working-directory: packages/web
