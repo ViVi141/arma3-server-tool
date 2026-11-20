@@ -99,7 +99,7 @@ async function selectAceAndPreview(page: Page) {
   await expect(row).toBeVisible();
   await row.locator(".el-checkbox").first().click();
   await page.getByRole("button", { name: "预览选中 1 个物理目录", exact: true }).click();
-  await expect(panel.locator(".el-alert__title").filter({ hasText: "当前门禁通过，执行前仍须复核" })).toBeVisible();
+  await expect(panel.locator(".el-alert__title").filter({ hasText: "当前可执行，执行前仍须复核" })).toBeVisible();
 }
 
 function alertTitle(page: Page, text: string) {
@@ -160,6 +160,14 @@ test("旧更新 Cron 不会被静默改写；显式迁移后只停用更新任�
   await rows.nth(0).locator(".el-select").click();
   await page.getByRole("option", { name: "检查/更新模组", exact: true }).click();
   await policy.locator(".el-checkbox").filter({ hasText: "启用本服维护策略（默认关闭）" }).click();
+  // 前置条件未满足时不打开弹窗，而是提示缺项并把用户带回策略面板。
+  await page.getByRole("button", { name: "预览旧更新 Cron 迁移", exact: true }).click();
+  await expect(page.getByText(/迁移前请先在「逐服维护策略」完成/).first()).toBeVisible();
+  await expect(page.locator(".el-dialog").filter({ hasText: "旧更新 Cron 迁移预览" })).toHaveCount(0);
+  // 迁移要求新策略已选定窗口模板并核对时区/窗口；先满足前置条件。
+  await policy.locator(".el-select").first().click();
+  await page.getByRole("option", { name: "固定维护窗口：连续无人 10 分钟", exact: true }).click();
+  await policy.locator(".el-checkbox").filter({ hasText: "已核对星期、实际时区及窗口" }).click();
 
   // 迁移前保存必须被拒绝，配置不落库，避免双重调度。
   await page.getByRole("button", { name: "保存并同步到调度器", exact: true }).click();
@@ -167,10 +175,12 @@ test("旧更新 Cron 不会被静默改写；显式迁移后只停用更新任�
   expect(mock.getRequests("PATCH", "/config")).toHaveLength(0);
 
   await page.getByRole("button", { name: "预览旧更新 Cron 迁移", exact: true }).click();
-  const dialog = page.locator(".el-message-box").filter({ hasText: "旧更新 Cron 迁移预览" });
-  await expect(dialog).toContainText("将停用以下旧更新任务（非更新任务不变）");
+  const dialog = page.locator(".el-dialog").filter({ hasText: "旧更新 Cron 迁移预览" });
+  await expect(dialog).toContainText("保存后将停用以下旧更新任务（非更新任务不变）");
   await expect(dialog).toContainText("task_1");
-  await dialog.getByRole("button", { name: "确认迁移并待保存", exact: true }).click();
+  await expect(dialog).toContainText("固定维护窗口：连续无人 10 分钟");
+  await dialog.getByRole("button", { name: "停用这些旧任务（保存后生效）", exact: true }).click();
+  await expect(page.locator(".el-alert__title").filter({ hasText: "已标记旧更新任务待停用" })).toBeVisible();
 
   await page.getByRole("button", { name: "保存并同步到调度器", exact: true }).click();
   await expect.poll(() => mock.getRequests("PATCH", "/config").length).toBe(1);
@@ -251,6 +261,8 @@ test("旧版本升级：残缺维护配置与旧格式任务不会让调度页�
   await navigateConsoleTab(page, "scheduler");
   const policy = page.locator(".ark-tech-panel").filter({ hasText: "逐服维护策略" }).first();
   await expect(policy).toBeVisible();
+  // 残缺字段被默认值补全时必须明确告知，避免用户误以为配置被重置。
+  await expect(page.locator(".el-alert__title").filter({ hasText: "检测到旧版本配置，已按默认值补全" })).toBeVisible();
   await expect(page.getByText(/界面异常/)).toHaveCount(0);
   // 缺字段回退默认窗口，时段仍可编辑。
   await expect(policy.getByRole("button", { name: "添加时段", exact: true }).first()).toBeEnabled();
@@ -261,5 +273,41 @@ test("旧版本升级：残缺维护配置与旧格式任务不会让调度页�
   await expect(rows.nth(0).locator(".el-select")).toContainText("重启服务器");
   await expect(rows.nth(1).locator(".el-select")).toContainText("检查/更新模组");
   await page.screenshot({ path: testInfo.outputPath("ops-maintenance-legacy-upgrade.png"), fullPage: true });
+  guards.assertClean();
+});
+
+test("Cron 即时校验拦截非法表达式；新任务 ID 有提示，移除需确认", async ({ page }, testInfo) => {
+  const guards = attachErrorGuards(page);
+  const mock = await connectMockedConsole(page);
+  await navigateConsoleTab(page, "scheduler");
+  await page.getByRole("button", { name: "添加任务", exact: true }).click();
+  const rows = page.locator(".el-table__row").filter({ has: page.locator(".el-select") });
+  await expect(rows).toHaveCount(1);
+  const row = rows.first();
+
+  // 新行的任务 ID 不在加载快照中，明确提示“保存后按新任务创建”。
+  await expect(row.locator(".task-id-hint")).toHaveText("保存后按新任务创建");
+  // 合法表达式展示下一次运行时间（本机时区）。
+  await expect(row.locator(".field-hint")).toContainText("下次运行：");
+
+  // 非法表达式即时标红，且保存被前端拦截，不发出 PATCH。
+  const cronInput = row.locator(".el-input__inner").nth(1);
+  await cronInput.fill("99 99 * * *");
+  await expect(row.locator(".field-hint")).toContainText("表达式无效");
+  await page.getByRole("button", { name: "保存并同步到调度器", exact: true }).click();
+  await expect(page.getByText(/Cron 表达式无效/).first()).toBeVisible();
+  expect(mock.getRequests("PATCH", "/config")).toHaveLength(0);
+
+  await cronInput.fill("0 4 * * *");
+  await expect(row.locator(".field-hint")).toContainText("下次运行：");
+  await page.screenshot({ path: testInfo.outputPath("ops-scheduler-cron-validation.png"), fullPage: true });
+
+  // 移除任务需要确认，且文案说明“保存后才会真正删除”。
+  await row.locator(".el-checkbox").first().click();
+  await page.getByRole("button", { name: "删除选中", exact: true }).click();
+  const dialog = page.locator(".el-message-box").filter({ hasText: "移除任务" });
+  await expect(dialog).toContainText("保存后才会删除调度器任务");
+  await dialog.getByRole("button", { name: "移除", exact: true }).click();
+  await expect(rows).toHaveCount(0);
   guards.assertClean();
 });

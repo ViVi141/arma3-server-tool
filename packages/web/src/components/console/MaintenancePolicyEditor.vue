@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { ElMessageBox } from "element-plus";
 import type { MaintenancePolicy } from "@a3st/api-client";
 import ArkTechPanel from "./ArkTechPanel.vue";
@@ -9,6 +10,13 @@ const groups = [{ key: "windows" as const, label: "维护窗口" }, { key: "prot
 function list(key: "windows" | "protectedWindows") {
   return Array.isArray(policy.value[key]) ? policy.value[key] : [];
 }
+/** 不可勾选时必须说明差哪一项，否则用户只看到一个灰掉的开关。 */
+const occupiedReason = computed(() => {
+  if (policy.value.template !== "idle_first") return "仅在「常驻服：空闲优先」模板下可用";
+  if (!list("windows").length) return "先添加至少一个维护窗口";
+  if (!policy.value.windowConfirmed) return "先勾选「已核对星期、实际时区及窗口」";
+  return "";
+});
 function changedWindow() {
   policy.value.windowConfirmed = false;
   policy.value.allowOccupied = false;
@@ -48,10 +56,21 @@ async function changeOccupied(enabled: string | number | boolean) {
       <p v-if="!list(group.key).length" class="hint">未设置{{ group.label }}</p>
     </section>
     <el-checkbox v-model="policy.windowConfirmed">已核对星期、实际时区及窗口；04:00—05:00 仅为建议，不是默认授权</el-checkbox>
-    <div><el-checkbox :model-value="policy.allowOccupied" :disabled="policy.template !== 'idle_first' || !policy.windowConfirmed || !list('windows').length" @change="changeOccupied">单独允许：超过 24 小时后，窗口内有人维护（会断开玩家）</el-checkbox></div>
+    <div>
+      <el-tooltip :content="occupiedReason" :disabled="!occupiedReason || policy.allowOccupied" placement="top">
+        <span class="tooltip-anchor">
+          <el-checkbox :model-value="policy.allowOccupied" :disabled="Boolean(occupiedReason)" @change="changeOccupied">单独允许：超过 24 小时后，窗口内有人维护（会断开玩家）</el-checkbox>
+        </span>
+      </el-tooltip>
+    </div>
     <div class="form-row"><label>预计停服预算（分钟）</label><el-input-number v-model="policy.expectedDurationMinutes" :min="1" :max="1440" /></div>
-    <p class="hint">时段按开始日计算，支持跨午夜；所有模板均受活动保护时段约束。共享物理目录必须同时满足所有关联实例的策略。窗口仅限定开始时刻，下载耗时计入停服，超预算告警不会打断恢复。</p>
-    <p class="hint">配置修改需保存后生效；不会立即重启实例。原本关闭的实例不会在维护结束后被顺便启动。</p>
+    <p class="hint">修改保存后生效，不会立即重启实例；维护只在窗口与活动保护时段同时满足时执行。</p>
+    <el-collapse class="rules">
+      <el-collapse-item title="完整规则说明" name="rules">
+        <p class="hint">时段按开始日计算，支持跨午夜；所有模板均受活动保护时段约束。共享物理目录必须同时满足所有关联实例的策略。窗口仅限定开始时刻，下载耗时计入停服，超预算告警不会打断恢复。</p>
+        <p class="hint">原本关闭的实例不会在维护结束后被顺便启动。</p>
+      </el-collapse-item>
+    </el-collapse>
   </ArkTechPanel>
 </template>
 
@@ -64,4 +83,7 @@ async function changeOccupied(enabled: string | number | boolean) {
 .window-row { padding-top: 10px; }
 .times .el-input { width: 140px; }
 .hint { font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.7; }
+.tooltip-anchor { display: inline-flex; }
+.rules { margin-top: 6px; border: none; }
+.rules :deep(.el-collapse-item__header), .rules :deep(.el-collapse-item__wrap) { background: transparent; }
 </style>

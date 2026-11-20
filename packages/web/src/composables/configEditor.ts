@@ -15,6 +15,15 @@ export interface ConfigEditorContext {
 
 export const CONFIG_EDITOR_KEY: InjectionKey<ConfigEditorContext> = Symbol("configEditor");
 
+// 保存失败的具体原因（如迁移阻断、Cron 无效）不能让全局「保存失败」盖掉；
+// 页面通过 consumeLastSaveError 取用一次，避免重复提示。
+let lastSaveError: string | null = null;
+export function consumeLastSaveError(): string | null {
+  const message = lastSaveError;
+  lastSaveError = null;
+  return message;
+}
+
 export function useConfigEditorRegistration(
   getServerUuid: () => string,
   options: {
@@ -36,10 +45,12 @@ export function useConfigEditorRegistration(
       save: async () => {
         try {
           await options.save();
+          lastSaveError = null;
           configSession.markClean(getServerUuid());
           ctx.onSaved();
           return true;
-        } catch {
+        } catch (error) {
+          lastSaveError = error instanceof Error && error.message ? error.message : null;
           return false;
         }
       },

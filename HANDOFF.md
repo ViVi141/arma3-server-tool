@@ -43,10 +43,10 @@ Service HTTP 路由按域拆分在 `packages/service/src/api/routes/`（servers 
 npm run typecheck                    # 根 + 各 workspace tsc
 npm -w @a3st/web run build           # Web 生产构建（含 __APP_VERSION__ 注入）
 npm -w @a3st/service run test        # Service 单元测试 (Vitest)
-npm run test:e2e                     # Playwright E2E（193 例；需先 build:service，由 ci-e2e.ps1 启动真实 Service）
+npm run test:e2e                     # Playwright E2E（194 例；需先 build:service，由 ci-e2e.ps1 启动真实 Service）
 ```
 
-当前基线（最近一次全量验证）：根/Web/Desktop typecheck 通过，Web build 通过，Service 69 文件 493 用例通过（1 跳过），Playwright 193 用例全绿。
+当前基线（最近一次全量验证）：根/Web/Desktop typecheck 通过，Web build 通过，Service 69 文件 493 用例通过（1 跳过），Playwright 194 用例全绿。
 
 桌面端：`npm -w @a3st/desktop run typecheck` / `npm run build:desktop`（scripts/build-desktop.ps1）。
 本地提交前建议 `scripts/ci-local.ps1`。

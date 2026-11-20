@@ -21,7 +21,7 @@ import ConsoleShell from "@/components/console/ConsoleShell.vue";
 import M3Icon from "@/components/M3Icon.vue";
 import { openPath, isElectron } from "@/utils/electron";
 import { resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
-import { CONFIG_EDITOR_KEY, type ConfigEditorRegistration } from "@/composables/configEditor";
+import { CONFIG_EDITOR_KEY, consumeLastSaveError, type ConfigEditorRegistration } from "@/composables/configEditor";
 import UnsavedChangesDialog from "@/components/UnsavedChangesDialog.vue";
 import GlobalSettingsPopover from "@/components/console/GlobalSettingsPopover.vue";
 import NewServerDialog from "@/components/NewServerDialog.vue";
@@ -621,7 +621,7 @@ async function execSave() {
   }
   const ok = await activeEditor.value.save();
   if (!ok) {
-    ElMessage.error("保存失败");
+    ElMessage.error(consumeLastSaveError() ?? "保存失败");
   }
 }
 

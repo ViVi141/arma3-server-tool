@@ -56,7 +56,7 @@ async function showPreview() {
       throw new Error("预览响应缺少必需字段，请重新检查；不会按可执行处理");
     }
     preview.value = data;
-  } catch (e) { if (run === generation) { error.value = e instanceof Error ? e.message : "预览失败"; ElMessage.error(error.value); } }
+  } catch (e) { if (run === generation) error.value = e instanceof Error ? e.message : "预览失败"; }
   finally { if (run === generation) busy.value = false; }
 }
 async function loadBatch(id: string) {
@@ -84,7 +84,7 @@ async function run() {
     if (!response.success) throw new Error(response.error ?? "执行被拒绝");
     ElMessage.success("维护批次已创建，进度来自持久检查点");
     await loadBatch(response.data.id);
-  } catch (e) { error.value = e instanceof Error ? e.message : "执行失败"; ElMessage.error(error.value); }
+  } catch (e) { error.value = e instanceof Error ? e.message : "执行失败"; }
   finally { busy.value = false; }
 }
 async function retry() {
@@ -95,7 +95,7 @@ async function retry() {
     if (!response.success) throw new Error(response.error ?? "重试被拒绝");
     ElMessage.success("已按原批次目标重新开始；不会更换资源");
     await loadBatch(response.data.id);
-  } catch (e) { error.value = e instanceof Error ? e.message : "重试失败"; ElMessage.error(error.value); }
+  } catch (e) { error.value = e instanceof Error ? e.message : "重试失败"; }
   finally { busy.value = false; }
 }
 async function cancel() {
@@ -109,7 +109,7 @@ async function cancel() {
     if (!response.success) throw new Error(response.error ?? "取消失败");
     ElMessage.info("已请求取消，等待有限恢复结束");
     await loadBatch(batch.value.id);
-  } catch (e) { ElMessage.error(e instanceof Error ? e.message : "取消失败"); }
+  } catch (e) { error.value = e instanceof Error ? e.message : "取消失败"; }
 }
 /** 人工介入批次不会因取消/重启自动解锁；只有确认现场已处理后才显式释放。 */
 async function resolveManual() {
@@ -124,7 +124,7 @@ async function resolveManual() {
     if (!response.success) throw new Error(response.error ?? "人工释放被拒绝");
     ElMessage.success("已解除维护锁；批次可按原目标显式重试");
     await loadBatch(batch.value.id);
-  } catch (e) { error.value = e instanceof Error ? e.message : "人工释放失败"; ElMessage.error(error.value); }
+  } catch (e) { error.value = e instanceof Error ? e.message : "人工释放失败"; }
   finally { busy.value = false; }
 }
 watch(() => [props.connectionId, props.serverUuid], () => {
@@ -152,7 +152,7 @@ watch(() => [props.connectionId, props.serverUuid], () => {
       <el-table-column label="最后查询" min-width="170"><template #default="{ row }">{{ date(row.checkedAt) }}</template></el-table-column>
     </el-table>
     <template v-if="preview">
-      <el-alert :type="preview.canExecute ? 'success' : 'warning'" :closable="false" :title="preview.canExecute ? '当前门禁通过，执行前仍须复核' : '需要等待或人工处理，保持旧版本及运行状态'" />
+      <el-alert :type="preview.canExecute ? 'success' : 'warning'" :closable="false" :title="preview.canExecute ? '当前可执行，执行前仍须复核' : '需要等待或人工处理，保持旧版本及运行状态'" />
       <p class="hint">{{ preview.warning }} 本次：{{ preview.mods.length }} 个物理目录，{{ preview.impact.serverUuids.length }} 个关联实例，HC 关联 {{ preview.impact.headlessUuids.length }} 个。</p>
       <ul v-if="preview.reasons.length"><li v-for="reason in preview.reasons" :key="reason">{{ reason }}</li></ul>
       <el-table :data="preview.instances" size="small">
@@ -165,7 +165,7 @@ watch(() => [props.connectionId, props.serverUuid], () => {
       <p class="hint">连续无人 {{ preview.thresholds.idleSeconds / 60 }} 分钟；采样 {{ preview.thresholds.sampleSeconds }} 秒；在线证据 {{ preview.thresholds.onlineFreshSeconds }} 秒过期；延期 {{ preview.thresholds.maxWaitHours }} 小时后等待授权窗口。查询失败绝不按 0 人处理。</p>
       <div class="toolbar">
         <el-button type="primary" :disabled="busy || !preview.canExecute" @click="run">执行维护（停止受影响实例）</el-button>
-        <span class="hint">执行会重新校验策略、在线状态、会话与范围；不接受“写配置后重启”等旁路参数。</span>
+        <span class="hint">执行会重新校验策略、在线状态、会话与范围。</span>
       </div>
     </template>
     <template v-if="batch">
