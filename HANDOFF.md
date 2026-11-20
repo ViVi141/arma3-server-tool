@@ -46,14 +46,14 @@ npm -w @a3st/service run test        # Service 单元测试 (Vitest)
 npm run test:e2e                     # Playwright E2E（194 例；需先 build:service，由 ci-e2e.ps1 启动真实 Service）
 ```
 
-当前基线（最近一次全量验证）：根/Web/Desktop typecheck 通过，Web build 通过，Service 69 文件 493 用例通过（1 跳过），Playwright 194 用例全绿。
+当前基线（最近一次全量验证）：根/Web/Desktop typecheck 通过，Web build 通过，Service 70 文件 496 用例通过（1 跳过），Playwright 194 用例全绿。
 
 桌面端：`npm -w @a3st/desktop run typecheck` / `npm run build:desktop`（scripts/build-desktop.ps1）。
 本地提交前建议 `scripts/ci-local.ps1`。
 
 Linux 便携包：`npm run pack:linux`（build:service + build:web + `scripts/pack-linux.mjs`）→ `artifacts/linux/Arma3ServerTools-linux-<version>.tar.gz(.sha256)`。包内为 `service/`（dist + 生产依赖）+ `web/` + `start.sh` + `a3st.env.example` + `a3st.service`，Service 通过 `WEB_ROOT` 直接托管 Web UI；release workflow 的 `linux-bundle` job 在 tag 时自动构建上传，CI 在 Node 20 上跑一次打包脚本回归。
 
-版本号单一来源：根与各包 `package.json`（当前 `2.0.0-alpha.23`）。前端通过 Vite `define.__APP_VERSION__` 注入，状态栏与关于页不再硬编码。
+版本号单一来源：根与各包 `package.json`（当前 `2.0.0-alpha.24`）。前端通过 Vite `define.__APP_VERSION__` 注入，状态栏与关于页不再硬编码。
 
 ## 五、仓库卫生约定
 
