@@ -155,11 +155,10 @@ export async function stopProcessSession(pid: number, session: string, executabl
           exePath = fs.realpathSync(`/proc/${pid}/exe`);
         } catch (error) {
           const code = (error as NodeJS.ErrnoException).code;
-          if (code === "ENOENT" || code === "ESRCH") {
-            const again = readProcStat();
-            const exited = !again || again.state === "Z" || again.state === "X" || `${boot}:${pid}:${again.startTicks}` !== session;
-            if (exited) return "exited";
-          }
+          // 会话（boot_id + startTicks）已经匹配；exe 链接读不到通常表示进程
+          // 正在退出、/proc 正在拆除。继续轮询到 stat 变为 Z/X 或消失，
+          // 不把正常退出竞态升级成异常，也不据此误判为会话变化。
+          if (code === "ENOENT" || code === "ESRCH") return "running";
           throw error;
         }
         if (exePath !== resolveComparablePath(executable)) throw new Error("维护进程会话变化");
