@@ -5,6 +5,7 @@ import type { ModRoleEntry } from "../types/config.js";
 import type { ModScanPathEntry } from "./scan-path-store.js";
 import { expandScanTargets, isModDirectory } from "./paths.js";
 import { resolveConfiguredPath } from "../util/user-path.js";
+import { visiblePathKey } from "../util/path-identity.js";
 import {
   copyBikeysForMods,
   inspectMod,
@@ -30,14 +31,10 @@ export class ModScanner {
   scan(options: ModScannerOptions): ModMeta[] {
     const results: ModMeta[] = [];
     const seenPaths = new Set<string>();
-    const enabledLocal = new Set(
-      (options.enabledLocalPaths ?? []).map((p) => p.toLowerCase())
-    );
+    const enabledLocal = new Set((options.enabledLocalPaths ?? []).map(visiblePathKey));
     const localByPath = new Map<string, LocalModEntry>();
     for (const entry of options.localMods ?? []) {
-      if (entry.path) {
-        localByPath.set(entry.path.toLowerCase(), entry);
-      }
+      if (entry.path) localByPath.set(visiblePathKey(entry.path), entry);
     }
 
     const targets = expandScanTargets(options.modPaths, options.scanPathEntries ?? []);
@@ -51,7 +48,7 @@ export class ModScanner {
 
     for (const local of options.localMods ?? []) {
       const localPath = local.path ? resolveConfiguredPath(local.path) : "";
-      if (!localPath || !fs.existsSync(localPath)) {
+      if (!localPath) {
         continue;
       }
       const meta = this.buildModMeta(localPath, options, seenPaths, localByPath, enabledLocal, local);
@@ -61,6 +58,12 @@ export class ModScanner {
       }
     }
 
+    // 已配置角色的路径即使丢失或读取失败，也必须留在待检查清单中。
+    for (const role of options.roleEntries ?? []) {
+      if (!role.path) continue;
+      const meta = this.buildModMeta(resolveConfiguredPath(role.path), options, seenPaths, localByPath, enabledLocal);
+      if (meta) { meta.scanOrder = results.length; results.push(meta); }
+    }
     return results;
   }
 
@@ -84,7 +87,7 @@ export class ModScanner {
     return copyBikeysForMods(toCopy, serverDir);
   }
 
-  summarizeBikeys(options: ModScannerOptions): {
+  summarizeBikeys(options: ModScannerOptions, scanned?: ModMeta[]): {
     enabled: number;
     missingBikey: number;
     ready: number;
@@ -92,15 +95,21 @@ export class ModScanner {
     noKey: number;
     needsAttention: number;
     unsigned: number;
+    partial: number;
+    keyMismatch: number;
+    readError: number;
     unchecked: number;
     allValid: boolean;
   } {
-    const mods = this.scan({ ...options, skipSize: true });
+    const mods = scanned ?? this.scan({ ...options, skipSize: true });
     const activeMods = mods.filter((m) => m.enabled);
     let ready = 0;
     let notCopied = 0;
     let noKey = 0;
     let unsigned = 0;
+    let partial = 0;
+    let keyMismatch = 0;
+    let readError = 0;
     let unchecked = 0;
 
     for (const mod of activeMods) {
@@ -113,12 +122,18 @@ export class ModScanner {
         noKey++;
       } else if (status === "unsigned") {
         unsigned++;
+      } else if (status === "partial") {
+        partial++;
+      } else if (status === "key_mismatch") {
+        keyMismatch++;
+      } else if (status === "read_error") {
+        readError++;
       } else {
         unchecked++;
       }
     }
 
-    const needsAttention = notCopied + noKey + unsigned + unchecked;
+    const needsAttention = activeMods.length - ready;
     const allValid = activeMods.length > 0 && ready === activeMods.length;
 
     return {
@@ -129,6 +144,9 @@ export class ModScanner {
       noKey,
       needsAttention,
       unsigned,
+      partial,
+      keyMismatch,
+      readError,
       unchecked,
       allValid,
     };
@@ -141,7 +159,7 @@ export class ModScanner {
         continue;
       }
       const inspection = inspectMod(mod.path, mod.dirName, serverDir);
-      if (inspection.hasBisign && inspection.hasBikeyInMod && !inspection.allCopiedToServer) {
+      if (inspection.evidence?.canDeployKeys) {
         toCopy.push({ modPath: mod.path, modDirName: mod.dirName });
       }
     }
@@ -156,40 +174,30 @@ export class ModScanner {
     enabledLocal: Set<string>,
     explicitLocal?: LocalModEntry
   ): ModMeta | null {
-    if (!fs.existsSync(modPath)) {
-      return null;
-    }
-
-    let realPath = modPath;
-    try {
-      realPath = fs.realpathSync(modPath);
-    } catch {
-      return null;
-    }
-    if (seenPaths.has(realPath)) {
-      return null;
-    }
-    seenPaths.add(realPath);
-
-    const localEntry = explicitLocal ?? localByPath.get(modPath.toLowerCase());
-    if (!localEntry && !isModDirectory(modPath)) {
-      return null;
-    }
+    const identity = visiblePathKey(modPath);
+    if (seenPaths.has(identity)) return null;
+    const localEntry = explicitLocal ?? localByPath.get(identity);
+    const pathRole = this.findSavedRole(options.roleEntries ?? [], modPath, 0);
+    if (!localEntry && !pathRole && !isModDirectory(modPath)) return null;
+    seenPaths.add(identity);
 
     const dirName = path.basename(modPath);
     const parsed = this.readModMeta(modPath, dirName);
+    if (!parsed.workshopId && pathRole) parsed.workshopId = pathRole.workshopId;
     const isLocalMod = !!localEntry;
     const inputLocalMod = isLocalMod;
-    const savedRole = this.findSavedRole(options.roleEntries ?? [], modPath, parsed.workshopId);
+    const savedRole = pathRole ?? this.findSavedRole(options.roleEntries ?? [], modPath, parsed.workshopId);
+    const hasPathRole = (options.roleEntries ?? []).some((entry) => entry.path && entry.workshopId === parsed.workshopId);
+    const localEnabled = localEntry?.enabled ?? enabledLocal.has(identity);
     let isServerMod = isLocalMod
-      ? localEntry?.isServerMod ?? true
-      : options.serverModIds.includes(parsed.workshopId);
+      ? localEntry?.isServerMod ?? localEnabled
+      : !hasPathRole && options.serverModIds.includes(parsed.workshopId);
     let isClientMod = isLocalMod
-      ? localEntry?.isClientMod ?? true
-      : (options.clientModIds ?? []).includes(parsed.workshopId);
+      ? localEntry?.isClientMod ?? localEnabled
+      : !hasPathRole && (options.clientModIds ?? []).includes(parsed.workshopId);
     let isHcMod = isLocalMod
       ? localEntry?.isHcMod ?? false
-      : (options.hcModIds ?? []).includes(parsed.workshopId);
+      : !hasPathRole && (options.hcModIds ?? []).includes(parsed.workshopId);
     if (savedRole) {
       isServerMod = savedRole.isServerMod;
       isClientMod = savedRole.isClientMod;
@@ -214,6 +222,7 @@ export class ModScanner {
       bikeyPresent: isModBikeyValidationPassed(bikeyInspection.status),
       bikeyStatus: bikeyInspection.status,
       bikeyLabel: bikeyInspection.label,
+      signatureEvidence: bikeyInspection.evidence,
       sizeBytes: options.skipSize ? undefined : this.calculateSize(modPath),
       updatedAt: updated.updatedAt,
       updatedTime: updated.updatedTime,
@@ -226,15 +235,15 @@ export class ModScanner {
     modPath: string,
     workshopId: number
   ): ModRoleEntry | undefined {
-    const pathKey = modPath.toLowerCase();
+    const pathKey = visiblePathKey(modPath);
     for (const entry of roleEntries) {
-      if (entry.path && entry.path.toLowerCase() === pathKey) {
+      if (entry.path && visiblePathKey(entry.path) === pathKey) {
         return entry;
       }
     }
     if (workshopId > 0) {
       for (const entry of roleEntries) {
-        if (entry.workshopId === workshopId) {
+        if (!entry.path && entry.workshopId === workshopId) {
           return entry;
         }
       }

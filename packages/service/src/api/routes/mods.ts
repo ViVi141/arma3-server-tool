@@ -17,7 +17,7 @@ export function registerModsRoutes(app: FastifyInstance): void {
     }
 
     const modPaths = collectModPaths(app, config);
-    const mods = scanModsForConfig(app, config);
+    const mods = scanModsForConfig(app, config, { serverUuid: uuid });
 
     return envelope(true, { mods, scanPathCount: modPaths.length }, null, uuid);
   });
@@ -30,7 +30,8 @@ export function registerModsRoutes(app: FastifyInstance): void {
       return envelope(false, null, "NOT_FOUND", uuid);
     }
 
-    const summary = app.modScanner.summarizeBikeys(buildModScanOptions(app, config));
+    const scanned = scanModsForConfig(app, config, { serverUuid: uuid, skipSize: true });
+    const summary = app.modScanner.summarizeBikeys(buildModScanOptions(app, config), scanned);
 
     return envelope(true, summary, null, uuid);
   });

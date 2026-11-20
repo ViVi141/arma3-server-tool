@@ -1,4 +1,5 @@
 import { loadLocalBans, saveLocalBans } from "../../bans/bans-service.js";
+import { maintenanceLocks, MaintenanceLockError } from "../../maintenance/locks.js";
 import { maybeAutoSnapshot } from "../../config/auto-snapshot.js";
 import { writeAll } from "../../config/game-config-writer.js";
 import { promoteMissionToFront } from "../../missions/scanner.js";
@@ -15,11 +16,15 @@ import { RconClient } from "../../rcon/index.js";
 import { syncCronJobsForServer } from "../../scheduling/cron-sync.js";
 import { restartServer, startServer, stopServer } from "../../scheduling/server-lifecycle.js";
 import { applySteamCmdSettings } from "../../settings/apply-steamcmd-settings.js";
+import { observeDownload } from "../../operations/source-events.js";
 import { validateServerPath } from "../../utils/path-validation.js";
 import { randomUUID } from "node:crypto";
 import * as path from "node:path";
 import type { ServerConfigPackage } from "../../types/config.js";
 import type { FastifyInstance } from "fastify";
+
+// 下载由 SteamCMD 执行队列在出队时锁定物理写入范围，不让等待项提前占有实例锁。
+const WITHOUT_INSTANCE_LOCK = new Set(["status", "scan_mods", "preflight", "steamcmd_status", "stop_steamcmd", "ensure_steamcmd", "download_mods", "update_server", "install_dedicated_server", "rcon_players", "read_logs", "read_rpt", "help", "maintenance_check", "maintenance_preview", "maintenance_cancel", "maintenance_resolve"]);
 
 export async function executeCommandWithFollowUps(
   app: FastifyInstance,
@@ -27,6 +32,18 @@ export async function executeCommandWithFollowUps(
   cmd: { action: string; [key: string]: unknown },
   taskDefaults?: { writeCfgAfter?: boolean; restartAfter?: boolean }
 ): Promise<{ success: boolean; message: string }> {
+  if (WITHOUT_INSTANCE_LOCK.has(cmd.action) && !cmd.writeCfgAfter && !cmd.restartAfter && !taskDefaults?.writeCfgAfter && !taskDefaults?.restartAfter) return executeCommandWithFollowUpsBody(app, uuid, cmd, taskDefaults);
+  try { return await maintenanceLocks.run({ instances: uuid ? [uuid] : [] }, () => executeCommandWithFollowUpsBody(app, uuid, cmd, taskDefaults)); }
+  catch (error) { if (error instanceof MaintenanceLockError) return fail(error.message); throw error; }
+}
+
+async function executeCommandWithFollowUpsBody(
+  app: FastifyInstance,
+  uuid: string,
+  cmd: { action: string; [key: string]: unknown },
+  taskDefaults?: { writeCfgAfter?: boolean; restartAfter?: boolean }
+): Promise<{ success: boolean; message: string }> {
+  if (cmd.action.startsWith("maintenance_") && (cmd.writeCfgAfter || cmd.restartAfter || taskDefaults?.writeCfgAfter || taskDefaults?.restartAfter)) return fail("维护操作不允许附带写配置或重启；必须由维护流程恢复原运行状态");
   const result = await executeCommand(app, uuid, cmd);
   if (!result.success) {
     return result;
@@ -51,7 +68,13 @@ export async function executeCommandWithFollowUps(
   return result;
 }
 
-export async function executeCommand(
+export async function executeCommand(app: FastifyInstance, uuid: string, cmd: { action: string; [key: string]: unknown }): Promise<{ success: boolean; message: string }> {
+  if (WITHOUT_INSTANCE_LOCK.has(cmd.action)) return executeCommandBody(app, uuid, cmd);
+  try { return await maintenanceLocks.run({ instances: uuid ? [uuid] : [] }, () => executeCommandBody(app, uuid, cmd)); }
+  catch (error) { if (error instanceof MaintenanceLockError) return fail(error.message); throw error; }
+}
+
+async function executeCommandBody(
   app: FastifyInstance,
   uuid: string,
   cmd: { action: string; [key: string]: unknown }
@@ -59,6 +82,46 @@ export async function executeCommand(
   let config = app.configStore.load(uuid);
 
   switch (cmd.action) {
+    case "maintenance_check": {
+      if (!config) return fail("未找到服务器配置");
+      return ok(JSON.stringify(await app.maintenancePlanner.checkUpdates(uuid)));
+    }
+    case "maintenance_preview": {
+      if (!config) return fail("未找到服务器配置");
+      return ok(JSON.stringify(await app.maintenancePlanner.preview(uuid, cmd.keys as string[])));
+    }
+    // 执行／重试／取消复用任务框架；不接受写配置或重启旁路，也不能绕过策略与维护锁。
+    case "maintenance_execute": {
+      if (!config) return fail("未找到服务器配置");
+      try {
+        const { batch } = app.maintenanceExecutor.submit(uuid, cmd.keys as string[], String(cmd.requestId ?? ""));
+        return ok(JSON.stringify({ id: batch.id, state: batch.state }));
+      } catch (e: unknown) { return fail(e instanceof Error ? e.message : "维护执行被拒绝"); }
+    }
+    case "maintenance_retry": {
+      const old = app.operations.maintenance(String(cmd.batchId ?? ""));
+      const request = (old as { recovery?: { request?: { serverUuid?: string; keys?: string[] } } } | null)?.recovery?.request;
+      if (!old || !request?.serverUuid || !request.keys) return fail("仅可重试存在的维护批次");
+      if (request.serverUuid !== uuid) return fail("重试必须使用原批次所属实例");
+      try {
+        const { batch } = app.maintenanceExecutor.submit(request.serverUuid, request.keys, String(cmd.requestId ?? ""), old.id);
+        return ok(JSON.stringify({ id: batch.id, state: batch.state }));
+      } catch (e: unknown) { return fail(e instanceof Error ? e.message : "维护重试被拒绝"); }
+    }
+    case "maintenance_cancel": {
+      const id = String(cmd.batchId ?? "");
+      if (!app.operations.maintenance(id)) return fail("未找到维护批次");
+      return ok(JSON.stringify({ cancelled: app.maintenanceExecutor.cancel(id), note: "取消仍会执行有限恢复，不强停进程" }));
+    }
+    case "maintenance_resolve": {
+      // 只能在人工处理完现场后显式释放；普通取消不会解除人工介入批次的锁。
+      if (cmd.confirm !== "manual_handled") return fail("人工释放必须显式确认 confirm=manual_handled");
+      try {
+        const batch = app.maintenanceExecutor.resolveManual(String(cmd.batchId ?? ""));
+        if (!batch) return fail("未找到维护批次");
+        return ok(JSON.stringify({ id: batch.id, state: batch.state, result: batch.result }));
+      } catch (e: unknown) { return fail(e instanceof Error ? e.message : "人工释放被拒绝"); }
+    }
     // ------- Process -------
     case "status": {
       const state = await app.processManager.getState(uuid, config ?? undefined);
@@ -196,7 +259,7 @@ export async function executeCommand(
       if (!modPaths.length) {
         return fail("未配置模组扫描路径。请在「扫描路径」或 SteamCMD 页设置 Workshop 根目录。");
       }
-      const result = scanModsForConfig(app, config, { skipSize: true });
+      const result = scanModsForConfig(app, config, { skipSize: true, serverUuid: uuid });
       return ok(`扫描完成，发现 ${result.length} 个模组（${modPaths.length} 个路径）`);
     }
     case "download_mods": {
@@ -204,7 +267,7 @@ export async function executeCommand(
       if (!ids?.length) {
         return fail("缺少 modIds");
       }
-      return runSteamCmdModDownload(app, ids);
+      return runSteamCmdModDownload(app, ids, uuid);
     }
     case "import_mods_html": {
       if (!config) {
@@ -217,7 +280,7 @@ export async function executeCommand(
       const mode = normalizeModImportMode(cmd.mode);
 
       if (shouldDownloadForMode(mode)) {
-        const downloadResult = await runSteamCmdModDownload(app, ids);
+        const downloadResult = await runSteamCmdModDownload(app, ids, uuid);
         if (!downloadResult.success) {
           // 下载失败不改启用列表
           return downloadResult;
@@ -256,33 +319,40 @@ export async function executeCommand(
       const modPaths = collectModPaths(app, config);
       if (!modPaths.length) return fail("未配置模组扫描路径");
 
-      const scanned = scanModsForConfig(app, config, { skipSize: true });
+      const scanned = scanModsForConfig(app, config, { skipSize: true, serverUuid: uuid });
       if (!scanned.length) {
         return fail("未扫描到模组，请先点击「扫描刷新」");
       }
 
       const serverDir = config.server.serverDir;
       const missingOnly = cmd.missingOnly === true;
-      const modPathsArg = cmd.modPaths as string[] | undefined;
-      let result: { copied: number; total: number; skipped: number };
-      if (modPathsArg?.length) {
-        result = app.modScanner.copyBikeys(modPathsArg, serverDir);
+      const modPathsArg = cmd.modPaths;
+      let scope = scanned;
+      if (modPathsArg !== undefined) {
+        if (!Array.isArray(modPathsArg) || !modPathsArg.length || modPathsArg.some((p) => typeof p !== "string")) {
+          return fail("请显式选择需要部署公钥的模组；空选择不会部署全部");
+        }
+        const paths = new Set(modPathsArg as string[]);
+        if ([...paths].some((p) => !scanned.some((mod) => mod.path === p))) {
+          return fail("选中的模组已不在本实例扫描范围内，请刷新后重选");
+        }
+        scope = scanned.filter((mod) => paths.has(mod.path));
       } else if (missingOnly) {
-        result = app.modScanner.copyMissingBikeys(scanned, serverDir);
-      } else {
-        result = app.modScanner.copyBikeysFromScanned(scanned, serverDir);
+        scope = scanned.filter((mod) => mod.enabled);
       }
-
-      if (result.total === 0) {
-        return fail(`已扫描 ${scanned.length} 个模组，但未找到任何 .bikey 文件`);
+      const applicable = scope.filter((mod) => mod.signatureEvidence?.canDeployKeys);
+      if (!applicable.length) {
+        return ok(`选定范围 ${scope.length} 个模组，无可部署项；缺签名、缺公钥及读取失败需人工处理`);
       }
-      if (result.copied === 0 && result.skipped === result.total) {
-        return ok(`Bikey 已全部就绪：${result.total} 个 key 已在服务器 Keys/ 目录中`);
+      const result = app.modScanner.copyBikeysFromScanned(applicable, serverDir);
+      if (result.failed) {
+        return fail(`公钥部署部分失败：成功 ${result.copied}，失败 ${result.failed}；${result.errors.join("；")}`);
       }
-      if (result.copied === 0 && missingOnly) {
-        return ok("没有需要复制的 Bikey（已启用模组均已就绪或无密钥）");
+      const rescanned = scanModsForConfig(app, config, { skipSize: true, serverUuid: uuid });
+      if (applicable.some((mod) => !rescanned.some((fresh) => fresh.path === mod.path && fresh.bikeyStatus === "ready"))) {
+        return fail("公钥已写入，但复扫仍有待处理项，请检查签名文件证据");
       }
-      return ok(`Bikey 复制完成：新增 ${result.copied}，已有 ${result.skipped}，共 ${result.total} 个`);
+      return ok(`公钥部署完成：选定 ${scope.length} 个模组，适用 ${applicable.length} 个，写入 ${result.copied} 个公钥；已复扫（非密码学验证）`);
     }
     case "update_server": {
       const targetDir = config?.server?.serverDir;
@@ -290,7 +360,7 @@ export async function executeCommand(
         return fail("未设置服务器目录");
       }
       try {
-        await app.steamCmd.updateServer(targetDir);
+        await observeDownload(app, { serverUuids: [uuid], modIds: [] }, () => app.steamCmd.updateServer(targetDir));
         return ok("服务器文件更新完成");
       } catch (e: unknown) {
         return fail(e instanceof Error ? e.message : "更新失败");
@@ -302,7 +372,7 @@ export async function executeCommand(
       if (!config) return fail("未找到服务器配置");
       const state = await app.processManager.getState(uuid, config ?? undefined);
       const modPaths = collectModPaths(app, config);
-      const scannedMods = modPaths.length > 0 ? scanModsForConfig(app, config, { skipSize: true }) : [];
+      const scannedMods = modPaths.length > 0 ? scanModsForConfig(app, config, { skipSize: true, serverUuid: uuid }) : [];
       const result = runPreflightChecks(uuid, config, {
         isRunning: state.isRunning,
         scannedMods,
@@ -344,7 +414,7 @@ export async function executeCommand(
         return fail("未设置服务器目录");
       }
       try {
-        await app.steamCmd.updateServer(targetDir);
+        await observeDownload(app, { serverUuids: [uuid], modIds: [] }, () => app.steamCmd.updateServer(targetDir));
         return ok("专用服务器安装/更新完成");
       } catch (e: unknown) {
         return fail(e instanceof Error ? e.message : "安装失败");
@@ -380,7 +450,7 @@ export async function executeCommand(
         return fail("未设置服务器目录");
       }
       try {
-        await app.steamCmd.updateServer(serverDir);
+        await observeDownload(app, { serverUuids: [uuid], modIds: [] }, () => app.steamCmd.updateServer(serverDir));
         const deployResult = deployMonitoringIfEnabled(app.dataDir, config);
         const writeResult = writeAll(uuid, config);
         if (!writeResult.success) {
@@ -504,7 +574,7 @@ export async function executeCommand(
 
     // ------- Help -------
     case "help": {
-      return ok("Arma3 Server Tools 自动化 API。支持 action: status/start/stop/restart/save/write_cfg/switch_mission/enable_mods/disable_mods/download_mods/import_mods_html/scan_mods/update_server/preflight/rcon_players/rcon_kick/rcon_ban/rcon_broadcast/rcon_mission/rcon_lock/rcon_unlock/read_logs/help");
+      return ok("Arma3 Server Tools 自动化 API。支持 action: status/start/stop/restart/save/write_cfg/switch_mission/enable_mods/disable_mods/download_mods/import_mods_html/scan_mods/update_server/preflight/rcon_players/rcon_kick/rcon_ban/rcon_broadcast/rcon_mission/rcon_lock/rcon_unlock/read_logs/help；维护：maintenance_check/maintenance_preview/maintenance_execute/maintenance_retry/maintenance_cancel/maintenance_resolve");
     }
 
     // ------- Local Bans -------
@@ -562,21 +632,19 @@ export async function executeCommand(
 
 async function runSteamCmdModDownload(
   app: FastifyInstance,
-  modIds: number[]
+  modIds: number[],
+  uuid: string
 ): Promise<{ success: boolean; message: string }> {
   const settings = app.steamCmdSettingsStore.load();
   const scanPaths = app.modScanPathStore.list().map((entry) => entry.modulePath);
   applySteamCmdSettings(app.steamCmd, settings, scanPaths);
-  // 与 SteamCmdManager.hasCredentials 保持一致：cached 登录模式只需用户名，
-  // 不能在此处强制要求密码，否则设置页显示已配置、下载却报未配置。
-  if (!app.steamCmd.hasCredentials) {
-    return fail("请先配置 SteamCMD 账号（SteamCMD 页 → Steam 账号 → 保存凭据）");
-  }
-
   try {
-    // downloadWorkshopMods 内部已 ensureInstalled，并持有全局互斥锁。
-    await app.steamCmd.downloadWorkshopMods(modIds);
-    return ok(`SteamCMD 已开始下载 ${modIds.length} 个模组，请在 SteamCMD 页查看输出`);
+    await observeDownload(app, { serverUuids: uuid ? [uuid] : [], modIds }, async () => {
+      // cached 登录只需用户名；缺少凭据同样生成可查询的人工介入事件。
+      if (!app.steamCmd.hasCredentials) throw new Error("请先配置 SteamCMD 账号（SteamCMD 页 → Steam 账号 → 保存凭据）");
+      await app.steamCmd.downloadWorkshopMods(modIds);
+    });
+    return ok(`SteamCMD 已完成下载 ${modIds.length} 个模组；这不代表服务器健康验收完成`);
   } catch (e: unknown) {
     return fail(e instanceof Error ? e.message : "模组下载失败");
   }

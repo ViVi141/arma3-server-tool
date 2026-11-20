@@ -1,5 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { parseModDetails, parseWorkshopFileDetailsHtml } from "./workshop-api.js";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { fetchWorkshopVersions, parseModDetails, parseWorkshopFileDetailsHtml } from "./workshop-api.js";
+import { proxyFetch } from "./proxy-fetch.js";
+vi.mock("./proxy-fetch.js", () => ({ proxyFetch: vi.fn() }));
+afterEach(() => { vi.resetAllMocks(); });
 import {
   formatUnixTime,
   resolveUpdateStatus,
@@ -16,6 +19,31 @@ describe("parseModDetails", () => {
     expect(mods[0].fileSizeMb).toContain("MB");
     expect(mods[0].timeUpdated).toBe(1700000000);
     expect(mods[0].source).toBe("api");
+  });
+
+  it("精确匹配相邻 JSON 对象、Unicode 和数字大小；缺失/失败/跨游戏/重复项保持未知", () => {
+    const item = (id: number) => ({ publishedfileid: String(id), result: 1, creator_app_id: 107410, title: `模组${id}`, time_updated: 1700000000 + id, file_size: 1024 + id });
+    const payload = [item(1), item(2), { ...item(4), result: 9 }, { ...item(5), creator_app_id: 999, title: "107410" }, item(6), item(6)];
+    const result = parseModDetails(JSON.stringify({ response: { publishedfiledetails: payload } }), [2, 1, 3, 4, 5, 6, 2]);
+    expect(result).toHaveLength(6);
+    expect(result[0]).toMatchObject({ modId: 2, title: "模组2", timeUpdated: 1700000002, fileSizeBytes: 1026 });
+    expect(result[1]).toMatchObject({ modId: 1, title: "模组1", timeUpdated: 1700000001, fileSizeBytes: 1025 });
+    expect(result.slice(2).every((mod) => mod.source === "fallback" && mod.timeUpdated === undefined)).toBe(true);
+    expect(parseModDetails('{"publishedfileid":1,broken', [1])[0].source).toBe("fallback");
+  });
+  it("维护远程查询按 ID 去重且每批最多 100 个；网络失败不使用 HTML 或旧版本", async () => {
+    vi.mocked(proxyFetch).mockImplementation(async (_url, init) => {
+      const fields = new URLSearchParams(String(init?.body));
+      const ids = Array.from({ length: Number(fields.get("itemcount")) }, (_, index) => fields.get(`publishedfileids[${index}]`));
+      return { ok: true, text: async () => JSON.stringify({ response: { publishedfiledetails: ids.map((id) => ({ publishedfileid: id, result: 1, creator_app_id: 107410, file_size: "123", time_updated: 1700000000 })) } }) } as Awaited<ReturnType<typeof proxyFetch>>;
+    });
+    const ids = Array.from({ length: 201 }, (_, index) => index + 1);
+    const values = await fetchWorkshopVersions([...ids, ...ids]);
+    expect(values).toHaveLength(201); expect(proxyFetch).toHaveBeenCalledTimes(3);
+    expect(new URLSearchParams(String(vi.mocked(proxyFetch).mock.calls[0][1]?.body)).get("itemcount")).toBe("100");
+    vi.mocked(proxyFetch).mockRejectedValue(new Error("network"));
+    expect((await fetchWorkshopVersions([1]))[0]).toMatchObject({ source: "fallback" });
+    expect(proxyFetch).toHaveBeenCalledTimes(4);
   });
 
   it("returns fallback when JSON is empty", () => {

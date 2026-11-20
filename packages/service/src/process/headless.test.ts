@@ -1,5 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EventEmitter } from "node:events";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 
 const { mockSpawn, spawnedProcs } = vi.hoisted(() => ({
   mockSpawn: vi.fn(),
@@ -14,13 +17,15 @@ vi.mock("../mods/mod-config-sync.js", () => ({
   scanModsForConfig: vi.fn(() => []),
 }));
 
-vi.mock("../config/game-config-writer.js", () => ({
+vi.mock("../config/game-config-writer.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../config/game-config-writer.js")>(),
   getServerExecutablePath: vi.fn(() => "C:\\arma3\\arma3server_x64.exe"),
   buildHeadlessClientCommandLine: vi.fn(() => "-client -connect=127.0.0.1"),
   splitCommandLine: vi.fn((s: string) => s.split(" ")),
 }));
 
 import { startHeadlessClient, stopAllHeadlessClients } from "./headless.js";
+import { maintenanceLocks } from "../maintenance/locks.js";
 import type { FastifyInstance } from "fastify";
 import type { ServerConfigPackage } from "../types/config.js";
 
@@ -49,10 +54,17 @@ describe("BUG-10 headless client error handling and shutdown cleanup", () => {
     tasks: { enableHeadlessClient: true },
   };
 
+  let tempDir: string;
   beforeEach(() => {
     stopAllHeadlessClients();
     mockSpawn.mockReset();
     spawnedProcs.length = 0;
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-hc-"));
+    baseConfig.server!.serverDir = tempDir;
+  });
+  afterEach(() => {
+    stopAllHeadlessClients();
+    fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
   it("attaches proc error listener so ENOENT does not crash and removes map entry", () => {
@@ -68,6 +80,23 @@ describe("BUG-10 headless client error handling and shutdown cleanup", () => {
     // Subsequent stopAllHeadlessClients should not kill an already-errored proc
     stopAllHeadlessClients();
     expect(proc.kill).not.toHaveBeenCalled();
+  });
+
+  it("维护启动禁止替换跟踪中的 HC，不顺带终止旧进程", () => {
+    const proc = makeFakeProc(4100); mockSpawn.mockReturnValueOnce(proc);
+    expect(startHeadlessClient(fakeApp, "maintenance-hc", baseConfig, { replace: false }).success).toBe(true);
+    expect(startHeadlessClient(fakeApp, "maintenance-hc", baseConfig, { replace: false }).success).toBe(false);
+    expect(proc.kill).not.toHaveBeenCalled(); expect(mockSpawn).toHaveBeenCalledTimes(1);
+  });
+
+  it("Service 清理不绕过维护锁，也不停止本次已恢复的 HC", () => {
+    const proc = makeFakeProc(4200); mockSpawn.mockReturnValueOnce(proc);
+    startHeadlessClient(fakeApp, "protected-hc", baseConfig);
+    const lock = maintenanceLocks.acquire({ instances: ["protected-hc"] });
+    try { stopAllHeadlessClients({ skipLocked: true }); expect(proc.kill).not.toHaveBeenCalled(); }
+    finally { lock.release(); }
+    stopAllHeadlessClients({ preservePids: [4200] }); expect(proc.kill).not.toHaveBeenCalled();
+    stopAllHeadlessClients(); expect(proc.kill).toHaveBeenCalledTimes(1);
   });
 
   it("stopAllHeadlessClients kills all active HC instances", () => {

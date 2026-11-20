@@ -195,7 +195,8 @@ test.describe("F1: M3 Color, Surface, Typography & Elevation (Tier 2)", () => {
 
     await navigateConsoleTab(page, "mods");
     await expect(page.getByText("有更新").first()).toBeVisible();
-    await expect(page.getByText("未签名").first()).toBeVisible();
+    // 签名状态文案已细化为逐 PBO 文件证据：unsigned 显示「未发现签名」。
+    await expect(page.getByText("未发现签名").first()).toBeVisible();
   });
 });
 

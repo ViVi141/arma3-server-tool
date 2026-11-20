@@ -1,5 +1,6 @@
-import { ref, computed, inject, onMounted } from "vue";
-import { ElMessage } from "element-plus";
+import { ref, computed, inject, onMounted, watch } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { canDeployModKeys, emptyModFilters, exportModRows, matchesModFilters, modSignatureRisk, restoreModFilters, signatureStates } from "@/utils/modWorkbench";
 import { useConnectionsStore } from "@/stores/connections";
 import { useBackgroundTasksStore } from "@/stores/backgroundTasks";
 import { CONSOLE_ACTIONS_KEY } from "@/composables/consoleActions";
@@ -30,6 +31,8 @@ export interface ModRow {
   bikeyStatus: ModBikeyStatus | "unknown";
   bikeyLabel: string;
   bikeyHint: string;
+  signatureEvidence?: ModMetaRow["signatureEvidence"];
+  keySelected?: boolean;
   scanOrder: number;
   updatedTime: string;
   updatedAt?: string;
@@ -37,7 +40,7 @@ export interface ModRow {
   updateStatus?: "missing" | "up_to_date" | "outdated" | "unknown";
 }
 
-export function useModsPage(props: { serverUuid: string }) {
+export function useModsPage(props: { connectionId: string; serverUuid: string }) {
   const store = useConnectionsStore();
   const bgTasks = useBackgroundTasksStore();
   const consoleActions = inject(CONSOLE_ACTIONS_KEY, null);
@@ -71,19 +74,79 @@ export function useModsPage(props: { serverUuid: string }) {
   const modList = ref<ModRow[]>([]);
   const scanning = ref(false);
   const copyingBikey = ref(false);
-  const bikeySummary = ref("Bikey 就绪 · —");
+  const bikeySummary = ref("文件检查 · 未获取");
   const copyMissingEnabled = ref(false);
   const autoCopyBikey = ref(true);
   const dlcMods = ref({ contact: false, gm: false, csla: false, ws: false, vn: false });
 
   const sortMode = ref<"scanOrder" | "dirName" | "name" | "updated">("scanOrder");
-  const statusFilter = ref<"all" | "enabled" | "outdated" | "bikey">("all");
+  const filters = ref(emptyModFilters());
+  const filterStorageKey = computed(() => `a3st:mods:filters:${encodeURIComponent(props.connectionId)}:${encodeURIComponent(props.serverUuid)}`);
+  watch(filterStorageKey, (key) => {
+    try { filters.value = restoreModFilters(localStorage.getItem(key)); }
+    catch { filters.value = emptyModFilters(); }
+    modList.value = [];
+  }, { immediate: true, flush: "sync" });
+  watch(filters, (value) => {
+    try { localStorage.setItem(filterStorageKey.value, JSON.stringify(value)); }
+    catch { /* 禁止本地存储时仍可使用筛选。 */ }
+  }, { deep: true });
   const statusFilterChips = [
-    { id: "all" as const, label: "全部", testId: "mods-filter-all" },
-    { id: "enabled" as const, label: "已启用", testId: "mods-filter-enabled" },
-    { id: "outdated" as const, label: "有更新", testId: "mods-filter-outdated" },
-    { id: "bikey" as const, label: "签名异常", testId: "mods-filter-bikey-issue" },
+    { id: "all", label: "全部", testId: "mods-filter-all" },
+    { id: "enabled", label: "已启用", testId: "mods-filter-enabled" },
+    { id: "outdated", label: "有更新", testId: "mods-filter-outdated" },
+    { id: "bikey", label: "签名待处理", testId: "mods-filter-bikey-issue" },
+    { id: "attention", label: "本服已启用且需处理", testId: "mods-filter-attention" },
   ];
+  function quickFilterValues(id: string) {
+    const next = emptyModFilters();
+    if (id === "enabled" || id === "attention") next.enabled = ["enabled"];
+    if (id === "outdated") next.updates = ["outdated"];
+    if (id === "bikey" || id === "attention") next.signatures = signatureStates.filter((s) => s !== "ready");
+    return next;
+  }
+  function applyQuickFilter(id: string) { filters.value = quickFilterValues(id); }
+  function isQuickFilterActive(id: string) { return JSON.stringify(filters.value) === JSON.stringify(quickFilterValues(id)); }
+  const signatureCounts = computed(() => signatureStates.map((status) => ({
+    status, label: bikeyStatusLabel(status), count: modList.value.filter((m) => m.bikeyStatus === status).length,
+  })));
+  const selectedKeyRows = computed(() => filteredList.value.filter((row) => row.keySelected && canDeployModKeys(row)));
+  function selectVisibleKeys() {
+    for (const row of filteredList.value) row.keySelected = canDeployModKeys(row);
+  }
+  function clearKeySelection() {
+    for (const row of modList.value) row.keySelected = false;
+  }
+  async function copyFilteredList() {
+    try {
+      await navigator.clipboard.writeText(exportModRows(filteredList.value));
+      ElMessage.success(`已复制当前筛选的 ${filteredList.value.length} 个模组及原因`);
+    } catch { ElMessage.error("无法访问剪贴板，可改用 CSV 导出"); }
+  }
+  function exportFilteredCsv() {
+    const url = URL.createObjectURL(new Blob([exportModRows(filteredList.value, true)], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `mods-${props.serverUuid}.csv`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  async function deploySelectedKeys() {
+    const contextKey = filterStorageKey.value;
+    const selected = [...selectedKeyRows.value];
+    if (!selected.length) return;
+    try {
+      await ElMessageBox.confirm(
+        `目标实例：${props.serverUuid}。仅部署当前筛选中显式选择的 ${selected.length} 个模组公钥：\n${selected.map((m) => `${m.name} (${m.workshopId || "本地"}) — ${m.path}`).join("\n")}\n不会补签 PBO、禁用模组或关闭签名校验。`,
+        "确认公钥部署范围", { confirmButtonText: "部署并复扫", cancelButtonText: "取消", type: "warning" },
+      );
+    } catch { return; }
+    if (contextKey !== filterStorageKey.value) {
+      ElMessage.warning("目标主机或实例已变化，请重新选择部署范围");
+      return;
+    }
+    await copyBikeys({ modPaths: selected.map((m) => m.path) });
+  }
 
   const showScanPathDialog = ref(false);
   const scanPaths = ref<ModScanPathEntry[]>([]);
@@ -106,7 +169,7 @@ export function useModsPage(props: { serverUuid: string }) {
   const autoCheckUpdates = ref(false);
 
   function mapModRow(m: ModMetaRow): ModRow {
-    const status = m.bikeyStatus ?? "unknown";
+    const status = m.bikeyStatus && signatureStates.includes(m.bikeyStatus) ? m.bikeyStatus : "unknown";
     return {
       name: m.name,
       dirName: m.dirName ?? m.path.split(/[/\\]/).pop() ?? m.name,
@@ -120,8 +183,10 @@ export function useModsPage(props: { serverUuid: string }) {
       isLocalMod: !!m.isLocalMod,
       inputLocalMod: !!m.inputLocalMod,
       bikeyStatus: status,
-      bikeyLabel: m.bikeyLabel ?? bikeyStatusLabel(status),
+      bikeyLabel: bikeyStatusLabel(status),
       bikeyHint: bikeyStatusHint(status),
+      signatureEvidence: m.signatureEvidence,
+      keySelected: false,
       scanOrder: m.scanOrder ?? 0,
       updatedTime: m.updatedTime ?? "-",
       updatedAt: m.updatedAt,
@@ -220,30 +285,24 @@ export function useModsPage(props: { serverUuid: string }) {
       const res = await client.getBikeySummary(props.serverUuid);
       if (res.success) {
         const s = res.data;
-        bikeySummary.value = formatBikeySummary({
-          enabled: s.enabled,
-          ready: s.ready,
-          notCopied: s.notCopied ?? 0,
-          noKey: s.noKey ?? 0,
-          unsigned: s.unsigned ?? 0,
-          unchecked: s.unchecked ?? 0,
-          allValid: s.allValid,
-        });
-        copyMissingEnabled.value = (s.notCopied ?? 0) > 0;
+        bikeySummary.value = formatBikeySummary(s);
+        copyMissingEnabled.value = (s.notCopied ?? 0) + (s.keyMismatch ?? 0) > 0;
       }
     } catch {
-      bikeySummary.value = "Bikey 就绪 · —";
+      bikeySummary.value = "文件检查 · 未获取";
       copyMissingEnabled.value = false;
     }
   }
 
   async function loadMods() {
+    const contextKey = filterStorageKey.value;
+    const uuid = props.serverUuid;
     const client = store.getClient();
     if (!client) {
       return;
     }
-    const cfgRes = await client.getConfig(props.serverUuid);
-    if (!cfgRes.success) {
+    const cfgRes = await client.getConfig(uuid);
+    if (!cfgRes.success || contextKey !== filterStorageKey.value) {
       return;
     }
     await loadDlcFromConfig(cfgRes.data as Record<string, unknown>);
@@ -252,11 +311,18 @@ export function useModsPage(props: { serverUuid: string }) {
       autoCopyBikey.value = modsSection.autoCopyBikey;
     }
 
-    const scanRes = await client.getModScan(props.serverUuid);
-    if (scanRes.success) {
-      modList.value = scanRes.data.mods.map((m) => mapModRow(m));
+    const scanRes = await client.getModScan(uuid);
+    if (scanRes.success && contextKey === filterStorageKey.value) {
+      const selected = new Set(modList.value.filter((row) => row.keySelected).map(modRowKey));
+      modList.value = scanRes.data.mods.map((m) => {
+        const row = mapModRow(m);
+        row.keySelected = selected.has(modRowKey(row)) && canDeployModKeys(row);
+        return row;
+      });
     }
   }
+
+  watch(filterStorageKey, () => { void loadMods(); void loadBikeySummary(); });
 
   onMounted(() => {
     loadMods();
@@ -478,7 +544,9 @@ export function useModsPage(props: { serverUuid: string }) {
     ElMessage.success(`已禁用 ${scope} 模组角色`);
   }
 
-  async function copyBikeys(options?: { missingOnly?: boolean; silent?: boolean }) {
+  async function copyBikeys(options?: { missingOnly?: boolean; silent?: boolean; modPaths?: string[] }) {
+    const paths = options?.modPaths ?? modList.value.filter((row) => canDeployModKeys(row) && (!options?.missingOnly || row.enabled)).map((row) => row.path);
+    if (!paths.length) return;
     copyingBikey.value = true;
     try {
       const client = store.getClient();
@@ -490,6 +558,7 @@ export function useModsPage(props: { serverUuid: string }) {
         commands: [{
           action: "copy_bikeys" as const,
           missingOnly: options?.missingOnly === true,
+          modPaths: paths,
         }],
       });
       const step = lastTaskStep(res.data as never);
@@ -584,7 +653,9 @@ export function useModsPage(props: { serverUuid: string }) {
         ElMessage.success(
           outdatedCount > 0
             ? `发现 ${outdatedCount} 个模组有更新，已自动勾选`
-            : "所有已安装模组均为最新"
+            : modList.value.some((row) => row.workshopId > 0 && row.updateStatus !== "up_to_date")
+              ? "未发现已确认更新，但仍有未安装或版本未知项，请检查列表"
+              : "所有已检查模组均为最新"
         );
       }
     } catch (e: unknown) {
@@ -929,22 +1000,13 @@ export function useModsPage(props: { serverUuid: string }) {
       return;
     }
     if (command === "copy_all") {
-      copyBikeys({ missingOnly: false });
+      selectVisibleKeys();
+      void deploySelectedKeys();
     }
   }
 
   const filteredList = computed(() => {
-    let list = [...modList.value];
-    if (statusFilter.value === "enabled") {
-      list = list.filter((m) => m.enabled);
-    } else if (statusFilter.value === "outdated") {
-      list = list.filter((m) => m.updateStatus === "outdated");
-    } else if (statusFilter.value === "bikey") {
-      // 签名异常 = 未签名 / 缺 key / 尚未复制；unknown 是"没扫到"，不算异常
-      list = list.filter(
-        (m) => m.bikeyStatus === "unsigned" || m.bikeyStatus === "no_key" || m.bikeyStatus === "not_copied"
-      );
-    }
+    const list = modList.value.filter((row) => matchesModFilters(row, filters.value));
     if (sortMode.value === "dirName") {
       list.sort((a, b) => a.dirName.localeCompare(b.dirName));
     } else if (sortMode.value === "name") {
@@ -971,8 +1033,19 @@ export function useModsPage(props: { serverUuid: string }) {
     autoCopyBikey,
     dlcMods,
     sortMode,
-    statusFilter,
+    filters,
     statusFilterChips,
+    applyQuickFilter,
+    isQuickFilterActive,
+    signatureCounts,
+    selectedKeyRows,
+    selectVisibleKeys,
+    clearKeySelection,
+    deploySelectedKeys,
+    copyFilteredList,
+    exportFilteredCsv,
+    canDeployModKeys,
+    modSignatureRisk,
     showScanPathDialog,
     scanPaths,
     savingScanPaths,

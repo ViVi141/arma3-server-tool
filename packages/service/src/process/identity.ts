@@ -88,6 +88,80 @@ const CMDLINE_PS_ENCODED = encodePowerShellCommand(
   ].join("\n")
 );
 
+/** 启动身份不按 PID 缓存；即使 PID 被同一可执行程序复用，也必须重建健康证据。 */
+export async function getProcessSessionIdentity(pid: number): Promise<string | null> {
+  if (!isValidPid(pid)) return null;
+  try {
+    if (process.platform === "win32") {
+      const script = '$p = Get-Process -Id ([int]$env:A3ST_TARGET_PID) -ErrorAction Stop; $p.StartTime.ToUniversalTime().Ticks';
+      const { stdout } = await execFileAsync("powershell", ["-NoProfile", "-NonInteractive", "-EncodedCommand", encodePowerShellCommand(script)], {
+        encoding: "utf8", timeout: 3000, windowsHide: true, env: { ...process.env, A3ST_TARGET_PID: String(pid) },
+      });
+      const ticks = stdout.trim();
+      return /^\d+$/.test(ticks) ? `${pid}:${ticks}` : null;
+    }
+    const stat = await fs.promises.readFile(`/proc/${pid}/stat`, "utf8");
+    const startTicks = stat.slice(stat.lastIndexOf(")") + 2).trim().split(/\s+/)[19];
+    const boot = (await fs.promises.readFile("/proc/sys/kernel/random/boot_id", "utf8")).trim();
+    return /^\d+$/.test(startTicks ?? "") && boot ? `${boot}:${pid}:${startTicks}` : null;
+  } catch { return null; }
+}
+
+/** 维护专用停止：不使用宽松的 PID/名称匹配，也不因身份读取失败升级强杀。 */
+export async function stopProcessSession(pid: number, session: string, executable: string, graceMs = 8000): Promise<void> {
+  if (!isValidPid(pid) || !session || !path.isAbsolute(executable)) throw new Error("维护进程身份无效");
+  if (process.platform === "win32") {
+    // 先固定原生进程句柄，再比较 StartTime/Path 并通过同一 Process 对象终止。
+    // 不另起 taskkill 按可复用 PID 寻址，也不终止未登记的子进程。
+    const script = [
+      '$ErrorActionPreference = "Stop"',
+      '$p = Get-Process -Id ([int]$env:A3ST_TARGET_PID) -ErrorAction SilentlyContinue',
+      'if ($null -eq $p) { Write-Output "EXITED"; exit 0 }',
+      'try {',
+      '  $handle = $p.Handle',
+      '  $identity = "{0}:{1}" -f $p.Id, $p.StartTime.ToUniversalTime().Ticks',
+      '  if ($identity -cne $env:A3ST_EXPECTED_SESSION -or -not [string]::Equals($p.Path, $env:A3ST_EXPECTED_EXE, [StringComparison]::OrdinalIgnoreCase)) { throw "SESSION_CHANGED" }',
+      '  $p.Kill()',
+      '  if (-not $p.WaitForExit([int]$env:A3ST_STOP_TIMEOUT)) { throw "STOP_TIMEOUT" }',
+      '  Write-Output "EXITED"',
+      '} finally { $p.Dispose() }',
+    ].join("\n");
+    const { stdout } = await execFileAsync("powershell", ["-NoProfile", "-NonInteractive", "-EncodedCommand", encodePowerShellCommand(script)], {
+      encoding: "utf8", timeout: graceMs + 5000, windowsHide: true,
+      env: { ...process.env, A3ST_TARGET_PID: String(pid), A3ST_EXPECTED_SESSION: session, A3ST_EXPECTED_EXE: executable, A3ST_STOP_TIMEOUT: String(graceMs) },
+    });
+    if (stdout.trim() !== "EXITED") throw new Error("未确认维护进程退出");
+  } else if (process.platform === "linux") {
+    const inspect = (): "running" | "exited" => {
+      try {
+        const stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
+        const fields = stat.slice(stat.lastIndexOf(")") + 2).trim().split(/\s+/);
+        if (fields[0] === "Z" || fields[0] === "X") return "exited";
+        const boot = fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim();
+        if (`${boot}:${pid}:${fields[19]}` !== session || fs.realpathSync(`/proc/${pid}/exe`) !== resolveComparablePath(executable)) throw new Error("维护进程会话变化");
+        return "running";
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT" && !fs.existsSync(`/proc/${pid}`)) return "exited";
+        throw error;
+      }
+    };
+    const send = (signal: NodeJS.Signals) => {
+      // 检查与发信号间不让出事件循环；每次升级均重新核对会话。
+      if (inspect() === "exited") return;
+      try { process.kill(pid, signal); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error; }
+    };
+    send("SIGTERM");
+    for (const [index, timeout] of [graceMs, 2000].entries()) {
+      const deadline = performance.now() + timeout;
+      while (inspect() !== "exited" && performance.now() < deadline) await sleep(100);
+      if (inspect() === "exited") { invalidateProcessIdentityCache(pid); return; }
+      if (index === 0) send("SIGKILL");
+    }
+    throw new Error("维护进程停止超时");
+  } else throw new Error("当前平台不支持维护进程会话停止");
+  invalidateProcessIdentityCache(pid);
+}
+
 export function isProcessRunning(pid: number): boolean {
   if (!isValidPid(pid)) {
     return false;

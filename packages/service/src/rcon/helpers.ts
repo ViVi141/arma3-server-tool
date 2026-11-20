@@ -22,7 +22,7 @@ export function resolveRconOptions(config: ServerConfigPackage): {
 export async function fetchRconPlayers(config: ServerConfigPackage): Promise<RconPlayer[]> {
   const options = resolveRconOptions(config);
   if (!options) {
-    return [];
+    throw new Error("未配置 RCon，在线人数未知");
   }
 
   const client = new RconClient({ ...options, timeout: 5000 });

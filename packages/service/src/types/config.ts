@@ -1,4 +1,6 @@
 import type { LocalModEntry } from "./mods.js";
+import type { HealthConfigSection } from "./health.js";
+import type { MaintenancePolicy } from "./maintenance.js";
 
 export interface ModRoleEntry {
   path: string;
@@ -21,6 +23,8 @@ export interface ServerConfigPackage {
   missionParams?: MissionParamsSection;
   scheduler?: SchedulerConfigSection;
   monitoring?: MonitoringConfigSection;
+  health?: HealthConfigSection;
+  maintenance?: MaintenancePolicy;
 }
 
 export interface ServerConfigSection {

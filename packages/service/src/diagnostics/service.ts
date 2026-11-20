@@ -115,46 +115,18 @@ function checkEnabledModBikeys(
     return;
   }
 
-  let ready = 0;
-  let notCopied = 0;
-  let noKey = 0;
-  let unsigned = 0;
-  for (const mod of enabled) {
-    if (mod.bikeyStatus === "ready") {
-      ready += 1;
-    } else if (mod.bikeyStatus === "not_copied") {
-      notCopied += 1;
-    } else if (mod.bikeyStatus === "no_key") {
-      noKey += 1;
-    } else if (mod.bikeyStatus === "unsigned") {
-      unsigned += 1;
-    }
+  const pending = enabled.filter((mod) => mod.bikeyStatus !== "ready");
+  const counts = new Map<string, number>();
+  for (const mod of pending) {
+    const label = mod.bikeyLabel ?? "未检查";
+    counts.set(label, (counts.get(label) ?? 0) + 1);
   }
-
-  const failed = enabled.length - ready;
-  if (failed > 0) {
-    const parts: string[] = [];
-    if (notCopied > 0) {
-      parts.push(`${notCopied} 个未复制 key`);
-    }
-    if (noKey > 0) {
-      parts.push(`${noKey} 个缺少 key`);
-    }
-    if (unsigned > 0) {
-      parts.push(`${unsigned} 个缺少 bisign`);
-    }
-    issues.push({
-      category: "Bikey",
-      severity: "warning",
-      message: `${failed} 个已启用模组未通过验证（须同时具备 bisign、key 且已复制到服务器 Keys/）${parts.length ? `：${parts.join("，")}` : ""}`,
-    });
-    return;
-  }
-
   issues.push({
     category: "Bikey",
-    severity: "info",
-    message: `已启用模组 Bikey 验证通过（${ready}/${enabled.length}）`,
+    severity: pending.length ? "warning" : "info",
+    message: pending.length
+      ? `${pending.length} 个已启用模组文件检查待处理：${[...counts].map(([label, count]) => `${label} ${count}`).join("，")}。仅服模／HC 缺签名不等同于玩家入服阻断。`
+      : `已启用模组文件检查就绪（${enabled.length}/${enabled.length}）；非密码学验证，不保证玩家可以加入。`,
   });
 }
 

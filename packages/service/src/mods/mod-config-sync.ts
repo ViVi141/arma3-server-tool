@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { ServerConfigPackage } from "../types/config.js";
 import { collectModPaths } from "./paths.js";
 import { refreshConfigModParameters } from "./mod-startup-sync.js";
+import { recordSignatureEvents } from "../operations/source-events.js";
 
 export function buildModScanOptions(
   app: FastifyInstance,
@@ -27,9 +28,11 @@ export function buildModScanOptions(
 export function scanModsForConfig(
   app: FastifyInstance,
   config: ServerConfigPackage,
-  extra?: { skipSize?: boolean }
+  extra?: { skipSize?: boolean; serverUuid?: string }
 ) {
-  return app.modScanner.scan(buildModScanOptions(app, config, extra));
+  const mods = app.modScanner.scan(buildModScanOptions(app, config, extra));
+  if (extra?.serverUuid) recordSignatureEvents(app, extra.serverUuid, mods);
+  return mods;
 }
 
 export function refreshConfigModParametersFromApp(

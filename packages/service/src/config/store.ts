@@ -1,6 +1,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ServerConfigPackage } from "../types/config.js";
+import { validateHealthConfig } from "../health/configuration.js";
+import { validateMaintenancePolicy } from "../maintenance/policy.js";
+import { maintenanceLocks } from "../maintenance/locks.js";
 import {
   assertSafeId,
   assertSafeSubdirPath,
@@ -22,6 +25,8 @@ const SECTION_MAP: Record<string, keyof ServerConfigPackage> = {
   missionparams: "missionParams",
   scheduler: "scheduler",
   monitoring: "monitoring",
+  health: "health",
+  maintenance: "maintenance",
 };
 
 export interface ServerManifest {
@@ -177,6 +182,10 @@ export class ConfigStore {
 
   /** Save a complete config package */
   save(uuid: string, config: ServerConfigPackage, configName?: string): void {
+    maintenanceLocks.assertAvailable({ instances: [uuid] });
+    validateHealthConfig(config);
+    // 整包替换省略策略时显式落盘关闭，避免旧 maintenance.json 在重载后复活授权。
+    config = { ...config, maintenance: validateMaintenancePolicy(config.maintenance) };
     const pkgDir = assertSafeSubdirPath(
       path.join(this.baseDir, CONFIG_DIR),
       uuid,
@@ -232,6 +241,7 @@ export class ConfigStore {
     key: keyof ServerConfigPackage,
     patch: Record<string, unknown>
   ): ServerConfigPackage | null {
+    maintenanceLocks.assertAvailable({ instances: [uuid] });
     const existing = this.load(uuid);
     if (!existing) {
       return null;
@@ -255,7 +265,9 @@ export class ConfigStore {
     } else {
       next = patch;
     }
+    if (key === "maintenance") next = validateMaintenancePolicy(next);
     const updated = { ...existing, [key]: next } as ServerConfigPackage;
+    if (key === "health") validateHealthConfig(updated);
 
     const filePath = assertSafeTargetPath(pkgDir, `${sectionFileStem(key)}.json`);
     writeJsonAtomic(filePath, next);
@@ -267,6 +279,7 @@ export class ConfigStore {
 
   /** Delete a config package */
   delete(uuid: string): boolean {
+    maintenanceLocks.assertAvailable({ instances: [uuid] });
     const pkgDir = assertSafeSubdirPath(
       path.join(this.baseDir, CONFIG_DIR),
       uuid,

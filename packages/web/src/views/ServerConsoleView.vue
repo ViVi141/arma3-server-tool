@@ -95,7 +95,7 @@ const showProcInToolbar = computed(() => modeShowsProcActions(activeModeId.value
 
 // 这些页签自己带页级「保存」（SettingsViewLayout 的 btn-page-save），
 // 顶栏再放一个同名按钮就变成两个保存入口，容易误点。
-const PAGE_OWN_SAVE_TABS = new Set(["basic", "performance", "network", "security", "difficulty", "log"]);
+const PAGE_OWN_SAVE_TABS = new Set(["basic", "performance", "network", "security", "difficulty", "log", "missions"]);
 
 // 窄屏（<=768px）走紧凑动作栏：一行主操作 + 「更多」折叠菜单，
 // 避免一排按钮折成三行把内容挤下去。移动 App 本来就走这套。
@@ -1049,7 +1049,7 @@ provide(CONSOLE_ACTIONS_KEY, {
           {{ hasDirtyChanges ? "保存并应用" : "立即应用" }}
         </el-button>
       </div>
-      <div class="shell-v2__page" :key="selectedUuid">
+      <div class="shell-v2__page" :key="activeTab === 'operations' ? connectionId() : selectedUuid">
       <DashboardView
         v-if="activeTab === 'dashboard'"
         :connection-id="connectionId()"
@@ -1067,6 +1067,7 @@ provide(CONSOLE_ACTIONS_KEY, {
       <BansView v-else-if="activeTab === 'bans'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
       <MissionsView v-else-if="activeTab === 'missions'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
       <SteamCmdView v-else-if="activeTab === 'steamcmd'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
+      <OperationsView v-else-if="activeTab === 'operations'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
       <StatisticsView v-else-if="activeTab === 'statistics'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
       <SchedulerView v-else-if="activeTab === 'scheduler'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
       <SnapshotsView v-else-if="activeTab === 'snapshots'" :connection-id="connectionId()" :server-uuid="selectedUuid" />
@@ -1097,6 +1098,7 @@ import BansView from "./BansView.vue";
 import MissionsView from "./MissionsView.vue";
 import SteamCmdView from "./SteamCmdView.vue";
 import StatisticsView from "./StatisticsView.vue";
+import OperationsView from "./OperationsView.vue";
 import SchedulerView from "./SchedulerView.vue";
 import SnapshotsView from "./SnapshotsView.vue";
 import LogsView from "./LogsView.vue";

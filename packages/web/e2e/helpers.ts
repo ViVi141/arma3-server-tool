@@ -11,6 +11,7 @@ const TAB_TO_MODE: Record<string, string> = {
   logs: "logs",
   rcon: "logs",
   statistics: "logs",
+  operations: "logs",
   basic: "config",
   performance: "config",
   network: "config",
@@ -293,7 +294,8 @@ export interface MockModRow {
   isClientMod: boolean;
   isServerMod: boolean;
   isHcMod: boolean;
-  bikeyStatus: "ready" | "not_copied" | "no_key" | "unsigned";
+  bikeyStatus: import("@a3st/api-client").ModBikeyStatus;
+  signatureEvidence?: import("@a3st/api-client").ModSignatureEvidence;
   bikeyLabel: string;
   bikeyHint?: string;
   scanOrder: number;
@@ -330,6 +332,7 @@ export interface MockApiOptions {
   asyncFinalStatus?: "Succeeded" | "Failed" | "Cancelled";
   asyncErrorText?: string;
   dashboardOverrides?: Record<string, unknown>;
+  missions?: import("@a3st/api-client").MissionEntry[];
 }
 
 export interface MockApiHandle {
@@ -574,7 +577,9 @@ export async function installMockApi(
 
   const configsByUuid = new Map<string, Record<string, unknown>>();
   for (const s of servers) {
-    configsByUuid.set(s.uuid, buildDefaultConfig(s, currentMods, autoCopyBikey));
+    const config = buildDefaultConfig(s, currentMods, autoCopyBikey);
+    if (options.missions) config.tasks.missions = options.missions.map((m) => ({ template: m.template, difficulty: Number(m.difficulty ?? 3), whiteList: !!m.whiteList, choose: !!m.choose }));
+    configsByUuid.set(s.uuid, config);
   }
 
   let uiSettings = {
@@ -813,7 +818,7 @@ export async function installMockApi(
       const body = (parsedBody ?? {}) as {
         serverUuid?: string;
         async?: boolean;
-        commands?: Array<{ action: string; modIds?: number[]; playerGuid?: string; reason?: string }>;
+        commands?: Array<{ action: string; modIds?: number[]; modPaths?: string[]; playerGuid?: string; reason?: string }>
       };
       const firstAction = body.commands?.[0]?.action ?? "unknown";
 
@@ -831,8 +836,8 @@ export async function installMockApi(
         running = false;
       } else if (firstAction === "copy_bikeys") {
         currentMods = currentMods.map((m) =>
-          m.bikeyStatus === "not_copied"
-            ? { ...m, bikeyStatus: "ready", bikeyLabel: "验证通过" }
+          (m.bikeyStatus === "not_copied" || m.bikeyStatus === "key_mismatch") && body.commands?.[0]?.modPaths?.includes(m.path)
+            ? { ...m, bikeyStatus: "ready", bikeyLabel: "文件检查就绪", signatureEvidence: m.signatureEvidence ? { ...m.signatureEvidence, canDeployKeys: false } : undefined }
             : m
         );
       } else if (firstAction === "local_ban_add" && body.commands?.[0]?.playerGuid) {
@@ -1191,6 +1196,35 @@ export async function installMockApi(
             overwritten: false,
             sharedServerWarning: false,
             note: "上传成功",
+          })
+        );
+        return;
+      }
+
+      // Maintenance discovery/preview stay read-only in the mock harness: no SteamCMD login,
+      // and the default tab-render specs must receive contract-shaped payloads.
+      if (method === "GET" && sub === "/maintenance/updates") {
+        await fulfillJson(route, makeEnvelope([]));
+        return;
+      }
+      if (method === "POST" && sub === "/maintenance/check") {
+        await fulfillJson(route, makeEnvelope([]));
+        return;
+      }
+      if (method === "POST" && sub === "/maintenance/preview") {
+        await fulfillJson(
+          route,
+          makeEnvelope({
+            createdAt: new Date().toISOString(),
+            selectedKeys: [],
+            mods: [],
+            impact: { resources: [], serverUuids: [], headlessUuids: [], issues: [], complete: true },
+            instances: [],
+            canExecute: false,
+            reasons: ["未选择目标"],
+            commonTime: null,
+            thresholds: { checkSeconds: 600, sampleSeconds: 15, idleSeconds: 900, onlineFreshSeconds: 60, maxWaitHours: 48, countdownSeconds: [30, 15, 5] },
+            warning: "Mock 预览不登录 Steam、不停服。",
           })
         );
         return;

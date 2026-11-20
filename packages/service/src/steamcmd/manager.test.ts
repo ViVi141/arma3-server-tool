@@ -67,6 +67,28 @@ describe("SteamCmdManager capture", () => {
     }
   });
 
+  it("创建 capture 期间取消会终止迟到进程，退出前不放行下一个操作", async () => {
+    const manager = new SteamCmdManager(tmpDir);
+    vi.spyOn(manager, "purgeOrphanSteamCmdProcesses").mockReturnValue(0);
+    const inner = manager as unknown as { ensureInstalledBody: () => Promise<void>; runCapturedProcess: (id: number, args: string, output: (text: string) => void) => Promise<number>; withExclusiveLock: (fn: (id: number) => Promise<void>) => Promise<void> };
+    inner.ensureInstalledBody = vi.fn(async () => {});
+    let created!: (capture: object) => void; let exited!: (code: number) => void;
+    const exit = new Promise<number>((resolve) => { exited = resolve; });
+    const kill = vi.fn();
+    mockSpawnConsoleCapture.mockReturnValueOnce(new Promise((resolve) => { created = resolve; }));
+    const operation = inner.withExclusiveLock(async (id) => { await inner.runCapturedProcess(id, "+quit", () => {}); }).catch((error: Error) => error.message);
+    manager.requestAbort(); manager.clearAbort();
+    const next = manager.ensureInstalled();
+    created({ kill, waitForExit: () => exit });
+    await vi.waitFor(() => expect(kill).toHaveBeenCalledTimes(1));
+    expect(inner.ensureInstalledBody).not.toHaveBeenCalled();
+    expect(manager.isBusy).toBe(true);
+    exited(0);
+    expect(await operation).toBe("SteamCMD 操作已取消");
+    await next;
+    expect(inner.ensureInstalledBody).toHaveBeenCalledTimes(1);
+  });
+
   it("getAggregatedLog returns latest session console capture", () => {
     const sessionDir = path.join(tmpDir, "logs", "steamcmd");
     fs.mkdirSync(sessionDir, { recursive: true });

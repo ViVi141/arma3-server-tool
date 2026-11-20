@@ -265,7 +265,7 @@ export class RconClient extends EventEmitter {
   async getPlayers(): Promise<RconPlayer[]> {
     const resp = await this.sendCommand("players");
     if (!resp.success) {
-      return [];
+      throw new Error("RCon 玩家查询失败，在线人数未知");
     }
     return this.parsePlayerList(resp.message);
   }
@@ -315,17 +315,16 @@ export class RconClient extends EventEmitter {
 
   private parsePlayerList(raw: string): RconPlayer[] {
     const players: RconPlayer[] = [];
-    const lines = raw.split(/\r?\n/);
-    for (const line of lines) {
-      const match = line.match(/^\s*(\d+)\s+([0-9a-fA-F]{8,})\s+(.+?)\s*:/);
-      if (match) {
-        players.push({
-          num: parseInt(match[1], 10),
-          guid: match[2],
-          name: match[3].trim(),
-        });
-      }
+    const total = raw.match(/\((\d+) players? in total\)/i);
+    if (!total) throw new Error("RCon 玩家列表缺少完整人数标记，在线人数未知");
+    for (const line of raw.split(/\r?\n/)) {
+      if (!/^\s*\d+\s/.test(line)) continue;
+      // BattlEye：序号、IP:端口、Ping、GUID(OK)、玩家名；连接中 GUID 可为 -。
+      const match = line.match(/^\s*(\d+)\s+(\S+:\d+)\s+(-?\d+)\s+(\S+)\s+(.+?)\s*$/);
+      if (!match) throw new Error("RCon 玩家列表存在无法识别的行，在线人数未知");
+      players.push({ num: Number(match[1]), guid: match[4].replace(/\([^)]*\)$/, ""), name: match[5] });
     }
+    if (players.length !== Number(total[1])) throw new Error("RCon 玩家列表不完整，在线人数未知");
     return players;
   }
 
@@ -337,8 +336,7 @@ export class RconClient extends EventEmitter {
       this.keepAliveTimer = null;
     }
     for (const entry of this.pending.values()) {
-      clearTimeout(entry.deadline);
-      clearInterval(entry.retryTimer);
+      entry.finish({ success: false, message: "RCon 连接已断开" });
     }
     this.pending.clear();
     this.loginWaiter = null;

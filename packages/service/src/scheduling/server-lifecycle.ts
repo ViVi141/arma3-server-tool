@@ -1,5 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import * as fs from "node:fs";
+import { maintenanceLocks, MaintenanceLockError } from "../maintenance/locks.js";
+import { loadedModPaths } from "../maintenance/scope.js";
+import { splitCommandLine } from "../config/game-config-writer.js";
 import type { ServerConfigPackage } from "../types/config.js";
 import {
   buildStartCommandLine,
@@ -27,6 +30,7 @@ function patchProcessId(
   // 只写 tasks 这一个 section：进程 PID 在启停/重启时频繁变化，
   // 整包重写既慢又可能与其他 section 的并发写入互相覆盖。
   app.configStore.patchSection(uuid, "tasks", { processById: pid });
+  if (pid === 0) app.serverHealth?.forget(uuid);
 }
 
 function resolveIdentityMarkers(
@@ -50,10 +54,21 @@ function resolveGamePort(config: ServerConfigPackage | null | undefined): number
   return 0;
 }
 
-export async function stopServer(
+type LifecycleResult = { success: boolean; message: string };
+async function withInstanceLock(uuid: string, fn: () => Promise<LifecycleResult>): Promise<LifecycleResult> {
+  try { return await maintenanceLocks.run({ instances: [uuid] }, fn); }
+  catch (error) {
+    if (error instanceof MaintenanceLockError) return { success: false, message: error.message };
+    throw error;
+  }
+}
+export function stopServer(app: FastifyInstance, uuid: string): Promise<LifecycleResult> {
+  return withInstanceLock(uuid, () => stopServerBody(app, uuid));
+}
+async function stopServerBody(
   app: FastifyInstance,
   uuid: string
-): Promise<{ success: boolean; message: string }> {
+): Promise<LifecycleResult> {
   const config = app.configStore.load(uuid);
   const persistedPid = config?.tasks?.processById ?? 0;
   const executable = config ? getServerExecutablePath(config) : "";
@@ -116,11 +131,14 @@ export async function stopServer(
   return { success: true, message: "服务器已停止" };
 }
 
-export async function startServer(
+export function startServer(app: FastifyInstance, uuid: string, config?: ServerConfigPackage | null): Promise<LifecycleResult> {
+  return withInstanceLock(uuid, () => startServerBody(app, uuid, config));
+}
+async function startServerBody(
   app: FastifyInstance,
   uuid: string,
   config?: ServerConfigPackage | null
-): Promise<{ success: boolean; message: string }> {
+): Promise<LifecycleResult> {
   const cfg = config ?? app.configStore.load(uuid);
   if (!cfg) {
     return { success: false, message: "未找到服务器配置" };
@@ -159,11 +177,19 @@ export async function startServer(
   try {
     const mods = scanModsForConfig(app, cfg, { skipSize: true });
     commandLine = buildStartCommandLine(uuid, cfg, mods);
+    app.serverHealth?.prepareStart(uuid, cfg);
   } catch (error) {
     const message = error instanceof Error ? error.message : "构建启动命令行失败";
     return { success: false, message };
   }
 
+  const loaded = loadedModPaths({ serverUuid: uuid, kind: "server", workingDirectory: serverDir, args: splitCommandLine(commandLine) });
+  // 参数文件的实际范围不透明：有任何维护写锁时，启动入口不能绕过其范围。
+  if (!loaded.complete) maintenanceLocks.assertNoForeignWrites();
+  return maintenanceLocks.run({ paths: [...loaded.paths, executable].map((value) => ({ path: value, mode: "read" as const })) }, () => startPreparedServer(app, uuid, cfg, serverDir, executable, commandLine));
+}
+
+async function startPreparedServer(app: FastifyInstance, uuid: string, cfg: ServerConfigPackage, serverDir: string, executable: string, commandLine: string): Promise<LifecycleResult> {
   // 默认显示服务器窗口：报错/断言对话框需要人工确认，窗口隐藏时会被永久卡住。
   // 如需无窗口运行（如杂项后台部署），在启动参数中开启 showServerWindow=false。
   app.processManager.register(uuid, {
@@ -185,6 +211,7 @@ export async function startServer(
   }
 
   patchProcessId(app, uuid, pid);
+  app.serverHealth?.bindProcess(uuid, pid);
 
   const port = resolveGamePort(cfg);
   if (port <= 0) {
@@ -220,10 +247,13 @@ export async function startServer(
     };
   }
 
-  return { success: true, message: `服务器已启动并就绪（端口 ${port}）` };
+  return { success: true, message: `服务器进程已启动，端口 ${port} 已监听；任务健康仍须独立心跳确认` };
 }
 
-export async function restartServer(
+export function restartServer(app: FastifyInstance, uuid: string): Promise<LifecycleResult> {
+  return withInstanceLock(uuid, () => restartServerBody(app, uuid));
+}
+async function restartServerBody(
   app: FastifyInstance,
   uuid: string
 ): Promise<{ success: boolean; message: string }> {
@@ -235,7 +265,10 @@ export async function restartServer(
   return startServer(app, uuid);
 }
 
-export async function detectRestartServer(
+export function detectRestartServer(app: FastifyInstance, uuid: string): Promise<LifecycleResult> {
+  return withInstanceLock(uuid, () => detectRestartServerBody(app, uuid));
+}
+async function detectRestartServerBody(
   app: FastifyInstance,
   uuid: string
 ): Promise<{ success: boolean; message: string }> {
@@ -280,6 +313,11 @@ export async function executeCronAction(
 ): Promise<{ success: boolean; message: string }> {
   const action = resolveCronAction(actionText);
   if (action === "update_mods") {
+    // 新维护策略接管后，旧更新任务若仍存在会造成双重停服/下载；只提示迁移，不静默执行。
+    const policy = app.configStore.load(uuid)?.maintenance;
+    if (policy?.enabled && policy.template !== "check_only") {
+      return { success: false, message: "该实例已启用新的维护策略，旧更新 Cron 不再执行以免双调度；请在调度页确认迁移并停用对应旧更新任务（非更新任务不变）" };
+    }
     const { runScheduledModUpdate } = await import("./mod-update-cron.js");
     return runScheduledModUpdate(app, uuid, {
       quietHoursStart: options.quietHoursStart,

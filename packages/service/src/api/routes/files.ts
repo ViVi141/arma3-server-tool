@@ -1,4 +1,5 @@
 import { maybeAutoSnapshot } from "../../config/auto-snapshot.js";
+import { maintenanceLocks } from "../../maintenance/locks.js";
 import { writeAll } from "../../config/game-config-writer.js";
 import { buildModImportPreview, normalizeModImportMode, shouldDownloadForMode } from "../../mods/import-modes.js";
 import { scanModsForConfig } from "../../mods/mod-config-sync.js";
@@ -114,6 +115,7 @@ export function registerFilesRoutes(app: FastifyInstance): void {
     try {
       safeName = assertMissionPboFileName(data.filename);
       const mpmDir = path.join(config.server.serverDir, "MPMissions");
+      maintenanceLocks.assertAvailable({ instances: [uuid], paths: [{ path: path.resolve(mpmDir), mode: "write" }] });
       fs.mkdirSync(mpmDir, { recursive: true });
       fullPath = assertSafeTargetPath(mpmDir, safeName);
     } catch (err) {
@@ -147,6 +149,8 @@ export function registerFilesRoutes(app: FastifyInstance): void {
         && path.resolve(other.server.serverDir) === path.resolve(config.server!.serverDir!),
       );
     });
+    // 上传流读取期间可能开始维护，必须在实际写入前重新检查。
+    maintenanceLocks.assertAvailable({ instances: [uuid], paths: [{ path: path.resolve(fullPath), mode: "write" }] });
     const overwrite = fs.existsSync(fullPath);
     fs.writeFileSync(fullPath, Buffer.concat(chunks));
 

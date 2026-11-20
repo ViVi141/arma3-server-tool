@@ -1,3 +1,7 @@
+export type * from "./operations";
+export type * from "./maintenance";
+import type { MaintenancePolicy } from "./maintenance";
+
 // ---- Envelopes ----
 
 export interface ApiResponse<T = unknown> {
@@ -32,6 +36,46 @@ export interface HealthData {
   defaultServerExecutable?: string;
   defaultServerDir?: string;
   steamCmdBinary?: string;
+}
+
+export interface HealthConfigSection {
+  enabled?: boolean;
+  unattended?: boolean;
+  startupTimeoutSeconds?: number;
+}
+
+export type ServerHealthState = "stopped" | "starting" | "healthy" | "unhealthy" | "unverified" | "maintenance";
+
+export interface MissionHeartbeat {
+  epoch: number;
+  sequence: number;
+  mission: string;
+  world: string;
+  uptimeSeconds: number;
+  missionSeconds: number;
+  fps: number;
+  emittedAt: string;
+  receivedAt: string;
+}
+
+export interface ServerHealthData {
+  serverUuid: string;
+  state: ServerHealthState;
+  checkedAt: string;
+  sessionStartedAt: string | null;
+  pid: number | null;
+  processAlive: boolean | null;
+  rconResponsive: boolean | null;
+  onlineCount: number | null;
+  fps: number | null;
+  heartbeat: MissionHeartbeat | null;
+  consecutiveHeartbeats: number;
+  rptPath: string | null;
+  reasons: string[];
+  configurationIssues: string[];
+  thresholds: { heartbeatSeconds: number; sampleSeconds: number; staleSeconds: number; startupTimeoutSeconds: number };
+  publicReachability: "unverified";
+  playerJoin: "unverified";
 }
 
 // ---- Actions (capability discovery) ----
@@ -70,6 +114,8 @@ export interface ArmaServerConfig {
   modPaths?: string[];
   serverModIds?: number[];
   missionList?: MissionEntry[];
+  health?: HealthConfigSection;
+  maintenance?: MaintenancePolicy;
   // … more fields as needed; use PATCH for partial updates
   [key: string]: unknown;
 }
@@ -103,6 +149,8 @@ export type TaskAction =
   | "create_server"
   | "preflight"
   | "sync_cron_jobs"
+  | "maintenance_check"
+  | "maintenance_preview"
   | "rcon_players"
   | "rcon_kick"
   | "rcon_ban"
@@ -142,6 +190,7 @@ export interface AutomationCommand {
   reason?: string;
   missingOnly?: boolean;
   modPaths?: string[];
+  keys?: string[];
 }
 
 export interface TaskPayload {
@@ -240,6 +289,7 @@ export type SteamCmdAuthState =
 export interface SteamCmdStatusData {
   isRunning: boolean;
   isBusy?: boolean;
+  pendingCount?: number;
   isInstalled?: boolean;
   isAborted?: boolean;
   currentOperation?: string;
@@ -278,6 +328,9 @@ export interface BikeySummaryData {
   noKey?: number;
   needsAttention?: number;
   unsigned?: number;
+  partial?: number;
+  keyMismatch?: number;
+  readError?: number;
   unchecked?: number;
   allValid?: boolean;
 }
@@ -302,7 +355,25 @@ export interface WorkshopLocalModRef {
   updatedAt?: string;
 }
 
-export type ModBikeyStatus = "unsigned" | "no_key" | "not_copied" | "ready";
+export type ModBikeyStatus =
+  | "unsigned" | "partial" | "no_key" | "not_copied" | "key_mismatch"
+  | "ready" | "unknown" | "read_error";
+
+/** 文件证据，不执行密码学验证，也不证明客户端可以加入。 */
+export interface ModSignatureEvidence {
+  checkedAt: string;
+  pboCount: number;
+  signedPboCount: number;
+  missingPbos: string[];
+  keyCount: number;
+  deployedKeyCount: number;
+  missingKeys: string[];
+  mismatchedKeys: string[];
+  readErrors: string[];
+  canDeployKeys: boolean;
+  reason: string;
+  cryptographicVerified: false;
+}
 
 export interface ModMetaRow {
   workshopId: number;
@@ -318,6 +389,7 @@ export interface ModMetaRow {
   bikeyPresent?: boolean;
   bikeyStatus?: ModBikeyStatus;
   bikeyLabel?: string;
+  signatureEvidence?: ModSignatureEvidence;
   scanOrder?: number;
   sizeBytes?: number;
   updatedAt?: string;

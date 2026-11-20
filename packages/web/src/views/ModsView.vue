@@ -19,12 +19,22 @@ const {
   scanning,
   copyingBikey,
   bikeySummary,
-  copyMissingEnabled,
   autoCopyBikey,
   dlcMods,
   sortMode,
-  statusFilter,
+  filters,
   statusFilterChips,
+  applyQuickFilter,
+  isQuickFilterActive,
+  signatureCounts,
+  selectedKeyRows,
+  selectVisibleKeys,
+  clearKeySelection,
+  deploySelectedKeys,
+  copyFilteredList,
+  exportFilteredCsv,
+  canDeployModKeys,
+  modSignatureRisk,
   showScanPathDialog,
   scanPaths,
   savingScanPaths,
@@ -47,7 +57,6 @@ const {
   doScan,
   onRoleChange,
   disableMods,
-  copyBikeys,
   saveAutoCopyBikey,
   fetchWorkshopDetails,
   checkModUpdates,
@@ -98,8 +107,8 @@ const {
           <el-button size="small">签名管理</el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="manage">管理签名文件</el-dropdown-item>
-              <el-dropdown-item command="copy_all">复制全部签名文件</el-dropdown-item>
+              <el-dropdown-item command="manage">查看已部署公钥</el-dropdown-item>
+              <el-dropdown-item command="copy_all">选择当前筛选可部署项...</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -122,16 +131,46 @@ const {
               :key="chip.id"
               type="button"
               class="m3-chip"
-              :class="{ 'is-selected': statusFilter === chip.id }"
-              :aria-pressed="statusFilter === chip.id"
+              :class="{ 'is-selected': isQuickFilterActive(chip.id) }"
+              :aria-pressed="isQuickFilterActive(chip.id)"
               :data-testid="chip.testId"
-              @click="statusFilter = chip.id"
+              @click="applyQuickFilter(chip.id)"
             >
               {{ chip.label }}
             </button>
           </div>
           <el-checkbox v-model="autoCheckUpdates" size="small">扫描后自动检查 Workshop 更新</el-checkbox>
         </div>
+
+        <div class="mods-filters" data-testid="mods-combined-filters">
+          <el-input v-model="filters.search" clearable placeholder="搜索名称 / ID / 路径" aria-label="搜索名称、ID 或路径" data-testid="mods-search" />
+          <el-select v-model="filters.enabled" multiple clearable placeholder="启用状态" aria-label="启用状态" data-testid="mods-enabled-filter">
+            <el-option value="enabled" label="已启用" /><el-option value="disabled" label="未启用" />
+          </el-select>
+          <el-select v-model="filters.roles" multiple clearable placeholder="角色" aria-label="角色" data-testid="mods-role-filter">
+            <el-option value="client" label="客模" /><el-option value="server" label="服模" /><el-option value="hc" label="HC" />
+          </el-select>
+          <el-select v-model="filters.updates" multiple clearable placeholder="更新状态" aria-label="更新状态" data-testid="mods-update-filter">
+            <el-option value="outdated" label="有更新" /><el-option value="up_to_date" label="已最新" />
+            <el-option value="missing" label="未安装" /><el-option value="unknown" label="未知 / 未检查" />
+          </el-select>
+          <el-select v-model="filters.signatures" multiple clearable collapse-tags placeholder="签名文件状态" aria-label="签名文件状态" data-testid="mods-signature-filter">
+            <el-option v-for="item in signatureCounts" :key="item.status" :value="item.status" :label="item.label" />
+          </el-select>
+          <el-select v-model="filters.sources" multiple clearable placeholder="来源" aria-label="来源" data-testid="mods-source-filter">
+            <el-option value="local" label="本地" /><el-option value="workshop" label="Workshop" />
+          </el-select>
+        </div>
+        <div class="mods-bar" aria-label="签名分类数量">
+          <button v-for="item in signatureCounts" :key="item.status" class="m3-chip" type="button"
+            :class="{ 'is-selected': filters.signatures.includes(item.status) }"
+            :aria-pressed="filters.signatures.includes(item.status)"
+            :data-testid="`mods-count-${item.status}`"
+            @click="filters.signatures = filters.signatures.includes(item.status) ? filters.signatures.filter((s) => s !== item.status) : [...filters.signatures, item.status]">
+            {{ item.label }} {{ item.count }}
+          </button>
+        </div>
+        <p class="mods-hint">维度之间同时满足，同一维度多选任一满足。此处仅检查文件覆盖与公钥内容，不是密码学验证，也不保证玩家可以加入。</p>
 
         <div class="mods-bar">
           <span class="mods-bar-label">全部禁用</span>
@@ -143,14 +182,13 @@ const {
 
         <div class="mods-bar mods-bikey-bar">
           <span class="bikey-summary">{{ bikeySummary }}</span>
-          <el-button
-            size="small"
-            :loading="copyingBikey"
-            :disabled="!copyMissingEnabled"
-            data-testid="btn-copy-missing-bikey"
-            @click="copyBikeys({ missingOnly: true })"
-          >
-            复制缺失签名
+          <el-button size="small" :disabled="!filteredList.length" data-testid="mods-copy-list" @click="copyFilteredList">复制筛选清单</el-button>
+          <el-button size="small" :disabled="!filteredList.length" data-testid="mods-export-csv" @click="exportFilteredCsv">导出 CSV</el-button>
+          <el-button size="small" data-testid="mods-select-keys" @click="selectVisibleKeys">选择当前可部署项</el-button>
+          <el-button size="small" @click="clearKeySelection">清除公钥选择</el-button>
+          <el-button size="small" :loading="copyingBikey" :disabled="!selectedKeyRows.length"
+            data-testid="btn-copy-missing-bikey" @click="deploySelectedKeys">
+            部署选中公钥（{{ selectedKeyRows.length }} 个模组）
           </el-button>
         </div>
 
@@ -227,6 +265,9 @@ const {
                 <template v-else>查看路径</template>
               </el-button>
             </div>
+            <el-checkbox v-model="row.keySelected" :disabled="!canDeployModKeys(row)" data-testid="mod-key-select">选择部署公钥</el-checkbox>
+            <p class="mods-hint">{{ row.signatureEvidence?.reason || row.bikeyHint }}</p>
+            <p class="mods-hint">{{ row.bikeyHint }} {{ modSignatureRisk(row) }}</p>
             <p v-if="expandedModPaths[modRowKey(row)]" class="mods-card__path">{{ row.path }}</p>
           </div>
           <el-empty v-if="!filteredList.length" description="暂无模组" />
@@ -289,14 +330,17 @@ const {
             <el-table-column label="本地导入" width="72" align="center">
               <template #default="{ row }">{{ row.inputLocalMod ? "是" : "否" }}</template>
             </el-table-column>
-            <el-table-column label="签名" width="88" align="center">
+            <el-table-column label="公钥选择" width="82" align="center">
               <template #default="{ row }">
-                <el-tooltip :content="row.bikeyHint" placement="top">
-                  <span class="bikey-status-cell">
-                    <span class="bikey-icon">{{ bikeyStatusIcon(row.bikeyStatus) }}</span>
-                    <span class="bikey-label">{{ row.bikeyLabel }}</span>
-                  </span>
-                </el-tooltip>
+                <el-checkbox v-model="row.keySelected" :disabled="!canDeployModKeys(row)" :aria-label="`选择 ${row.name} 的公钥`" data-testid="mod-key-select" />
+              </template>
+            </el-table-column>
+            <el-table-column label="签名文件证据与操作" min-width="330">
+              <template #default="{ row }">
+                <span :class="['bikey-status', `bikey-status--${row.bikeyStatus}`]">{{ bikeyStatusIcon(row.bikeyStatus) }} {{ row.bikeyLabel }}</span>
+                <p class="mods-hint">{{ row.signatureEvidence?.reason || '尚无逐 PBO 证据，请重新扫描' }}</p>
+                <p class="mods-hint">{{ row.bikeyHint }}</p>
+                <p class="mods-hint">{{ modSignatureRisk(row) }}</p>
               </template>
             </el-table-column>
             <el-table-column prop="path" label="路径" min-width="160" show-overflow-tooltip />
@@ -321,9 +365,9 @@ const {
 
         <div class="mods-options">
           <el-checkbox v-model="autoCopyBikey" @change="saveAutoCopyBikey">
-            扫描后自动把签名文件复制到服务器 keys 目录
+            扫描后自动部署适用模组的公钥到服务器 Keys 目录
           </el-checkbox>
-          <p class="mods-hint">提示：keys 目录里多余的签名文件不影响服务器运行，游戏只按实际加载的模组取用。</p>
+          <p class="mods-hint">公钥表示服务器信任的签名来源；多余公钥可能扩大信任范围。部署公钥不能补签 PBO，也不会关闭服务器签名校验。</p>
           <div class="mods-dlc-row">
             <el-checkbox v-model="dlcMods.contact" @change="saveDlc">Contact 资料片</el-checkbox>
             <el-checkbox v-model="dlcMods.gm" @change="saveDlc">GM 资料片</el-checkbox>
@@ -406,6 +450,14 @@ const {
   flex-wrap: wrap;
   gap: 6px;
 }
+.mods-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 6px;
+}
+.bikey-status { font-weight: 600; color: var(--el-color-warning-dark-2); }
+.bikey-status--ready { color: var(--el-color-success-dark-2); }
+.bikey-status--read_error { color: var(--el-color-danger); }
 .mods-bar-label {
   font-size: 12px;
   color: var(--el-text-color-secondary);

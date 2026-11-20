@@ -18,12 +18,21 @@ import { SteamCmdSettingsStore } from "./settings/steamcmd-settings.js";
 import { applySteamCmdSettings } from "./settings/apply-steamcmd-settings.js";
 import { stopAllHeadlessClients } from "./process/headless.js";
 import { closeProxyAgents } from "./steamcmd/proxy-fetch.js";
+import { ServerHealthService } from "./health/service.js";
+import { OperationsStore } from "./operations/store.js";
+import { EmailNotifier } from "./operations/email.js";
+import { wireHealthEvents } from "./operations/health-events.js";
+import { MaintenancePlanner } from "./maintenance/planner.js";
+import { MaintenanceExecutor } from "./maintenance/executor.js";
+import { ServiceMaintenanceAdapter } from "./maintenance/adapter.js";
+import { MaintenanceAutoScheduler } from "./maintenance/auto-scheduler.js";
 
 export interface ServiceOptions {
   port: number;
   host: string;
   dataDir: string;
   apiToken?: string;
+  opsReadToken?: string;
   logStream?: NodeJS.WritableStream;
 }
 
@@ -77,6 +86,8 @@ async function listenWithRetry(
 }
 
 export async function createService(options: ServiceOptions) {
+  const opsReadToken = (options.opsReadToken ?? process.env.A3ST_OPS_READ_TOKEN ?? "").trim();
+  if (opsReadToken && safeTokenEquals(opsReadToken, options.apiToken?.trim() ?? "")) throw new Error("只读运维 Token 必须与管理 Token 不同");
   const app = Fastify({
     logger: {
       redact: {
@@ -110,6 +121,18 @@ export async function createService(options: ServiceOptions) {
   const modScanner = new ModScanner();
   const monitorDb = new MonitoringDb(options.dataDir);
   await monitorDb.waitReady();
+  const operations = new OperationsStore(options.dataDir, () => Date.now(), () => {
+    const values: string[] = [options.apiToken ?? "", opsReadToken, process.env.A3ST_SMTP_PASSWORD ?? ""];
+    for (const { uuid } of configStore.listServers()) {
+      const cfg = configStore.load(uuid);
+      for (const value of [cfg?.battleye?.rconPassword, cfg?.basic?.password, cfg?.basic?.passwordAdmin, cfg?.basic?.passwordCommand]) {
+        if (typeof value === "string" && value) values.push(value);
+      }
+    }
+    return values;
+  });
+  try { await operations.waitReady(); }
+  catch (error) { monitorDb.close(); throw error; }
   const scheduler = new Scheduler();
   const rptLogReader = new RptLogReader();
   const uiSettingsStore = new UiSettingsStore(options.dataDir);
@@ -137,6 +160,21 @@ export async function createService(options: ServiceOptions) {
   app.decorate("asyncTaskManager", asyncTaskManager);
   app.decorate("dataDir", options.dataDir);
   app.decorate("serviceOptions", options);
+  const serverHealth = new ServerHealthService(app);
+  app.decorate("serverHealth", serverHealth);
+  app.decorate("operations", operations);
+  const maintenancePlanner = new MaintenancePlanner(app);
+  app.decorate("maintenancePlanner", maintenancePlanner);
+  const maintenanceAdapter = new ServiceMaintenanceAdapter(app);
+  const maintenanceExecutor = new MaintenanceExecutor(operations, maintenanceAdapter);
+  app.decorate("maintenanceExecutor", maintenanceExecutor);
+  const maintenanceAutoScheduler = new MaintenanceAutoScheduler(app, maintenancePlanner, maintenanceExecutor);
+  const unwireHealthEvents = wireHealthEvents(app);
+  const emailNotifier = new EmailNotifier(operations, undefined, () => app.log.error("邮件状态落盘失败，保留待发送记录以供重试"));
+  const operationsPruneTimer = setInterval(() => {
+    try { operations.prune(); } catch { app.log.error("运维事件保留清理失败，数据未被宣布清理成功"); }
+  }, 3600000);
+  operationsPruneTimer.unref();
 
   // Auth hook
   app.decorateRequest("authenticated", false);
@@ -169,6 +207,18 @@ export async function createService(options: ServiceOptions) {
 
     const token = options.apiToken?.trim() ?? "";
     const publicBind = !isLoopbackHost(options.host);
+    const auth = request.headers.authorization;
+    const bearerToken = auth?.startsWith("Bearer ") ? auth.slice(7) : undefined;
+    const query = request.query as { token?: string };
+    const readOnlyCredential = safeTokenEquals(bearerToken, opsReadToken) || safeTokenEquals(request.headers["x-api-key"], opsReadToken);
+    if (readOnlyCredential || safeTokenEquals(query.token, opsReadToken)) {
+      const allowed = readOnlyCredential && !safeTokenEquals(query.token, opsReadToken) && request.method === "GET" && (
+        pathOnly === "/api/v1/ops/events" || /^\/api\/v1\/servers\/[^/]+\/health$/.test(pathOnly) || /^\/api\/v1\/ops\/maintenance\/[^/]+$/.test(pathOnly)
+      );
+      if (!allowed) return reply.status(403).send({ success: false, error: "OPS_READ_ONLY", message: "此 Token 仅允许事件、健康和维护结果查询，且不能通过 URL 传递" });
+      request.authenticated = true;
+      return;
+    }
 
     // 公网/非本机绑定且未配置 API_TOKEN：拒绝一切管理能力（健康检查除外）。
     if (publicBind && !token) {
@@ -184,8 +234,6 @@ export async function createService(options: ServiceOptions) {
       (request as { authenticated: boolean }).authenticated = true;
       return;
     }
-    const auth = request.headers.authorization;
-    const bearerToken = auth?.startsWith("Bearer ") ? auth.slice(7) : undefined;
     if (safeTokenEquals(bearerToken, token)) {
       (request as { authenticated: boolean }).authenticated = true;
       return;
@@ -195,7 +243,6 @@ export async function createService(options: ServiceOptions) {
       return;
     }
     // EventSource 无法设 Authorization，仅 SSE 等场景允许 ?token=（勿记入日志）。
-    const query = request.query as { token?: string };
     if (safeTokenEquals(query.token, token)) {
       (request as { authenticated: boolean }).authenticated = true;
       return;
@@ -227,12 +274,25 @@ export async function createService(options: ServiceOptions) {
 
   app.addHook("onClose", async () => {
     scheduler.clear();
+    // 取消维护后仍需完成恢复；不能先关闭它依赖的 Steam 队列、健康采样和数据库。
+    await maintenanceAutoScheduler.close();
+    await maintenanceExecutor.close();
+    await Promise.all([maintenancePlanner.close(), steamCmd.close()]);
+    unwireHealthEvents();
+    serverHealth.close();
+    clearInterval(operationsPruneTimer);
+    await emailNotifier.close();
+    operations.close();
     instanceSseManager.unwireSteamCmd(steamCmd);
     instanceSseManager.closeAll();
-    stopAllHeadlessClients();
+    stopAllHeadlessClients({ skipLocked: true, preservePids: maintenanceAdapter.restoredHeadlessPids() });
     await closeProxyAgents();
     monitorDb.close();
   });
+
+  // 在监听端口和同步任何 Cron 之前重建维护锁并处理持久批次。
+  try { await maintenanceExecutor.initialize(); }
+  catch (error) { await app.close(); throw error; }
 
   // Routes
   await app.register(healthRoutes, { prefix: "/api/v1" });
@@ -254,6 +314,10 @@ export async function createService(options: ServiceOptions) {
   const { syncAllCronJobs } = await import("./scheduling/cron-sync.js");
   const cronCount = syncAllCronJobs(app);
   app.log.info(`Cron jobs synced on startup: ${cronCount} job(s)`);
+  serverHealth.start();
+  emailNotifier.start();
+  maintenancePlanner.start();
+  maintenanceAutoScheduler.start();
 
   return app;
 }

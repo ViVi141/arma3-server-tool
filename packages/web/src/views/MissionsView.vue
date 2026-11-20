@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
-import { ref, onMounted, watch } from "vue";
-import { ElMessage } from "element-plus";
+import { ref, onUnmounted, nextTick, watch } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import { useConfigEditorRegistration } from "@/composables/configEditor";
-import type { MissionEntry } from "@a3st/api-client";
+import type { MissionEntry, HealthConfigSection } from "@a3st/api-client";
 import UploadView from "./UploadView.vue";
 import { resolveTaskMessage, taskSucceeded } from "@/utils/taskSteps";
 
@@ -40,8 +40,36 @@ const switching = ref(false);
 const saving = ref(false);
 const errorMsg = ref("");
 let trackDirty = false;
+let loadGeneration = 0;
+let disposed = false;
+const contextKey = () => `${props.connectionId}:${props.serverUuid}`;
+onUnmounted(() => { disposed = true; loadGeneration++; });
 
 const scanning = ref(false);
+const healthConfig = ref<HealthConfigSection>({ enabled: false, unattended: false, startupTimeoutSeconds: 600 });
+const unattendedTemplate = ref("");
+const applyUnattendedBundle = ref(false);
+
+async function prepareUnattended() {
+  const template = unattendedTemplate.value;
+  const mission = missions.value.find((m) => m.template === template);
+  if (!mission) { ElMessage.warning("请先上传或扫描任务并指定启动模板"); return; }
+  const context = `${props.connectionId}:${props.serverUuid}`;
+  try {
+    await ElMessageBox.confirm(
+      `实例：${props.serverUuid}\n启动任务：${template}\n将开启 autoInit、persistent、独立健康心跳，关闭 noLogs 并保留 RPT。\n本操作仅修改待保存配置；请通过“应用更改”写入，是否重启仍由你确认。不会修改旧监控，也不会要求 filePatching。`,
+      "确认无人自动运行配置", { confirmButtonText: "加入待应用更改", cancelButtonText: "取消", customStyle: { whiteSpace: "pre-line" } }
+    );
+  } catch { return; }
+  if (disposed || context !== contextKey()) return;
+  const selected = missions.value.find((m) => m.template === template);
+  if (!selected) { ElMessage.warning("任务列表已改变，请重新选择启动模板"); return; }
+  missions.value = [selected, ...missions.value.filter((m) => m.template !== template)];
+  healthConfig.value = { ...healthConfig.value, enabled: true, unattended: true };
+  applyUnattendedBundle.value = true;
+  markDirty();
+  ElMessage.success("无人运行组合已加入待应用更改，尚未重启服务器");
+}
 
 async function scanMissionsFromDisk() {
   scanning.value = true;
@@ -72,6 +100,8 @@ async function scanMissionsFromDisk() {
 }
 
 async function loadConfig() {
+  const current = ++loadGeneration;
+  const context = contextKey();
   loading.value = true;
   errorMsg.value = "";
   trackDirty = false;
@@ -81,10 +111,11 @@ async function loadConfig() {
       return;
     }
     const res = await client.getConfig(props.serverUuid);
-    if (!res.success) {
-      return;
-    }
+    if (disposed || current !== loadGeneration || context !== contextKey()) return;
+    if (!res.success) throw new Error(res.error ?? "配置加载失败");
     const data = res.data as Record<string, unknown>;
+    healthConfig.value = { enabled: false, unattended: false, startupTimeoutSeconds: 600, ...(res.data.health ?? {}) };
+    applyUnattendedBundle.value = false;
     const tasks = (data.tasks ?? {}) as Record<string, unknown>;
     const basic = (data.basic ?? {}) as Record<string, unknown>;
     const missionParams = (data.missionParams ?? {}) as { params?: Record<string, string> };
@@ -97,6 +128,7 @@ async function loadConfig() {
       choose: m.choose ?? false,
     }));
 
+    unattendedTemplate.value = missions.value[0]?.template ?? "";
     forcedDifficulty.value = String(tasks.forcedDifficulty ?? basic.forcedDifficulty ?? "none");
     autoSelectMission.value = !!(tasks.autoSelectMission ?? basic.autoSelectMission);
     randomMissionOrder.value = !!(tasks.randomMissionOrder ?? basic.randomMissionOrder);
@@ -108,10 +140,14 @@ async function loadConfig() {
     }
     missionParamsText.value = lines.join("\n");
   } catch (e: unknown) {
-    errorMsg.value = e instanceof Error ? e.message : "加载失败";
+    if (!disposed && current === loadGeneration && context === contextKey()) errorMsg.value = e instanceof Error ? e.message : "加载失败";
   } finally {
-    loading.value = false;
-    trackDirty = true;
+    await nextTick();
+    if (!disposed && current === loadGeneration && context === contextKey()) {
+      loading.value = false;
+      trackDirty = true;
+      markCleanRef();
+    }
   }
 }
 
@@ -136,11 +172,15 @@ async function saveMissions() {
   if (!client) {
     throw new Error("未连接");
   }
+  const context = contextKey();
+  const current = loadGeneration;
   saving.value = true;
   try {
     const res = await client.patchConfig(
       props.serverUuid,
       {
+        health: healthConfig.value,
+        ...(applyUnattendedBundle.value ? { startup: { autoInit: true } } : {}),
         tasks: {
           missions: missions.value,
           forcedDifficulty: forcedDifficulty.value,
@@ -148,6 +188,7 @@ async function saveMissions() {
           randomMissionOrder: randomMissionOrder.value,
         },
         basic: {
+          ...(applyUnattendedBundle.value ? { persistent: true, noLogs: false } : {}),
           forcedDifficulty: forcedDifficulty.value,
           autoSelectMission: autoSelectMission.value,
           randomMissionOrder: randomMissionOrder.value,
@@ -157,9 +198,12 @@ async function saveMissions() {
         },
       } as never
     );
+    if (disposed || context !== contextKey() || current !== loadGeneration) throw new Error("实例或配置已切换，请在当前实例重新应用更改");
     if (!res.success) {
-      throw new Error(res.error ?? "保存失败");
+      const detail = res.data as { message?: string } | null;
+      throw new Error(detail?.message ?? res.error ?? "保存失败");
     }
+    applyUnattendedBundle.value = false;
     markCleanRef();
     ElMessage.success("任务设置已保存");
   } finally {
@@ -176,17 +220,10 @@ const { markDirty, markClean } = useConfigEditorRegistration(() => props.serverU
 });
 markCleanRef = markClean;
 
-watch(
-  () => props.serverUuid,
-  () => {
-    loadConfig().then(() => {
-      markClean();
-    });
-  }
-);
+watch(contextKey, () => { void loadConfig(); }, { immediate: true });
 
 watch(
-  [missions, forcedDifficulty, autoSelectMission, randomMissionOrder, missionParamsText],
+  [missions, forcedDifficulty, autoSelectMission, randomMissionOrder, missionParamsText, healthConfig],
   () => {
     if (trackDirty) {
       markDirty();
@@ -221,23 +258,50 @@ async function switchMission(template: string) {
   }
 }
 
-onMounted(() => {
-  loadConfig().then(() => {
-    markClean();
-  });
-});
+function disableUnattended() {
+  healthConfig.value.unattended = false;
+  applyUnattendedBundle.value = false;
+  markDirty();
+}
+
+async function savePage() {
+  try { await saveMissions(); }
+  catch (error) { ElMessage.error(error instanceof Error ? error.message : "保存失败"); }
+}
 </script>
 
 <template>
   <ConsolePageLayout>
     <el-alert v-if="errorMsg" :title="errorMsg" type="error" show-icon closable style="margin: 8px;" />
 
+    <el-card v-loading="loading" style="margin: 8px;" data-testid="unattended-config">
+      <template #header>无人自动运行与独立健康</template>
+      <p>已有实例默认不改变配置。组合设置需确认后通过“应用更改”写入；不会在此处自动重启。</p>
+      <div class="form-row">
+        <label>启动任务模板</label>
+        <el-select v-model="unattendedTemplate" aria-label="无人运行启动任务" placeholder="请先上传或扫描任务" style="min-width: 240px;">
+          <el-option v-for="mission in missions" :key="mission.template" :value="mission.template" :label="mission.template" />
+        </el-select>
+        <el-button data-testid="prepare-unattended" @click="prepareUnattended">预览无人运行组合</el-button>
+      </div>
+      <p v-if="healthConfig.unattended">无人运行目标已开启；启动任务为列表第一项。缺少模板时服务端将拒绝完成设置。
+        <el-button size="small" @click="disableUnattended">关闭无人运行目标</el-button>
+      </p>
+      <p>关闭目标仅停止该配置要求，不自动撤销 autoInit、persistent 或停止当前任务；心跳可单独关闭。</p>
+      <div class="form-row"><el-checkbox v-model="healthConfig.enabled">启用独立任务心跳（仅服务端 @a3st_health）</el-checkbox></div>
+      <div class="form-row">
+        <label>启动等待（秒）</label>
+        <el-input-number v-model="healthConfig.startupTimeoutSeconds" :min="120" :max="1800" :step="60" aria-label="健康启动等待秒数" />
+      </div>
+      <p>默认等待 10 分钟（可选 2—30 分钟）；每 15 秒心跳、10 秒采样，90 秒无心跳异常。RCon 未响应时人数未知，不能作为无人维护依据。</p>
+    </el-card>
+
     <el-card v-loading="loading" style="margin: 8px;">
       <template #header>
         <div class="mission-header">
           <span>任务列表</span>
           <div class="mission-header__actions">
-            <el-button size="small" type="primary" :loading="saving" data-testid="btn-page-save" @click="saveMissions">
+            <el-button size="small" type="primary" :loading="saving" data-testid="btn-page-save" @click="savePage">
               保存
             </el-button>
             <el-button size="small" :loading="scanning" @click="scanMissionsFromDisk">扫描 MPMissions</el-button>
@@ -299,7 +363,11 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.form-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
+.form-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
+.form-row :deep(.el-checkbox) { height: auto; white-space: normal; }
+.form-row :deep(.el-checkbox__label) { white-space: normal; }
+.form-row :deep(.el-select) { max-width: 100%; }
+p { font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
 .mission-header { display: flex; align-items: center; justify-content: space-between; width: 100%; }
 .mission-header__actions { display: flex; gap: 6px; align-items: center; }
 .form-row.block { flex-direction: column; align-items: stretch; }

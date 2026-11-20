@@ -2,6 +2,7 @@ import type {
   ApiResponse,
   LegacyTaskResponse,
   HealthData,
+  ServerHealthData,
   ActionsData,
   ServerSummary,
   ServerStatus,
@@ -36,6 +37,9 @@ import type {
   ModScanPathEntry,
   ServerSyncState,
 } from "./types";
+
+import type { OperationEvent, OperationEventPage, MaintenanceResult, NotificationSettings, NotificationSettingsData, EmailDelivery } from "./operations";
+import type { MaintenanceDiscovery, MaintenancePreview } from "./maintenance";
 
 export type * from "./types";
 
@@ -116,6 +120,72 @@ export class A3stClient {
     return this.get("/api/v1/actions");
   }
 
+  // ---- 运维事件与通知 ----
+
+  async opsEvents(after?: number, limit = 100): Promise<ApiResponse<OperationEventPage>> {
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (after !== undefined) query.set("after", String(after));
+    return this.get(`/api/v1/ops/events?${query}`);
+  }
+
+  async acknowledgeOpsEvent(id: string): Promise<ApiResponse<OperationEvent>> {
+    return this.post(`/api/v1/ops/events/${encodeURIComponent(id)}/acknowledge`);
+  }
+
+  async getMaintenance(id: string): Promise<ApiResponse<MaintenanceResult>> {
+    return this.get(`/api/v1/ops/maintenance/${encodeURIComponent(id)}`);
+  }
+
+  async getMaintenanceUpdates(uuid: string): Promise<ApiResponse<MaintenanceDiscovery[]>> {
+    return this.get(`/api/v1/servers/${encodeURIComponent(uuid)}/maintenance/updates`);
+  }
+
+  async checkMaintenanceUpdates(uuid: string): Promise<ApiResponse<MaintenanceDiscovery[]>> {
+    return this.post(`/api/v1/servers/${encodeURIComponent(uuid)}/maintenance/check`);
+  }
+
+  async previewMaintenance(uuid: string, keys: string[]): Promise<ApiResponse<MaintenancePreview>> {
+    return this.post(`/api/v1/servers/${encodeURIComponent(uuid)}/maintenance/preview`, { keys });
+  }
+
+  /** 执行／重试必须带幂等 requestId；接口立即返回批次 ID，进度从检查点查询。 */
+  async executeMaintenance(uuid: string, keys: string[], requestId: string): Promise<ApiResponse<{ id: string; state: string }>> {
+    return this.post(`/api/v1/servers/${encodeURIComponent(uuid)}/maintenance/execute`, { keys, requestId });
+  }
+
+  async retryMaintenance(id: string, requestId: string): Promise<ApiResponse<{ id: string; state: string }>> {
+    return this.post(`/api/v1/ops/maintenance/${encodeURIComponent(id)}/retry`, { requestId });
+  }
+
+  async cancelMaintenance(id: string): Promise<ApiResponse<{ cancelled: boolean }>> {
+    return this.post(`/api/v1/ops/maintenance/${encodeURIComponent(id)}/cancel`);
+  }
+
+  /** 仅用于需人工介入的批次：确认现场已处理后显式释放维护锁，备份与事件证据保留。 */
+  async resolveMaintenance(id: string): Promise<ApiResponse<{ id: string; state: string; result: string | null }>> {
+    return this.post(`/api/v1/ops/maintenance/${encodeURIComponent(id)}/resolve`, { confirm: "manual_handled" });
+  }
+
+  async listMaintenance(): Promise<ApiResponse<MaintenanceResult[]>> {
+    return this.get("/api/v1/ops/maintenance");
+  }
+
+  async getNotificationSettings(): Promise<ApiResponse<NotificationSettingsData>> {
+    return this.get("/api/v1/ops/notifications/settings");
+  }
+
+  async saveNotificationSettings(settings: NotificationSettings): Promise<ApiResponse<NotificationSettingsData>> {
+    return this.put("/api/v1/ops/notifications/settings", settings);
+  }
+
+  async testNotification(): Promise<ApiResponse<EmailDelivery>> {
+    return this.post("/api/v1/ops/notifications/test");
+  }
+
+  async emailDeliveries(): Promise<ApiResponse<EmailDelivery[]>> {
+    return this.get("/api/v1/ops/notifications/deliveries");
+  }
+
   // ---- Servers ----
 
   async listServers(reload = false): Promise<ServerSummary[]> {
@@ -127,6 +197,10 @@ export class A3stClient {
   async serverStatus(uuid: string): Promise<ServerStatus> {
     const r = await this.f(`${this.baseUrl}/api/v1/servers/${uuid}/status`, { headers: this.headers() });
     return r.json();
+  }
+
+  async serverHealth(uuid: string): Promise<ApiResponse<ServerHealthData>> {
+    return this.get(`/api/v1/servers/${uuid}/health`);
   }
 
   async getDashboard(uuid: string): Promise<ApiResponse<DashboardData>> {

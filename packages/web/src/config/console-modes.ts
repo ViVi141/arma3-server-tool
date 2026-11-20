@@ -12,7 +12,7 @@ const MODE_TAB_NAMES: Record<string, string[]> = {
   overview: ["dashboard"],
   deploy: ["preflight", "snapshots", "scheduler"],
   workshop: ["mods", "steamcmd", "missions"],
-  logs: ["logs", "rcon", "statistics"],
+  logs: ["logs", "rcon", "statistics", "operations"],
   config: ["basic", "performance", "network", "security", "difficulty", "log", "config"],
   system: ["bans", "about"],
 };

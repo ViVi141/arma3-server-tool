@@ -2,12 +2,14 @@
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
 import SettingsViewLayout from "@/components/console/SettingsViewLayout.vue";
 import ArkTechPanel from "@/components/console/ArkTechPanel.vue";
-import { ref, onMounted, watch } from "vue";
-import { ElMessage } from "element-plus";
+import MaintenancePolicyEditor from "@/components/console/MaintenancePolicyEditor.vue";
+import MaintenancePreviewPanel from "@/components/console/MaintenancePreviewPanel.vue";
+import { ref, onMounted, watch, computed } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { useConnectionsStore } from "@/stores/connections";
 import { useConfigEditorRegistration } from "@/composables/configEditor";
 import { applyDefaults } from "@/utils/defaults";
-import type { CronJobEntry } from "@a3st/api-client";
+import { createClient, type CronJobEntry, type MaintenancePolicy } from "@a3st/api-client";
 import { resolveTaskMessage } from "@/utils/taskSteps";
 
 const props = defineProps<{ connectionId: string; serverUuid: string }>();
@@ -19,6 +21,32 @@ const loading = ref(false);
 const syncing = ref(false);
 const selectedRows = ref<CronJobEntry[]>([]);
 let trackDirty = false;
+let migrationPending = false;
+let loadGeneration = 0;
+function defaultPolicy(): MaintenancePolicy {
+  return { enabled: false, template: "check_only", timeZone: "UTC", windows: [{ days: [0,1,2,3,4,5,6], start: "04:00", end: "05:00" }], protectedWindows: [], windowConfirmed: false, allowOccupied: false, occupiedConfirmed: false, expectedDurationMinutes: 60 };
+}
+const maintenance = ref<MaintenancePolicy>(defaultPolicy());
+const legacyUpdates = computed(() => cronRows.value.filter((job) => job.actionText === "update_mods" && job.enabled));
+function getClientForScope() {
+  const conn = store.connections.find((item) => item.id === props.connectionId);
+  return conn ? createClient(conn.baseUrl, conn.token) : null;
+}
+async function migrateLegacy() {
+  if (!maintenance.value.enabled || (maintenance.value.template !== "check_only" && !maintenance.value.windowConfirmed)) {
+    ElMessage.warning("先选择并启用新策略，核对实际时区和窗口，再确认迁移"); return;
+  }
+  const uuid = props.serverUuid; const connection = props.connectionId;
+  const targets = legacyUpdates.value.map((row) => row.taskId);
+  const summary = legacyUpdates.value.map((row) => `${row.taskId}：${row.cron}；旧禁更 ${row.quietHoursStart || '无'}—${row.quietHoursEnd || '无'}`).join("\n");
+  const targetSummary = JSON.stringify({ template: maintenance.value.template, timeZone: maintenance.value.timeZone, windows: maintenance.value.windows, protectedWindows: maintenance.value.protectedWindows });
+  try {
+    await ElMessageBox.confirm(`将停用以下旧更新任务（非更新任务不变）：\n${summary}\n新规则：${targetSummary}\n复杂 Cron 不自动猜测为时间窗口，请核对上方新规则已涵盖原维护与保护需求。确认后仍需保存；保存会同步停用旧任务。`, "旧更新 Cron 迁移预览", { confirmButtonText: "确认迁移并待保存", cancelButtonText: "保留原任务", type: "warning" });
+    if (uuid !== props.serverUuid || connection !== props.connectionId) return;
+    for (const row of cronRows.value) if (targets.includes(row.taskId) && row.actionText === "update_mods") row.enabled = false;
+    migrationPending = true; markDirty();
+  } catch { /* 取消不改变旧任务。 */ }
+}
 
 const ACTION_OPTIONS = [
   { value: "restart", label: "重启服务器" },
@@ -33,16 +61,20 @@ function scheduler(): Record<string, unknown> {
 }
 
 async function load() {
+  const generation = ++loadGeneration;
   loading.value = true;
   trackDirty = false;
+  migrationPending = false;
   try {
-    const client = store.getClient();
+    const client = getClientForScope();
     if (!client) {
       return;
     }
     const res = await client.getConfig(props.serverUuid);
+    if (generation !== loadGeneration) return;
     if (res.success) {
       cfg.value = applyDefaults(res.data as Record<string, unknown>);
+      maintenance.value = structuredClone(res.data.maintenance ?? defaultPolicy());
       const jobs = (scheduler().cronJobs ?? {}) as Record<string, CronJobEntry>;
       cronRows.value = Object.values(jobs).map((job) => ({
         taskId: job.taskId,
@@ -55,8 +87,7 @@ async function load() {
       }));
     }
   } finally {
-    loading.value = false;
-    trackDirty = true;
+    if (generation === loadGeneration) { loading.value = false; trackDirty = true; }
   }
 }
 
@@ -79,17 +110,25 @@ function buildCronJobsMap(): Record<string, CronJobEntry> {
 }
 
 async function save() {
-  const client = store.getClient();
+  const client = getClientForScope();
   if (!client) {
     throw new Error("未连接");
   }
+  if (maintenance.value.enabled && legacyUpdates.value.length) throw new Error("仍有启用的旧更新 Cron，请先预览迁移或显式停用，避免双重调度");
+  const uuid = props.serverUuid;
+  const syncMigration = migrationPending;
   const sched = scheduler();
   sched.cronJobs = buildCronJobsMap();
-  const res = await client.patchConfig(props.serverUuid, { scheduler: sched } as never);
+  const res = await client.patchConfig(uuid, { scheduler: sched, maintenance: maintenance.value } as never);
   if (!res.success) {
     throw new Error(res.error ?? "保存失败");
   }
-  ElMessage.success("定时设置已保存");
+  if (syncMigration) {
+    const synced = await client.submitTask({ serverUuid: uuid, commands: [{ action: "sync_cron_jobs" }] });
+    if (!synced.success) throw new Error("迁移配置已保存，但旧任务停用同步失败，请立即重试「保存并同步到调度器」");
+    if (uuid === props.serverUuid) migrationPending = false;
+  }
+  ElMessage.success("定时及维护设置已保存");
 }
 
 const { markDirty, markClean } = useConfigEditorRegistration(() => props.serverUuid, {
@@ -99,7 +138,7 @@ const { markDirty, markClean } = useConfigEditorRegistration(() => props.serverU
 });
 
 watch(
-  () => props.serverUuid,
+  () => [props.connectionId, props.serverUuid],
   () => {
     load().then(() => {
       markClean();
@@ -108,7 +147,7 @@ watch(
 );
 
 watch(
-  [cfg, cronRows],
+  [cfg, cronRows, maintenance],
   () => {
     if (trackDirty) {
       markDirty();
@@ -140,7 +179,7 @@ function removeSelected(rows: CronJobEntry[]) {
 async function syncCron() {
   syncing.value = true;
   try {
-    const client = store.getClient();
+    const client = getClientForScope();
     if (!client) {
       return;
     }
@@ -174,7 +213,13 @@ onMounted(() => {
       <el-button size="small" :disabled="!selectedRows.length" @click="removeSelected(selectedRows)">删除选中</el-button>
       <span class="hint-inline">修改后先点顶栏「保存」，或使用「保存并同步到调度器」</span>
     </template>
-    <SettingsViewLayout kicker="DEPLOY / 02 · CRON" title="定时任务">
+    <SettingsViewLayout kicker="DEPLOY / 02 · CRON" title="定时任务与维护">
+      <MaintenancePolicyEditor v-model="maintenance" />
+      <ArkTechPanel v-if="legacyUpdates.length" title="旧更新计划迁移" code="OPS-MIGRATE">
+        <p class="hint">发现 {{ legacyUpdates.length }} 个启用的旧更新 Cron。不会自动改写；确认迁移后保存会停用这些旧更新任务并同步调度器。请先核对新策略的时区、维护和活动保护时段。</p>
+        <el-button @click="migrateLegacy">预览旧更新 Cron 迁移</el-button>
+      </ArkTechPanel>
+      <MaintenancePreviewPanel :connection-id="connectionId" :server-uuid="serverUuid" />
       <ArkTechPanel title="内置计划" code="CRON-01">
         <div class="form-row">
           <label>重启计划</label>

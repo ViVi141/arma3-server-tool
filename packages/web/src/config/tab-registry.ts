@@ -33,6 +33,7 @@ const SETTINGS_TABS: TabEntry[] = [
 ];
 
 const TOOL_TABS: TabEntry[] = [
+  { name: "operations", label: "事件与通知", icon: "notifications" },
   { name: "statistics", label: "统计", icon: "monitoring", advancedOnly: true },
   { name: "scheduler", label: "定时", icon: "schedule", advancedOnly: true },
   { name: "snapshots", label: "快照", icon: "history" },

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { operationSignal } from "../util/operation-context.js";
 
 export type TaskStatus = "Pending" | "Running" | "Succeeded" | "Failed" | "Cancelled";
 
@@ -36,6 +37,7 @@ export function taskCommandsInvolveSteamCmd(
 export class AsyncTaskManager {
   private tasks = new Map<string, AsyncTask>();
   private cancelledIds = new Set<string>();
+  private controllers = new Map<string, AbortController>();
   /** 任务与日志上限：长跑服务里任务只增不减会持续吃内存。 */
   private static readonly MAX_TASKS = 100;
   private static readonly MAX_LOG_LINES = 500;
@@ -134,6 +136,7 @@ export class AsyncTaskManager {
     task.completedAt = new Date();
     task.error = "已取消";
     this.pushLog(task, `[${new Date().toISOString()}] cancel: 已取消`);
+    this.controllers.get(taskId)?.abort();
     return true;
   }
 
@@ -239,8 +242,10 @@ export class AsyncTaskManager {
     const taskId = this.create(serverUuid, commands);
     this.start(taskId);
 
-    // Run in background
-    (async () => {
+    const controller = new AbortController();
+    this.controllers.set(taskId, controller);
+    // 子操作继承取消信号；信号只在 Service 内部传递，不从命令参数取得。
+    void operationSignal.run(controller.signal, async () => {
       for (const cmd of commands) {
         if (this.isCancelled(taskId)) {
           return;
@@ -271,7 +276,7 @@ export class AsyncTaskManager {
       if (!this.isCancelled(taskId)) {
         this.complete(taskId);
       }
-    })();
+    }).finally(() => { this.controllers.delete(taskId); });
 
     return taskId;
   }

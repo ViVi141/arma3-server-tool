@@ -10,12 +10,14 @@ function createTempModDir(): string {
   fs.mkdirSync(path.join(mod1, "addons"), { recursive: true });
   fs.mkdirSync(path.join(mod1, "keys"), { recursive: true });
   fs.writeFileSync(path.join(mod1, "meta.cpp"), 'publishedid = 450814997;\n', "utf-8");
+  fs.writeFileSync(path.join(mod1, "addons", "cba.pbo"), "pbo");
   fs.writeFileSync(path.join(mod1, "addons", "cba.pbo.bisign"), "signed", "utf-8");
   fs.writeFileSync(path.join(mod1, "keys", "cba.bikey"), "fake", "utf-8");
 
   const mod2 = path.join(dir, "@ace");
   fs.mkdirSync(path.join(mod2, "addons"), { recursive: true });
   fs.writeFileSync(path.join(mod2, "meta.cpp"), 'publishedid = 463939057;\n', "utf-8");
+  fs.writeFileSync(path.join(mod2, "addons", "ace.pbo"), "pbo");
   fs.writeFileSync(path.join(mod2, "addons", "ace.pbo.bisign"), "signed", "utf-8");
 
   return dir;
@@ -39,7 +41,7 @@ describe("ModScanner", () => {
       expect(cba!.name).toBe("@cba");
       expect(cba!.bikeyPresent).toBe(false);
       expect(cba!.bikeyStatus).toBe("not_copied");
-      expect(cba!.bikeyLabel).toBe("未复制");
+      expect(cba!.bikeyLabel).toBe("公钥未部署");
       expect(cba!.enabled).toBe(true);
       const ace = result.find((m) => m.workshopId === 463939057);
       expect(ace).toBeDefined();
@@ -98,6 +100,40 @@ describe("ModScanner", () => {
     }
   });
 
+  it("缺失的本地模组和角色路径仍可见，禁用状态不会被默认启用", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-missing-mod-"));
+    try {
+      const scanner = new ModScanner();
+      const options = { modPaths: [], enabledIds: [], serverModIds: [],
+        localMods: [{ path: path.join(root, "missing-local"), name: "丢失的本地模组", enabled: true },
+          { path: path.join(root, "disabled"), enabled: false }],
+        roleEntries: [{ path: path.join(root, "missing-workshop"), workshopId: 123456789, dirName: "missing-workshop", isClientMod: true, isServerMod: false, isHcMod: false }] };
+      const rows = scanner.scan(options);
+      expect(rows).toHaveLength(3);
+      expect(rows.every((row) => row.bikeyStatus === "read_error" && !row.signatureEvidence?.canDeployKeys)).toBe(true);
+      expect(rows.find((row) => row.name === "丢失的本地模组")?.enabled).toBe(true);
+      expect(rows.find((row) => row.dirName === "disabled")?.enabled).toBe(false);
+      expect(rows.find((row) => row.workshopId === 123456789)?.isClientMod).toBe(true);
+      expect(scanner.summarizeBikeys(options)).toMatchObject({ enabled: 2, readError: 2, allValid: false });
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("同 ID 的独立副本不继承另一条物理路径的角色，junction 别名去重", () => {
+    const root = createTempModDir();
+    try {
+      const original = path.join(root, "@cba"); const copy = path.join(root, "@copy");
+      const alias = path.join(root, "@alias");
+      fs.cpSync(original, copy, { recursive: true });
+      fs.symlinkSync(original, alias, process.platform === "win32" ? "junction" : "dir");
+      const rows = new ModScanner().scan({ modPaths: [root], localMods: [{ path: alias }], enabledIds: [450814997], serverModIds: [450814997],
+        roleEntries: [{ path: original, workshopId: 450814997, dirName: "@cba", isClientMod: true, isServerMod: false, isHcMod: false }] });
+      const copies = rows.filter((row) => row.workshopId === 450814997);
+      expect(copies).toHaveLength(2);
+      expect(copies.find((row) => row.path === original)?.isClientMod).toBe(true);
+      expect(copies.find((row) => row.path === copy)?.enabled).toBe(false);
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  });
+
   it("calculates size including nested addon files", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-mod-size-"));
     try {
@@ -121,6 +157,7 @@ describe("ModScanner", () => {
       fs.mkdirSync(path.join(modPath, "keys"), { recursive: true });
       fs.mkdirSync(path.join(modPath, "addons"), { recursive: true });
       fs.writeFileSync(path.join(modPath, "keys", "cba.bikey"), "fake");
+      fs.writeFileSync(path.join(modPath, "addons", "cba.pbo"), "pbo");
       fs.writeFileSync(path.join(modPath, "addons", "cba.pbo.bisign"), "signed");
       fs.writeFileSync(path.join(modPath, "meta.cpp"), "publishedid = 450814997;\n", "utf-8");
 
@@ -166,7 +203,7 @@ describe("ModScanner", () => {
       });
       const cba = result.find((m) => m.workshopId === 450814997);
       expect(cba?.bikeyStatus).toBe("ready");
-      expect(cba?.bikeyLabel).toBe("验证通过");
+      expect(cba?.bikeyLabel).toBe("文件检查就绪");
     } finally {
       fs.rmSync(modDir, { recursive: true, force: true });
       fs.rmSync(serverDir, { recursive: true, force: true });

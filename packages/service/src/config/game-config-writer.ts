@@ -17,6 +17,9 @@ import {
 } from "../platform/index.js";
 import { splitCommandLine as splitCommandLineFromPlatform } from "../platform/argv.js";
 import { assertSafeSubdirPath } from "../util/upload-safety.js";
+import { deployHealthMod, healthModPath } from "../health/mod.js";
+import { validateHealthConfig } from "../health/configuration.js";
+import { maintenanceLocks } from "../maintenance/locks.js";
 
 export const CONFIG_FOLDER = "a3st_serverconfig";
 
@@ -648,10 +651,13 @@ export function writeAll(uuid: string, config: ServerConfigPackage): WriteResult
   }
 
   try {
+    maintenanceLocks.assertAvailable({ instances: [uuid], paths: [{ path: getConfigRoot(serverDir, uuid), mode: "write" }] });
+    validateHealthConfig(config);
     const configRoot = getConfigRoot(serverDir, uuid);
     ensureDirectories(configRoot, uuid);
 
     const paths = [
+      ...(config.health?.enabled === true ? [deployHealthMod(configRoot)] : []),
       writeServerCfg(uuid, config, configRoot),
       writeBasicCfg(config, configRoot),
       writeProfile(uuid, config, configRoot),
@@ -754,7 +760,10 @@ export function buildStartCommandLine(
   const userClientMods = buildClientModListFromMeta(serverDir, mods);
   const clientModList = combineModListSegments(dlcMods, userClientMods);
   const includeMonitoring = bool(monitoring.enabled) || bool(monitoring.modEnabled);
-  const serverModList = buildServerModListFromMeta(serverDir, mods, includeMonitoring);
+  const serverModList = combineModListSegments(
+    buildServerModListFromMeta(serverDir, mods, includeMonitoring),
+    config.health?.enabled === true ? healthModPath(configRoot) : ""
+  );
 
   parts.push(`"-mod=${clientModList}"`);
   parts.push(`"-serverMod=${serverModList}"`);
@@ -799,8 +808,10 @@ export function buildHeadlessClientCommandLine(
     // 无可用端口时不传 -prot，交给游戏选择默认端口，避免显式传入 0。
     parts.push(`-prot=${hcPort}`);
   }
-  parts.push(`"-profiles=${configRoot}"`);
-  parts.push(`"-name=${uuid}"`);
+  // HC 的 RPT 不得与服务器心跳争抢同一个 profile。
+  const headlessRoot = path.join(configRoot, "headless");
+  parts.push(`"-profiles=${headlessRoot}"`);
+  parts.push(`"-name=${uuid}_hc"`);
 
   const headlessModList = buildHeadlessModListFromMeta(serverDir, mods);
   parts.push(`"-mod=${headlessModList}"`);

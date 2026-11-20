@@ -2,6 +2,8 @@ import { spawn, ChildProcess, execFileSync } from "node:child_process";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import { EventEmitter } from "node:events";
+import { maintenanceLocks } from "../maintenance/locks.js";
+import { loadedModPaths } from "../maintenance/scope.js";
 import type { ServerConfigPackage } from "../types/config.js";
 import type { ServerProcessState } from "../types/server.js";
 import { isWindows } from "../platform/index.js";
@@ -48,13 +50,19 @@ export class ProcessManager extends EventEmitter {
     this.kill(uuid);
   }
 
-  async start(uuid: string): Promise<number | undefined> {
+  async start(uuid: string, options: { replace?: boolean } = {}): Promise<number | undefined> {
     const opts = this.configs.get(uuid);
     if (!opts) {
       return undefined;
     }
 
-    this.kill(uuid);
+    const loaded = loadedModPaths({ serverUuid: uuid, kind: "server", workingDirectory: opts.cwd, args: opts.commandLine !== undefined ? splitCommandLine(opts.commandLine) : (opts.args ?? []) });
+    if (!loaded.complete) maintenanceLocks.assertNoForeignWrites();
+    maintenanceLocks.assertAvailable({ instances: [uuid], paths: [...loaded.paths, path.resolve(opts.cwd, opts.executable)].map((value) => ({ path: value, mode: "read" as const })) });
+    // 维护恢复已由 OS 会话核对停止；此路径不能顺带终止任何跟踪中的进程。
+    if (options.replace === false) {
+      if (this.processes.has(uuid)) throw new Error("实例仍有进程跟踪记录，拒绝维护启动");
+    } else this.kill(uuid);
 
     return new Promise((resolve) => {
       // Windows 上重定向 stdout/stderr 会导致专用服务器不再写入 logFile（server_console.log），
@@ -111,13 +119,13 @@ export class ProcessManager extends EventEmitter {
       }
 
       proc.on("exit", (code) => {
-        this.processes.delete(uuid);
+        if (this.processes.get(uuid)?.child === proc) this.processes.delete(uuid);
         logStream?.end();
         this.emit("exit", uuid, code);
       });
 
       proc.on("error", (err) => {
-        this.processes.delete(uuid);
+        if (this.processes.get(uuid)?.child === proc) this.processes.delete(uuid);
         logStream?.end();
         // 不能使用 "error" 事件名：EventEmitter 在无监听者时会直接抛出，
         // 一次 spawn 失败就会拖垮整个 Service。改为普通事件，由 index.ts 兜底记录。

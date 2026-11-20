@@ -16,6 +16,8 @@ import type { ServerConfigPackage } from "../../types/config.js";
 import type { LocalModEntry } from "../../types/mods.js";
 import type { FastifyInstance } from "fastify";
 import { envelope, parseQueryBool } from "./shared.js";
+import { validateHealthConfig } from "../../health/configuration.js";
+import { validateMaintenancePolicy } from "../../maintenance/policy.js";
 
 export function registerServersRoutes(app: FastifyInstance): void {
   // ===================== Servers CRUD =====================
@@ -53,6 +55,15 @@ export function registerServersRoutes(app: FastifyInstance): void {
     };
   });
 
+  app.get("/servers/:uuid/health", async (req, reply) => {
+    const { uuid } = req.params as { uuid: string };
+    if (!app.configStore.load(uuid)) {
+      reply.status(404);
+      return envelope(false, null, "NOT_FOUND", uuid);
+    }
+    return envelope(true, await app.serverHealth.get(uuid), null, uuid);
+  });
+
   // Config read/write
   app.get("/servers/:uuid/config", async (req, reply) => {
     const { uuid } = req.params as { uuid: string };
@@ -76,6 +87,14 @@ export function registerServersRoutes(app: FastifyInstance): void {
         body as unknown as ServerConfigPackage,
         app
       );
+      try { validateHealthConfig(sanitized); } catch (error) {
+        reply.status(400);
+        return envelope(false, { message: error instanceof Error ? error.message : "健康配置无效" }, "INVALID_HEALTH_CONFIG", uuid);
+      }
+      try { sanitized.maintenance = validateMaintenancePolicy(sanitized.maintenance); } catch (error) {
+        reply.status(400);
+        return envelope(false, { message: error instanceof Error ? error.message : "维护配置无效" }, "INVALID_MAINTENANCE_CONFIG", uuid);
+      }
       const query = req.query as { writeCfg?: string };
       if (parseQueryBool(query.writeCfg)) {
         // 先写 cfg 再保存配置：写入失败时不落库，避免「接口报错但配置已被覆盖」。
@@ -133,6 +152,14 @@ export function registerServersRoutes(app: FastifyInstance): void {
     }
     const merged = mergeConfigPackage(existing, patch);
     const sanitized = sanitizeImportedProcessId(uuid, merged, app);
+    try { validateHealthConfig(sanitized); } catch (error) {
+      reply.status(400);
+      return envelope(false, { message: error instanceof Error ? error.message : "健康配置无效" }, "INVALID_HEALTH_CONFIG", uuid);
+    }
+    try { sanitized.maintenance = validateMaintenancePolicy(sanitized.maintenance); } catch (error) {
+      reply.status(400);
+      return envelope(false, { message: error instanceof Error ? error.message : "维护配置无效" }, "INVALID_MAINTENANCE_CONFIG", uuid);
+    }
     const query = req.query as { writeCfg?: string };
     if (parseQueryBool(query.writeCfg)) {
       // 先写 cfg 再保存配置（同 PUT）：写失败时不覆盖已保存的配置。
@@ -197,6 +224,8 @@ export function registerServersRoutes(app: FastifyInstance): void {
     const newUuid = randomUUID();
     const cloned: ServerConfigPackage = {
       ...config,
+      // 复制时保留时段供查看，但新实例必须重新授权自动维护和断开玩家。
+      maintenance: { ...validateMaintenancePolicy(config.maintenance), enabled: false, windowConfirmed: false, allowOccupied: false, occupiedConfirmed: false },
       tasks: {
         ...config.tasks,
         processById: 0,

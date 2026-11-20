@@ -9,6 +9,9 @@ import {
   serverCfgExists,
 } from "../config/game-config-writer.js";
 import type { ModMeta } from "../types/mods.js";
+import { healthConfigurationIssues } from "../health/configuration.js";
+import { healthModMatches } from "../health/mod.js";
+import { getConfigRoot } from "../config/game-config-writer.js";
 
 export interface PreflightIssue {
   category: string;
@@ -182,33 +185,26 @@ export function runPreflightChecks(
   const enabled = mods.filter((m) => m.enabled);
   const failed = enabled.filter((m) => m.bikeyStatus !== "ready");
   if (failed.length > 0) {
-    let notCopied = 0;
-    let noKey = 0;
-    let unsigned = 0;
+    const counts = new Map<string, number>();
     for (const mod of failed) {
-      if (mod.bikeyStatus === "not_copied") {
-        notCopied += 1;
-      } else if (mod.bikeyStatus === "no_key") {
-        noKey += 1;
-      } else if (mod.bikeyStatus === "unsigned") {
-        unsigned += 1;
-      }
-    }
-    const parts: string[] = [];
-    if (notCopied > 0) {
-      parts.push(`${notCopied} 个未复制 key`);
-    }
-    if (noKey > 0) {
-      parts.push(`${noKey} 个缺少 key`);
-    }
-    if (unsigned > 0) {
-      parts.push(`${unsigned} 个缺少 bisign`);
+      const label = mod.bikeyLabel ?? "未检查";
+      counts.set(label, (counts.get(label) ?? 0) + 1);
     }
     issues.push({
       category: "Bikey",
       severity: "warning",
-      message: `${failed.length} 个已启用模组未通过 Bikey 验证（须同时具备 bisign、key 且已复制）${parts.length ? `：${parts.join("，")}` : ""}`,
+      message: `${failed.length} 个已启用模组文件检查待处理：${[...counts].map(([label, count]) => `${label} ${count}`).join("，")}。仅服模／HC 缺签名不等同于玩家入服阻断；此检查不是密码学验证。`,
     });
+  }
+
+  if (config.health?.enabled || config.health?.unattended) {
+    for (const message of healthConfigurationIssues(config)) {
+      issues.push({ category: "无人运行与健康", severity: "warning", message });
+    }
+    if (config.health.enabled && serverDir && !healthModMatches(getConfigRoot(serverDir, uuid))) {
+      issues.push({ category: "无人运行与健康", severity: "warning", message: "独立健康模组未部署或内容不一致，请先应用更改。" });
+    }
+    issues.push({ category: "无人运行与健康", severity: "info", message: "健康需进程存活、RCon 响应与连续两条递增任务心跳；公网可达性和真实玩家加入尚未验证。" });
   }
 
   return {

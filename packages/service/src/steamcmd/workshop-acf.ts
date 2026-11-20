@@ -6,6 +6,57 @@ const WORKSHOP_APP_ID = String(ARMA3_WORKSHOP_APP_ID);
 const CONTENT_MARKER = `${path.sep}workshop${path.sep}content${path.sep}${WORKSHOP_APP_ID}`;
 const ACF_NAME = `appworkshop_${WORKSHOP_APP_ID}.acf`;
 
+export interface WorkshopKeyValues { [key: string]: string | WorkshopKeyValues }
+
+/** 维护使用结构化 ACF；重复字段、截断或未知语法一律拒绝，不从缓存段取最大时间。 */
+export function parseWorkshopKeyValues(text: string): WorkshopKeyValues {
+  if (text.length > 8 * 1024 * 1024) throw new Error("ACF 文件过大");
+  const tokens: Array<{ value: string; quoted: boolean }> = [];
+  const pattern = /\s+|\/\/[^\r\n]*|"((?:\\.|[^"\\])*)"|([{}])/gy;
+  let position = text.charCodeAt(0) === 0xfeff ? 1 : 0;
+  while (position < text.length) {
+    pattern.lastIndex = position; const token = pattern.exec(text);
+    if (!token) throw new Error("ACF 语法无效");
+    position = pattern.lastIndex;
+    if (token[1] !== undefined) tokens.push({ value: token[1].replace(/\\(["\\])/g, "$1"), quoted: true });
+    else if (token[2]) tokens.push({ value: token[2], quoted: false });
+  }
+  let index = 0;
+  const parse = (nested: boolean, depth: number): WorkshopKeyValues => {
+    if (depth > 16) throw new Error("ACF 嵌套过深");
+    const value: WorkshopKeyValues = Object.create(null);
+    while (index < tokens.length) {
+      const key = tokens[index++];
+      if (!key.quoted) {
+        if (nested && key.value === "}") return value;
+        throw new Error("ACF 键无效");
+      }
+      if (Object.hasOwn(value, key.value)) throw new Error("ACF 含重复键");
+      const next = tokens[index++];
+      if (!next) throw new Error("ACF 已截断");
+      if (next.quoted) value[key.value] = next.value;
+      else if (next.value === "{") value[key.value] = parse(true, depth + 1);
+      else throw new Error("ACF 值无效");
+    }
+    if (nested) throw new Error("ACF 已截断");
+    return value;
+  };
+  return parse(false, 0);
+}
+
+export function workshopSection(value: string | WorkshopKeyValues | undefined): WorkshopKeyValues | null {
+  return value && typeof value === "object" ? value : null;
+}
+
+export function stringifyWorkshopKeyValues(value: WorkshopKeyValues): string {
+  const quote = (text: string) => `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  const lines = (node: WorkshopKeyValues, depth: number): string[] => Object.entries(node).flatMap(([key, item]) => {
+    const indent = "\t".repeat(depth);
+    return typeof item === "string" ? [`${indent}${quote(key)}\t\t${quote(item)}`] : [`${indent}${quote(key)}`, `${indent}{`, ...lines(item, depth + 1), `${indent}}`];
+  });
+  return `${lines(value, 0).join("\n")}\n`;
+}
+
 /**
  * Resolve `steamapps/workshop/appworkshop_107410.acf` from a Steam library root
  * (`force_install_dir`) or from a mod folder under `workshop/content/107410/<id>`.

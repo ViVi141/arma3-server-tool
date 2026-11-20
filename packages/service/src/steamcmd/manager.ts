@@ -6,6 +6,7 @@ import { EventEmitter } from "node:events";
 import { spawnConsoleCapture, type ConsoleCaptureHandle } from "./console-capture.js";
 import {
   buildDedicatedServerUpdateArguments,
+  buildLoginClause,
   buildWorkshopDownloadArguments,
   redactPasswordInArguments,
   redactSteamCmdConsoleChunk,
@@ -39,6 +40,18 @@ import {
 } from "../platform/index.js";
 import { killProcessTree } from "../process/identity.js";
 import { describeNetworkError, proxyFetch } from "./proxy-fetch.js";
+import { SteamCmdQueue } from "./queue.js";
+import { operationSignal } from "../util/operation-context.js";
+import { maintenanceLocks, physicalLockPath, type LockScope } from "../maintenance/locks.js";
+
+export class MaintenanceSteamError extends Error {
+  constructor(readonly code: "AUTH_REQUIRED" | "AUTH_FAILED" | "DOWNLOAD_FAILED" | "STEAM_PATH_MISMATCH" | "STEAM_NOT_INSTALLED") { super(code); }
+}
+export interface MaintenanceSteamSession {
+  readonly signal: AbortSignal;
+  authenticateCached(): Promise<void>;
+  downloadOnce(ids: number[]): Promise<void>;
+}
 
 const BOOTSTRAP_MARKER = steamCmdBootstrapRelativePath();
 const SESSION_OUTPUT_MAX_CHARS = 500000;
@@ -72,6 +85,7 @@ export class SteamCmdManager extends EventEmitter {
   private _aborted = false;
   /** 整次 SteamCMD 业务操作互斥（下载/更新/安装），不仅限单个子进程。 */
   private _busy = false;
+  private readonly queue = new SteamCmdQueue();
   /**
    * 每次开始操作 +1；取消时再 +1，使旧协程即使被 clearAbort 也无法继续拉起进程。
    */
@@ -91,7 +105,7 @@ export class SteamCmdManager extends EventEmitter {
     // 延后到事件循环空闲执行，首次下载前足够完成。
     setImmediate(() => {
       try {
-        this.purgeOrphanSteamCmdProcesses();
+        if (!this.isBusy) this.purgeOrphanSteamCmdProcesses();
       } catch {
         /* ignore cleanup errors */
       }
@@ -99,20 +113,27 @@ export class SteamCmdManager extends EventEmitter {
   }
 
   setCredentials(username: string, password: string): void {
+    this.assertSettingsMutable(username !== this._username || password !== this._password);
     this._username = username;
     this._password = password;
   }
 
   setLoginMode(mode: SteamCmdLoginMode): void {
-    this._loginMode = mode === "cached" ? "cached" : "password";
+    const next = mode === "cached" ? "cached" : "password";
+    this.assertSettingsMutable(next !== this._loginMode);
+    this._loginMode = next;
   }
 
   setWorkshopRoot(workshopRoot: string): void {
-    this._workshopRoot = normalizeWorkshopRoot(this._pathContext, workshopRoot);
+    const next = normalizeWorkshopRoot(this._pathContext, workshopRoot);
+    this.assertSettingsMutable(next !== this._workshopRoot);
+    this._workshopRoot = next;
   }
 
   setServerInstallPath(serverInstallPath: string): void {
-    this._serverInstallPath = serverInstallPath.trim();
+    const next = serverInstallPath.trim();
+    this.assertSettingsMutable(next !== this._serverInstallPath);
+    this._serverInstallPath = next;
   }
 
   get workshopRoot(): string {
@@ -152,11 +173,20 @@ export class SteamCmdManager extends EventEmitter {
   }
 
   get isRunning(): boolean {
-    return this._busy || this.activeCapture !== null;
+    return this.queue.isBusy || this.activeCapture !== null;
   }
 
   get isBusy(): boolean {
-    return this._busy;
+    return this.queue.isBusy;
+  }
+
+  get pendingCount(): number { return this.queue.pendingCount; }
+
+  /** 禁止新业务并等待当前协程/捕获进程收尾；关闭依赖前必须等待此方法。 */
+  close(): Promise<void> { return this.queue.close(); }
+
+  private assertSettingsMutable(changed: boolean): void {
+    if (changed && this.isBusy) throw new Error("SteamCMD 队列尚未结束，不能更改目录或登录设置");
   }
 
   get steamCmdDir(): string {
@@ -307,7 +337,7 @@ export class SteamCmdManager extends EventEmitter {
       await this.ensureInstalledBody(runId);
       this.requireCredentials();
       this.throwIfStaleOrAborted(runId);
-      const installDir = serverDir ?? this._serverInstallPath ?? this.installDir;
+      const installDir = serverDir ?? (this._serverInstallPath || this.installDir);
       this.markLoginAttempt();
       const argumentsString = buildDedicatedServerUpdateArguments(
         this._username,
@@ -316,11 +346,12 @@ export class SteamCmdManager extends EventEmitter {
         { loginMode: this._loginMode },
       );
       await this.runSteamCmdArguments(runId, argumentsString, onOutput, { isAppUpdate: true });
-    });
+    }, () => ({ paths: [{ path: path.resolve(serverDir ?? (this._serverInstallPath || this.installDir)), mode: "write" }] }));
   }
 
   /** 下载 Workshop 模组 */
   async downloadWorkshopMods(modIds: number[], onOutput?: (line: string) => void): Promise<void> {
+    modIds = [...modIds];
     return this.withExclusiveLock(async (runId) => {
       await this.ensureInstalledBody(runId);
       this.requireCredentials();
@@ -430,25 +461,89 @@ export class SteamCmdManager extends EventEmitter {
       markWorkshopModsSynced(workshopRoot, uniqueIds);
 
       this.emit("complete", this.sessionOutput);
+    }, () => {
+      const root = normalizeWorkshopRoot(this._pathContext, this._workshopRoot);
+      return { paths: [
+        ...dedupePositiveIds(modIds).map((id) => ({ path: path.join(root, "steamapps", "workshop", "content", "107410", String(id)), mode: "write" as const })),
+        { path: path.join(root, "steamapps", "workshop", "appworkshop_107410.acf"), mode: "write" as const },
+      ] };
     });
+  }
+
+  /** 整批占用现有 FIFO，直到验证/回滚结束才放行其他下载。会话不可逃逸或重复下载。 */
+  withMaintenanceSession<T>(fn: (session: MaintenanceSteamSession) => Promise<T>): Promise<T> {
+    return this.withExclusiveLock(async (runId, signal) => {
+      let active = true, authenticated = false, attempted = false, downloading = false;
+      const assertActive = () => { if (!active) throw new Error("维护 SteamCMD 会话已结束"); this.throwIfStaleOrAborted(runId); };
+      const assertPaths = () => {
+        if (!this.isInstalled) throw new MaintenanceSteamError("STEAM_NOT_INSTALLED");
+        const actual = path.join(this.installDir, "steamapps", "workshop");
+        const configured = path.join(this._workshopRoot, "steamapps", "workshop");
+        if (!this._workshopRoot || physicalLockPath(actual) !== physicalLockPath(configured)) throw new MaintenanceSteamError("STEAM_PATH_MISMATCH");
+      };
+      try {
+        return await fn({ signal,
+          authenticateCached: async () => {
+            assertActive(); assertPaths();
+            if (attempted) throw new MaintenanceSteamError("AUTH_FAILED");
+            attempted = true;
+            if (!this._username) throw new MaintenanceSteamError("AUTH_REQUIRED");
+            this._authState = "cached_login";
+            const output = await this.runMaintenanceProcess(runId, `${buildLoginClause(this._username, "", "cached")} +quit`, false);
+            // “正在使用缓存登录”及退出码 0 均不足以证明认证完成。
+            if (!/Logged in OK|Logging in user[^\r\n]*\.\.\.\s*OK/i.test(output)) throw new MaintenanceSteamError("AUTH_FAILED");
+            authenticated = true; this._authState = "authenticated";
+          },
+          downloadOnce: async (ids) => {
+            assertActive(); assertPaths();
+            if (!authenticated || downloading) throw new MaintenanceSteamError("DOWNLOAD_FAILED");
+            if (!ids.length || ids.some((id) => !Number.isSafeInteger(id) || id <= 0) || new Set(ids).size !== ids.length) throw new MaintenanceSteamError("DOWNLOAD_FAILED");
+            downloading = true;
+            const args = buildWorkshopDownloadArguments(this._username, "", this._workshopRoot, ids, { loginMode: "cached", validate: true });
+            const output = await maintenanceLocks.run({ paths: ids.map((id) => ({ path: path.join(this.installDir, "steamapps", "workshop", "content", "107410", String(id)), mode: "write" })) }, () => this.runMaintenanceProcess(runId, args, true));
+            if (hasWorkshopDownloadFailure(output) || resolveWorkshopDownloadMissingIds(ids, output).length) throw new MaintenanceSteamError("DOWNLOAD_FAILED");
+            // 不依赖 .a3st-synced 标记，也不在底层宣布维护成功；上层必须复查 ACF、签名和健康。
+          },
+        });
+      } finally { active = false; }
+    }, () => ({ paths: [{ path: path.join(this.installDir, "steamapps", "workshop", "appworkshop_107410.acf"), mode: "write" }] }));
+  }
+
+  private async runMaintenanceProcess(runId: number, args: string, workshop: boolean): Promise<string> {
+    let output = "", timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; this.kill(); }, workshop ? 6 * 3600000 : 120000);
+    try {
+      this.sessionOutput = "";
+      const exitCode = await this.runCapturedProcess(runId, args, (chunk) => { output += chunk; }, true);
+      this.throwIfStaleOrAborted(runId);
+      this.writeSessionLogFile(this.createSessionLogPath(), { console: output, exitCode, exePath: resolveSteamCmdPath(this.installDir), argumentsString: args }, { isWorkshop: workshop });
+      if (this.needsSteamGuard(output)) { this._authState = "waiting_guard"; throw new MaintenanceSteamError("AUTH_REQUIRED"); }
+      if (timedOut || exitCode !== 0 || detectAuthStateFromOutput(output) === "auth_failed") throw new MaintenanceSteamError(workshop ? "DOWNLOAD_FAILED" : "AUTH_FAILED");
+      return output;
+    } finally { clearTimeout(timer); }
   }
 
   /**
    * 全局互斥：同一时刻只允许一次 SteamCMD 业务操作。
    * 取消时提升 runId，旧协程在检查点会失败，且不会被新操作的 clearAbort 复活。
    */
-  private async withExclusiveLock<T>(fn: (runId: number) => Promise<T>): Promise<T> {
-    if (this._busy) {
-      throw new Error("SteamCMD 进程已在运行，请等待当前任务完成");
-    }
-    this._busy = true;
-    this._aborted = false;
-    const runId = ++this._runId;
-    try {
-      return await fn(runId);
-    } finally {
-      this._busy = false;
-    }
+  private async withExclusiveLock<T>(fn: (runId: number, signal: AbortSignal) => Promise<T>, scope: () => LockScope = () => ({})): Promise<T> {
+    return this.queue.enqueue(async (signal) => maintenanceLocks.run(scope(), async () => {
+      this._busy = true;
+      this._aborted = false;
+      const runId = ++this._runId;
+      const abort = () => this.abortActive();
+      signal.addEventListener("abort", abort, { once: true });
+      try {
+        this.throwIfStaleOrAborted(runId);
+        const result = await fn(runId, signal);
+        this.throwIfStaleOrAborted(runId);
+        return result;
+      } finally {
+        signal.removeEventListener("abort", abort);
+        this._busy = false;
+      }
+    }), operationSignal.getStore());
   }
 
   private requireCredentials(): void {
@@ -574,8 +669,10 @@ export class SteamCmdManager extends EventEmitter {
     runId: number,
     argumentsString: string,
     onChunk: (chunk: string) => void,
+    stopOnGuard = false,
   ): Promise<number | null> {
     this.throwIfStaleOrAborted(runId);
+    let guardPending = false, authTail = "";
     const exePath = resolveSteamCmdPath(this.installDir);
     const capture = await spawnConsoleCapture(
       exePath,
@@ -589,12 +686,18 @@ export class SteamCmdManager extends EventEmitter {
         this.appendSessionOutput(clean);
         this.emit("output", clean);
         onChunk(clean);
+        if (stopOnGuard) {
+          authTail = (authTail + clean).slice(-4096);
+          if (this.needsSteamGuard(authTail)) { guardPending = true; this.kill(); }
+        }
       },
       this.installDir,
       { password: this._password },
     );
     this.activeCapture = capture;
     try {
+      // 异步创建 capture 期间可能已取消；迟到的进程也必须终止并等待退出，不能释放队列空窗。
+      if (guardPending || this._aborted || runId !== this._runId) this.kill();
       return await capture.waitForExit();
     } finally {
       if (this.activeCapture === capture) {
@@ -745,8 +848,14 @@ export class SteamCmdManager extends EventEmitter {
     }
   }
 
-  /** 终止当前 SteamCMD，并阻止 download_mods 等循环继续拉起新进程。 */
+  /** 全局停止会同时撤销等待项；单任务取消只作用于该任务自己的信号。 */
   requestAbort(): void {
+    const active = this._busy;
+    this.queue.cancelAll();
+    if (!active) this.abortActive();
+  }
+
+  private abortActive(): void {
     this._aborted = true;
     // 使进行中的 runId 立刻失效；即便随后有人清 abort 标志，旧协程也不能继续。
     this._runId += 1;

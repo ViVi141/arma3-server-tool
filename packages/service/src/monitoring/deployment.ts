@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { maintenanceLocks } from "../maintenance/locks.js";
 import type { ServerConfigPackage } from "../types/config.js";
 
 const MONITORING_DLL = "DestinyServerMonitoring_x64.dll";
@@ -72,6 +73,7 @@ export function deployMonitoringIfEnabled(
   }
 
   try {
+    maintenanceLocks.assertAvailable({ paths: [MONITORING_DLL, MONITORING_MOD].map((name) => ({ path: path.resolve(serverDir, name), mode: "write" as const })) });
     if (assets.dllPath) {
       copyFileIfChanged(assets.dllPath, path.join(serverDir, MONITORING_DLL));
     }

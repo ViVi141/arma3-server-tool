@@ -1,7 +1,7 @@
 import { hasBundledMonitoringAssets } from "../../monitoring/deployment.js";
 import { buildDailyHtmlReport, buildPlayersCsv, buildStatsCsv } from "../../monitoring/export.js";
 import { ingestMonitoringMessage } from "../../monitoring/ingest.js";
-import { fetchRconPlayers, countOnlinePlayers } from "../../rcon/helpers.js";
+import { fetchRconPlayers } from "../../rcon/helpers.js";
 import type { PlayerRecord } from "../../monitoring/db.js";
 import type { FastifyInstance } from "fastify";
 import { envelope, parsePositiveInt } from "./shared.js";
@@ -40,24 +40,17 @@ export function registerMonitoringRoutes(app: FastifyInstance): void {
       if (!state.isRunning) {
         continue;
       }
-      let playerCount = 0;
-      let playerRecords: PlayerRecord[] = [];
-      const online = await countOnlinePlayers(config);
-      if (online !== null) {
-        playerCount = online;
+      try {
         const players = await fetchRconPlayers(config);
         const nowIso = new Date().toISOString();
-        playerRecords = players
+        const playerRecords: PlayerRecord[] = players
           .filter((player) => Boolean(player.guid))
-          .map((player) => ({
-            playerGuid: player.guid,
-            playerName: player.name ?? player.guid,
-            serverUuid: s.uuid,
-            lastSeen: nowIso,
-          }));
+          .map((player) => ({ playerGuid: player.guid, playerName: player.name ?? player.guid, serverUuid: s.uuid, lastSeen: nowIso }));
+        app.monitorDb.recordCollectionTick(s.uuid, players.length, playerRecords);
+        count++;
+      } catch {
+        // 人数未知时不写一条伪造的零人记录，也不影响其他实例采集。
       }
-      app.monitorDb.recordCollectionTick(s.uuid, playerCount, playerRecords);
-      count++;
     }
     return envelope(true, { collected: count }, null, "");
   });

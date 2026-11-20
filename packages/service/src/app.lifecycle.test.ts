@@ -1,8 +1,10 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { createService } from "./app.js";
+import { OperationsStore } from "./operations/store.js";
+import type { MaintenanceBatch } from "./maintenance/executor.js";
 
 describe("BUG-13 & BUG-2 createService lifecycle, onClose cleanup, and monitorDb readiness", () => {
   const tmpDirs: string[] = [];
@@ -48,6 +50,55 @@ describe("BUG-13 & BUG-2 createService lifecycle, onClose cleanup, and monitorDb
     const app2 = await createService({ port: 0, host: "127.0.0.1", dataDir: dir2 });
     apps.push(app2);
     expect(app2.steamCmd.listenerCount("output")).toBe(1);
+  });
+
+  it("关闭时撤销等待下载，当前协程退出前不关闭运维数据库，且不再接收业务", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-close-queue-")); tmpDirs.push(dir);
+    const app = await createService({ port: 0, host: "127.0.0.1", dataDir: dir }); apps.push(app);
+    vi.spyOn(app.steamCmd, "purgeOrphanSteamCmdProcesses").mockReturnValue(0);
+    const inner = app.steamCmd as unknown as { ensureInstalledBody: () => Promise<void> };
+    let release!: () => void;
+    inner.ensureInstalledBody = vi.fn(() => new Promise<void>((resolve) => { release = resolve; }));
+    const first = app.steamCmd.ensureInstalled().catch((error: Error) => error.message);
+    const second = app.steamCmd.ensureInstalled().catch((error: Error) => error.message);
+    const closeDb = vi.spyOn(app.operations, "close");
+    const closing = app.close();
+    await vi.waitFor(() => expect(app.steamCmd.isAborted).toBe(true));
+    expect(await second).toContain("已取消");
+    expect(closeDb).not.toHaveBeenCalled();
+    await expect(app.steamCmd.ensureInstalled()).rejects.toThrow("已关闭");
+    release(); expect(await first).toContain("已取消"); await closing;
+    expect(inner.ensureInstalledBody).toHaveBeenCalledTimes(1);
+    expect(closeDb).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
+  });
+
+  it("启动先处理持久中断批次，首次结果查询不会把旧排队任务当作仍在执行", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-maintenance-boot-")); tmpDirs.push(dir);
+    const store = new OperationsStore(dir); await store.waitReady();
+    const at = new Date().toISOString();
+    const interrupted: MaintenanceBatch = { id: "interrupted-batch", state: "queued", createdAt: at, updatedAt: at, serverUuids: [], modIds: [], result: null, requiresAttention: false,
+      recovery: { version: 1, request: { serverUuid: "s1", keys: ["a".repeat(64)], retryOf: null }, plan: null, backups: [], stopStarted: false, writesStarted: false, started: [], rollbackPhase: "none", failureCode: null } };
+    store.checkpoint(interrupted); store.close();
+    const app = await createService({ port: 0, host: "127.0.0.1", dataDir: dir }); apps.push(app);
+    const result = await app.inject({ method: "GET", url: "/api/v1/ops/maintenance/interrupted-batch" });
+    expect(result.json().data).toMatchObject({ state: "cancelled", result: "INTERRUPTED" });
+    expect(app.maintenanceExecutor).toBeDefined(); expect(app.scheduler.list()).toHaveLength(0);
+  });
+
+  it("关闭必须先等待维护恢复，之后才关闭 Steam 队列、健康服务和数据库", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-maintenance-close-")); tmpDirs.push(dir);
+    const app = await createService({ port: 0, host: "127.0.0.1", dataDir: dir }); apps.push(app);
+    let release!: () => void;
+    const original = app.maintenanceExecutor.close.bind(app.maintenanceExecutor);
+    const recovery = vi.spyOn(app.maintenanceExecutor, "close").mockImplementation(async () => { await new Promise<void>((resolve) => { release = resolve; }); await original(); });
+    const steam = vi.spyOn(app.steamCmd, "close"), health = vi.spyOn(app.serverHealth, "close"), database = vi.spyOn(app.operations, "close");
+    const closing = app.close();
+    await vi.waitFor(() => expect(recovery).toHaveBeenCalled());
+    expect(steam).not.toHaveBeenCalled(); expect(health).not.toHaveBeenCalled(); expect(database).not.toHaveBeenCalled();
+    release(); await closing;
+    expect(steam).toHaveBeenCalledTimes(1); expect(health).toHaveBeenCalledTimes(1); expect(database).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
   });
 
   it("BUG-2 awaits monitorDb.waitReady() so immediate ingest right after createService persists", async () => {

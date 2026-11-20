@@ -16,6 +16,8 @@ import { MonitoringDb } from "../monitoring/db.js";
 import { Scheduler } from "../scheduling/cron.js";
 import { asyncTaskManager } from "../task/manager.js";
 import { RptLogReader } from "../logs/reader.js";
+import { ServerHealthService } from "../health/service.js";
+import { defaultMaintenancePolicy } from "../maintenance/policy.js";
 import { UiSettingsStore } from "../settings/ui-settings.js";
 import { ModScanPathStore } from "../mods/scan-path-store.js";
 import { SteamCmdSettingsStore } from "../settings/steamcmd-settings.js";
@@ -48,6 +50,8 @@ beforeAll(async () => {
   app.decorate("monitorDb", monitorDb);
   app.decorate("scheduler", scheduler);
   app.decorate("rptLogReader", rptLogReader);
+  app.decorate("serverHealth", new ServerHealthService(app));
+  app.addHook("onClose", async () => { app.serverHealth.close(); });
   app.decorate("uiSettingsStore", new UiSettingsStore(tmpDir));
   app.decorate("modScanPathStore", new ModScanPathStore(tmpDir));
   app.decorate("steamCmdSettingsStore", new SteamCmdSettingsStore(tmpDir));
@@ -71,6 +75,79 @@ afterAll(async () => {
 });
 
 describe("API Routes Integration", () => {
+  it("维护配置 PUT/PATCH 在写 cfg 和快照前验证；克隆不继承维护授权", async () => {
+    const serverDir = path.join(tmpDir, "maintenance-api-server");
+    const created = await app.inject({ method: "POST", url: "/api/v1/servers", payload: { configName: "维护配置", serverDir } });
+    const uuid = created.json().data.uuid as string;
+    const original = app.configStore.load(uuid)!;
+    const maintenance = { ...defaultMaintenancePolicy(), enabled: true, template: "idle_first" as const, windowConfirmed: true, allowOccupied: true, occupiedConfirmed: true };
+    const save = vi.spyOn(app.configStore, "save");
+    try {
+      for (const method of ["PUT", "PATCH"] as const) {
+        const rejected = await app.inject({ method, url: `/api/v1/servers/${uuid}/config?writeCfg=true`, payload: { ...original, maintenance: { ...maintenance, occupiedConfirmed: false } } });
+        expect(rejected.statusCode).toBe(400);
+        expect(rejected.json().error).toBe("INVALID_MAINTENANCE_CONFIG");
+      }
+      expect(save).not.toHaveBeenCalled();
+      expect(fs.existsSync(serverDir)).toBe(false);
+      expect(app.configStore.load(uuid)).toEqual(original);
+      const saved = await app.inject({ method: "PATCH", url: `/api/v1/servers/${uuid}/config`, payload: { maintenance } });
+      expect(saved.statusCode).toBe(200);
+      expect(new ConfigStore(tmpDir).load(uuid)?.maintenance).toEqual(maintenance);
+      expect(fs.existsSync(serverDir)).toBe(false);
+      const cloned = await app.inject({ method: "POST", url: `/api/v1/servers/${uuid}/clone` });
+      expect(cloned.statusCode).toBe(201);
+      expect(app.configStore.load(cloned.json().data.uuid)?.maintenance).toEqual({ ...maintenance, enabled: false, windowConfirmed: false, allowOccupied: false, occupiedConfirmed: false });
+      expect(app.configStore.load(uuid)?.maintenance).toEqual(maintenance);
+    } finally { save.mockRestore(); }
+  });
+  it("健康 API 保持进程语义；无人配置验证真实模板，保存不启动也不部署", async () => {
+    const serverDir = path.join(tmpDir, "health-api-server");
+    const created = await app.inject({ method: "POST", url: "/api/v1/servers", payload: { configName: "无人配置", serverDir } });
+    const uuid = created.json().data.uuid as string;
+    const patch = (payload: object) => app.inject({ method: "PATCH", url: `/api/v1/servers/${uuid}/config`, payload });
+    expect((await app.inject({ method: "GET", url: "/api/v1/servers/missing/health" })).statusCode).toBe(404);
+    const initial = (await app.inject({ method: "GET", url: `/api/v1/servers/${uuid}/health` })).json();
+    expect(initial.data).toMatchObject({ state: "stopped", heartbeat: null, onlineCount: null, fps: null, publicReachability: "unverified" });
+    expect((await patch({ health: { startupTimeoutSeconds: 119 } })).statusCode).toBe(400);
+    const missing = await patch({ health: { enabled: true, unattended: true }, tasks: { missions: [{ template: "Test.Altis" }] } });
+    expect(missing.statusCode).toBe(400);
+    expect(missing.json()).toMatchObject({ error: "INVALID_HEALTH_CONFIG" });
+    expect(app.configStore.load(uuid)?.health).toBeUndefined();
+    fs.mkdirSync(path.join(serverDir, "mpmissions"), { recursive: true });
+    fs.writeFileSync(path.join(serverDir, "mpmissions", "Test.Altis.pbo"), "test");
+    expect((await patch({ health: { enabled: true, unattended: true, startupTimeoutSeconds: 120 }, tasks: { missions: [{ template: "Test.Altis" }] }, startup: { autoInit: true }, basic: { persistent: true, noLogs: false } })).statusCode).toBe(200);
+    expect(new ConfigStore(tmpDir).load(uuid)?.health).toEqual({ enabled: true, unattended: true, startupTimeoutSeconds: 120 });
+    expect(fs.existsSync(path.join(serverDir, "a3st_serverconfig", uuid, "@a3st_health"))).toBe(false);
+    expect((await app.inject({ method: "GET", url: `/api/v1/servers/${uuid}/status` })).json().isRunning).toBe(false);
+  });
+  it("公钥批量部署限于显式扫描路径，空选择不退化为全部，并返回完整证据", async () => {
+    const serverDir = path.join(tmpDir, "signature-server");
+    const modsDir = path.join(tmpDir, "signature-mods");
+    for (const name of ["One", "Two", "Unsigned"]) {
+      const addons = path.join(modsDir, name, "addons");
+      fs.mkdirSync(addons, { recursive: true });
+      fs.writeFileSync(path.join(addons, "data.pbo"), "pbo");
+      if (name !== "Unsigned") fs.writeFileSync(path.join(addons, "data.pbo.author.bisign"), "sign");
+      fs.writeFileSync(path.join(modsDir, name, "author.bikey"), name);
+    }
+    const created = await app.inject({ method: "POST", url: "/api/v1/servers", payload: { configName: "签名范围", serverDir } });
+    const uuid = created.json().data.uuid as string;
+    const config = app.configStore.load(uuid)!;
+    config.mods = { ...config.mods, modPaths: [modsDir], autoCopyBikey: false };
+    app.configStore.save(uuid, config);
+    const deploy = (modPaths: string[]) => app.inject({ method: "POST", url: "/api/v1/task", payload: { serverUuid: uuid, commands: [{ action: "copy_bikeys", modPaths }] } });
+    expect((await deploy([])).json().success).toBe(false);
+    expect((await deploy([path.join(tmpDir, "unmanaged")])).json().success).toBe(false);
+    expect(fs.existsSync(path.join(serverDir, "Keys", "Two-author.bikey"))).toBe(false);
+    const onePath = path.join(modsDir, "One");
+    expect((await deploy([onePath, path.join(modsDir, "Unsigned")])).json().success).toBe(true);
+    expect(fs.readFileSync(path.join(serverDir, "Keys", "One-author.bikey"), "utf8")).toBe("One");
+    expect(fs.existsSync(path.join(serverDir, "Keys", "Two-author.bikey"))).toBe(false);
+    expect(fs.existsSync(path.join(serverDir, "Keys", "Unsigned-author.bikey"))).toBe(false);
+    const scan = (await app.inject({ method: "GET", url: `/api/v1/servers/${uuid}/mods` })).json();
+    expect(scan.data.mods.find((mod: { path: string }) => mod.path === onePath)).toMatchObject({ bikeyStatus: "ready", signatureEvidence: { pboCount: 1, signedPboCount: 1, cryptographicVerified: false } });
+  });
   it("GET /api/v1/health returns 200", async () => {
     const res = await app.inject({ method: "GET", url: "/api/v1/health" });
     expect(res.statusCode).toBe(200);
@@ -222,6 +299,31 @@ describe("API Routes Integration", () => {
     const cfgText = fs.readFileSync(cfgPath, "utf-8");
     expect(cfgText).toContain("First.Altis");
     expect(cfgText).not.toContain("Second.Malden");
+  });
+
+  it("任务 API 取消排队项不终止运行项；队列繁忙时设置接口不落盘", async () => {
+    const inner = app.steamCmd as unknown as { ensureInstalledBody: () => Promise<void> };
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const body = vi.spyOn(inner, "ensureInstalledBody").mockImplementation(async () => { await gate; });
+    const kill = vi.spyOn(app.steamCmd, "kill");
+    const settings = app.steamCmdSettingsStore.load();
+    const submit = () => app.inject({ method: "POST", url: "/api/v1/task", payload: { serverUuid: "queue-test", async: true, commands: [{ action: "ensure_steamcmd" }] } });
+    try {
+      const first = (await submit()).json().data.taskId as string;
+      const second = (await submit()).json().data.taskId as string;
+      expect(app.steamCmd.pendingCount).toBe(1);
+      const change = await app.inject({ method: "PUT", url: "/api/v1/settings/steamcmd", payload: { workshopRoot: path.join(tmpDir, "wrong-target") } });
+      expect(change.statusCode).toBe(409);
+      expect(app.steamCmdSettingsStore.load()).toEqual(settings);
+      const del = await app.inject({ method: "DELETE", url: `/api/v1/tasks/${second}` });
+      expect(del.json().data.status).toBe("Cancelled");
+      expect(kill).not.toHaveBeenCalled();
+      expect(app.steamCmd.pendingCount).toBe(0);
+      release();
+      await vi.waitFor(() => expect(app.asyncTaskManager.get(first)?.status).toBe("Succeeded"));
+      expect(body).toHaveBeenCalledTimes(1);
+    } finally { release(); body.mockRestore(); kill.mockRestore(); }
   });
 
   it("DELETE /api/v1/tasks/:taskId cancels a running task", async () => {
@@ -517,6 +619,10 @@ describe("API Routes Integration", () => {
       expect(JSON.parse(syncRes.payload).data.synced).toBe(2);
       expect(batchSpy).toHaveBeenCalledTimes(1);
       expect(recordPlayerSpy).not.toHaveBeenCalled();
+      playersSpy.mockRejectedValueOnce(new Error("RCon timeout"));
+      const failedCollect = await app.inject({ method: "POST", url: "/api/v1/monitoring/collect" });
+      expect(failedCollect.json().data.collected).toBe(0);
+      expect(tickSpy).toHaveBeenCalledTimes(1);
     } finally {
       connectSpy.mockRestore();
       disconnectSpy.mockRestore();

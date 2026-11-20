@@ -1,205 +1,140 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import {
-  copyBikeysForMod,
-  getCopiedBikeyFileName,
-  getServerKeysDirectory,
-  inspectMod,
-  isModBikeyInspectionValid,
-  isModBikeyValidationPassed,
-  resolveModBikeyStatus,
+  copyBikeysForMod, getCopiedBikeyFileName, getServerKeysDirectory, inspectMod,
+  isModBikeyInspectionValid, isModBikeyValidationPassed, resolveModBikeyStatus,
 } from "./bikey-service.js";
 
-describe("BikeyService parity with legacy C#", () => {
-  it("GetCopiedBikeyFileName matches @TestMod + author.bikey", () => {
-    const name = getCopiedBikeyFileName("@TestMod", { fullPath: "", name: "author.bikey" });
-    expect(name).toBe("TestMod-author.bikey");
+vi.mock("node:fs", async (importOriginal) => ({ ...await importOriginal<typeof import("node:fs")>() }));
+
+let root: string;
+let mod: string;
+let server: string;
+function file(relative: string, content = "data"): string {
+  const target = path.join(mod, relative);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, content);
+  return target;
+}
+function signedPbo(relative = "addons/data.pbo"): void {
+  file(relative);
+  file(`${relative}.author.bisign`, "sign");
+}
+function deploy(name = "TestMod-author.bikey", content = "key"): void {
+  fs.mkdirSync(getServerKeysDirectory(server), { recursive: true });
+  fs.writeFileSync(path.join(getServerKeysDirectory(server), name), content);
+}
+beforeEach(() => {
+  root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-signature-"));
+  mod = path.join(root, "@TestMod");
+  server = path.join(root, "server");
+  fs.mkdirSync(mod);
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+describe("签名文件证据", () => {
+  it("保留已有部署文件命名", () => {
+    expect(getCopiedBikeyFileName("@TestMod", { fullPath: "", name: "author.bikey" })).toBe("TestMod-author.bikey");
   });
-
-  it("InspectMod reports copied when renamed bikey exists on server", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-bikey-renamed-"));
-    try {
-      const serverDir = path.join(root, "server");
-      const modPath = path.join(root, "mods", "@TestMod");
-      fs.mkdirSync(path.join(modPath, "keys"), { recursive: true });
-      fs.writeFileSync(path.join(modPath, "keys", "author.bikey"), "bikey");
-      fs.writeFileSync(path.join(modPath, "data.pbo.bisign"), "sign");
-
-      const keysDir = getServerKeysDirectory(serverDir);
-      fs.mkdirSync(keysDir, { recursive: true });
-      fs.writeFileSync(path.join(keysDir, "TestMod-author.bikey"), "bikey");
-
-      const inspection = inspectMod(modPath, "@TestMod", serverDir);
-      expect(inspection.hasBisign).toBe(true);
-      expect(inspection.hasBikeyInMod).toBe(true);
-      expect(inspection.status).toBe("ready");
-      expect(inspection.allCopiedToServer).toBe(true);
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
+  it.each(["TestMod-author.bikey", "author.bikey"])("公钥内容相同才就绪：%s", (name) => {
+    signedPbo();
+    file("keys/author.bikey", "key");
+    deploy(name);
+    const result = inspectMod(mod, "@TestMod", server);
+    expect(result.status).toBe("ready");
+    expect(result.label).toBe("文件检查就绪");
+    expect(result.evidence).toMatchObject({ pboCount: 1, signedPboCount: 1, deployedKeyCount: 1, cryptographicVerified: false });
+    expect(isModBikeyInspectionValid(result)).toBe(true);
   });
-
-  it("InspectMod reports copied when original bikey filename exists on server", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-bikey-original-"));
-    try {
-      const serverDir = path.join(root, "server");
-      const modPath = path.join(root, "mods", "@Legacy");
-      fs.mkdirSync(path.join(modPath, "keys"), { recursive: true });
-      fs.writeFileSync(path.join(modPath, "keys", "author.bikey"), "bikey");
-      fs.writeFileSync(path.join(modPath, "legacy.pbo.bisign"), "sign");
-
-      const keysDir = getServerKeysDirectory(serverDir);
-      fs.mkdirSync(keysDir, { recursive: true });
-      fs.writeFileSync(path.join(keysDir, "author.bikey"), "bikey");
-
-      const inspection = inspectMod(modPath, "@Legacy", serverDir);
-      expect(inspection.status).toBe("ready");
-      expect(inspection.allCopiedToServer).toBe(true);
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
+  it.each(["author.bikey", "key/author.bikey", "keys/author.bikey", "Keys/nested/author.bikey"])("递归发现公钥：%s", (location) => {
+    signedPbo("addons/nested/data.pbo");
+    file(location, "key");
+    const result = inspectMod(mod, "@TestMod", server);
+    expect(result.status).toBe("not_copied");
+    expect(result.evidence?.canDeployKeys).toBe(true);
   });
-
-  it("finds bikeys anywhere under mod directory", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-bikey-root-"));
-    try {
-      const modPath = path.join(root, "mods", "1154375007");
-      fs.mkdirSync(path.join(modPath, "addons"), { recursive: true });
-      fs.writeFileSync(path.join(modPath, "pook_v2.bikey"), "bikey");
-      fs.writeFileSync(path.join(modPath, "addons", "mod.pbo.bisign"), "sign");
-
-      const inspection = inspectMod(modPath, "1154375007", undefined);
-      expect(inspection.hasBikeyInMod).toBe(true);
-      expect(inspection.status).toBe("not_copied");
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
+  it("未配置服务器路径时不提供部署操作", () => {
+    signedPbo(); file("keys/author.bikey", "key");
+    expect(inspectMod(mod, "@TestMod").evidence?.canDeployKeys).toBe(false);
   });
-
-  it("finds bikeys in key folder (singular)", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-bikey-singular-"));
-    try {
-      const modPath = path.join(root, "mods", "1556296528");
-      fs.mkdirSync(path.join(modPath, "key"), { recursive: true });
-      fs.mkdirSync(path.join(modPath, "addons"), { recursive: true });
-      fs.writeFileSync(path.join(modPath, "key", "horror_mod1.bikey"), "bikey");
-      fs.writeFileSync(path.join(modPath, "addons", "mod.pbo.bisign"), "sign");
-
-      const inspection = inspectMod(modPath, "1556296528", undefined);
-      expect(inspection.hasBikeyInMod).toBe(true);
-      expect(inspection.status).toBe("not_copied");
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
+  it("每个 PBO 都要有对应签名，额外孤立签名不增加覆盖", () => {
+    signedPbo(); file("addons/other.pbo"); file("addons/orphan.pbo.bisign");
+    file("keys/author.bikey", "key"); deploy();
+    const result = inspectMod(mod, "@TestMod", server);
+    expect(result.status).toBe("partial");
+    expect(result.evidence).toMatchObject({ pboCount: 2, signedPboCount: 1, missingPbos: [path.join("addons", "other.pbo")], canDeployKeys: false });
+    expect(isModBikeyInspectionValid(result)).toBe(false);
   });
-
-  it("finds bikeys under keys folder and elsewhere in mod tree", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-bikey-keys-only-"));
-    try {
-      const modPath = path.join(root, "mods", "@Alpha");
-      fs.mkdirSync(path.join(modPath, "keys"), { recursive: true });
-      fs.mkdirSync(path.join(modPath, "addons"), { recursive: true });
-      fs.writeFileSync(path.join(modPath, "keys", "author.bikey"), "bikey");
-      fs.writeFileSync(path.join(modPath, "addons", "stray.bikey"), "ignore");
-      fs.writeFileSync(path.join(modPath, "addons", "alpha.pbo.bisign"), "sign");
-
-      const inspection = inspectMod(modPath, "@Alpha", undefined);
-      expect(inspection.hasBikeyInMod).toBe(true);
-      expect(inspection.status).toBe("not_copied");
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
+  it("其他目录或相近名称的签名不能覆盖该 PBO", () => {
+    file("addons/data.pbo"); file("addons/data.pbo2.author.bisign"); file("other/data.pbo.author.bisign");
+    expect(inspectMod(mod, "@TestMod", server).status).toBe("unsigned");
   });
-
-  it("reports no_key for nested bisign when keys folder has no bikey", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-bikey-nested-"));
-    try {
-      const modPath = path.join(root, "mods", "450814997");
-      fs.mkdirSync(path.join(modPath, "addons", "cba"), { recursive: true });
-      fs.mkdirSync(path.join(modPath, "keys"), { recursive: true });
-      fs.writeFileSync(path.join(modPath, "addons", "cba", "cba.pbo.bisign"), "sign");
-
-      const inspection = inspectMod(modPath, "450814997", undefined);
-      expect(inspection.hasBisign).toBe(true);
-      expect(inspection.hasBikeyInMod).toBe(false);
-      expect(inspection.status).toBe("no_key");
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
+  it("只有孤立签名而没有 PBO 是未知，不是就绪", () => {
+    file("addons/data.pbo.bisign"); file("keys/author.bikey", "key"); deploy();
+    expect(inspectMod(mod, "@TestMod", server).status).toBe("unknown");
   });
-
-  it("isModBikeyValidationPassed accepts only ready status", () => {
-    expect(isModBikeyValidationPassed("ready")).toBe(true);
-    expect(isModBikeyValidationPassed("not_copied")).toBe(false);
-    expect(isModBikeyValidationPassed("no_key")).toBe(false);
-    expect(isModBikeyValidationPassed("unsigned")).toBe(false);
+  it("有完整覆盖但没有公钥，需要从可信来源获取", () => {
+    signedPbo();
+    const result = inspectMod(mod, "@TestMod", server);
+    expect(result.status).toBe("no_key");
+    expect(result.evidence?.canDeployKeys).toBe(false);
   });
-
-  it("isModBikeyInspectionValid requires bisign, key, and server copy", () => {
-    expect(
-      isModBikeyInspectionValid({
-        hasBisign: true,
-        hasBikeyInMod: true,
-        allCopiedToServer: true,
-        status: "ready",
-        label: "验证通过",
-      }),
-    ).toBe(true);
-    expect(
-      isModBikeyInspectionValid({
-        hasBisign: true,
-        hasBikeyInMod: true,
-        allCopiedToServer: false,
-        status: "not_copied",
-        label: "未复制",
-      }),
-    ).toBe(false);
+  it.each(["TestMod-author.bikey", "author.bikey"])("同名不同内容不是已部署：%s", (name) => {
+    signedPbo(); file("keys/author.bikey", "new-key"); deploy(name, "old-key");
+    const before = inspectMod(mod, "@TestMod", server);
+    expect(before.status).toBe("key_mismatch");
+    expect(before.evidence?.mismatchedKeys).toHaveLength(1);
+    const result = copyBikeysForMod(mod, "@TestMod", server);
+    expect(result).toMatchObject({ copied: 1, skipped: 0, failed: 0 });
+    expect(inspectMod(mod, "@TestMod", server).status).toBe("ready");
+    expect(copyBikeysForMod(mod, "@TestMod", server)).toMatchObject({ copied: 0, skipped: 1, failed: 0 });
   });
-
-  it("resolveModBikeyStatus covers four mutually exclusive states", () => {
-    expect(resolveModBikeyStatus(false, [], "@Mod").status).toBe("unsigned");
-    expect(resolveModBikeyStatus(true, [], "@Mod").status).toBe("no_key");
-    expect(resolveModBikeyStatus(true, [{ fullPath: "", name: "a.bikey" }], "@Mod").status).toBe(
-      "not_copied",
-    );
-
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-bikey-four-"));
-    try {
-      const serverDir = path.join(root, "server");
-      const keysDir = getServerKeysDirectory(serverDir);
-      fs.mkdirSync(keysDir, { recursive: true });
-      fs.writeFileSync(path.join(keysDir, "Mod-a.bikey"), "bikey");
-      expect(
-        resolveModBikeyStatus(
-          true,
-          [{ fullPath: "", name: "a.bikey" }],
-          "@Mod",
-          serverDir,
-        ).status,
-      ).toBe("ready");
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
+  it("路径不存在时报告读取失败，不当成未签名", () => {
+    const result = inspectMod(path.join(root, "missing"), "missing", server);
+    expect(result.status).toBe("read_error");
+    expect(result.evidence?.readErrors.length).toBeGreaterThan(0);
   });
-
-  it("CopyBikeysForMod writes renamed file into Keys directory", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-bikey-copy-"));
-    try {
-      const serverDir = path.join(root, "server");
-      const modPath = path.join(root, "mods", "@TestMod");
-      fs.mkdirSync(path.join(modPath, "keys"), { recursive: true });
-      fs.mkdirSync(path.join(modPath, "addons"), { recursive: true });
-      fs.writeFileSync(path.join(modPath, "keys", "author.bikey"), "bikey");
-      fs.writeFileSync(path.join(modPath, "addons", "test.pbo.bisign"), "sign");
-
-      const result = copyBikeysForMod(modPath, "@TestMod", serverDir);
-      expect(result.total).toBe(1);
-      expect(result.copied).toBe(1);
-      expect(fs.existsSync(path.join(getServerKeysDirectory(serverDir), "TestMod-author.bikey"))).toBe(true);
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
+  it("目录读取失败会保留明确失败证据", () => {
+    vi.spyOn(fs, "readdirSync").mockImplementation(() => { throw Object.assign(new Error("denied"), { code: "EACCES" }); });
+    const result = inspectMod(mod, "@TestMod", server);
+    expect(result.status).toBe("read_error");
+    expect(result.evidence?.reason).toContain("EACCES");
+  });
+  it("服务器公钥读取失败不能当成内容匹配", () => {
+    signedPbo(); file("keys/author.bikey", "key");
+    fs.mkdirSync(path.join(getServerKeysDirectory(server), "TestMod-author.bikey"), { recursive: true });
+    expect(inspectMod(mod, "@TestMod", server).status).toBe("read_error");
+  });
+  it("空公钥和目标名冲突均需人工处理", () => {
+    signedPbo(); file("keys/author.bikey", "one"); file("other/author.bikey", "two");
+    expect(inspectMod(mod, "@TestMod", server).status).toBe("read_error");
+    expect(copyBikeysForMod(mod, "@TestMod", server).failed).toBe(1);
+    expect(fs.existsSync(path.join(getServerKeysDirectory(server), "TestMod-author.bikey"))).toBe(false);
+    file("other/author.bikey", "");
+    expect(inspectMod(mod, "@TestMod", server).status).toBe("read_error");
+  });
+  it("符号链接循环不会无限递归或重复计数", () => {
+    signedPbo(); file("keys/author.bikey", "key");
+    fs.symlinkSync(mod, path.join(mod, "loop"), process.platform === "win32" ? "junction" : "dir");
+    expect(inspectMod(mod, "@TestMod", server).evidence?.pboCount).toBe(1);
+  });
+  it("复制失败被计数而不是报告成功", () => {
+    signedPbo(); file("keys/author.bikey", "key");
+    vi.spyOn(fs, "copyFileSync").mockImplementation(() => { throw Object.assign(new Error("denied"), { code: "EACCES" }); });
+    expect(copyBikeysForMod(mod, "@TestMod", server)).toMatchObject({ copied: 0, total: 1, failed: 1 });
+  });
+  it("旧接口仍可调用，但不会用缺失的源文件证明内容一致", () => {
+    expect(resolveModBikeyStatus(false, [], "@TestMod").status).toBe("unsigned");
+    expect(resolveModBikeyStatus(true, [], "@TestMod").status).toBe("no_key");
+    deploy();
+    expect(resolveModBikeyStatus(true, [{ fullPath: "", name: "author.bikey" }], "@TestMod", server).status).toBe("read_error");
+    for (const status of ["partial", "unsigned", "read_error", "unknown", "key_mismatch", "not_copied", "no_key"] as const) {
+      expect(isModBikeyValidationPassed(status)).toBe(false);
     }
   });
 });

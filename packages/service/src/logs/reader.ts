@@ -23,27 +23,12 @@ export interface LogSearchDir {
   note: string;
 }
 
-/** Arma 把 profile（含 .rpt）放在 -profiles 指定的目录下；2.x 起是 <profiles>/Users/<name>/ */
-function externalProfileDirs(serverUuid: string): string[] {
-  const home = process.env.USERPROFILE ?? process.env.HOME;
-  if (!home) {
-    return [];
-  }
-  const docs = path.join(home, "Documents");
-  return [
-    path.join(docs, "Arma 3 - Other Profiles", serverUuid),
-    path.join(docs, "Arma 3 - Other Profiles"),
-    path.join(docs, "Arma 3", "Users", serverUuid),
-    path.join(docs, "Arma 3"),
-    path.join(home, "OneDrive", "Documents", "Arma 3 - Other Profiles", serverUuid),
-  ];
-}
-
 function uniqueDirs(dirs: string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const dir of dirs) {
-    const key = path.resolve(dir).toLowerCase();
+    const resolved = path.resolve(dir);
+    const key = process.platform === "win32" ? resolved.toLowerCase() : resolved;
     if (seen.has(key)) {
       continue;
     }
@@ -53,11 +38,7 @@ function uniqueDirs(dirs: string[]): string[] {
   return out;
 }
 
-/**
- * RPT 可能出现在多个位置：我们显式传了 -profiles，但旧版本/权限不足/
- * 启动时参数被截断时，Arma 会退回用户文档目录。这里把所有候选目录都列出来，
- * 找不到时也能把"到底找过哪些目录"回给界面。
- */
+/** 有实例标识时仅搜索该实例 profile；共享安装目录和用户文档不能作为实例证据。 */
 function profileSearchDirs(serverDir: string, serverUuid: string): string[] {
   if (!serverUuid) {
     return [serverDir];
@@ -71,10 +52,6 @@ function profileSearchDirs(serverDir: string, serverUuid: string): string[] {
     profileRoot,
     path.join(profileRoot, "Users", serverUuid),
     path.join(profileRoot, "Users"),
-    serverDir,
-    path.join(serverDir, "Profiles"),
-    path.join(serverDir, "Users", serverUuid),
-    ...externalProfileDirs(serverUuid),
   ]);
 }
 
@@ -214,10 +191,9 @@ export class RptLogReader {
       }
       collectFiles(path.join(serverDir, "logs"), "console", results, seen, (fileName) => {
         const lower = fileName.toLowerCase();
-        if (serverUuid && lower === `server_${serverUuid.toLowerCase()}.log`) {
-          return true;
-        }
-        return isConsoleLogFileName(fileName);
+        return serverUuid
+          ? lower === `server_${serverUuid.toLowerCase()}.log`
+          : isConsoleLogFileName(fileName);
       });
     }
 

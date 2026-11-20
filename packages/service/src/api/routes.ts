@@ -12,6 +12,7 @@ import { registerSnapshotsRoutes } from "./routes/snapshots.js";
 import { registerBansRoutes } from "./routes/bans.js";
 import { registerFilesRoutes } from "./routes/files.js";
 import { registerTasksRoutes } from "./routes/tasks.js";
+import { registerOperationsRoutes } from "./routes/operations.js";
 
 export async function apiRoutes(app: FastifyInstance) {
   app.addHook("preValidation", async (req, reply) => {
@@ -39,4 +40,5 @@ export async function apiRoutes(app: FastifyInstance) {
   registerBansRoutes(app);
   registerFilesRoutes(app);
   registerTasksRoutes(app);
+  registerOperationsRoutes(app);
 }

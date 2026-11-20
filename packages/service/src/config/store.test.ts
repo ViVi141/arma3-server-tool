@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { ConfigStore } from "./store.js";
+import { defaultMaintenancePolicy, evaluateMaintenancePolicy } from "../maintenance/policy.js";
 
 let tmpDir: string;
 let store: ConfigStore;
@@ -17,6 +18,35 @@ afterEach(() => {
 });
 
 describe("ConfigStore", () => {
+  it("维护配置持久化，省略时关闭且不修改旧 Cron；非法配置不产生部分写入", () => {
+    const maintenance = { ...defaultMaintenancePolicy(), enabled: true, template: "idle_first" as const, windowConfirmed: true };
+    const scheduler = { restartCron: "0 4 * * *" };
+    store.save("maintenance", { formatVersion: 2, maintenance, scheduler, basic: { hostname: "原值" } });
+    expect(new ConfigStore(tmpDir).load("maintenance")?.maintenance).toEqual(maintenance);
+    const file = path.join(store.getServerConfigDir("maintenance"), "maintenance.json");
+    const before = fs.readFileSync(file, "utf8");
+    expect(() => store.save("maintenance", { formatVersion: 2, basic: { hostname: "不应写入" }, maintenance: { ...maintenance, windowConfirmed: false } })).toThrow();
+    expect(() => store.patchSection("maintenance", "maintenance", { allowOccupied: true })).toThrow();
+    expect(fs.readFileSync(file, "utf8")).toBe(before);
+    expect(new ConfigStore(tmpDir).load("maintenance")?.basic?.hostname).toBe("原值");
+    store.patchSection("maintenance", "maintenance", { expectedDurationMinutes: 90 });
+    expect(new ConfigStore(tmpDir).load("maintenance")?.maintenance?.expectedDurationMinutes).toBe(90);
+    store.save("maintenance", { formatVersion: 2, scheduler });
+    expect(new ConfigStore(tmpDir).load("maintenance")?.maintenance).toEqual(defaultMaintenancePolicy());
+    expect(new ConfigStore(tmpDir).load("maintenance")?.scheduler).toEqual(scheduler);
+  });
+
+  it("缺失、损坏或无效的磁盘策略不会获得停服授权", () => {
+    store.save("old", { formatVersion: 2 });
+    const file = path.join(store.getServerConfigDir("old"), "maintenance.json");
+    const presence = { running: false, onlineCount: null, observedAt: Date.now(), idleSince: null };
+    for (const contents of ["broken{", JSON.stringify({ enabled: true })]) {
+      fs.writeFileSync(file, contents);
+      const value = store.load("old", { forceDisk: true })?.maintenance;
+      if (value === undefined) expect(evaluateMaintenancePolicy(value, presence, presence.observedAt).allowed).toBe(false);
+      else expect(() => evaluateMaintenancePolicy(value, presence, presence.observedAt)).toThrow();
+    }
+  });
   it("returns empty list initially", () => {
     expect(store.listServers()).toEqual([]);
   });

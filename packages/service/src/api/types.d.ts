@@ -12,6 +12,10 @@ import type { UiSettingsStore } from "../settings/ui-settings.js";
 import type { ModScanPathStore } from "../mods/scan-path-store.js";
 import type { SteamCmdSettingsStore } from "../settings/steamcmd-settings.js";
 import type { ServiceOptions } from "../app.js";
+import type { ServerHealthService } from "../health/service.js";
+import type { OperationsStore } from "../operations/store.js";
+import type { MaintenancePlanner } from "../maintenance/planner.js";
+import type { MaintenanceExecutor } from "../maintenance/executor.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -23,6 +27,10 @@ declare module "fastify" {
     monitorDb: MonitoringDb;
     scheduler: Scheduler;
     rptLogReader: RptLogReader;
+    serverHealth: ServerHealthService;
+    operations: OperationsStore;
+    maintenancePlanner: MaintenancePlanner;
+    maintenanceExecutor: MaintenanceExecutor;
     uiSettingsStore: UiSettingsStore;
     modScanPathStore: ModScanPathStore;
     steamCmdSettingsStore: SteamCmdSettingsStore;

@@ -38,6 +38,10 @@ export function registerSteamCmdRoutes(app: FastifyInstance): void {
       reply.status(400);
       return envelope(false, null, "INVALID_BODY", "");
     }
+    if (app.steamCmd.isBusy) {
+      reply.status(409);
+      return envelope(false, { message: "SteamCMD 队列尚未结束，不能更改目录或登录设置" }, "STEAMCMD_BUSY", "");
+    }
     const merged = app.steamCmdSettingsStore.merge({
       username: body.username,
       password: body.password,
@@ -65,6 +69,7 @@ export function registerSteamCmdRoutes(app: FastifyInstance): void {
     return envelope(true, {
       isRunning: app.steamCmd.isRunning,
       isBusy: app.steamCmd.isBusy,
+      pendingCount: app.steamCmd.pendingCount,
       isInstalled: app.steamCmd.isInstalled,
       isAborted: app.steamCmd.isAborted,
       loginMode: app.steamCmd.loginMode,
@@ -87,6 +92,10 @@ export function registerSteamCmdRoutes(app: FastifyInstance): void {
     if (loginMode === "password" && !body.password) {
       reply.status(400);
       return envelope(false, null, "INVALID_CREDENTIALS", "");
+    }
+    if (app.steamCmd.isBusy) {
+      reply.status(409);
+      return envelope(false, { message: "SteamCMD 队列尚未结束，不能更改登录设置" }, "STEAMCMD_BUSY", "");
     }
     app.steamCmd.setLoginMode(loginMode);
     app.steamCmd.setCredentials(body.username, body.password ?? "");

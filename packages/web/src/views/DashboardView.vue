@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ConsolePageLayout from "@/components/ConsolePageLayout.vue";
 import DashboardHero from "@/components/dashboard/DashboardHero.vue";
+import ServerHealthPanel from "@/components/dashboard/ServerHealthPanel.vue";
 import DashboardDeployTrack from "@/components/dashboard/DashboardDeployTrack.vue";
 import M3Icon from "@/components/M3Icon.vue";
 import { UI_COPY } from "@/constants/uiCopy";
@@ -120,6 +121,7 @@ function goTab(tab: string) {
     <DashboardHero :status="status" :dashboard="dashboard" :loading="loading" />
 
     <div class="dash-body">
+      <ServerHealthPanel :connection-id="connectionId" :server-uuid="serverUuid" />
       <DashboardDeployTrack
         :connection-id="connectionId"
         :server-uuid="serverUuid"

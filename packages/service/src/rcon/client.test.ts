@@ -73,6 +73,32 @@ describe("BUG-4 RconClient fragment overwrite and timer cleanup", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("玩家查询超时、截断或未知响应不能返回零人", async () => {
+    const client = new RconClient({ host: "127.0.0.1", port: 2302, password: "test" });
+    const send = vi.spyOn(client, "sendCommand");
+    send.mockResolvedValue({ success: false, message: "Command timeout" });
+    await expect(client.getPlayers()).rejects.toThrow("未知");
+    send.mockResolvedValue({ success: true, message: "unexpected response" });
+    await expect(client.getPlayers()).rejects.toThrow("未知");
+    send.mockResolvedValue({ success: true, message: "Players on server:\n(2 players in total)" });
+    await expect(client.getPlayers()).rejects.toThrow("不完整");
+    send.mockResolvedValue({ success: true, message: "Players on server:\n(0 players in total)" });
+    await expect(client.getPlayers()).resolves.toEqual([]);
+    send.mockResolvedValue({ success: true, message: "Players on server:\n0 127.0.0.1:2304 42 abcdef1234567890(OK) 玩家 A\n(1 players in total)" });
+    await expect(client.getPlayers()).resolves.toEqual([{ num: 0, guid: "abcdef1234567890", name: "玩家 A" }]);
+  });
+
+  it("连接中断结束待处理命令而不是永久挂起", async () => {
+    const client = new RconClient({ host: "127.0.0.1", port: 2302, password: "test" });
+    const connected = client.connect();
+    mockSocketHolder.current!.emit("message", buildLoginResponse(true));
+    await connected;
+    const pending = client.sendCommand("players");
+    client.disconnect();
+    await expect(pending).resolves.toMatchObject({ success: false });
   });
 
   it("overwrites duplicate UDP fragments by index instead of concatenating", async () => {

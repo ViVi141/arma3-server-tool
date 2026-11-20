@@ -1,4 +1,3 @@
-import { taskCommandsInvolveSteamCmd } from "../../task/manager.js";
 import { isSafeId } from "../../util/upload-safety.js";
 import type { FastifyInstance } from "fastify";
 import { envelope } from "./shared.js";
@@ -76,10 +75,7 @@ export function registerTasksRoutes(app: FastifyInstance): void {
       return envelope(false, null, "NOT_FOUND", taskId);
     }
     const cancelled = app.asyncTaskManager.cancel(taskId);
-    // 仅 SteamCMD 相关任务才 abort，避免取消无关任务时误杀正在跑的 SteamCMD。
-    if (taskCommandsInvolveSteamCmd(task.commands)) {
-      app.steamCmd.requestAbort();
-    }
+    // cancel 通过内部信号只取消本任务；取消排队项不能误杀另一任务的 SteamCMD。
     const updated = app.asyncTaskManager.get(taskId);
     let message = "任务已结束";
     if (cancelled) {

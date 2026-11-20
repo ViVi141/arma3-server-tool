@@ -13,6 +13,8 @@ export interface SteamWorkshopModInfo {
   title: string;
   description: string;
   fileSizeMb: string;
+  /** API 原始字节数；HTML 展示文本不能用于维护磁盘预算。 */
+  fileSizeBytes?: number;
   selected: boolean;
   timeUpdated?: number;
   timeUpdatedLabel?: string;
@@ -169,36 +171,32 @@ export function parseWorkshopFileDetailsHtml(html: string, modId: number): Steam
 }
 
 export function parseModDetails(json: string, requestedIds: number[]): SteamWorkshopModInfo[] {
-  if (!json.trim()) {
-    return buildFallbackDetails(requestedIds);
-  }
-
-  const result: SteamWorkshopModInfo[] = [];
-  for (const modId of requestedIds) {
-    const segment = findModSegment(json, modId);
-    if (segment.includes("creator_app_id") && !segment.includes("107410")) {
-      continue;
+  const ids = [...new Set(requestedIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
+  const byId = new Map<number, Record<string, unknown> | null>();
+  try {
+    const parsed = JSON.parse(json);
+    // 保留单条 JSON 的兼容性；正式 API 必须按完整对象及 publishedfileid 匹配。
+    const entries: unknown[] = Array.isArray(parsed?.response?.publishedfiledetails) ? parsed.response.publishedfiledetails : [parsed];
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+      const item = entry as Record<string, unknown>;
+      const id = Number(item.publishedfileid);
+      if (!ids.includes(id)) continue;
+      // 重复 ID 即使内容相同也不猜测哪条可信。
+      byId.set(id, byId.has(id) ? null : item);
     }
-
-    const title = extractJsonString(segment, "title");
-    const timeUpdated = extractJsonNumber(segment, "time_updated");
-    const info: SteamWorkshopModInfo = {
-      modId,
-      title: title || `Workshop ${modId}`,
-      description: extractJsonString(segment, "description"),
-      fileSizeMb: formatFileSize(extractJsonString(segment, "file_size")),
-      selected: true,
-      timeUpdated: timeUpdated > 0 ? timeUpdated : undefined,
-      timeUpdatedLabel: timeUpdated > 0 ? formatUnixTime(timeUpdated) : undefined,
-      source: "api",
-    };
-    result.push(info);
-  }
-
-  if (result.length === 0) {
-    return buildFallbackDetails(requestedIds);
-  }
-  return result;
+  } catch { return buildFallbackDetails(ids); }
+  return ids.map((modId) => {
+    const item = byId.get(modId);
+    if (!item || (item.result !== undefined && Number(item.result) !== 1) || Number(item.creator_app_id) !== 107410 ||
+      (item.consumer_app_id !== undefined && Number(item.consumer_app_id) !== 107410)) return buildFallbackDetails([modId])[0];
+    const time = Number(item.time_updated); const size = Number(item.file_size);
+    const timeUpdated = Number.isSafeInteger(time) && time > 0 && time <= 8640000000000 ? time : undefined;
+    const fileSizeBytes = Number.isSafeInteger(size) && size > 0 ? size : undefined;
+    return { modId, title: typeof item.title === "string" && item.title ? item.title : `Workshop ${modId}`,
+      description: typeof item.description === "string" ? item.description : "", fileSizeMb: formatFileSize(fileSizeBytes ?? 0),
+      fileSizeBytes, selected: true, timeUpdated, timeUpdatedLabel: timeUpdated ? formatUnixTime(timeUpdated) : undefined, source: "api" as const };
+  });
 }
 
 async function fetchWorkshopModDetailsFromApi(modIds: number[]): Promise<Map<number, SteamWorkshopModInfo>> {
@@ -229,6 +227,18 @@ async function fetchWorkshopModDetailsFromApi(modIds: number[]): Promise<Map<num
     }
   }
   return result;
+}
+
+/** 维护只接受结构化 API 证据，按 ID 去重分批；失败项保留未知，不使用 HTML 猜版本。 */
+export async function fetchWorkshopVersions(modIds: number[]): Promise<SteamWorkshopModInfo[]> {
+  const ids = [...new Set(modIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
+  const byId = new Map<number, SteamWorkshopModInfo>();
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    try {
+      for (const [id, item] of await fetchWorkshopModDetailsFromApi(ids.slice(offset, offset + 100))) byId.set(id, item);
+    } catch { /* 本批查询失败保持未知，不能借用之前的远程版本声称最新。 */ }
+  }
+  return ids.map((id) => byId.get(id) ?? buildFallbackDetails([id])[0]);
 }
 
 async function fetchWorkshopModDetailsFromHtml(modId: number): Promise<SteamWorkshopModInfo | null> {
@@ -295,7 +305,7 @@ export async function fetchWorkshopModDetails(
   modIds: number[],
   localMods: LocalModRef[] = []
 ): Promise<SteamWorkshopModInfo[]> {
-  const ids = modIds.filter((id) => id > 0);
+  const ids = [...new Set(modIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
   if (!ids.length) {
     return [];
   }
@@ -319,7 +329,7 @@ export async function fetchWorkshopModDetails(
     }
   }
 
-  const byId = await fetchWorkshopModDetailsFromApi(ids);
+  const byId = await fetchWorkshopModDetailsFromApi(ids).catch(() => new Map<number, SteamWorkshopModInfo>());
   const missing = ids.filter((id) => !byId.has(id));
 
   if (missing.length) {
