@@ -2,7 +2,16 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.20] — 当前
+## [2.0.0-alpha.21] — 当前
+
+- 签名工作台：逐 PBO 签名覆盖与公钥内容比对、七类明确状态、AND/OR 组合筛选、本服已启用待处理视图、复制/CSV 导出、显式批量公钥部署并复扫。
+- 无人运行与独立健康：无人组合预览与缺失任务阻断；独立 `@a3st_health` 未压缩 PBO 心跳；RPT 增量/轮转/多实例读取；在线与 FPS 未知不写 0。
+- 受保护维护：逐服策略模板、时区窗口与跨午夜、活动保护、10/5/1 分钟广播；共享物理目录与同 ID 独立副本；全局 SteamCMD 队列与维护锁；六步有备份原位更新与回滚，故障后需人工显式释放。
+- 运维闭环：备份仅保留最近一批成功批次、预算超限每批次一次告警、检查点重启恢复；旧更新 Cron 需预览确认后停用并同步调度器，非更新任务不变。
+- 事件与 Agent 接口：独立 `a3st_operations.db`、游标事件与 30 天保留、只读 Token（仅 3 个 GET）、SMTP 设置与测试邮件、失败按 1/5/15/60 分钟重试。
+- 新增维护、健康、事件、签名工作台的 Playwright 用例与 UI 异常载荷防御；Service 479 用例（2 跳过）、Playwright 192 用例全绿。
+
+## [2.0.0-alpha.20]
 
 - 新增 Linux 便携包（Release 资产 `Arma3ServerTools-linux-<version>.tar.gz`）：内置 Service 与 Web 控制台，解压后 `bash start.sh` 即可在 VPS/小主机上用浏览器操作；附带 `a3st.env.example`、systemd 单元模板与部署 README。
 - 新增 `build:web:service`（`--base /`）：修复 Service 根路径托管时多级路由（如 `/console/:id/:tab`）刷新后静态资源 404 的问题；打包脚本会校验 base，防止误用相对路径产物。
