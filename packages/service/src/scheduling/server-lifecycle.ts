@@ -6,6 +6,7 @@ import { splitCommandLine } from "../config/game-config-writer.js";
 import type { ServerConfigPackage } from "../types/config.js";
 import {
   buildStartCommandLine,
+  ensureBattlEyeFiles,
   ensureProfileRoot,
   getServerExecutablePath,
   serverCfgExists,
@@ -18,6 +19,7 @@ import {
   verifyProcessIdentity,
 } from "../process/identity.js";
 import { waitForPortReady } from "../process/port-check.js";
+import { dropRconSession } from "../rcon/session.js";
 
 /** Max seconds to wait for the game port to start listening after spawn. */
 const PORT_READY_TIMEOUT_MS = 45_000;
@@ -69,6 +71,8 @@ async function stopServerBody(
   app: FastifyInstance,
   uuid: string
 ): Promise<LifecycleResult> {
+  // Any in-memory RCon login dies with the server process; never reuse it.
+  dropRconSession(uuid);
   const config = app.configStore.load(uuid);
   const persistedPid = config?.tasks?.processById ?? 0;
   const executable = config ? getServerExecutablePath(config) : "";
@@ -139,6 +143,8 @@ async function startServerBody(
   uuid: string,
   config?: ServerConfigPackage | null
 ): Promise<LifecycleResult> {
+  // Starting fresh: drop any stale session bound to a previous process.
+  dropRconSession(uuid);
   const cfg = config ?? app.configStore.load(uuid);
   if (!cfg) {
     return { success: false, message: "未找到服务器配置" };
@@ -150,6 +156,13 @@ async function startServerBody(
   }
   if (!serverCfgExists(serverDir, uuid)) {
     return { success: false, message: "尚未写入 server.cfg，请先点击「写入游戏配置」" };
+  }
+
+  // Keep the -bepath directory complete and in sync with the saved config
+  // (RCon password/port changes apply on the next start without a full rewrite).
+  const battlEyeFiles = ensureBattlEyeFiles(uuid, cfg);
+  if (!battlEyeFiles.success) {
+    console.warn("ensureBattlEyeFiles failed:", battlEyeFiles.message);
   }
 
   // 保证 profile 目录存在，RPT 才会稳定落在 <serverDir>/a3st_serverconfig/<uuid>/ 下

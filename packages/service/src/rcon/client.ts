@@ -43,6 +43,8 @@ export class RconClient extends EventEmitter {
   private seq = 0;
   private readonly pending = new Map<number, PendingCommand>();
   private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+  /** Shared by every caller while a login handshake is in flight. */
+  private connectPromise: Promise<void> | null = null;
 
   constructor(options: RconClientOptions) {
     super();
@@ -58,12 +60,17 @@ export class RconClient extends EventEmitter {
   }
 
   async connect(): Promise<void> {
-    if (this.state !== "disconnected") {
+    if (this.state === "connected") {
       return;
+    }
+    // A second caller must await the in-flight login instead of resolving
+    // immediately — resolving early made sendCommand() report "Not connected".
+    if (this.connectPromise) {
+      return this.connectPromise;
     }
     this.state = "connecting";
 
-    return new Promise<void>((resolve, reject) => {
+    const attempt = new Promise<void>((resolve, reject) => {
       const socket = dgram.createSocket("udp4");
       this.socket = socket;
 
@@ -138,9 +145,13 @@ export class RconClient extends EventEmitter {
         return true;
       };
       this.loginWaiter = handler;
-    }).finally(() => {
+    });
+
+    this.connectPromise = attempt.finally(() => {
+      this.connectPromise = null;
       this.loginWaiter = null;
     });
+    return this.connectPromise;
   }
 
   private loginWaiter: ((rp: DecodedPacket) => boolean) | null = null;
@@ -336,6 +347,8 @@ export class RconClient extends EventEmitter {
       this.keepAliveTimer = null;
     }
     for (const entry of this.pending.values()) {
+      // finish() also clears the timers and removes the entry; resolving (not
+      // dropping) the promise keeps callers from hanging after teardown.
       entry.finish({ success: false, message: "RCon 连接已断开" });
     }
     this.pending.clear();

@@ -318,6 +318,8 @@ export interface RconPlayerRow {
 export interface RconPlayersData {
   players: RconPlayerRow[];
   count: number;
+  /** host:port actually dialed by the service (diagnoses port mismatches). */
+  endpoint?: string;
 }
 
 export interface BikeySummaryData {

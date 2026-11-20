@@ -42,7 +42,7 @@ const be = () => (cfg.value.battleye ?? {}) as Record<string, unknown>;
     </ArkTechPanel>
     <ArkTechPanel title="RCon">
       <div class="form-row"><label>RCon 密码</label><el-input v-model="be().rconPassword" type="password" show-password size="small"/></div>
-      <div class="form-row"><label>RCon 端口</label><el-input-number v-model="be().rconPort" :min="1024" :max="65535" size="small" controls-position="right"/></div>
+      <div class="form-row"><label>RCon 端口</label><el-input-number v-model="be().rconPort" :min="1024" :max="65535" size="small" controls-position="right"/><span style="font-size:11px;color:var(--el-text-color-secondary);margin-left:6px">须与游戏端口不同</span></div>
       <div class="form-row"><label>RCon 地址</label><el-input v-model="be().rconHost" size="small"/></div>
     </ArkTechPanel>
     <ArkTechPanel title="事件回调" code="SEC-03">

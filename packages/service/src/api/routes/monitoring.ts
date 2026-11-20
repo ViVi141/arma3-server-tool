@@ -1,7 +1,7 @@
 import { hasBundledMonitoringAssets } from "../../monitoring/deployment.js";
 import { buildDailyHtmlReport, buildPlayersCsv, buildStatsCsv } from "../../monitoring/export.js";
 import { ingestMonitoringMessage } from "../../monitoring/ingest.js";
-import { fetchRconPlayers } from "../../rcon/helpers.js";
+import { fetchRconPlayers, collectRconPlayers } from "../../rcon/helpers.js";
 import type { PlayerRecord } from "../../monitoring/db.js";
 import type { FastifyInstance } from "fastify";
 import { envelope, parsePositiveInt } from "./shared.js";
@@ -41,13 +41,17 @@ export function registerMonitoringRoutes(app: FastifyInstance): void {
         continue;
       }
       try {
-        const players = await fetchRconPlayers(config);
-        const nowIso = new Date().toISOString();
-        const playerRecords: PlayerRecord[] = players
-          .filter((player) => Boolean(player.guid))
-          .map((player) => ({ playerGuid: player.guid, playerName: player.name ?? player.guid, serverUuid: s.uuid, lastSeen: nowIso }));
-        app.monitorDb.recordCollectionTick(s.uuid, players.length, playerRecords);
-        count++;
+        // One round-trip per tick: count and names come from the same response,
+        // so background collection never opens two RCon logins.
+        const snapshot = await collectRconPlayers(s.uuid, config);
+        if (snapshot.ok) {
+          const nowIso = new Date().toISOString();
+          const playerRecords: PlayerRecord[] = snapshot.players
+            .filter((player) => Boolean(player.guid))
+            .map((player) => ({ playerGuid: player.guid, playerName: player.name ?? player.guid, serverUuid: s.uuid, lastSeen: nowIso }));
+          app.monitorDb.recordCollectionTick(s.uuid, snapshot.players.length, playerRecords);
+          count++;
+        }
       } catch {
         // 人数未知时不写一条伪造的零人记录，也不影响其他实例采集。
       }
@@ -74,7 +78,7 @@ export function registerMonitoringRoutes(app: FastifyInstance): void {
       reply.status(404);
       return envelope(false, null, "NOT_FOUND", uuid);
     }
-    const players = await fetchRconPlayers(config);
+    const players = await fetchRconPlayers(config, uuid);
     const nowIso = new Date().toISOString();
     const playerRecords: PlayerRecord[] = players
       .filter((player) => Boolean(player.guid))

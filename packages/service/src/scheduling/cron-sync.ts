@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { ServerConfigPackage } from "../types/config.js";
-import { fetchRconPlayers, countOnlinePlayers } from "../rcon/helpers.js";
+import { collectRconPlayers } from "../rcon/helpers.js";
 import { executeCronAction } from "./server-lifecycle.js";
 
 export function clearCronJobsForServer(app: FastifyInstance, uuid: string): void {
@@ -55,11 +55,11 @@ export function syncCronJobsForServer(
         if (!state.isRunning) {
           return;
         }
-        const online = await countOnlinePlayers(latest);
-        if (online !== null) {
-          const players = await fetchRconPlayers(latest);
+        // Single RCon round-trip per tick, on the shared per-server session.
+        const snapshot = await collectRconPlayers(uuid, latest);
+        if (snapshot.ok) {
           const nowIso = new Date().toISOString();
-          const playerRecords = players
+          const playerRecords = snapshot.players
             .filter((player) => Boolean(player.guid))
             .map((player) => ({
               playerGuid: player.guid,
@@ -67,7 +67,7 @@ export function syncCronJobsForServer(
               serverUuid: uuid,
               lastSeen: nowIso,
             }));
-          app.monitorDb.recordCollectionTick(uuid, online, playerRecords);
+          app.monitorDb.recordCollectionTick(uuid, snapshot.players.length, playerRecords);
         }
       },
     });

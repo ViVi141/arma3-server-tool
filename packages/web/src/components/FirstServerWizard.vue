@@ -267,7 +267,8 @@ async function finish() {
         },
         battleye: {
           rconPassword: rconPassword.value,
-          rconPort: port.value,
+          // BattlEye requires RConPort to differ from the game port.
+          rconPort: port.value < 65535 ? port.value + 1 : port.value - 1,
           rconHost: rconHost.value.trim() || "127.0.0.1",
           bePath: "BattlEye",
         },

@@ -12,7 +12,7 @@ import { defaultServerExecutable } from "../../platform/index.js";
 import { runPreflightChecks } from "../../preflight/checker.js";
 import { startHeadlessClient, stopHeadlessClient } from "../../process/headless.js";
 import { resolveRconOptions } from "../../rcon/helpers.js";
-import { RconClient } from "../../rcon/index.js";
+import { withRconClient } from "../../rcon/index.js";
 import { syncCronJobsForServer } from "../../scheduling/cron-sync.js";
 import { restartServer, startServer, stopServer } from "../../scheduling/server-lifecycle.js";
 import { applySteamCmdSettings } from "../../settings/apply-steamcmd-settings.js";
@@ -478,81 +478,87 @@ async function executeCommandBody(
       const rconOptions = config ? resolveRconOptions(config) : null;
       if (!rconOptions) return fail("未配置 RCon 密码");
 
-      const client = new RconClient({ ...rconOptions, timeout: 5000 });
       try {
-        await client.connect();
-        switch (cmd.action) {
-          case "rcon_players": {
-            const players = await client.getPlayers();
-            return ok(JSON.stringify(players));
-          }
-          case "rcon_kick": {
-            const r = await client.kick(cmd.playerId as string, cmd.reason as string);
-            return ok(r.message);
-          }
-          case "rcon_ban": {
-            const target =
-              typeof cmd.playerGuid === "string" && cmd.playerGuid.trim()
-                ? cmd.playerGuid.trim()
-                : typeof cmd.playerId === "string" && cmd.playerId.trim()
-                  ? cmd.playerId.trim()
-                  : "";
-            if (!target) {
-              return fail("缺少 playerGuid 或 playerId");
+        // Reuse the per-server session: every fresh UDP login shows up as a new
+        // RCon admin on the server, so actions must not dial in each time.
+        return await withRconClient(
+          uuid,
+          { ...rconOptions, timeout: 5000 },
+          async (client) => {
+            switch (cmd.action) {
+              case "rcon_players": {
+                const players = await client.getPlayers();
+                return ok(JSON.stringify(players));
+              }
+              case "rcon_kick": {
+                const r = await client.kick(cmd.playerId as string, cmd.reason as string);
+                return r.success ? ok(r.message) : fail(r.message);
+              }
+              case "rcon_ban": {
+                const target =
+                  typeof cmd.playerGuid === "string" && cmd.playerGuid.trim()
+                    ? cmd.playerGuid.trim()
+                    : typeof cmd.playerId === "string" && cmd.playerId.trim()
+                      ? cmd.playerId.trim()
+                      : "";
+                if (!target) {
+                  return fail("缺少 playerGuid 或 playerId");
+                }
+                let timeMinutes: number | undefined;
+                if (
+                  typeof cmd.timeMinutes === "number"
+                  && Number.isFinite(cmd.timeMinutes)
+                  && cmd.timeMinutes >= 0
+                ) {
+                  timeMinutes = cmd.timeMinutes;
+                } else if (
+                  cmd.timeMinutes === undefined
+                  && typeof cmd.playerId === "number"
+                  && Number.isFinite(cmd.playerId)
+                  && cmd.playerId >= 0
+                ) {
+                  // Legacy RconView.vue passes ban duration in numeric playerId
+                  timeMinutes = cmd.playerId;
+                }
+                const reason = typeof cmd.reason === "string" ? cmd.reason : undefined;
+                const r = await client.ban(target, timeMinutes, reason);
+                return r.success ? ok(r.message) : fail(r.message);
+              }
+              case "rcon_broadcast": {
+                const r = await client.broadcast(cmd.broadcastMessage as string);
+                return r.success ? ok(r.message) : fail(r.message);
+              }
+              case "rcon_mission": {
+                const missionName =
+                  typeof cmd.rconMissionName === "string"
+                    ? cmd.rconMissionName
+                    : typeof cmd.missionTemplate === "string"
+                      ? cmd.missionTemplate
+                      : "";
+                const r = await client.loadMission(missionName);
+                return r.success ? ok(r.message) : fail(r.message);
+              }
+              case "rcon_command": {
+                const text = cmd.rconCommandText as string;
+                if (!text) return fail("缺少命令文本");
+                const r = await client.sendCommand(text);
+                return r.success ? ok(r.message) : fail(r.message);
+              }
+              case "rcon_lock": {
+                const r = await client.sendCommand("#lock");
+                return r.success ? ok(r.message) : fail(r.message);
+              }
+              case "rcon_unlock": {
+                const r = await client.sendCommand("#unlock");
+                return r.success ? ok(r.message) : fail(r.message);
+              }
             }
-            let timeMinutes: number | undefined;
-            if (
-              typeof cmd.timeMinutes === "number"
-              && Number.isFinite(cmd.timeMinutes)
-              && cmd.timeMinutes >= 0
-            ) {
-              timeMinutes = cmd.timeMinutes;
-            } else if (
-              cmd.timeMinutes === undefined
-              && typeof cmd.playerId === "number"
-              && Number.isFinite(cmd.playerId)
-              && cmd.playerId >= 0
-            ) {
-              // Legacy RconView.vue passes ban duration in numeric playerId
-              timeMinutes = cmd.playerId;
-            }
-            const reason = typeof cmd.reason === "string" ? cmd.reason : undefined;
-            const r = await client.ban(target, timeMinutes, reason);
-            return ok(r.message);
+            return fail("RCon 执行失败");
           }
-          case "rcon_broadcast": {
-            const r = await client.broadcast(cmd.broadcastMessage as string);
-            return ok(r.message);
-          }
-          case "rcon_mission": {
-            const missionName =
-              typeof cmd.rconMissionName === "string"
-                ? cmd.rconMissionName
-                : typeof cmd.missionTemplate === "string"
-                  ? cmd.missionTemplate
-                  : "";
-            const r = await client.loadMission(missionName);
-            return ok(r.message);
-          }
-          case "rcon_command": {
-            const text = cmd.rconCommandText as string;
-            if (!text) return fail("缺少命令文本");
-            const r = await client.sendCommand(text);
-            return ok(r.message);
-          }
-          case "rcon_lock": {
-            const r = await client.sendCommand("#lock");
-            return ok(r.message);
-          }
-          case "rcon_unlock": {
-            const r = await client.sendCommand("#unlock");
-            return ok(r.message);
-          }
-        }
-      } finally {
-        client.disconnect();
+        );
+      } catch (error) {
+        return fail(error instanceof Error ? error.message : "RCon 连接失败");
       }
-      return fail("RCon 执行失败");
     }
 
     // ------- Logs -------

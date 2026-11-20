@@ -164,4 +164,36 @@ describe("BUG-4 RconClient fragment overwrite and timer cleanup", () => {
     client.disconnect();
     expect(disconnectedSpy).toHaveBeenCalledTimes(1);
   });
+
+  it("shares a single login handshake across concurrent connect() calls", async () => {
+    const client = new RconClient({ host: "127.0.0.1", port: 2303, password: "pass" });
+
+    // A second caller must await the in-flight login instead of resolving
+    // immediately (which used to make sendCommand() report "Not connected").
+    const first = client.connect();
+    const second = client.connect();
+    const sock = mockSocketHolder.current!;
+    expect(mockCreateSocket).toHaveBeenCalledTimes(1);
+    expect(sock.send).toHaveBeenCalledTimes(1);
+
+    sock.emit("message", buildLoginResponse(true));
+    await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined]);
+    expect(client.connected).toBe(true);
+
+    client.disconnect();
+  });
+
+  it("resolves in-flight commands when the session is torn down", async () => {
+    const client = new RconClient({ host: "127.0.0.1", port: 2303, password: "pass" });
+    const connectPromise = client.connect();
+    const sock = mockSocketHolder.current!;
+    sock.emit("message", buildLoginResponse(true));
+    await connectPromise;
+
+    const cmdPromise = client.sendCommand("players");
+    client.disconnect();
+
+    // Must resolve (not hang) so callers are not stuck forever.
+    await expect(cmdPromise).resolves.toEqual({ success: false, message: "RCon 连接已断开" });
+  });
 });

@@ -142,7 +142,7 @@ async function saveSection(section: string) {
     </ArkTechPanel>
 
     <ArkTechPanel title="BattlEye / RCon" code="RAW-03">
-      <div class="form-row"><label>RCon 端口</label><el-input-number v-model="sections.battleye.rconPort" :min="1024" :max="65535" size="small" controls-position="right" /></div>
+      <div class="form-row"><label>RCon 端口</label><el-input-number v-model="sections.battleye.rconPort" :min="1024" :max="65535" size="small" controls-position="right" /><span style="font-size:11px;color:var(--el-text-color-secondary);margin-left:6px">须与游戏端口不同</span></div>
       <div class="form-row"><label>RCon 密码</label><el-input v-model="sections.battleye.rconPassword" type="password" show-password size="small" /></div>
       <div class="form-row"><label>RCon 地址</label><el-input v-model="sections.battleye.rconHost" size="small" /></div>
       <el-button size="small" @click="saveSection('battleye')">保存 BE 设置</el-button>

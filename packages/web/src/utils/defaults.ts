@@ -139,7 +139,8 @@ export const DEFAULTS: Record<string, Record<string, unknown>> = {
     thirdPerson: 0,
   },
   battleye: {
-    rconPort: 2302,
+    // BattlEye requires RConPort to differ from the game port (2302).
+    rconPort: 2303,
     rconPassword: "",
     rconHost: "127.0.0.1",
     beMaxPing: 200,

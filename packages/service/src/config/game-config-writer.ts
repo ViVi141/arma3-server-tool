@@ -20,6 +20,7 @@ import { assertSafeSubdirPath } from "../util/upload-safety.js";
 import { deployHealthMod, healthModPath } from "../health/mod.js";
 import { validateHealthConfig } from "../health/configuration.js";
 import { maintenanceLocks } from "../maintenance/locks.js";
+import { resolveEffectiveRconPort } from "./rcon-port.js";
 
 export const CONFIG_FOLDER = "a3st_serverconfig";
 
@@ -607,12 +608,59 @@ function writeProfile(uuid: string, config: ServerConfigPackage, configRoot: str
   return filePath;
 }
 
+/** BattlEye runtime files the game loads from its -bepath directory. */
+const BE_RUNTIME_FILES = [
+  "BEServer_x64.dll",
+  "BEServer.dll",
+  "beserver_x64.dll",
+  "beserver.dll",
+];
+
+/**
+ * Copy the BE runtime from the game install into the per-server BE directory
+ * (referenced via -bepath) so multiple instances get isolated RCon configs.
+ * Missing runtime files are not fatal: the cfg is still written.
+ */
+function copyBattlEyeRuntime(serverDir: string, beDir: string): void {
+  // Linux installs may use a lowercase "battleye" folder.
+  const sourceDir = [path.join(serverDir, "BattlEye"), path.join(serverDir, "battleye")].find(
+    (dir) => fs.existsSync(dir)
+  );
+  if (!sourceDir || path.resolve(sourceDir) === path.resolve(beDir)) {
+    return;
+  }
+  for (const name of BE_RUNTIME_FILES) {
+    const source = path.join(sourceDir, name);
+    const target = path.join(beDir, name);
+    try {
+      // Always mirror the current game version so the BE server matches the client.
+      if (fs.existsSync(source)) {
+        fs.copyFileSync(source, target);
+      }
+    } catch {
+      // Ignore: BE falls back to the game directory when the copy fails.
+    }
+  }
+  const bans = path.join(sourceDir, "bans.txt");
+  const bansTarget = path.join(beDir, "bans.txt");
+  try {
+    if (fs.existsSync(bans) && !fs.existsSync(bansTarget)) {
+      fs.copyFileSync(bans, bansTarget);
+    }
+  } catch {
+    // Ignore: BE creates bans.txt on first launch.
+  }
+}
+
 function writeBattlEyeCfg(config: ServerConfigPackage, configRoot: string): string[] {
   const battleye = asRecord(config.battleye);
   const basic = asRecord(config.basic);
+  const serverDir = str(config.server?.serverDir).trim();
+  // BattlEye requires RConPort to differ from the game port.
+  const rconPort = resolveEffectiveRconPort(config);
   const lines = [
     `RConPassword ${str(battleye.rconPassword)}`,
-    `RConPort ${num(battleye.rconPort, num(basic.port, 2302))}`,
+    `RConPort ${rconPort}`,
   ];
 
   const maxCreateVehicleCount = num(basic.maxCreateVehicleCount, 0);
@@ -638,7 +686,36 @@ function writeBattlEyeCfg(config: ServerConfigPackage, configRoot: string): stri
     fs.writeFileSync(filePath, content, "utf-8");
   }
 
+  if (serverDir) {
+    copyBattlEyeRuntime(serverDir, beDir);
+  }
+
   return paths;
+}
+
+/**
+ * Refresh only the BattlEye files (BEServer*.cfg + runtime copy). Called on
+ * start so -bepath always points at a complete, current config even when the
+ * user changed the RCon password/port without re-writing the game config.
+ */
+export function ensureBattlEyeFiles(uuid: string, config: ServerConfigPackage): WriteResult {
+  const serverDir = str(config.server?.serverDir).trim();
+  if (!serverDir) {
+    return { success: false, message: "未设置服务器目录", paths: [] };
+  }
+  if (!uuid) {
+    return { success: false, message: "缺少服务器 UUID", paths: [] };
+  }
+
+  try {
+    const configRoot = getConfigRoot(serverDir, uuid);
+    ensureDirectories(configRoot, uuid);
+    const paths = writeBattlEyeCfg(config, configRoot);
+    return { success: true, message: "BattlEye 配置已写入", paths };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "BattlEye 配置写入失败";
+    return { success: false, message, paths: [] };
+  }
 }
 
 export function writeAll(uuid: string, config: ServerConfigPackage): WriteResult {
@@ -755,6 +832,13 @@ export function buildStartCommandLine(
   parts.push(`"-cfg=${path.join(configRoot, "basic.cfg")}"`);
   parts.push(`"-profiles=${configRoot}"`);
   parts.push(`"-name=${uuid}"`);
+
+  // Point BattlEye at the per-instance directory that holds the generated
+  // BEServer*.cfg. Without this the game reads <serverDir>/BattlEye and the
+  // configured RCon password/port are silently ignored.
+  if (bool(basic.battlEye, true)) {
+    parts.push(`"-bepath=${path.join(configRoot, "BattlEye")}"`);
+  }
 
   const dlcMods = buildDlcModList(startup);
   const userClientMods = buildClientModListFromMeta(serverDir, mods);

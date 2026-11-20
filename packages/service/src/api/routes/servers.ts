@@ -7,7 +7,12 @@ import { collectModPaths, isModDirectory } from "../../mods/paths.js";
 import { defaultServerExecutable } from "../../platform/index.js";
 import { runPreflightChecks } from "../../preflight/checker.js";
 import { verifyProcessIdentity, isValidPid } from "../../process/identity.js";
-import { fetchRconPlayers, resolveRconOptions, countOnlinePlayers } from "../../rcon/helpers.js";
+import {
+  fetchRconPlayers,
+  resolveRconOptions,
+  countOnlinePlayers,
+  getCachedOnlineCount,
+} from "../../rcon/helpers.js";
 import { clearCronJobsForServer } from "../../scheduling/cron-sync.js";
 import { stopServer } from "../../scheduling/server-lifecycle.js";
 import { randomUUID } from "node:crypto";
@@ -327,14 +332,20 @@ export function registerServersRoutes(app: FastifyInstance): void {
       reply.status(404);
       return envelope(false, null, "NOT_FOUND", uuid);
     }
-    if (!resolveRconOptions(config)) {
+    const options = resolveRconOptions(config);
+    if (!options) {
       reply.status(400);
       return envelope(false, null, "RCON_NOT_CONFIGURED", uuid);
     }
 
     try {
-      const players = await fetchRconPlayers(config);
-      return envelope(true, { players, count: players.length }, null, uuid);
+      const players = await fetchRconPlayers(config, uuid);
+      return envelope(
+        true,
+        { players, count: players.length, endpoint: `${options.host}:${options.port}` },
+        null,
+        uuid
+      );
     } catch (error) {
       reply.status(502);
       const message = error instanceof Error ? error.message : "RCon 连接失败";
@@ -401,7 +412,18 @@ export function registerServersRoutes(app: FastifyInstance): void {
 
     let onlineCount: number | null = null;
     if (state.isRunning && config.battleye?.rconPassword) {
-      onlineCount = await countOnlinePlayers(config);
+      // The dashboard polls every few seconds. Answer from the shared session
+      // cache and refresh it at most once per 20s so polling never floods the
+      // server with fresh BattlEye logins.
+      const cached = getCachedOnlineCount(uuid);
+      if (cached && Date.now() - cached.at < 20_000) {
+        onlineCount = cached.onlineCount;
+      } else {
+        onlineCount = await countOnlinePlayers(config, uuid);
+        if (onlineCount === null && cached) {
+          onlineCount = cached.onlineCount;
+        }
+      }
     }
 
     const monitoring = app.monitorDb.getSummary(uuid);

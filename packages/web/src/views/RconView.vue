@@ -16,6 +16,7 @@ const missions = ref<{ map: string; mission: string }[]>([]);
 const loading = ref(false);
 const connected = ref(false);
 const statusText = ref("未连接");
+const endpoint = ref("");
 const activeTab = ref("players");
 
 const kickReason = ref("管理员踢出");
@@ -53,14 +54,19 @@ async function connectRcon() {
   statusText.value = "连接中...";
   try {
     await refreshPlayers();
-    connected.value = true;
-    statusText.value = `已连接，在线 ${players.value.length} 人`;
+    ElMessage.success(statusText.value);
   } catch (e) {
     connected.value = false;
     statusText.value = e instanceof Error ? e.message : "连接失败";
+    ElMessage.error(statusText.value);
   } finally {
     loading.value = false;
   }
+}
+
+function syncStatusText() {
+  const where = endpoint.value ? `（${endpoint.value}）` : "";
+  statusText.value = `已连接${where}，在线 ${players.value.length} 人`;
 }
 
 async function refreshPlayers() {
@@ -76,8 +82,9 @@ async function refreshPlayers() {
   }
 
   players.value = res.data.players ?? [];
+  endpoint.value = res.data.endpoint ?? "";
   connected.value = true;
-  statusText.value = `已连接，在线 ${players.value.length} 人`;
+  syncStatusText();
 
   if (selectedPlayer.value) {
     const stillOnline = players.value.find((p) => p.num === selectedPlayer.value?.num);

@@ -4,6 +4,7 @@ import { healthRoutes } from "../api/health.js";
 import { apiRoutes } from "../api/routes.js";
 import { createService } from "../app.js";
 import { RconClient } from "../rcon/client.js";
+import { closeAllRconSessions } from "../rcon/session.js";
 
 // We need the decorated service instances. For integration tests,
 // create a minimal Fastify instance with mock services.
@@ -69,6 +70,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  closeAllRconSessions();
   await app.close();
   monitorDb.close();
   fs.rmSync(tmpDir, { recursive: true, force: true });

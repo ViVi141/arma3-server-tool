@@ -26,6 +26,7 @@ import { MaintenancePlanner } from "./maintenance/planner.js";
 import { MaintenanceExecutor } from "./maintenance/executor.js";
 import { ServiceMaintenanceAdapter } from "./maintenance/adapter.js";
 import { MaintenanceAutoScheduler } from "./maintenance/auto-scheduler.js";
+import { closeAllRconSessions } from "./rcon/session.js";
 
 export interface ServiceOptions {
   port: number;
@@ -286,6 +287,7 @@ export async function createService(options: ServiceOptions) {
     instanceSseManager.unwireSteamCmd(steamCmd);
     instanceSseManager.closeAll();
     stopAllHeadlessClients({ skipLocked: true, preservePids: maintenanceAdapter.restoredHeadlessPids() });
+    closeAllRconSessions();
     await closeProxyAgents();
     monitorDb.close();
   });

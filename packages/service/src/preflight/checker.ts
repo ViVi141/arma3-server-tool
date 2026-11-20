@@ -8,6 +8,7 @@ import {
   getServerExecutablePath,
   serverCfgExists,
 } from "../config/game-config-writer.js";
+import { resolveEffectiveRconPort } from "../config/rcon-port.js";
 import type { ModMeta } from "../types/mods.js";
 import { healthConfigurationIssues } from "../health/configuration.js";
 import { healthModMatches } from "../health/mod.js";
@@ -170,6 +171,23 @@ export function runPreflightChecks(
       severity: "warning",
       message: "未配置 RCon 密码，远程控制与在线人数统计不可用",
     });
+  } else {
+    const configuredRconPort = Number(config.battleye?.rconPort);
+    const effectiveRconPort = resolveEffectiveRconPort(config);
+    if (Number.isFinite(configuredRconPort) && configuredRconPort === port) {
+      issues.push({
+        category: "RCon",
+        severity: "warning",
+        message: `RCon 端口不能与游戏端口相同（BattlEye 要求独立端口），实际使用 ${effectiveRconPort}`,
+      });
+    }
+    if (!options?.isRunning && isUdpPortInUse(effectiveRconPort)) {
+      issues.push({
+        category: "RCon",
+        severity: "warning",
+        message: `UDP ${effectiveRconPort} 已被占用，BattlEye RCon 可能无法监听`,
+      });
+    }
   }
 
   const keysDir = serverDir ? getServerKeysDirectory(serverDir) : "";

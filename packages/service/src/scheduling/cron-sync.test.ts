@@ -1,13 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockFetchRconPlayers, mockCountOnlinePlayers } = vi.hoisted(() => ({
-  mockFetchRconPlayers: vi.fn(),
-  mockCountOnlinePlayers: vi.fn(),
+const { mockCollectRconPlayers } = vi.hoisted(() => ({
+  mockCollectRconPlayers: vi.fn(),
 }));
 
 vi.mock("../rcon/helpers.js", () => ({
-  fetchRconPlayers: mockFetchRconPlayers,
-  countOnlinePlayers: mockCountOnlinePlayers,
+  collectRconPlayers: mockCollectRconPlayers,
 }));
 
 import { syncCronJobsForServer } from "./cron-sync.js";
@@ -15,8 +13,7 @@ import type { FastifyInstance } from "fastify";
 
 describe("PERF-2 cron-sync monitoring tick batch persistence", () => {
   beforeEach(() => {
-    mockFetchRconPlayers.mockReset();
-    mockCountOnlinePlayers.mockReset();
+    mockCollectRconPlayers.mockReset();
   });
 
   it("uses recordCollectionTick once instead of N+1 recordPlayer/recordStats calls", async () => {
@@ -55,12 +52,14 @@ describe("PERF-2 cron-sync monitoring tick batch persistence", () => {
     expect(syncRes.success).toBe(true);
     expect(syncRes.count).toBe(1);
 
-    mockCountOnlinePlayers.mockResolvedValueOnce(3);
-    mockFetchRconPlayers.mockResolvedValueOnce([
-      { num: 1, guid: "g1", name: "Alice" },
-      { num: 2, guid: "g2", name: "Bob" },
-      { num: 3, guid: "g3", name: "Charlie" },
-    ]);
+    mockCollectRconPlayers.mockResolvedValueOnce({
+      ok: true,
+      players: [
+        { num: 1, guid: "g1", name: "Alice" },
+        { num: 2, guid: "g2", name: "Bob" },
+        { num: 3, guid: "g3", name: "Charlie" },
+      ],
+    });
 
     const handler = registeredHandlers.get("uuid-cron-monitoring");
     expect(handler).toBeDefined();

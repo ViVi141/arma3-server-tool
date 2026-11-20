@@ -78,6 +78,9 @@ describe("GameConfigWriter", () => {
       "utf-8"
     );
     expect(beCfg).toContain("RConPassword secret");
+    // rconPort was saved equal to the game port (2402); BattlEye requires a
+    // separate port, so the writer must offset it.
+    expect(beCfg).toContain("RConPort 2403");
   });
 
   it("builds start command line with config paths and mod flags", () => {
@@ -128,6 +131,8 @@ describe("GameConfigWriter", () => {
     const cmd = buildStartCommandLine("uuid-1", cfg, mods);
     expect(cmd).toContain("-port=2402");
     expect(cmd).toContain("a3st_serverconfig");
+    // Without -bepath the game ignores the generated BEServer*.cfg.
+    expect(cmd).toContain("-bepath=");
     expect(cmd).toContain("-mod=");
     expect(cmd).toContain("-serverMod=");
     expect(cmd).toContain("WS;");
