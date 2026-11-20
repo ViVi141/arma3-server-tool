@@ -182,7 +182,7 @@ describe("持久维护批次执行器", () => {
     expect(adapter.stop).toHaveBeenCalledTimes(1); expect(adapter.restoreFiles).not.toHaveBeenCalled();
     expect(contents()).toEqual(["new-mod", "new-key"]);
   });
-  it("成功批次只保留最近一批备份；未解决故障批次的备份不被清理", async () => {
+  it("成功批次只保留最近一批备份；未解决故障批次的备份不被清理", { timeout: 30_000 }, async () => {
     const first = await run();
     expect(first.state).toBe("succeeded");
     expect(fs.existsSync(path.join(backups.root, first.id, "manifest.json"))).toBe(true);

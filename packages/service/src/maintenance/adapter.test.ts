@@ -131,7 +131,8 @@ describe("生产维护适配器（真实配置、扫描、文件和检查点；�
     expect(result.recovery.started).toHaveLength(2); expect(result.recovery.backups).toHaveLength(2);
     expect(fs.readFileSync(key("s1"), "utf8")).toBe("new-key"); expect(fs.readFileSync(key("s2", "b"), "utf8")).toBe("brand-new-key");
     expect(JSON.stringify(result)).not.toContain("do-not-persist-password"); expect(JSON.stringify(result)).not.toContain('"args"');
-    expect(JSON.stringify(result.recovery.backups)).not.toContain("456");
+    // batchId 是随机 UUID，搜索整个 JSON 字符串会偶发命中无关子串（如 "456"），因此只检查 workshop 记录的 modId。
+    expect(result.recovery.backups.flatMap((ref) => (ref.workshopRecords ?? []).flatMap((record) => record.items.map((item) => item.modId)))).not.toContain(456);
   });
   it("更新健康失败恢复旧模组、公钥和目标 ACF；保留其他 ID 新记录及玩家存档", async () => {
     add("s1", true); fs.writeFileSync(path.join(dir, "s1", "player-save.bin"), "original-save");

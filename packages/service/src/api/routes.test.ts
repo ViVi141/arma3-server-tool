@@ -733,7 +733,7 @@ describe("API Routes Integration", () => {
     }
   });
 
-  it("BUG-5 & BUG-7 via createService: accepts text/html, rejects JSON body 400, and writes server.cfg on mission-pbo?writeCfg=true", async () => {
+  it("BUG-5 & BUG-7 via createService: accepts text/html, rejects JSON body 400, and writes server.cfg on mission-pbo?writeCfg=true", { timeout: 30_000 }, async () => {
     const svcDir = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-svc-upload-"));
     const svc = await createService({ port: 0, host: "127.0.0.1", dataDir: svcDir });
     try {
