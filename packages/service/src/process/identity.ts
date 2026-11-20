@@ -132,13 +132,37 @@ export async function stopProcessSession(pid: number, session: string, executabl
     });
     if (stdout.trim() !== "EXITED") throw new Error("未确认维护进程退出");
   } else if (process.platform === "linux") {
-    const inspect = (): "running" | "exited" => {
+    // 进程可能在任意两次 /proc 读取之间退出（stat 成功、exe 链接已消失）。
+    // 这类 ENOENT 属于正常退出竞态，必须按 exited 处理而不是向上抛错。
+    const readProcStat = (): { state: string; startTicks: string } | null => {
       try {
         const stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
         const fields = stat.slice(stat.lastIndexOf(")") + 2).trim().split(/\s+/);
-        if (fields[0] === "Z" || fields[0] === "X") return "exited";
+        return { state: fields[0] ?? "", startTicks: fields[19] ?? "" };
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        throw error;
+      }
+    };
+    const inspect = (): "running" | "exited" => {
+      try {
+        const stat = readProcStat();
+        if (!stat || stat.state === "Z" || stat.state === "X") return "exited";
         const boot = fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim();
-        if (`${boot}:${pid}:${fields[19]}` !== session || fs.realpathSync(`/proc/${pid}/exe`) !== resolveComparablePath(executable)) throw new Error("维护进程会话变化");
+        if (`${boot}:${pid}:${stat.startTicks}` !== session) throw new Error("维护进程会话变化");
+        let exePath: string;
+        try {
+          exePath = fs.realpathSync(`/proc/${pid}/exe`);
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code === "ENOENT" || code === "ESRCH") {
+            const again = readProcStat();
+            const exited = !again || again.state === "Z" || again.state === "X" || `${boot}:${pid}:${again.startTicks}` !== session;
+            if (exited) return "exited";
+          }
+          throw error;
+        }
+        if (exePath !== resolveComparablePath(executable)) throw new Error("维护进程会话变化");
         return "running";
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "ENOENT" && !fs.existsSync(`/proc/${pid}`)) return "exited";
