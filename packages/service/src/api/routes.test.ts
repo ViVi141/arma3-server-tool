@@ -505,7 +505,7 @@ describe("API Routes Integration", () => {
       payload: { configName: "RconTest", serverDir: tmpDir },
     });
     const uuid = JSON.parse(createRes.payload).data.uuid as string;
-    await app.inject({
+    const putRes = await app.inject({
       method: "PUT",
       url: `/api/v1/servers/${uuid}/config`,
       payload: {
@@ -514,6 +514,7 @@ describe("API Routes Integration", () => {
         battleye: { rconPort: 2302, rconPassword: "secret" },
       },
     });
+    expect(putRes.statusCode).toBe(200);
 
     const connectSpy = vi.spyOn(RconClient.prototype, "connect").mockResolvedValue();
     const disconnectSpy = vi.spyOn(RconClient.prototype, "disconnect").mockImplementation(() => {});
@@ -525,7 +526,7 @@ describe("API Routes Integration", () => {
       .mockResolvedValue({ success: true, message: "loaded" });
 
     try {
-      await app.inject({
+      const taskRes = await app.inject({
         method: "POST",
         url: "/api/v1/task",
         payload: {
@@ -555,6 +556,12 @@ describe("API Routes Integration", () => {
           ],
         },
       });
+      const taskBody = JSON.parse(taskRes.payload) as {
+        success: boolean;
+        data?: { steps?: { action: string; success: boolean; message: string }[] };
+      };
+      // 任务被维护锁/配置缺失等提前阻断时，“ban 调用 0 次”无法定位原因；先把步骤暴露出来。
+      expect(taskBody.success, `任务失败步骤：${JSON.stringify(taskBody.data?.steps ?? [])}`).toBe(true);
 
       expect(banSpy).toHaveBeenNthCalledWith(1, "guid123", 60, "TK");
       expect(banSpy).toHaveBeenNthCalledWith(2, "guid456", 30, "临时封禁");

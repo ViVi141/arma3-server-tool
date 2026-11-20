@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { createHash } from "node:crypto";
+import { replaceFile } from "../util/replace-file.js";
 
 export const HEALTH_MOD_NAME = "@a3st_health";
 export const HEALTH_MARKER = "A3ST_HEALTH_V1|";
@@ -60,7 +61,7 @@ export function deployHealthMod(profileRoot: string): string {
   fs.mkdirSync(path.dirname(target), { recursive: true });
   const temporary = `${target}.${process.pid}.tmp`;
   fs.writeFileSync(temporary, bytes);
-  fs.renameSync(temporary, target);
+  replaceFile(temporary, target);
   return target;
 }
 

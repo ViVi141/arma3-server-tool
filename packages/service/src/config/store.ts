@@ -9,6 +9,7 @@ import {
   assertSafeSubdirPath,
   assertSafeTargetPath,
 } from "../util/upload-safety.js";
+import { replaceFile } from "../util/replace-file.js";
 
 const CONFIG_DIR = "config";
 const MANIFEST_FILE = "manifest.json";
@@ -44,7 +45,7 @@ function sectionFileStem(key: keyof ServerConfigPackage): string {
 function writeJsonAtomic(filePath: string, data: unknown): void {
   const tmpPath = `${filePath}.${process.pid}.tmp`;
   fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf-8");
-  fs.renameSync(tmpPath, filePath);
+  replaceFile(tmpPath, filePath);
 }
 
 export class ConfigStore {
@@ -224,7 +225,7 @@ export class ConfigStore {
       throw err;
     }
     for (const item of pending) {
-      fs.renameSync(item.tmpPath, item.filePath);
+      replaceFile(item.tmpPath, item.filePath);
     }
     this.writeManifest(pkgDir, uuid, config, resolvedName);
 

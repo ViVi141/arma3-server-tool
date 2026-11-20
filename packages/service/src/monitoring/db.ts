@@ -1,23 +1,7 @@
 import initSqlJs, { type Database as SqlDb, type QueryExecResult, type SqlJsValue } from "sql.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
-
-function replaceFile(temp: string, target: string): void {
-  try {
-    fs.renameSync(temp, target);
-    return;
-  } catch (error) {
-    let code = "";
-    if (error instanceof Error && "code" in error) {
-      code = String((error as NodeJS.ErrnoException).code ?? "");
-    }
-    if (code !== "EPERM" && code !== "EEXIST" && code !== "EBUSY") {
-      throw error;
-    }
-  }
-  fs.rmSync(target, { force: true });
-  fs.renameSync(temp, target);
-}
+import { replaceFile } from "../util/replace-file.js";
 
 export interface PlayerRecord {
   playerGuid: string;

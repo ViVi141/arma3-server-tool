@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import type { EmailDelivery, NotificationSettings, MaintenanceCheckpoint, OperationEvent, OperationEventInput, OperationEventPage } from "../types/operations.js";
 import { DEFAULT_NOTIFICATION_SETTINGS, validateNotificationSettings } from "./notification-settings.js";
 import type { MaintenanceDiscovery } from "../types/maintenance.js";
+import { replaceFile } from "../util/replace-file.js";
 
 export class FutureOperationsCursor extends Error {
   constructor(public latestCursor: number) { super("事件游标超出当前数据库范围，请核对主机和游标后重新同步"); }
@@ -85,7 +86,7 @@ export class OperationsStore extends EventEmitter {
       const fd = fs.openSync(temp, "wx", 0o600);
       try { fs.writeFileSync(fd, this.db.export()); fs.fsyncSync(fd); }
       finally { fs.closeSync(fd); }
-      fs.renameSync(temp, this.filePath);
+      replaceFile(temp, this.filePath);
     } catch (error) { try { fs.unlinkSync(temp); } catch { /* 保留原数据库 */ } throw error; }
   }
   private transaction<T>(operation: () => T): T {
