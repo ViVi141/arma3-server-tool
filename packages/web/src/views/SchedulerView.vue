@@ -28,6 +28,49 @@ function defaultPolicy(): MaintenancePolicy {
 }
 const maintenance = ref<MaintenancePolicy>(defaultPolicy());
 const legacyUpdates = computed(() => cronRows.value.filter((job) => job.actionText === "update_mods" && job.enabled));
+/**
+ * 旧版本（升级前）任务的动作可能只有 action 数字或中文文案；按后端
+ * resolveCronAction 的同一规则归一化，展示与调度语义才一致。
+ */
+function normalizeAction(value: unknown): string {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (text === "update_mods" || text.includes("update_mods") || text.includes("更新模组") || text.includes("检查模组")) return "update_mods";
+  if (text === "1" || text.includes("start") || text.includes("启动")) return "start";
+  if (text === "2" || text.includes("stop") || text.includes("停止")) return "stop";
+  if (text === "3" || text.includes("detect") || text.includes("检测")) return "detect";
+  return "restart";
+}
+type PolicyWindow = MaintenancePolicy["windows"][number];
+function coerceWindows(value: unknown): PolicyWindow[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is PolicyWindow =>
+    Boolean(item) && typeof item === "object" && !Array.isArray(item)
+      && Array.isArray((item as PolicyWindow).days)
+      && typeof (item as PolicyWindow).start === "string"
+      && typeof (item as PolicyWindow).end === "string");
+}
+/**
+ * 旧版本升级后的维护配置可能只存在部分字段（或结构不完整）；逐个字段回退默认值，
+ * 避免编辑器读到非数组的 windows/protectedWindows 而整页渲染失败。
+ */
+function coercePolicy(value: unknown): MaintenancePolicy {
+  const fallback = defaultPolicy();
+  if (!value || typeof value !== "object" || Array.isArray(value)) return fallback;
+  const data = value as Record<string, unknown>;
+  const windows = coerceWindows(data.windows);
+  const minutes = Number(data.expectedDurationMinutes);
+  return {
+    enabled: typeof data.enabled === "boolean" ? data.enabled : fallback.enabled,
+    template: data.template === "maintenance_window" || data.template === "idle_first" || data.template === "check_only" ? data.template : fallback.template,
+    timeZone: typeof data.timeZone === "string" && data.timeZone.trim() ? data.timeZone.trim() : fallback.timeZone,
+    windows: windows.length ? windows : fallback.windows,
+    protectedWindows: coerceWindows(data.protectedWindows),
+    windowConfirmed: typeof data.windowConfirmed === "boolean" ? data.windowConfirmed : false,
+    allowOccupied: typeof data.allowOccupied === "boolean" ? data.allowOccupied : false,
+    occupiedConfirmed: typeof data.occupiedConfirmed === "boolean" ? data.occupiedConfirmed : false,
+    expectedDurationMinutes: Number.isInteger(minutes) && minutes >= 1 && minutes <= 1440 ? minutes : fallback.expectedDurationMinutes,
+  };
+}
 function getClientForScope() {
   const conn = store.connections.find((item) => item.id === props.connectionId);
   return conn ? createClient(conn.baseUrl, conn.token) : null;
@@ -74,17 +117,19 @@ async function load() {
     if (generation !== loadGeneration) return;
     if (res.success) {
       cfg.value = applyDefaults(res.data as Record<string, unknown>);
-      maintenance.value = structuredClone(res.data.maintenance ?? defaultPolicy());
+      maintenance.value = coercePolicy(res.data.maintenance);
       const jobs = (scheduler().cronJobs ?? {}) as Record<string, CronJobEntry>;
-      cronRows.value = Object.values(jobs).map((job) => ({
-        taskId: job.taskId,
-        cron: job.cron ?? "",
-        actionText: job.actionText ?? "restart",
-        remark: job.remark ?? "",
-        enabled: job.enabled ?? job.status === 1,
-        quietHoursStart: job.quietHoursStart ?? "",
-        quietHoursEnd: job.quietHoursEnd ?? "",
-      }));
+      cronRows.value = Object.entries(jobs)
+        .filter((entry): entry is [string, CronJobEntry] => Boolean(entry[1]) && typeof entry[1] === "object")
+        .map(([key, job]) => ({
+          taskId: job.taskId ?? key,
+          cron: job.cron ?? "",
+          actionText: normalizeAction(job.actionText ?? job.action),
+          remark: job.remark ?? "",
+          enabled: job.enabled ?? job.status === 1,
+          quietHoursStart: job.quietHoursStart ?? "",
+          quietHoursEnd: job.quietHoursEnd ?? "",
+        }));
     }
   } finally {
     if (generation === loadGeneration) { loading.value = false; trackDirty = true; }

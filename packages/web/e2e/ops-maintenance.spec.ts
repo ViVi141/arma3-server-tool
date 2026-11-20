@@ -220,3 +220,46 @@ test("取消只停止后续步骤并保留有限恢复；重试沿用原目标�
   await page.screenshot({ path: testInfo.outputPath("ops-maintenance-cancel-retry.png"), fullPage: true });
   guards.assertClean();
 });
+
+test("旧版本升级：残缺维护配置与旧格式任务不会让调度页加载失败", async ({ page }, testInfo) => {
+  const guards = attachErrorGuards(page);
+  await connectMockedConsole(page);
+  // 模拟升级前的配置：maintenance 只有部分字段（缺 windows/protectedWindows 等），
+  // 旧任务只有数字 action 或中文动作文案。
+  await page.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() === "GET" && /\/servers\/[^/]+\/config$/.test(url.pathname)) {
+      return route.fulfill({
+        json: {
+          success: true, error: null, requestId: "legacy-config",
+          data: {
+            formatVersion: 2,
+            server: { configName: "Legacy", serverDir: "C:\\arma3" },
+            maintenance: { enabled: true },
+            scheduler: { cronJobs: {
+              legacy_restart: { cron: "0 5 * * *", action: 5, enabled: true },
+              legacy_update: { cron: "0 6 * * *", actionText: "检查/更新模组", enabled: true },
+            } },
+          },
+        },
+      });
+    }
+    return route.fallback();
+  });
+
+  await navigateConsoleTab(page, "scheduler");
+  const policy = page.locator(".ark-tech-panel").filter({ hasText: "逐服维护策略" }).first();
+  await expect(policy).toBeVisible();
+  await expect(page.getByText(/界面异常/)).toHaveCount(0);
+  // 缺字段回退默认窗口，时段仍可编辑。
+  await expect(policy.getByRole("button", { name: "添加时段", exact: true }).first()).toBeEnabled();
+  // 中文动作文案按后端语义归一化后被识别为旧更新 Cron，迁移入口必须出现。
+  await expect(page.getByText("发现 1 个启用的旧更新 Cron。不会自动改写；确认迁移后保存会停用这些旧更新任务并同步调度器。请先核对新策略的时区、维护和活动保护时段。", { exact: true })).toBeVisible();
+  const rows = page.locator(".el-table__row").filter({ has: page.locator(".el-select") });
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0).locator(".el-select")).toContainText("重启服务器");
+  await expect(rows.nth(1).locator(".el-select")).toContainText("检查/更新模组");
+  await page.screenshot({ path: testInfo.outputPath("ops-maintenance-legacy-upgrade.png"), fullPage: true });
+  guards.assertClean();
+});

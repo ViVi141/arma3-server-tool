@@ -5,6 +5,10 @@ import ArkTechPanel from "./ArkTechPanel.vue";
 const policy = defineModel<MaintenancePolicy>({ required: true });
 const weekdays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 const groups = [{ key: "windows" as const, label: "维护窗口" }, { key: "protectedWindows" as const, label: "活动保护时段" }];
+// 旧版本升级后的配置可能不是数组；模板一律经此访问，避免渲染期抛错。
+function list(key: "windows" | "protectedWindows") {
+  return Array.isArray(policy.value[key]) ? policy.value[key] : [];
+}
 function changedWindow() {
   policy.value.windowConfirmed = false;
   policy.value.allowOccupied = false;
@@ -36,15 +40,15 @@ async function changeOccupied(enabled: string | number | boolean) {
     </el-select></div>
     <div class="form-row"><label>明确时区</label><el-input v-model="policy.timeZone" placeholder="Asia/Shanghai 或 UTC" @input="changedWindow" /></div>
     <section v-for="group in groups" :key="group.key" class="window-group">
-      <div class="group-heading"><span>{{ group.label }}</span><el-button size="small" :disabled="policy[group.key].length >= 32" @click="policy[group.key].push({ days: [0,1,2,3,4,5,6], start: '04:00', end: '05:00' }); changedWindow()">添加时段</el-button></div>
-      <div v-for="(window, index) in policy[group.key]" :key="index" class="window-row">
+      <div class="group-heading"><span>{{ group.label }}</span><el-button size="small" :disabled="list(group.key).length >= 32" @click="list(group.key).push({ days: [0,1,2,3,4,5,6], start: '04:00', end: '05:00' }); changedWindow()">添加时段</el-button></div>
+      <div v-for="(window, index) in list(group.key)" :key="index" class="window-row">
         <el-checkbox-group v-model="window.days" @change="changedWindow"><el-checkbox v-for="(day, value) in weekdays" :key="value" :value="value">{{ day }}</el-checkbox></el-checkbox-group>
-        <div class="times"><el-input v-model="window.start" type="time" :aria-label="`${group.label}开始`" @input="changedWindow" /><span>至</span><el-input v-model="window.end" type="time" :aria-label="`${group.label}结束`" @input="changedWindow" /><el-button size="small" @click="policy[group.key].splice(index, 1); changedWindow()">删除时段</el-button></div>
+        <div class="times"><el-input v-model="window.start" type="time" :aria-label="`${group.label}开始`" @input="changedWindow" /><span>至</span><el-input v-model="window.end" type="time" :aria-label="`${group.label}结束`" @input="changedWindow" /><el-button size="small" @click="list(group.key).splice(index, 1); changedWindow()">删除时段</el-button></div>
       </div>
-      <p v-if="!policy[group.key].length" class="hint">未设置{{ group.label }}</p>
+      <p v-if="!list(group.key).length" class="hint">未设置{{ group.label }}</p>
     </section>
     <el-checkbox v-model="policy.windowConfirmed">已核对星期、实际时区及窗口；04:00—05:00 仅为建议，不是默认授权</el-checkbox>
-    <div><el-checkbox :model-value="policy.allowOccupied" :disabled="policy.template !== 'idle_first' || !policy.windowConfirmed || !policy.windows.length" @change="changeOccupied">单独允许：超过 24 小时后，窗口内有人维护（会断开玩家）</el-checkbox></div>
+    <div><el-checkbox :model-value="policy.allowOccupied" :disabled="policy.template !== 'idle_first' || !policy.windowConfirmed || !list('windows').length" @change="changeOccupied">单独允许：超过 24 小时后，窗口内有人维护（会断开玩家）</el-checkbox></div>
     <div class="form-row"><label>预计停服预算（分钟）</label><el-input-number v-model="policy.expectedDurationMinutes" :min="1" :max="1440" /></div>
     <p class="hint">时段按开始日计算，支持跨午夜；所有模板均受活动保护时段约束。共享物理目录必须同时满足所有关联实例的策略。窗口仅限定开始时刻，下载耗时计入停服，超预算告警不会打断恢复。</p>
     <p class="hint">配置修改需保存后生效；不会立即重启实例。原本关闭的实例不会在维护结束后被顺便启动。</p>
