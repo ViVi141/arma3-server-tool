@@ -4,7 +4,7 @@
 
 ## 前置
 
-- Node.js ≥ 20
+- Node.js ≥ 22.12
 - [Android Studio](https://developer.android.com/studio)（本机已检测到 SDK + JBR 即可）
 - 开服机 Service 监听 `0.0.0.0:19580`，并配置 `API_TOKEN`
 

@@ -6,7 +6,7 @@
 ## 环境
 
 - **发行版**：常见 x64 Linux（Ubuntu 22.04+、Debian 12+ 等）
-- **Node.js** ≥ 20（仅开发/源码运行 Service 时需要；Electron 用户不需要）
+- **Node.js** ≥ 22.12（仅开发/源码运行 Service 时需要；Electron 用户不需要）
 - **依赖**：`tar`（解压 SteamCMD）、`ss`（UDP 端口检测，通常随 iproute2 安装）
 - **路径**：服务器目录与 Workshop 路径建议英文/ASCII（与 Windows 相同约束）
 

@@ -9,7 +9,7 @@
 
 ### 环境
 
-- [ ] Node.js ≥ 20；`powershell -ExecutionPolicy Bypass -File scripts/ci-local.ps1` 通过
+- [ ] Node.js ≥ 22.12；`powershell -ExecutionPolicy Bypass -File scripts/ci-local.ps1` 通过
 - [ ] 开服机为 Windows；工具目录与 Arma 3 专用服务器目录均为**英文路径**
 - [ ] `@a3st/service` 监听 `http://127.0.0.1:19580`（或自定义 `DATA_DIR` / 端口）
 - [ ] Web 前端或 Electron 桌面版可打开控制面板

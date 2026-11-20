@@ -17,13 +17,13 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        node-version: [20, 22]
+        node-version: [22, 24]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
 
@@ -43,7 +43,7 @@ jobs:
         run: npm run build:web
 
       - name: Pack Linux bundle (script regression check)
-        if: matrix.node-version == 20
+        if: matrix.node-version == 24
         run: npm run pack:linux
 
       - name: Install Playwright Chromium
