@@ -13,6 +13,7 @@ import {
   countOnlinePlayers,
   getCachedOnlineCount,
 } from "../../rcon/helpers.js";
+import { dropRconSession } from "../../rcon/session.js";
 import { clearCronJobsForServer } from "../../scheduling/cron-sync.js";
 import { stopServer } from "../../scheduling/server-lifecycle.js";
 import { randomUUID } from "node:crypto";
@@ -273,6 +274,7 @@ export function registerServersRoutes(app: FastifyInstance): void {
 
     clearCronJobsForServer(app, uuid);
     app.processManager.forget(uuid);
+    dropRconSession(uuid);
     const ok = app.configStore.delete(uuid);
     if (!ok) {
       reply.status(404);

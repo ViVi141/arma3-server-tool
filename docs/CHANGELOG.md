@@ -2,7 +2,14 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.26] — 当前
+## [2.0.0-alpha.27] — 当前
+
+- 安全：配置/Steam/BattlEye/游戏 cfg 写盘 `0o600`；`install-linux-systemd.sh` 强制 `a3st.env` 600。
+- 安全：API 鉴权失败按 IP 限流（20 次/分钟 → 429）；RCon 会话 key 改为密码摘要；Steam 短密码也脱敏。
+- 资源：RCon 握手中途 `disconnect` 立即清定时器并拒绝挂起 Promise；删除服务器时 `dropRconSession`。
+- Service 507 用例（1 跳过）；本地 CI 通过。
+
+## [2.0.0-alpha.26]
 
 - Linux RCon：写入大小写 `beserver*.cfg`、复制 `.so`、启动前清理 `_active_`；默认/冲突端口改为避开 game/Steam/BE（优先 game+3）；首条命令序列号从 0 起，修复 Linux BattlEye 登录后无响应。
 - SteamCMD：Guard 批准后完整成功日志不再误判为 `waiting_guard`（`update_server` 假失败）。

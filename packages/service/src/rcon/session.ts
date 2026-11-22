@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { RconClient, type RconClientOptions } from "./client.js";
 import type { RconPlayer } from "../types/rcon.js";
 
@@ -26,7 +27,12 @@ const failureCooldowns = new Map<string, number>();
 const playerSnapshots = new Map<string, { players: RconPlayer[]; at: number }>();
 
 function sessionKey(options: RconClientOptions): string {
-  return `${options.host}:${options.port}:${options.password}`;
+  // Hash the password so Maps / core dumps do not retain the plaintext secret.
+  const passwordDigest = createHash("sha256")
+    .update(options.password, "utf8")
+    .digest("hex")
+    .slice(0, 16);
+  return `${options.host}:${options.port}:${passwordDigest}`;
 }
 
 function destroyEntry(uuid: string, entry: RconSessionEntry): void {

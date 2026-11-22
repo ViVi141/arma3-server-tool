@@ -92,4 +92,33 @@ describe("SEC-3 partial: Pino ?token= redaction, timingSafeEqual, and Electron/C
     expect(combinedLogs).toContain("token=***");
     expect(combinedLogs).not.toContain(secret);
   });
+
+  it("rate-limits repeated authentication failures from the same client", async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-app-auth-rl-"));
+    app = await createService({
+      port: 0,
+      host: "127.0.0.1",
+      dataDir: tmpDir,
+      apiToken: "rate-limit-secret-token",
+    });
+    const addr = app.server.address();
+    if (!addr || typeof addr === "string") {
+      throw new Error("expected TCP address");
+    }
+    const baseUrl = `http://127.0.0.1:${addr.port}`;
+
+    let lastStatus = 0;
+    for (let i = 0; i < 25; i++) {
+      const res = await fetch(`${baseUrl}/api/v1/servers`, {
+        headers: { Authorization: "Bearer wrong-token-value" },
+      });
+      lastStatus = res.status;
+      if (lastStatus === 429) {
+        const body = (await res.json()) as { code?: string };
+        expect(body.code).toBe("AUTH_RATE_LIMITED");
+        break;
+      }
+    }
+    expect(lastStatus).toBe(429);
+  });
 });

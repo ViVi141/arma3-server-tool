@@ -10,6 +10,7 @@ import {
   assertSafeTargetPath,
 } from "../util/upload-safety.js";
 import { replaceFile } from "../util/replace-file.js";
+import { chmodPrivate, PRIVATE_FILE_MODE, writePrivateJsonFile } from "../util/private-file.js";
 
 const CONFIG_DIR = "config";
 const MANIFEST_FILE = "manifest.json";
@@ -41,11 +42,9 @@ function sectionFileStem(key: keyof ServerConfigPackage): string {
   return key === "missionParams" ? "missionparams" : String(key);
 }
 
-/** 原子写：先写临时文件再 rename，避免断电/崩溃留下半截 JSON。 */
+/** 原子写：先写临时文件再 rename，避免断电/崩溃留下半截 JSON；含密钥 section 用 0o600。 */
 function writeJsonAtomic(filePath: string, data: unknown): void {
-  const tmpPath = `${filePath}.${process.pid}.tmp`;
-  fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf-8");
-  replaceFile(tmpPath, filePath);
+  writePrivateJsonFile(filePath, data);
 }
 
 export class ConfigStore {
@@ -211,7 +210,10 @@ export class ConfigStore {
       for (const [name, data] of Object.entries(sections)) {
         const filePath = assertSafeTargetPath(pkgDir, `${name}.json`);
         const tmpPath = `${filePath}.${process.pid}.tmp`;
-        fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf-8");
+        fs.writeFileSync(tmpPath, `${JSON.stringify(data, null, 2)}\n`, {
+          encoding: "utf-8",
+          mode: PRIVATE_FILE_MODE,
+        });
         pending.push({ tmpPath, filePath });
       }
     } catch (err) {
@@ -226,6 +228,7 @@ export class ConfigStore {
     }
     for (const item of pending) {
       replaceFile(item.tmpPath, item.filePath);
+      chmodPrivate(item.filePath);
     }
     this.writeManifest(pkgDir, uuid, config, resolvedName);
 

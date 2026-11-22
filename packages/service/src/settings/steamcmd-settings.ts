@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { resolveConfiguredPath } from "../util/user-path.js";
+import { writePrivateJsonFile } from "../util/private-file.js";
 import {
   normalizeLoginMode,
   type SteamCmdLoginMode,
@@ -52,7 +53,7 @@ export class SteamCmdSettingsStore {
   }
 
   save(settings: SteamCmdSettings): void {
-    fs.writeFileSync(this.filePath, JSON.stringify(settings, null, 2), "utf-8");
+    writePrivateJsonFile(this.filePath, settings);
     ensureWorkshopContentDirectory(settings.workshopRoot);
   }
 

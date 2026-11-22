@@ -134,11 +134,9 @@ export function redactSteamCmdConsoleChunk(chunk: string, password?: string): st
   const quoted = quoteSteamCmdArgument(password);
   const escaped = quoted.slice(1, -1);
   result = result.replaceAll(quoted, '"***"');
-  if (escaped.length >= 4 && escaped !== password) {
+  if (escaped && escaped !== password) {
     result = result.replaceAll(escaped, "***");
   }
-  if (password.length >= 4) {
-    result = result.replaceAll(password, "***");
-  }
-  return result;
+  // Always redact even short passwords (<4); length checks previously leaked them.
+  return result.replaceAll(password, "***");
 }

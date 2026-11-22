@@ -53,7 +53,7 @@ npm run test:e2e                     # Playwright E2E（194 例；需先 build:s
 
 Linux 便携包：`npm run pack:linux`（build:service + build:web + `scripts/pack-linux.mjs`）→ `artifacts/linux/Arma3ServerTools-linux-<version>.tar.gz(.sha256)`。包内为 `service/`（dist + 生产依赖）+ `web/` + `start.sh` + `a3st.env.example` + `a3st.service`，Service 通过 `WEB_ROOT` 直接托管 Web UI；release workflow 的 `linux-bundle` job 在 tag 时自动构建上传，CI 在 Node 24 上跑一次打包脚本回归。
 
-版本号单一来源：根与各包 `package.json`（当前 `2.0.0-alpha.26`）。前端通过 Vite `define.__APP_VERSION__` 注入，状态栏与关于页不再硬编码。
+版本号单一来源：根与各包 `package.json`（当前 `2.0.0-alpha.27`）。前端通过 Vite `define.__APP_VERSION__` 注入，状态栏与关于页不再硬编码。
 
 ## 五、仓库卫生约定
 

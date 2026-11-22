@@ -21,6 +21,7 @@ import { deployHealthMod, healthModPath } from "../health/mod.js";
 import { validateHealthConfig } from "../health/configuration.js";
 import { maintenanceLocks } from "../maintenance/locks.js";
 import { resolveEffectiveRconPort } from "./rcon-port.js";
+import { writePrivateTextFile } from "../util/private-file.js";
 
 export const CONFIG_FOLDER = "a3st_serverconfig";
 
@@ -528,7 +529,7 @@ function writeServerCfg(uuid: string, config: ServerConfigPackage, configRoot: s
   content = appendExtraLines(content, basic.serverCfgArgs);
 
   const filePath = path.join(configRoot, "server.cfg");
-  fs.writeFileSync(filePath, content, "utf-8");
+  writePrivateTextFile(filePath, content);
   return filePath;
 }
 
@@ -550,7 +551,7 @@ function writeBasicCfg(config: ServerConfigPackage, configRoot: string): string 
   content = appendExtraLines(content, basic.basicCfgArgs);
 
   const filePath = path.join(configRoot, "basic.cfg");
-  fs.writeFileSync(filePath, content, "utf-8");
+  writePrivateTextFile(filePath, content);
   return filePath;
 }
 
@@ -604,7 +605,7 @@ function writeProfile(uuid: string, config: ServerConfigPackage, configRoot: str
   content = appendExtraLines(content, basic.profileArgs);
 
   const filePath = path.join(profileDir, `${uuid}.Arma3Profile`);
-  fs.writeFileSync(filePath, content, "utf-8");
+  writePrivateTextFile(filePath, content);
   return filePath;
 }
 
@@ -722,7 +723,7 @@ function writeBattlEyeCfg(config: ServerConfigPackage, configRoot: string): stri
   const paths = BE_CFG_BASENAMES.map((name) => path.join(beDir, name));
 
   for (const filePath of paths) {
-    fs.writeFileSync(filePath, content, "utf-8");
+    writePrivateTextFile(filePath, content);
   }
 
   if (serverDir) {

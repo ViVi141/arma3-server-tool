@@ -197,6 +197,24 @@ describe("BUG-4 RconClient fragment overwrite and timer cleanup", () => {
     await expect(cmdPromise).resolves.toEqual({ success: false, message: "RCon 连接已断开" });
   });
 
+  it("clears connect timers and rejects when disconnected mid-handshake", async () => {
+    const client = new RconClient({
+      host: "127.0.0.1",
+      port: 2305,
+      password: "pass",
+      timeout: 5000,
+      retryIntervalMs: 1000,
+    });
+    const pending = client.connect();
+    const sock = mockSocketHolder.current!;
+    expect(sock.send).toHaveBeenCalled();
+    client.disconnect();
+    await expect(pending).rejects.toThrow("RCon 连接已断开");
+    await vi.advanceTimersByTimeAsync(10_000);
+    // No further login retransmits after disconnect.
+    expect(sock.send.mock.calls.length).toBe(1);
+  });
+
   it("uses sequence 0 for the first command after login", async () => {
     const client = new RconClient({
       host: "127.0.0.1",

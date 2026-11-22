@@ -103,6 +103,7 @@ describe("SEC-2 password redaction in arguments and console chunks", () => {
 
   it("redacts +login password tokens even when password is unknown and scrubs debug lines", () => {
     const line = '[调试] ProcessStartInfo.Arguments: +login "builder" "SuperSecret!99" +quit\n';
+    expect(redactSteamCmdConsoleChunk('login "ab"', "ab")).toBe('login "***"');
     const clean = redactSteamCmdConsoleChunk(line, "SuperSecret!99");
     expect(clean).not.toContain("SuperSecret!99");
     expect(clean).toContain('+login "builder" "***" +quit');

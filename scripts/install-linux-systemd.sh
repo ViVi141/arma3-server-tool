@@ -12,6 +12,13 @@ if [ ! -f "$DIR/a3st.env" ]; then
   exit 1
 fi
 
+# API_TOKEN 等密钥不得世界可读。
+chmod 600 "$DIR/a3st.env" || true
+ENV_MODE="$(stat -c '%a' "$DIR/a3st.env" 2>/dev/null || stat -f '%OLp' "$DIR/a3st.env" 2>/dev/null || echo unknown)"
+if [ "$ENV_MODE" != "600" ] && [ "$ENV_MODE" != "0600" ]; then
+  echo "警告：无法将 a3st.env 权限设为 600（当前 $ENV_MODE）。请手动 chmod 600。" >&2
+fi
+
 NODE_BIN="$(command -v node || true)"
 if [ -z "$NODE_BIN" ] && [ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]; then
   # shellcheck disable=SC1090

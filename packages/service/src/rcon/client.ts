@@ -49,6 +49,10 @@ export class RconClient extends EventEmitter {
   private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
   /** Shared by every caller while a login handshake is in flight. */
   private connectPromise: Promise<void> | null = null;
+  private connectFailTimer: ReturnType<typeof setTimeout> | null = null;
+  private connectRetryTimer: ReturnType<typeof setInterval> | null = null;
+  /** Reject the in-flight login when {@link cleanup} runs mid-handshake. */
+  private connectAbort: ((error: Error) => void) | null = null;
 
   constructor(options: RconClientOptions) {
     super();
@@ -79,19 +83,26 @@ export class RconClient extends EventEmitter {
       this.socket = socket;
 
       let settled = false;
-      let failTimer: ReturnType<typeof setTimeout> | null = null;
-      let retryTimer: ReturnType<typeof setInterval> | null = null;
 
-      const clearConnectTimers = () => {
-        if (failTimer !== null) {
-          clearTimeout(failTimer);
-          failTimer = null;
+      const settle = (error?: Error) => {
+        if (settled) {
+          return;
         }
-        if (retryTimer !== null) {
-          clearInterval(retryTimer);
-          retryTimer = null;
+        settled = true;
+        this.clearConnectTimers();
+        this.connectAbort = null;
+        if (error) {
+          // cleanup() may invoke connectAbort → settle; skip re-entry once disconnected.
+          if (this.state !== "disconnected") {
+            this.cleanup();
+          }
+          reject(error);
+          return;
         }
+        resolve();
       };
+
+      this.connectAbort = (error) => settle(error);
 
       socket.on("message", (msg) => this.onMessage(msg));
       socket.on("error", (err) => {
@@ -99,29 +110,20 @@ export class RconClient extends EventEmitter {
           this.cleanup();
           return;
         }
-        settled = true;
-        clearConnectTimers();
-        this.cleanup();
-        reject(err);
+        settle(err instanceof Error ? err : new Error(String(err)));
       });
 
       const loginPacket = Buffer.from(encodeLoginRequest(this.options.password));
 
-      failTimer = setTimeout(() => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        clearConnectTimers();
-        this.cleanup();
-        reject(
+      this.connectFailTimer = setTimeout(() => {
+        settle(
           new Error(
             "RCon 登录超时：服务器未在 BE RCon 端口响应（请确认端口为 UDP 游戏端口、rcon 密码正确且服务器已启用 RCon）"
           )
         );
       }, this.options.timeout);
 
-      retryTimer = setInterval(() => {
+      this.connectRetryTimer = setInterval(() => {
         this.trySend(loginPacket);
       }, this.options.retryIntervalMs);
 
@@ -135,16 +137,16 @@ export class RconClient extends EventEmitter {
         if (settled) {
           return true;
         }
-        settled = true;
-        clearConnectTimers();
         if (rp.loginOk) {
+          this.clearConnectTimers();
+          this.connectAbort = null;
+          settled = true;
           this.state = "connected";
           this.startKeepAlive();
           this.emit("connected");
           resolve();
         } else {
-          this.cleanup();
-          reject(new Error("RCon 登录失败：密码被服务器拒绝"));
+          settle(new Error("RCon 登录失败：密码被服务器拒绝"));
         }
         return true;
       };
@@ -154,8 +156,20 @@ export class RconClient extends EventEmitter {
     this.connectPromise = attempt.finally(() => {
       this.connectPromise = null;
       this.loginWaiter = null;
+      this.connectAbort = null;
     });
     return this.connectPromise;
+  }
+
+  private clearConnectTimers(): void {
+    if (this.connectFailTimer !== null) {
+      clearTimeout(this.connectFailTimer);
+      this.connectFailTimer = null;
+    }
+    if (this.connectRetryTimer !== null) {
+      clearInterval(this.connectRetryTimer);
+      this.connectRetryTimer = null;
+    }
   }
 
   private loginWaiter: ((rp: DecodedPacket) => boolean) | null = null;
@@ -345,6 +359,9 @@ export class RconClient extends EventEmitter {
 
   private cleanup(): void {
     const wasActive = this.state !== "disconnected" || this.socket !== null;
+    const abortConnect = this.connectAbort;
+    this.connectAbort = null;
+    this.clearConnectTimers();
     this.state = "disconnected";
     if (this.keepAliveTimer) {
       clearInterval(this.keepAliveTimer);
@@ -364,6 +381,9 @@ export class RconClient extends EventEmitter {
         /* ignore */
       }
       this.socket = null;
+    }
+    if (abortConnect) {
+      abortConnect(new Error("RCon 连接已断开"));
     }
     if (wasActive) {
       this.emit("disconnected");

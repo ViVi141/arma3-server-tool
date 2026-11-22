@@ -27,6 +27,7 @@ import { MaintenanceExecutor } from "./maintenance/executor.js";
 import { ServiceMaintenanceAdapter } from "./maintenance/adapter.js";
 import { MaintenanceAutoScheduler } from "./maintenance/auto-scheduler.js";
 import { closeAllRconSessions } from "./rcon/session.js";
+import { AuthFailureLimiter } from "./util/auth-rate-limit.js";
 
 export interface ServiceOptions {
   port: number;
@@ -179,8 +180,10 @@ export async function createService(options: ServiceOptions) {
 
   // Auth hook
   app.decorateRequest("authenticated", false);
+  const authFailureLimiter = new AuthFailureLimiter();
   app.addHook("onRequest", async (request, reply) => {
     const pathOnly = request.url.split("?")[0] ?? request.url;
+    const clientIp = request.ip || "unknown";
 
     // 任意网页不得驱动本机 API：Origin 不在白名单（且非同源）直接拒绝，
     // 覆盖无需 CORS 预检的简单请求（表单 POST 等）。
@@ -211,23 +214,44 @@ export async function createService(options: ServiceOptions) {
     const auth = request.headers.authorization;
     const bearerToken = auth?.startsWith("Bearer ") ? auth.slice(7) : undefined;
     const query = request.query as { token?: string };
+
+    const markAuthed = () => {
+      authFailureLimiter.clear(clientIp);
+      request.authenticated = true;
+    };
+
+    const rejectUnauthorized = (message: string, code?: string) => {
+      authFailureLimiter.recordFailure(clientIp);
+      reply.status(401).send({
+        success: false,
+        message,
+        ...(code ? { code } : {}),
+      });
+    };
+
+    // 连续鉴权失败按 IP 限流，降低公网暴力枚举 API_TOKEN 的效率。
+    if (token && authFailureLimiter.shouldBlock(clientIp)) {
+      reply.status(429).send({
+        success: false,
+        message: "Too many authentication failures; try again later",
+        code: "AUTH_RATE_LIMITED",
+      });
+      return;
+    }
+
     const readOnlyCredential = safeTokenEquals(bearerToken, opsReadToken) || safeTokenEquals(request.headers["x-api-key"], opsReadToken);
     if (readOnlyCredential || safeTokenEquals(query.token, opsReadToken)) {
       const allowed = readOnlyCredential && !safeTokenEquals(query.token, opsReadToken) && request.method === "GET" && (
         pathOnly === "/api/v1/ops/events" || /^\/api\/v1\/servers\/[^/]+\/health$/.test(pathOnly) || /^\/api\/v1\/ops\/maintenance\/[^/]+$/.test(pathOnly)
       );
       if (!allowed) return reply.status(403).send({ success: false, error: "OPS_READ_ONLY", message: "此 Token 仅允许事件、健康和维护结果查询，且不能通过 URL 传递" });
-      request.authenticated = true;
+      markAuthed();
       return;
     }
 
     // 公网/非本机绑定且未配置 API_TOKEN：拒绝一切管理能力（健康检查除外）。
     if (publicBind && !token) {
-      reply.status(401).send({
-        success: false,
-        message: "Unauthorized: non-loopback bind requires API_TOKEN",
-        code: "AUTH_REQUIRED",
-      });
+      rejectUnauthorized("Unauthorized: non-loopback bind requires API_TOKEN", "AUTH_REQUIRED");
       return;
     }
 
@@ -236,19 +260,19 @@ export async function createService(options: ServiceOptions) {
       return;
     }
     if (safeTokenEquals(bearerToken, token)) {
-      (request as { authenticated: boolean }).authenticated = true;
+      markAuthed();
       return;
     }
     if (safeTokenEquals(request.headers["x-api-key"], token)) {
-      (request as { authenticated: boolean }).authenticated = true;
+      markAuthed();
       return;
     }
     // EventSource 无法设 Authorization，仅 SSE 等场景允许 ?token=（勿记入日志）。
     if (safeTokenEquals(query.token, token)) {
-      (request as { authenticated: boolean }).authenticated = true;
+      markAuthed();
       return;
     }
-    reply.status(401).send({ success: false, message: "Unauthorized" });
+    rejectUnauthorized("Unauthorized");
   });
 
   // CORS 白名单：回环地址 / Capacitor / file://（Origin: null）/ A3ST_ALLOWED_ORIGINS。
