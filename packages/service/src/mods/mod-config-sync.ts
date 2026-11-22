@@ -1,13 +1,20 @@
 import type { FastifyInstance } from "fastify";
 import type { ServerConfigPackage } from "../types/config.js";
+import type { BikeyInspectMode } from "./bikey-service.js";
 import { collectModPaths } from "./paths.js";
 import { refreshConfigModParameters } from "./mod-startup-sync.js";
 import { recordSignatureEvents } from "../operations/source-events.js";
 
+export type ModScanExtra = {
+  skipSize?: boolean;
+  serverUuid?: string;
+  bikeyMode?: BikeyInspectMode;
+};
+
 export function buildModScanOptions(
   app: FastifyInstance,
   config: ServerConfigPackage,
-  extra?: { skipSize?: boolean }
+  extra?: ModScanExtra
 ) {
   const modPaths = collectModPaths(app, config);
   return {
@@ -22,13 +29,14 @@ export function buildModScanOptions(
     enabledLocalPaths: config.mods?.enabledLocalPaths ?? [],
     serverDir: config.server?.serverDir,
     skipSize: extra?.skipSize,
+    bikeyMode: extra?.bikeyMode ?? "shallow",
   };
 }
 
 export function scanModsForConfig(
   app: FastifyInstance,
   config: ServerConfigPackage,
-  extra?: { skipSize?: boolean; serverUuid?: string }
+  extra?: ModScanExtra
 ) {
   const mods = app.modScanner.scan(buildModScanOptions(app, config, extra));
   if (extra?.serverUuid) recordSignatureEvents(app, extra.serverUuid, mods);

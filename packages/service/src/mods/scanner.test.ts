@@ -278,6 +278,38 @@ describe("ModScanner", () => {
     }
   });
 
+  it("PERF-2 default bikeyMode is shallow; explicit full still inspects", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-mod-bikeymode-"));
+    try {
+      const modDir = path.join(root, "@mode_test");
+      fs.mkdirSync(path.join(modDir, "addons"), { recursive: true });
+      fs.writeFileSync(path.join(modDir, "addons", "data.pbo"), "pbo");
+      fs.writeFileSync(path.join(modDir, "addons", "data.pbo.author.bisign"), "sign");
+      fs.writeFileSync(path.join(modDir, "author.bikey"), "key");
+      fs.writeFileSync(path.join(modDir, "meta.cpp"), "publishedid = 450814997;\n", "utf-8");
+
+      const scanner = new ModScanner();
+      const shallow = scanner.scan({
+        modPaths: [root],
+        enabledIds: [450814997],
+        serverModIds: [450814997],
+        skipSize: true,
+      });
+      expect(shallow[0].bikeyStatus).toBe("no_key");
+
+      const full = scanner.scan({
+        modPaths: [root],
+        enabledIds: [450814997],
+        serverModIds: [450814997],
+        skipSize: true,
+        bikeyMode: "full",
+      });
+      expect(full[0].bikeyStatus).toBe("not_copied");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("PERF-1 skipSize omits calculateSize and summarizeBikeys delegates with skipSize: true", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "a3st-mod-skipsize-"));
     try {

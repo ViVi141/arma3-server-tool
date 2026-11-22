@@ -1,11 +1,64 @@
 import { listMissionFiles, mergeMissionEntries } from "../../missions/scanner.js";
-import { getServerKeysDirectory } from "../../mods/bikey-service.js";
+import {
+  getServerKeysDirectory,
+  type BikeyInspectMode,
+} from "../../mods/bikey-service.js";
 import { buildModScanOptions, scanModsForConfig } from "../../mods/mod-config-sync.js";
+import {
+  buildModScanFingerprint,
+  getCachedModScan,
+  setCachedModScan,
+  type ModScanCacheEntry,
+} from "../../mods/scan-cache.js";
 import { collectModPaths, isModDirectory } from "../../mods/paths.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { FastifyInstance } from "fastify";
+import type { ServerConfigPackage } from "../../types/config.js";
 import { envelope } from "./shared.js";
+
+function resolveBikeyMode(raw: unknown): BikeyInspectMode {
+  return raw === "full" ? "full" : "shallow";
+}
+
+function loadModScanList(
+  app: FastifyInstance,
+  uuid: string,
+  config: ServerConfigPackage,
+  bikeyMode: BikeyInspectMode
+): ModScanCacheEntry {
+  const modPaths = collectModPaths(app, config);
+  const fingerprint = buildModScanFingerprint(
+    modPaths,
+    bikeyMode,
+    true,
+    config.server?.serverDir
+  );
+  const cached = getCachedModScan(uuid, fingerprint, bikeyMode);
+  if (cached) {
+    return cached;
+  }
+
+  // 打开页默认 shallow；?bikeyMode=full 供「扫描刷新」后重载完整签名证据。
+  const mods = scanModsForConfig(app, config, {
+    serverUuid: uuid,
+    skipSize: true,
+    bikeyMode,
+  });
+  const bikeySummary = app.modScanner.summarizeBikeys(
+    buildModScanOptions(app, config, { skipSize: true, bikeyMode }),
+    mods
+  );
+  const entry: ModScanCacheEntry = {
+    mods,
+    scanPathCount: modPaths.length,
+    bikeySummary,
+    fingerprint,
+    cachedAt: Date.now(),
+  };
+  setCachedModScan(uuid, bikeyMode, entry);
+  return entry;
+}
 
 export function registerModsRoutes(app: FastifyInstance): void {
   app.get("/servers/:uuid/mods", async (req, reply) => {
@@ -16,12 +69,19 @@ export function registerModsRoutes(app: FastifyInstance): void {
       return envelope(false, null, "NOT_FOUND", uuid);
     }
 
-    const modPaths = collectModPaths(app, config);
-    // 列表页与「扫描刷新」一致：跳过体积递归。Windows 上对 Workshop 目录
-    // 算 size 可达数十秒，导致打开模组页长时间空白、只能手动点刷新才有结果。
-    const mods = scanModsForConfig(app, config, { serverUuid: uuid, skipSize: true });
-
-    return envelope(true, { mods, scanPathCount: modPaths.length }, null, uuid);
+    const query = req.query as { bikeyMode?: string };
+    const bikeyMode = resolveBikeyMode(query.bikeyMode);
+    const scan = loadModScanList(app, uuid, config, bikeyMode);
+    return envelope(
+      true,
+      {
+        mods: scan.mods,
+        scanPathCount: scan.scanPathCount,
+        bikeySummary: scan.bikeySummary,
+      },
+      null,
+      uuid
+    );
   });
 
   app.get("/servers/:uuid/mods/bikeys", async (req, reply) => {
@@ -32,10 +92,8 @@ export function registerModsRoutes(app: FastifyInstance): void {
       return envelope(false, null, "NOT_FOUND", uuid);
     }
 
-    const scanned = scanModsForConfig(app, config, { serverUuid: uuid, skipSize: true });
-    const summary = app.modScanner.summarizeBikeys(buildModScanOptions(app, config), scanned);
-
-    return envelope(true, summary, null, uuid);
+    const scan = loadModScanList(app, uuid, config, "shallow");
+    return envelope(true, scan.bikeySummary, null, uuid);
   });
 
   app.post("/mods/validate-path", async (req, reply) => {

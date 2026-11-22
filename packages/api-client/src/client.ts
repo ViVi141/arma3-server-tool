@@ -246,8 +246,13 @@ export class A3stClient {
     return this.put(`/api/v1/servers/${uuid}/rename`, { newName });
   }
 
-  async getModScan(uuid: string): Promise<ApiResponse<ModScanData>> {
-    return this.get(`/api/v1/servers/${uuid}/mods`);
+  async getModScan(
+    uuid: string,
+    options?: { bikeyMode?: "shallow" | "full" }
+  ): Promise<ApiResponse<ModScanData>> {
+    const mode = options?.bikeyMode;
+    const qs = mode === "full" ? "?bikeyMode=full" : "";
+    return this.get(`/api/v1/servers/${uuid}/mods${qs}`);
   }
 
   async getBans(uuid: string): Promise<ApiResponse<BanEntry[]>> {

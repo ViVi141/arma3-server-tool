@@ -294,7 +294,9 @@ export function useModsPage(props: { connectionId: string; serverUuid: string })
     }
   }
 
-  async function loadMods(): Promise<{ scanPathCount: number; modCount: number } | null> {
+  async function loadMods(options?: {
+    bikeyMode?: "shallow" | "full";
+  }): Promise<{ scanPathCount: number; modCount: number } | null> {
     const contextKey = filterStorageKey.value;
     const uuid = props.serverUuid;
     const client = store.getClient();
@@ -311,7 +313,7 @@ export function useModsPage(props: { connectionId: string; serverUuid: string })
       autoCopyBikey.value = modsSection.autoCopyBikey;
     }
 
-    const scanRes = await client.getModScan(uuid);
+    const scanRes = await client.getModScan(uuid, { bikeyMode: options?.bikeyMode });
     if (!scanRes.success || contextKey !== filterStorageKey.value) {
       return null;
     }
@@ -321,18 +323,22 @@ export function useModsPage(props: { connectionId: string; serverUuid: string })
       row.keySelected = selected.has(modRowKey(row)) && canDeployModKeys(row);
       return row;
     });
+    if (scanRes.data.bikeySummary) {
+      const s = scanRes.data.bikeySummary;
+      bikeySummary.value = formatBikeySummary(s);
+      copyMissingEnabled.value = (s.notCopied ?? 0) + (s.keyMismatch ?? 0) > 0;
+    }
     return {
       scanPathCount: scanRes.data.scanPathCount ?? 0,
       modCount: modList.value.length,
     };
   }
 
-  /** 打开模组页 / 切换实例：立即扫描并显示加载态，无需先点「扫描刷新」。 */
+  /** 打开模组页 / 切换实例：浅扫一次即可，摘要随列表返回，不再二次请求。 */
   async function bootstrapModsPage() {
     scanning.value = true;
     try {
-      const result = await loadMods();
-      await loadBikeySummary();
+      const result = await loadMods({ bikeyMode: "shallow" });
       if (result && result.scanPathCount === 0 && result.modCount === 0) {
         ElMessage.warning(
           "未配置模组扫描路径。请在「扫描路径」或 SteamCMD 页设置 Workshop 根目录后刷新。"
@@ -376,8 +382,8 @@ export function useModsPage(props: { connectionId: string; serverUuid: string })
         throw new Error(lastStep?.message ?? res.error ?? "扫描失败");
       }
       ElMessage.success(lastStep?.message ?? "扫描完成");
-      await loadMods();
-      await loadBikeySummary();
+      // 刷新任务已全量核验；用 full 重载以展示完整证据（并写入 full 缓存）。
+      await loadMods({ bikeyMode: "full" });
       if (autoCopyBikey.value) {
         await copyBikeys({ missingOnly: false, silent: true });
       }

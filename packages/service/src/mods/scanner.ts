@@ -11,6 +11,7 @@ import {
   inspectMod,
   isModBikeyValidationPassed,
   type BikeyCopyResult,
+  type BikeyInspectMode,
 } from "./bikey-service.js";
 
 export interface ModScannerOptions {
@@ -25,6 +26,8 @@ export interface ModScannerOptions {
   enabledLocalPaths?: string[];
   serverDir?: string;
   skipSize?: boolean;
+  /** 列表默认 shallow；复制公钥/全量刷新用 full。 */
+  bikeyMode?: BikeyInspectMode;
 }
 
 export class ModScanner {
@@ -205,7 +208,9 @@ export class ModScanner {
     }
     const enabled = isClientMod || isServerMod || isHcMod;
 
-    const bikeyInspection = inspectMod(modPath, dirName, options.serverDir);
+    const bikeyInspection = inspectMod(modPath, dirName, options.serverDir, {
+      mode: options.bikeyMode ?? "shallow",
+    });
     const updated = this.readUpdatedTime(modPath, parsed.timeStamp);
 
     return {

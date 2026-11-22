@@ -7,6 +7,7 @@ import { disableModsByScope, type ModDisableScope } from "../../mods/enabler.js"
 import { applyEnableList, normalizeModImportMode, shouldDownloadForMode } from "../../mods/import-modes.js";
 import { scanModsForConfig, syncRoleEntriesFromIds } from "../../mods/mod-config-sync.js";
 import { collectModPaths } from "../../mods/paths.js";
+import { invalidateModScanCache } from "../../mods/scan-cache.js";
 import { deployMonitoringIfEnabled } from "../../monitoring/deployment.js";
 import { defaultServerExecutable } from "../../platform/index.js";
 import { runPreflightChecks } from "../../preflight/checker.js";
@@ -259,7 +260,13 @@ async function executeCommandBody(
       if (!modPaths.length) {
         return fail("未配置模组扫描路径。请在「扫描路径」或 SteamCMD 页设置 Workshop 根目录。");
       }
-      const result = scanModsForConfig(app, config, { skipSize: true, serverUuid: uuid });
+      // 手动刷新走 full：覆盖非 addons/keys 的自定义签名布局，并失效列表缓存。
+      invalidateModScanCache(uuid);
+      const result = scanModsForConfig(app, config, {
+        skipSize: true,
+        serverUuid: uuid,
+        bikeyMode: "full",
+      });
       return ok(`扫描完成，发现 ${result.length} 个模组（${modPaths.length} 个路径）`);
     }
     case "download_mods": {
@@ -319,7 +326,11 @@ async function executeCommandBody(
       const modPaths = collectModPaths(app, config);
       if (!modPaths.length) return fail("未配置模组扫描路径");
 
-      const scanned = scanModsForConfig(app, config, { skipSize: true, serverUuid: uuid });
+      const scanned = scanModsForConfig(app, config, {
+        skipSize: true,
+        serverUuid: uuid,
+        bikeyMode: "full",
+      });
       if (!scanned.length) {
         return fail("未扫描到模组，请先点击「扫描刷新」");
       }
@@ -345,10 +356,15 @@ async function executeCommandBody(
         return ok(`选定范围 ${scope.length} 个模组，无可部署项；缺签名、缺公钥及读取失败需人工处理`);
       }
       const result = app.modScanner.copyBikeysFromScanned(applicable, serverDir);
+      invalidateModScanCache(uuid);
       if (result.failed) {
         return fail(`公钥部署部分失败：成功 ${result.copied}，失败 ${result.failed}；${result.errors.join("；")}`);
       }
-      const rescanned = scanModsForConfig(app, config, { skipSize: true, serverUuid: uuid });
+      const rescanned = scanModsForConfig(app, config, {
+        skipSize: true,
+        serverUuid: uuid,
+        bikeyMode: "full",
+      });
       if (applicable.some((mod) => !rescanned.some((fresh) => fresh.path === mod.path && fresh.bikeyStatus === "ready"))) {
         return fail("公钥已写入，但复扫仍有待处理项，请检查签名文件证据");
       }

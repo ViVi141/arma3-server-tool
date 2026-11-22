@@ -1102,7 +1102,14 @@ export async function installMockApi(
       }
 
       if (method === "GET" && sub === "/mods") {
-        await fulfillJson(route, makeEnvelope({ mods: currentMods, scanPathCount: 1 }));
+        await fulfillJson(route, makeEnvelope({
+          mods: currentMods,
+          scanPathCount: 1,
+          bikeySummary: {
+            enabled: 0, missingBikey: 0, ready: 0, notCopied: 0, noKey: 0,
+            needsAttention: 0, unsigned: 0, partial: 0, keyMismatch: 0, readError: 0, unchecked: 0, allValid: false,
+          },
+        }));
         return;
       }
 

@@ -137,4 +137,27 @@ describe("签名文件证据", () => {
       expect(isModBikeyValidationPassed(status)).toBe(false);
     }
   });
+  it("浅扫与全扫在 addons+keys 布局下状态一致，且忽略无关大目录", () => {
+    signedPbo();
+    file("keys/author.bikey", "key");
+    deploy();
+    // 无关大目录：全扫会走进去，浅扫应跳过；状态仍应对齐。
+    const junk = path.join(mod, "extra_assets");
+    fs.mkdirSync(junk, { recursive: true });
+    for (let i = 0; i < 30; i++) {
+      fs.writeFileSync(path.join(junk, `blob-${i}.bin`), Buffer.alloc(64));
+    }
+    const shallow = inspectMod(mod, "@TestMod", server, { mode: "shallow" });
+    const full = inspectMod(mod, "@TestMod", server, { mode: "full" });
+    expect(shallow.status).toBe("ready");
+    expect(full.status).toBe("ready");
+    expect(shallow.evidence).toMatchObject({ pboCount: 1, signedPboCount: 1, deployedKeyCount: 1 });
+    expect(full.evidence).toMatchObject({ pboCount: 1, signedPboCount: 1, deployedKeyCount: 1 });
+  });
+  it("浅扫不统计模组根下非 keys 路径的公钥，全扫仍能发现", () => {
+    signedPbo();
+    file("author.bikey", "key");
+    expect(inspectMod(mod, "@TestMod", server, { mode: "shallow" }).status).toBe("no_key");
+    expect(inspectMod(mod, "@TestMod", server, { mode: "full" }).status).toBe("not_copied");
+  });
 });

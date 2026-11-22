@@ -128,10 +128,13 @@ describe("API Routes Integration", () => {
     const modsDir = path.join(tmpDir, "signature-mods");
     for (const name of ["One", "Two", "Unsigned"]) {
       const addons = path.join(modsDir, name, "addons");
+      const keys = path.join(modsDir, name, "keys");
       fs.mkdirSync(addons, { recursive: true });
+      fs.mkdirSync(keys, { recursive: true });
       fs.writeFileSync(path.join(addons, "data.pbo"), "pbo");
       if (name !== "Unsigned") fs.writeFileSync(path.join(addons, "data.pbo.author.bisign"), "sign");
-      fs.writeFileSync(path.join(modsDir, name, "author.bikey"), name);
+      // 常规 Workshop 布局：公钥在 keys/，与列表浅扫一致。
+      fs.writeFileSync(path.join(keys, "author.bikey"), name);
     }
     const created = await app.inject({ method: "POST", url: "/api/v1/servers", payload: { configName: "签名范围", serverDir } });
     const uuid = created.json().data.uuid as string;

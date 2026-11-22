@@ -76,8 +76,13 @@ function errorCode(error: unknown): string {
   return (error as NodeJS.ErrnoException)?.code ?? "READ_FAILED";
 }
 
+export type BikeyInspectMode = "full" | "shallow";
+
 /** 同一次遍历收集证据；realpath 去重避免符号链接环，错误不能伪装成缺签名。 */
-function collectFiles(modPath: string): { files: string[]; errors: string[] } {
+function collectFiles(
+  modPath: string,
+  mode: BikeyInspectMode = "full"
+): { files: string[]; errors: string[] } {
   const files: string[] = [];
   const errors: string[] = [];
   const visited = new Set<string>();
@@ -100,8 +105,31 @@ function collectFiles(modPath: string): { files: string[]; errors: string[] } {
       errors.push(`${path.relative(modPath, directory) || "."}: ${errorCode(error)}`);
     }
   }
-  if (!modPath) errors.push("模组路径为空");
-  else visit(modPath);
+  if (!modPath) {
+    errors.push("模组路径为空");
+    return { files, errors };
+  }
+  if (!fs.existsSync(modPath)) {
+    errors.push(`${path.basename(modPath) || "."}: ENOENT`);
+    return { files, errors };
+  }
+  if (mode === "shallow") {
+    // 列表浅扫：只走签名/公钥所在的常规目录，跳过模组根下其它大目录。
+    // visit() 内部用 realpath 去重，Windows 上 addons/Addons 同一目录只扫一次。
+    for (const name of ["addons", "Addons", "keys", "Keys"]) {
+      const dir = path.join(modPath, name);
+      if (!fs.existsSync(dir)) continue;
+      try {
+        if (!fs.statSync(dir).isDirectory()) continue;
+      } catch (error) {
+        errors.push(`${name}: ${errorCode(error)}`);
+        continue;
+      }
+      visit(dir);
+    }
+    return { files: files.sort(), errors };
+  }
+  visit(modPath);
   return { files: files.sort(), errors };
 }
 
@@ -159,8 +187,13 @@ export function resolveModBikeyStatus(hasBisign: boolean, modBikeys: ModBikeyFil
   return { hasBisign, hasBikeyInMod: modBikeys.length > 0, allCopiedToServer: status === "ready", status, label: MOD_BIKEY_STATUS_LABELS[status] };
 }
 
-export function inspectMod(modPath: string, modDirName: string, serverDir?: string): ModBikeyInspectionResult {
-  const scan = collectFiles(modPath);
+export function inspectMod(
+  modPath: string,
+  modDirName: string,
+  serverDir?: string,
+  options?: { mode?: BikeyInspectMode }
+): ModBikeyInspectionResult {
+  const scan = collectFiles(modPath, options?.mode ?? "full");
   const pbos = scan.files.filter((file) => /\.pbo$/i.test(file));
   const signs = scan.files.filter((file) => /\.bisign$/i.test(file));
   const keys = scan.files.filter((file) => /\.bikey$/i.test(file));

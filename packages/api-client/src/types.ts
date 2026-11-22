@@ -403,6 +403,8 @@ export interface ModMetaRow {
 export interface ModScanData {
   mods: ModMetaRow[];
   scanPathCount?: number;
+  /** 与本次扫描同源，避免打开模组页再打一次 /mods/bikeys。 */
+  bikeySummary?: BikeySummaryData;
 }
 
 export interface BanEntry {
