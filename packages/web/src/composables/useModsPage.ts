@@ -294,16 +294,16 @@ export function useModsPage(props: { connectionId: string; serverUuid: string })
     }
   }
 
-  async function loadMods() {
+  async function loadMods(): Promise<{ scanPathCount: number; modCount: number } | null> {
     const contextKey = filterStorageKey.value;
     const uuid = props.serverUuid;
     const client = store.getClient();
     if (!client) {
-      return;
+      return null;
     }
     const cfgRes = await client.getConfig(uuid);
     if (!cfgRes.success || contextKey !== filterStorageKey.value) {
-      return;
+      return null;
     }
     await loadDlcFromConfig(cfgRes.data as Record<string, unknown>);
     const modsSection = cfgRes.data.mods as { autoCopyBikey?: boolean } | undefined;
@@ -312,21 +312,50 @@ export function useModsPage(props: { connectionId: string; serverUuid: string })
     }
 
     const scanRes = await client.getModScan(uuid);
-    if (scanRes.success && contextKey === filterStorageKey.value) {
-      const selected = new Set(modList.value.filter((row) => row.keySelected).map(modRowKey));
-      modList.value = scanRes.data.mods.map((m) => {
-        const row = mapModRow(m);
-        row.keySelected = selected.has(modRowKey(row)) && canDeployModKeys(row);
-        return row;
-      });
+    if (!scanRes.success || contextKey !== filterStorageKey.value) {
+      return null;
+    }
+    const selected = new Set(modList.value.filter((row) => row.keySelected).map(modRowKey));
+    modList.value = scanRes.data.mods.map((m) => {
+      const row = mapModRow(m);
+      row.keySelected = selected.has(modRowKey(row)) && canDeployModKeys(row);
+      return row;
+    });
+    return {
+      scanPathCount: scanRes.data.scanPathCount ?? 0,
+      modCount: modList.value.length,
+    };
+  }
+
+  /** 打开模组页 / 切换实例：立即扫描并显示加载态，无需先点「扫描刷新」。 */
+  async function bootstrapModsPage() {
+    scanning.value = true;
+    try {
+      const result = await loadMods();
+      await loadBikeySummary();
+      if (result && result.scanPathCount === 0 && result.modCount === 0) {
+        ElMessage.warning(
+          "未配置模组扫描路径。请在「扫描路径」或 SteamCMD 页设置 Workshop 根目录后刷新。"
+        );
+      }
+    } catch (e: unknown) {
+      ElMessage.error(e instanceof Error ? e.message : "加载模组列表失败");
+    } finally {
+      scanning.value = false;
     }
   }
 
-  watch(filterStorageKey, () => { void loadMods(); void loadBikeySummary(); });
+  // 与上方 sync 筛选 watch 配套：sync 先清列表，post 再扫描填充。
+  // immediate 保证一打开模组页就加载，无需先点「扫描刷新」。
+  watch(
+    filterStorageKey,
+    () => {
+      void bootstrapModsPage();
+    },
+    { immediate: true, flush: "post" }
+  );
 
   onMounted(() => {
-    loadMods();
-    loadBikeySummary();
     loadSteamCmdStatus();
   });
 

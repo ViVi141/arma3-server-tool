@@ -17,7 +17,9 @@ export function registerModsRoutes(app: FastifyInstance): void {
     }
 
     const modPaths = collectModPaths(app, config);
-    const mods = scanModsForConfig(app, config, { serverUuid: uuid });
+    // 列表页与「扫描刷新」一致：跳过体积递归。Windows 上对 Workshop 目录
+    // 算 size 可达数十秒，导致打开模组页长时间空白、只能手动点刷新才有结果。
+    const mods = scanModsForConfig(app, config, { serverUuid: uuid, skipSize: true });
 
     return envelope(true, { mods, scanPathCount: modPaths.length }, null, uuid);
   });

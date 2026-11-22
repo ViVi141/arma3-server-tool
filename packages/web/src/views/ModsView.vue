@@ -200,7 +200,7 @@ const {
           <span class="mods-archive-count">共 {{ filteredList.length }} 项</span>
         </div>
 
-        <div v-if="isMobile" class="mods-card-list" data-testid="mods-card-list">
+        <div v-if="isMobile" v-loading="scanning" class="mods-card-list" data-testid="mods-card-list">
           <div
             v-for="row in filteredList"
             :key="modRowKey(row)"
@@ -270,10 +270,10 @@ const {
             <p class="mods-hint">{{ row.bikeyHint }} {{ modSignatureRisk(row) }}</p>
             <p v-if="expandedModPaths[modRowKey(row)]" class="mods-card__path">{{ row.path }}</p>
           </div>
-          <el-empty v-if="!filteredList.length" description="暂无模组" />
+          <el-empty v-if="!filteredList.length && !scanning" description="暂无模组" />
         </div>
 
-        <div v-else class="mods-table-wrap mods-archive-table">
+        <div v-else v-loading="scanning" class="mods-table-wrap mods-archive-table">
           <el-table :data="filteredList" stripe size="small" height="100%">
             <el-table-column label="序号" width="52" align="center">
               <template #default="{ $index }">{{ $index + 1 }}</template>

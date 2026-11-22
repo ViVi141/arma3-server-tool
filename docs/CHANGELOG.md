@@ -2,7 +2,13 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.27] — 当前
+## [2.0.0-alpha.28] — 当前
+
+- 模组页：打开即自动扫描并显示列表（`GET /mods` 与「扫描刷新」一致使用 `skipSize`），避免 Windows 上因体积递归导致空白、只能手动刷新。
+- 模组页：加载态覆盖列表区域；未配置扫描路径时提示前往设置。
+- Service 507 用例（1 跳过）；本地 CI 通过。
+
+## [2.0.0-alpha.27]
 
 - 安全：配置/Steam/BattlEye/游戏 cfg 写盘 `0o600`；`install-linux-systemd.sh` 强制 `a3st.env` 600。
 - 安全：API 鉴权失败按 IP 限流（20 次/分钟 → 429）；RCon 会话 key 改为密码摘要；Steam 短密码也脱敏。
