@@ -7,13 +7,14 @@
 
 ---
 
-## v2 主线状态（2.0.0-alpha）
+## v2 主线状态（2.0.0-beta）
 
 | 项 | 状态 | 说明 |
 |----|------|------|
 | 核心开服流程 | 可用 | Windows / **Linux** 开服机；保存 → 写入游戏配置 → 开服检查 → 启动 |
 | 首服向导 | 已提供 | Web 控制台 **首服向导**（多步创建配置包） |
-| 正式安装包 | 进行中 | Electron 可 `pack:desktop` |
+| 换图 / 模组 / 远程 | 可用 | 阶段 2（beta）出口能力 |
+| 安装包 | 可用 | Release：Windows Setup / win-unpacked；Linux 便携包 |
 | Agent 文档 | 已更新 v2 | 以 `GET /api/v1/actions` 为准 |
 | E2E 测试 | 已纳入 CI | Playwright + 临时 Service（`scripts/ci-e2e.ps1`） |
 
@@ -76,6 +77,7 @@
 
 | 日期 | 说明 |
 |------|------|
+| 2026-11-22 | 主线进入 `2.0.0-beta`；状态表更新安装包与阶段 2 能力 |
 | 2026-11-22 | ISSUE-06 更新当前实现（electron-builder 26 + `after-pack.cjs`）；核对 v2 文档漂移 |
 | 2026-10-29 | ISSUE-05：桌面端服务器控制台窗口不显示（detached 新建控制台修复） |
 | 2026-08-28 | 增加 v2 alpha 状态表；首服向导与 smoke 清单 v2 章节 |

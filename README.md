@@ -1,24 +1,106 @@
 # Arma3 Server Tools v2
 
-跨平台 **Arma 3 专用服务器** 管理工具。全栈 **TypeScript** 实现。
+跨平台 **Arma 3 专用服务器** 管理工具。全栈 **TypeScript**。
 
-- **桌面**：Electron（Windows）
-- **手机**：Capacitor Android 主控壳（见 [docs/mobile-android.md](docs/mobile-android.md)）
-- **后端**：Node.js + Fastify + SQLite
-- **当前版本**：v2.0.0-alpha.29
-- **开服机**：Windows 或 Linux（Arma 3 专用服务器 + SteamCMD）；Linux 另提供内置 Web UI 的便携包（Release）
-- **控制端**：任意系统浏览器；Linux 便携包由 Service 直接托管控制台，部署后即可网页操作
+**当前版本：`v2.0.0-beta.1`（Beta）** — 阶段 2 能力已齐（换图、模组、远程主控）；接口与安装包仍可能随反馈微调。
+
+| 角色 | 说明 |
+|------|------|
+| **开服机** | Windows 或 Linux（Dedicated + SteamCMD） |
+| **控制端** | 浏览器 / Electron 桌面版 / Android 主控壳 |
+| **后端** | Node.js + Fastify + SQLite（sql.js） |
+| **前端** | Vue 3 + Element Plus + Pinia |
+
+Linux 开服机可用 Release 中的便携包（内置 Web UI）：解压后配置 `a3st.env`，`bash start.sh` 即可用浏览器管理。
 
 ---
 
 ## 目录
 
-- [项目来源](#项目来源)
 - [主要功能](#主要功能)
+- [获取与运行](#获取与运行)
 - [项目结构](#项目结构)
-- [快速开始](#快速开始)
 - [文档](#文档)
+- [项目来源](#项目来源)
 - [许可](#许可)
+
+---
+
+## 主要功能
+
+- **多实例管理** — 创建 / 克隆 / 启停 / 重启；配置包与游戏 cfg 两级保存
+- **首服向导与开服检查** — 从零建服、启动前阻塞项提示
+- **模组** — Workshop 扫描（浅扫加速）、下载、启用角色、Bikey 部署
+- **任务与地图** — 换图、`mission` PBO 上传、任务列表
+- **SteamCMD** — 下载 steamcmd、安装 / 更新 `arma3server`、Guard 提示
+- **BattlEye RCon** — 玩家列表、踢人 / 封禁 / 广播（Windows / Linux）
+- **运维** — 定时任务、维护计划、快照、RPT / 控制台日志
+- **远程主控** — Bearer Token API；局域网或 Tailscale；OpenClaw 可对接
+- **发布形态** — Windows Setup / win-unpacked；Linux `.tar.gz` 便携包；Android APK（主控壳）
+
+---
+
+## 获取与运行
+
+### 使用发布包（推荐）
+
+1. 打开 [Releases](https://github.com/ViVi141/arma3-server-tool/releases)
+2. Windows：安装 `Arma3ServerTools-Setup-*.exe`，或解压 `*-win-unpacked-*.zip`
+3. Linux：解压 `Arma3ServerTools-linux-*.tar.gz`，参见 [docs/linux-server.md](docs/linux-server.md)
+
+### 开发模式
+
+```powershell
+npm install
+npm run build:service
+npm run start:service   # http://127.0.0.1:19580
+```
+
+另开终端：
+
+```powershell
+npm run dev:web         # http://localhost:5173
+```
+
+- `npm run dev:service` 只监视 TypeScript 编译，**不会**起 HTTP。
+- 桌面版：`npm run build:service` 后 `npm run dev:desktop`。
+- 提交前本地 CI：`powershell -ExecutionPolicy Bypass -File scripts/ci-local.ps1`
+- 完整说明：[docs/v2-quickstart.md](docs/v2-quickstart.md)
+
+---
+
+## 项目结构
+
+```
+arma3-server-tool/
+├── packages/
+│   ├── api-client/    # 共享 API 客户端与类型
+│   ├── service/       # Fastify 后端
+│   └── web/           # Vue 控制台（Web / Electron / 手机共用）
+├── apps/
+│   ├── desktop/       # Electron 壳
+│   └── mobile/        # Capacitor Android 壳
+├── docs/              # 文档
+├── scripts/           # 构建 / CI / Linux 打包
+├── skills/            # OpenClaw Agent 技能
+└── package.json       # npm workspaces
+```
+
+---
+
+## 文档
+
+| 文档 | 说明 |
+|------|------|
+| [docs/README.md](docs/README.md) | 文档索引 |
+| [docs/v2-quickstart.md](docs/v2-quickstart.md) | 安装与开发 |
+| [docs/linux-server.md](docs/linux-server.md) | Linux 开服与 systemd |
+| [docs/config-workflow.md](docs/config-workflow.md) | 保存 / 写入 / 启停语义 |
+| [docs/smoke-checklist.md](docs/smoke-checklist.md) | 冒烟验收清单 |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | 版本变更 |
+| [docs/known-issues.md](docs/known-issues.md) | 已知问题 |
+
+v1 WinForms 历史见 [docs/archive/](docs/archive/)。
 
 ---
 
@@ -30,73 +112,7 @@
 | **上游** | [airmoer/arma3-server-tool](https://github.com/airmoer/arma3-server-tool) |
 | **原作者** | destiny studio（Blue、七龙） |
 
-v2 从 C# / WinForms 重构为 TypeScript 全栈。v1 历史说明见 [docs/archive/](docs/archive/)。
-
----
-
-## 主要功能
-
-- **服务器管理** — 多服并存、启停/重启、RPT 日志
-- **BattlEye** — RCon V2 远程控制（踢人、封禁、广播）
-- **模组管理** — Workshop 下载、扫描、Bikey 复制
-- **SteamCMD** — 下载 steamcmd、安装/更新 Arma 3 服务器
-- **HTTP API** — Fastify REST API，支持 Bearer 鉴权、远程控制
-- **任务自动化** — 按序执行命令、异步轮询进度
-- **监控统计** — SQLite 入库、趋势数据
-- **定时任务** — cron 调度重启、统计采集
-
----
-
-## 项目结构
-
-```
-arma3-server-tool/
-├── packages/
-│   ├── api-client/    # TypeScript API 客户端
-│   ├── service/       # 后端服务（Fastify + SQLite + RCon）
-│   └── web/           # Vue 3 控制面板
-├── apps/
-│   └── desktop/       # Electron 桌面壳
-├── docs/              # 文档
-├── mod/               # 监控模组资源
-├── DestinyServerMonitoring/  # 监控 RVExtension 源码
-├── scripts/           # 构建 / 部署脚本
-├── skills/            # OpenClaw Agent 技能
-└── package.json       # npm workspaces
-```
-
----
-
-## 快速开始
-
-```powershell
-npm install
-npm run build:service
-npm run start:service   # 后端 http://127.0.0.1:19580
-```
-
-另开终端：
-
-```powershell
-npm run dev:web         # 前端 http://localhost:5173
-```
-
-- `npm run dev:service` 仅为 TypeScript 编译监视，**不会**启动 HTTP 服务。
-- 完整说明见 [docs/v2-quickstart.md](docs/v2-quickstart.md)。
-- 桌面版：`npm run dev:desktop`（需先 `build:service`）。
-
----
-
-## 文档
-
-- [docs/README.md](docs/README.md) — 文档索引（**请先读 v2 章节**）
-- [docs/v2-quickstart.md](docs/v2-quickstart.md) — v2 安装与开发
-- [docs/architecture-v2.md](docs/architecture-v2.md) — v2 分层与前后端边界
-- [docs/config-workflow.md](docs/config-workflow.md) — 配置保存/写入/启停语义
-- [docs/agent-capabilities.md](docs/agent-capabilities.md) — API 能力说明
-- [docs/agent-channels.md](docs/agent-channels.md) — 任务格式与端点
-
-v1 WinForms 文档与发版清单见 [docs/archive/](docs/archive/)。
+v2 从 C# / WinForms 重构为 TypeScript 全栈。
 
 ---
 

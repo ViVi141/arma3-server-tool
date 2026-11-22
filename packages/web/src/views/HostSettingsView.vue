@@ -18,7 +18,7 @@ const modeAlertTitle = computed(() => {
 
 const modeAlertDescription = computed(() => {
   if (bridgeBroken) {
-    return "检测到 Electron 外壳，但 preload 未注入，服务设置不可用。请安装最新版 Setup（v2.0.0-alpha.4+），不要用浏览器打开 :19580。";
+    return "检测到 Electron 外壳，但 preload 未注入，服务设置不可用。请安装最新版 Setup（v2.0.0-beta+），不要用浏览器打开 :19580。";
   }
   return "服务设置需通过 Electron 桌面版打开；纯浏览器无法改本机 Token/端口。";
 });

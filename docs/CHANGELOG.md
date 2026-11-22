@@ -2,7 +2,15 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.29] — 当前
+## [2.0.0-beta.1] — 当前
+
+- **进入 Beta**：按阶段 2 出口（换图、模组、远程主控）对外标记 `v2.0.0-beta`。
+- 关于页 / 连接页 / README（中英文）更新为 Beta 口径与能力说明。
+- 文档索引、`known-issues`、`v2-quickstart` 版本线改为 beta。
+- 继承 alpha.29：模组浅扫 + 摘要合并 + 短缓存。
+- Service 513 用例（1 跳过）；本地 CI 通过。
+
+## [2.0.0-alpha.29]
 
 - 模组扫描加速：列表改为浅扫（仅 `addons`/`keys`），`GET /mods` 附带 `bikeySummary`，打开页不再二次全量扫描。
 - 进程内短缓存（约 45s，按路径与 Keys 指纹失效）；「扫描刷新」走 full 并清缓存。

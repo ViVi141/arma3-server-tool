@@ -1,13 +1,13 @@
 # Arma3 Server Tools v2 — 快速开始
 
 > **当前主线**：`packages/service`（Node.js）+ `packages/web`（Vue 3）+ 可选 `apps/desktop`（Electron）  
-> **版本**：v2.0.0-alpha  
+> **版本**：v2.0.0-beta  
 > v1.x WinForms 说明见 [archive/](archive/)。
 
 ## 环境要求
 
 - **Node.js** ≥ 22.12
-- **开服机**：Windows（Arma 3 专用服务器）
+- **开服机**：Windows 或 Linux（Arma 3 专用服务器 + SteamCMD）
 - **控制端**：任意系统浏览器；本地文件夹选择需 Electron 桌面版
 
 ## 开发模式（Web + API）

@@ -1,6 +1,6 @@
 # 文档索引
 
-> **v2 主线**：`2.0.0-alpha` · [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)  
+> **v2 主线**：`2.0.0-beta` · [ViVi141/arma3-server-tool](https://github.com/ViVi141/arma3-server-tool)  
 > **v1 归档**：下文标注「v1」的文档与 [archive/](archive/) 描述旧版 WinForms GUI，业务语义仍可参考；C# 源码已从仓库移除。
 
 ---
@@ -59,7 +59,7 @@ powershell -ExecutionPolicy Bypass -File scripts/ci-local.ps1
 | 文档 | 说明 |
 |------|------|
 | [vue-electron-client-plan.md](vue-electron-client-plan.md) | 早期改造计划（**部分已落地为 v2 TS 栈**） |
-| [CHANGELOG.md](CHANGELOG.md) | 版本变更（含 v2.0.0-alpha） |
+| [CHANGELOG.md](CHANGELOG.md) | 版本变更（含 v2.0.0-beta） |
 | [archive/README.md](archive/README.md) | 历史文档索引 |
 
 ---

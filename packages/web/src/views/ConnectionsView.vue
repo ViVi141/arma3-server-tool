@@ -147,7 +147,7 @@ async function doRemove(id: string) {
       <p class="conn-page__kicker">HOSTS / 主机连接</p>
       <h1 class="conn-page__title">主机连接</h1>
       <p class="conn-page__sub">
-        选择本机或远程服务节点进入控制台。本地、局域网与远程均通过同一 HTTP API 连接。
+        Arma3 Server Tools Beta：选择本机或远程 Service 进入控制台。本地、局域网与 Tailscale 均走同一 HTTP API。
       </p>
     </header>
 
