@@ -40,7 +40,11 @@ export class RconClient extends EventEmitter {
   private options: Required<RconClientOptions>;
   private socket: dgram.Socket | null = null;
   private state: ConnectionState = "disconnected";
-  private seq = 0;
+  /**
+   * Next sequence is `(seq + 1) & 0xff`. Start at 255 so the first command
+   * uses 0 — Linux BattlEye ignores the first post-login command when seq≠0.
+   */
+  private seq = 255;
   private readonly pending = new Map<number, PendingCommand>();
   private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
   /** Shared by every caller while a login handshake is in flight. */

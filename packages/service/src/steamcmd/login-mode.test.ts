@@ -54,6 +54,20 @@ describe("detectAuthStateFromOutput", () => {
     expect(detectAuthStateFromOutput("Logging in using cached credentials")).toBe("authenticated");
     expect(detectAuthStateFromOutput("Invalid Password")).toBe("auth_failed");
   });
+
+  it("treats completed Guard + successful app_update as authenticated", () => {
+    const successLog = [
+      "Logging in using username/password.",
+      "This account is protected by a Steam Guard mobile authenticator.",
+      "Please confirm the login in the Steam Mobile app on your phone.",
+      "Waiting for confirmation...",
+      "Waiting for confirmation...OK",
+      "Waiting for client config...OK",
+      "Waiting for user info...OK",
+      "Success! App '233780' fully installed.",
+    ].join("\n");
+    expect(detectAuthStateFromOutput(successLog)).toBe("authenticated");
+  });
 });
 
 describe("authStateLabel", () => {

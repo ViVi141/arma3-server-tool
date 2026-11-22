@@ -627,8 +627,9 @@ export class SteamCmdManager extends EventEmitter {
     this.writeSessionLogFile(sessionLogPath, captureResult, flags);
     this.updateAuthStateFromOutput(combined);
 
-    // Guard / 手机确认：绝不自动重试，避免连续认证请求。
-    if (this.needsSteamGuard(combined) || this._authState === "waiting_guard") {
+    // Guard / 手机确认：仅根据本次输出判定。已批准并成功的日志不得因上次
+    // 残留的 waiting_guard 状态被误杀；未完成时绝不自动重试。
+    if (this.needsSteamGuard(combined)) {
       this.throwIfGuardPending(combined);
     }
 
@@ -775,10 +776,9 @@ export class SteamCmdManager extends EventEmitter {
     return false;
   }
 
-  /** 检查 Steam 是否需要 Guard 验证 */
+  /** 检查 Steam 是否仍卡在 Guard（已批准并登录成功时必须返回 false）。 */
   needsSteamGuard(logText: string): boolean {
-    return detectAuthStateFromOutput(logText) === "waiting_guard"
-      || /Steam Guard|Two-factor|Waiting for confirmation/i.test(logText);
+    return detectAuthStateFromOutput(logText) === "waiting_guard";
   }
 
   async getLatestLog(maxLines = 300): Promise<string> {

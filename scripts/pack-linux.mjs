@@ -9,8 +9,9 @@
  *     service/        dist + 生产依赖 + runtime package.json
  *     web/            Vite 构建产物（Service 直接托管）
  *     start.sh        一键启动（读取同目录 a3st.env）
+ *     install-systemd.sh  按当前目录/用户生成并安装 systemd 单元
  *     a3st.env.example
- *     a3st.service    systemd 单元模板
+ *     a3st.service    systemd 单元模板（/opt/a3st 示例）
  *     README.md       部署说明
  *
  * 前置：已运行 `npm run build:service` 与 `npm run build:web`
@@ -132,6 +133,13 @@ cpSync(webDist, path.join(bundleDir, "web"), { recursive: true });
 
 // 4. 启动脚本 / 配置模板 / systemd 单元 / 说明
 writeText(path.join(bundleDir, "start.sh"), startSh(), 0o755);
+{
+  const installSrc = path.join(root, "scripts", "install-linux-systemd.sh");
+  if (!existsSync(installSrc)) {
+    fail("缺少 scripts/install-linux-systemd.sh");
+  }
+  writeText(path.join(bundleDir, "install-systemd.sh"), readFileSync(installSrc, "utf8"), 0o755);
+}
 writeText(path.join(bundleDir, "a3st.env.example"), envExample());
 writeText(path.join(bundleDir, "a3st.service"), systemdUnit());
 writeText(path.join(bundleDir, "README.md"), bundleReadme(version));
@@ -294,18 +302,17 @@ function bundleReadme(bundleVersion) {
     "",
     "## systemd 托管（推荐）",
     "",
+    "便携包内附带 `install-systemd.sh`，会按**当前解压目录**与当前用户生成单元：",
+    "",
     "```bash",
-    "sudo useradd --system --home /opt/a3st --shell /usr/sbin/nologin a3st",
-    "sudo mkdir -p /opt/a3st /var/lib/a3st",
-    "sudo cp -r . /opt/a3st/",
-    "sudo cp /opt/a3st/a3st.service /etc/systemd/system/a3st.service",
-    "sudo systemctl daemon-reload",
-    "sudo systemctl enable --now a3st",
-    "sudo journalctl -u a3st -f",
+    "# 用户级（无需 root；注销后仍运行可再执行 loginctl enable-linger）",
+    "bash install-systemd.sh",
+    "",
+    "# 或系统级（需要 sudo）",
+    "bash install-systemd.sh --system",
     "```",
     "",
-    "单元模板假设安装到 `/opt/a3st`、数据目录 `/var/lib/a3st`；如路径不同请同步修改",
-    "`a3st.service` 的 `WorkingDirectory`/`Environment`/`ExecStart`，并确保 `a3st.env` 可被服务用户读取。",
+    "亦可参考包内 `a3st.service`（假定 `/opt/a3st` + `/var/lib/a3st`）手工安装。",
     "",
     "## 升级",
     "",

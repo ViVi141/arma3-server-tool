@@ -2,7 +2,14 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.25] — 当前
+## [2.0.0-alpha.26] — 当前
+
+- Linux RCon：写入大小写 `beserver*.cfg`、复制 `.so`、启动前清理 `_active_`；默认/冲突端口改为避开 game/Steam/BE（优先 game+3）；首条命令序列号从 0 起，修复 Linux BattlEye 登录后无响应。
+- SteamCMD：Guard 批准后完整成功日志不再误判为 `waiting_guard`（`update_server` 假失败）。
+- Linux 部署：新增 `scripts/install-linux-systemd.sh`（便携包 `install-systemd.sh`），支持用户级 systemd（无需 root）与 `--system`。
+- Service 500 用例（1 跳过）；本地 CI typecheck / test / build:service / build:web 通过。
+
+## [2.0.0-alpha.25]
 
 - 工程：`npm run clean` 改为跨平台 `scripts/clean.mjs`，去掉 Windows 下不可用的 `rm -rf`。
 - CI：根 `typecheck` 覆盖 web 与 desktop；本地 `ci-local.ps1` 将 `TEMP/TMP` 固定到 `.tmpbuild/esbuild-temp`，避免 Windows esbuild 清理临时目录 Access denied。

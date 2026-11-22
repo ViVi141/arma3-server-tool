@@ -614,6 +614,23 @@ const BE_RUNTIME_FILES = [
   "BEServer.dll",
   "beserver_x64.dll",
   "beserver.dll",
+  // Linux dedicated server ships shared objects (case-sensitive paths).
+  "beserver_x64.so",
+  "beserver.so",
+  "BEServer_x64.so",
+  "BEServer.so",
+];
+
+/**
+ * Config basenames BattlEye looks for before renaming to `*_active_<id>.cfg`.
+ * Windows is case-insensitive; Linux is not and typically loads the lowercase
+ * `beserver_x64.cfg` next to `beserver_x64.so`. Write both casings.
+ */
+const BE_CFG_BASENAMES = [
+  "BEServer_x64.cfg",
+  "BEServer.cfg",
+  "beserver_x64.cfg",
+  "beserver.cfg",
 ];
 
 /**
@@ -652,11 +669,34 @@ function copyBattlEyeRuntime(serverDir: string, beDir: string): void {
   }
 }
 
+/** Drop stale `*_active_*.cfg` so the next launch re-reads updated RCon settings. */
+function clearActiveBattlEyeConfigs(beDir: string): void {
+  if (!fs.existsSync(beDir)) {
+    return;
+  }
+  let entries: string[] = [];
+  try {
+    entries = fs.readdirSync(beDir);
+  } catch {
+    return;
+  }
+  for (const name of entries) {
+    if (!/^beserver(_x64)?_active_/i.test(name) || !name.toLowerCase().endsWith(".cfg")) {
+      continue;
+    }
+    try {
+      fs.unlinkSync(path.join(beDir, name));
+    } catch {
+      // Ignore: an in-use active cfg is rewritten on the next clean stop/start.
+    }
+  }
+}
+
 function writeBattlEyeCfg(config: ServerConfigPackage, configRoot: string): string[] {
   const battleye = asRecord(config.battleye);
   const basic = asRecord(config.basic);
   const serverDir = str(config.server?.serverDir).trim();
-  // BattlEye requires RConPort to differ from the game port.
+  // BattlEye requires RConPort to differ from game / Steam / BE traffic ports.
   const rconPort = resolveEffectiveRconPort(config);
   const lines = [
     `RConPassword ${str(battleye.rconPassword)}`,
@@ -677,10 +717,9 @@ function writeBattlEyeCfg(config: ServerConfigPackage, configRoot: string): stri
 
   const content = `${lines.join("\n")}\n`;
   const beDir = path.join(configRoot, "BattlEye");
-  const paths = [
-    path.join(beDir, "BEServer_x64.cfg"),
-    path.join(beDir, "BEServer.cfg"),
-  ];
+  fs.mkdirSync(beDir, { recursive: true });
+  clearActiveBattlEyeConfigs(beDir);
+  const paths = BE_CFG_BASENAMES.map((name) => path.join(beDir, name));
 
   for (const filePath of paths) {
     fs.writeFileSync(filePath, content, "utf-8");

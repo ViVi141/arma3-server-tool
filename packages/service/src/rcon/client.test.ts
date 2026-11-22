@@ -116,11 +116,11 @@ describe("BUG-4 RconClient fragment overwrite and timer cleanup", () => {
     await connectPromise;
 
     const cmdPromise = client.sendCommand("players");
-    // seq starts at 0 and nextSeq() increments to 1
-    sock.emit("message", buildFragmentedResponse(1, 2, 0, "PartA"));
+    // First post-login command must use seq 0 (Linux BattlEye ignores seq≠0 first).
+    sock.emit("message", buildFragmentedResponse(0, 2, 0, "PartA"));
     // Retransmitted duplicate fragment 0/2
-    sock.emit("message", buildFragmentedResponse(1, 2, 0, "PartA"));
-    sock.emit("message", buildFragmentedResponse(1, 2, 1, "PartB"));
+    sock.emit("message", buildFragmentedResponse(0, 2, 0, "PartA"));
+    sock.emit("message", buildFragmentedResponse(0, 2, 1, "PartB"));
 
     const resp = await cmdPromise;
     expect(resp.success).toBe(true);
@@ -128,7 +128,7 @@ describe("BUG-4 RconClient fragment overwrite and timer cleanup", () => {
 
     // Also test single-packet response
     const singlePromise = client.sendCommand("status");
-    sock.emit("message", buildSingleResponse(2, "SingleOk"));
+    sock.emit("message", buildSingleResponse(1, "SingleOk"));
     const singleResp = await singlePromise;
     expect(singleResp.message).toBe("SingleOk");
 
@@ -195,5 +195,28 @@ describe("BUG-4 RconClient fragment overwrite and timer cleanup", () => {
 
     // Must resolve (not hang) so callers are not stuck forever.
     await expect(cmdPromise).resolves.toEqual({ success: false, message: "RCon 连接已断开" });
+  });
+
+  it("uses sequence 0 for the first command after login", async () => {
+    const client = new RconClient({
+      host: "127.0.0.1",
+      port: 2305,
+      password: "pass",
+      timeout: 5000,
+      retryIntervalMs: 1000,
+    });
+    const connectPromise = client.connect();
+    const sock = mockSocketHolder.current!;
+    sock.emit("message", buildLoginResponse(true));
+    await connectPromise;
+
+    const pending = client.sendCommand("players");
+    const lastPacket = sock.send.mock.calls.at(-1)?.[0] as Buffer;
+    expect(lastPacket[7]).toBe(0x01);
+    expect(lastPacket[8]).toBe(0x00);
+
+    sock.emit("message", buildSingleResponse(0, "Players on server:\n(0 players in total)"));
+    await expect(pending).resolves.toMatchObject({ success: true });
+    client.disconnect();
   });
 });

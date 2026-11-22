@@ -73,14 +73,37 @@ describe("GameConfigWriter", () => {
     );
     expect(profile).toContain("CustomDifficulty");
 
-    const beCfg = fs.readFileSync(
-      path.join(getConfigRoot(tmpDir, "uuid-1"), "BattlEye", "BEServer_x64.cfg"),
-      "utf-8"
-    );
+    const beDir = path.join(getConfigRoot(tmpDir, "uuid-1"), "BattlEye");
+    const beCfg = fs.readFileSync(path.join(beDir, "BEServer_x64.cfg"), "utf-8");
     expect(beCfg).toContain("RConPassword secret");
-    // rconPort was saved equal to the game port (2402); BattlEye requires a
-    // separate port, so the writer must offset it.
-    expect(beCfg).toContain("RConPort 2403");
+    // rconPort was saved equal to the game port (2402); reserved ports are
+    // remapped to game+3 (2405).
+    expect(beCfg).toContain("RConPort 2405");
+    // Linux is case-sensitive and loads lowercase beserver_x64.cfg.
+    expect(fs.readFileSync(path.join(beDir, "beserver_x64.cfg"), "utf-8")).toBe(beCfg);
+    expect(fs.readFileSync(path.join(beDir, "beserver.cfg"), "utf-8")).toBe(beCfg);
+  });
+
+  it("clears stale BattlEye active cfgs and copies Linux .so runtime", () => {
+    const serverDir = path.join(tmpDir, "game");
+    const srcBe = path.join(serverDir, "battleye");
+    fs.mkdirSync(srcBe, { recursive: true });
+    fs.writeFileSync(path.join(srcBe, "beserver_x64.so"), "so-bytes");
+
+    const cfg = {
+      ...sampleConfig(),
+      server: { serverDir, executable: "arma3server_x64" },
+      battleye: { rconPort: 2305, rconPassword: "secret" },
+    };
+    const beDir = path.join(getConfigRoot(serverDir, "uuid-be"), "BattlEye");
+    fs.mkdirSync(beDir, { recursive: true });
+    fs.writeFileSync(path.join(beDir, "beserver_x64_active_deadbeef.cfg"), "stale");
+
+    const result = writeAll("uuid-be", cfg);
+    expect(result.success).toBe(true);
+    expect(fs.existsSync(path.join(beDir, "beserver_x64_active_deadbeef.cfg"))).toBe(false);
+    expect(fs.readFileSync(path.join(beDir, "beserver_x64.so"), "utf-8")).toBe("so-bytes");
+    expect(fs.readFileSync(path.join(beDir, "beserver_x64.cfg"), "utf-8")).toContain("RConPort 2305");
   });
 
   it("builds start command line with config paths and mod flags", () => {
