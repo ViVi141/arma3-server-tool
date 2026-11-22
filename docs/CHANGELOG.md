@@ -2,7 +2,15 @@
 
 格式基于各版本发布清单整理；详细条目见 [archive/releases/](archive/releases/)。
 
-## [2.0.0-alpha.24] — 当前
+## [2.0.0-alpha.25] — 当前
+
+- 工程：`npm run clean` 改为跨平台 `scripts/clean.mjs`，去掉 Windows 下不可用的 `rm -rf`。
+- CI：根 `typecheck` 覆盖 web 与 desktop；本地 `ci-local.ps1` 将 `TEMP/TMP` 固定到 `.tmpbuild/esbuild-temp`，避免 Windows esbuild 清理临时目录 Access denied。
+- 仓库卫生：从索引移除 `DestinyServerMonitoring/.vs/.../.suo`。
+- 文档：`architecture-v2.md` 对齐当前 Material Design 3 主题（删除已下线的 ark/demo 描述）；`known-issues.md` ISSUE-06 更新为 electron-builder 26 + `after-pack.cjs`。
+- Service 496 用例（1 跳过）；typecheck（api-client/service/web/desktop）与 build:service / build:web 通过。
+
+## [2.0.0-alpha.24]
 
 - 定时任务页交互对齐用户心智：迁移弹窗改为任务表格 + 人话策略摘要（不再展示 JSON）；保存即同步调度器，顶栏「保存」与页内按钮等效，成功只提示一次，同步失败明确“已保存、未同步”。
 - 旧配置被默认值补全时明确提示补全项，不再静默降级；任务 ID 改名行内提示“保存后按新任务创建”；删除任务需确认并说明未保存可恢复。

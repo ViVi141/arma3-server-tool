@@ -1,6 +1,6 @@
 {
   "name": "arma3-server-tools-monorepo",
-  "version": "2.0.0-alpha.24",
+  "version": "2.0.0-alpha.25",
   "private": true,
   "description": "Arma3 Server Tools — Vue + Electron + Service monorepo",
   "workspaces": [
@@ -27,9 +27,9 @@
     "test:e2e": "powershell -ExecutionPolicy Bypass -File scripts/ci-e2e.ps1",
     "smoke:desktop": "powershell -ExecutionPolicy Bypass -File scripts/smoke-desktop-unpacked.ps1",
     "zip:desktop": "powershell -ExecutionPolicy Bypass -File scripts/zip-desktop-unpacked.ps1",
-    "typecheck": "npm -w @a3st/api-client run typecheck && npm -w @a3st/service run typecheck",
+    "typecheck": "npm -w @a3st/api-client run typecheck && npm -w @a3st/service run typecheck && npm -w @a3st/web run typecheck && npm -w @a3st/desktop run typecheck",
     "start:service": "node packages/service/dist/index.js",
-    "clean": "npm -w @a3st/web run clean 2>/dev/null; npm -w @a3st/service run clean 2>/dev/null; rm -rf packages/service/dist packages/web/dist"
+    "clean": "node scripts/clean.mjs"
   },
   "engines": {
     "node": ">=22.12.0"

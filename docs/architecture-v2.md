@@ -1,6 +1,6 @@
 # v2 架构说明
 
-v2 采用 **控制端 UI + 被控端 Service** 的分层模型。本文说明「前后端分离」指什么、是否必要、推荐部署方式，以及 **web 壳层（ConsoleShell / ark 视觉）** 的结构。
+v2 采用 **控制端 UI + 被控端 Service** 的分层模型。本文说明「前后端分离」指什么、是否必要、推荐部署方式，以及 **web 壳层（ConsoleShell / Material Design 3 视觉）** 的结构。
 
 ## 三层，不是两套无关项目
 
@@ -74,7 +74,7 @@ v2 控制台已从 VS Code 式三栏改为 **rail 模式导航 + 顶栏实例/�
 | 01 概览 | dashboard |
 | 02 部署 | preflight, snapshots, scheduler |
 | 03 工坊 | mods, steamcmd, missions |
-| 04 日志 | logs, rcon, statistics |
+| 04 运维 | logs, rcon, statistics, operations |
 | 05 配置 | basic, performance, network, security, difficulty, log, config |
 | 06 系统 | bans, about |
 
@@ -87,7 +87,7 @@ v2 控制台已从 VS Code 式三栏改为 **rail 模式导航 + 顶栏实例/�
 | `ConsoleShell.vue` | 顶栏 + rail + 子导航 + actions 插槽 + 底栏 |
 | `ConsolePageLayout.vue` | 页内 toolbar / hint / 滚动区 |
 | `DashboardHero.vue` | 概览 Hero（启停、读数） |
-| `DeployOpsBar.vue` | 部署模式页顶栏集中启停 |
+| `DashboardDeployTrack.vue` | 概览部署进度轨（SteamCMD → 专用服务器 → 实例 → 启动） |
 | `ArkTechPanel.vue` | 设置页面板（替代 fieldset） |
 | `consoleActions` inject | 子页调用壳层启停/保存/向导 |
 
@@ -95,17 +95,14 @@ v2 控制台已从 VS Code 式三栏改为 **rail 模式导航 + 顶栏实例/�
 
 ---
 
-## 视觉主题（classic / ark）
+## 视觉主题（Material Design 3）
 
-- **存储**：`localStorage` 键 `a3st-visual-theme`，默认 **`ark`**。
-- **切换**：连接页顶栏或控制台 shell 顶栏「壳层」下拉。
-- **实现**：`document.documentElement.dataset.visual = "classic" | "ark"`；样式见 `ark-visual.css`、`shell-v2.css`。
-- **classic**：保留工具风密度，顶栏保留 PROC/CFG 按钮组。
-- **ark**：对齐 [ark-ui-skill](https://github.com/Brandon030722/ark-ui-skill) moderate — 中性面 + 青色信号色；概览 Hero、部署条、Mods archive 表头、设置 `ArkTechPanel`。
+- **唯一权威主题层**：`packages/web/src/styles/m3-theme.css` 最后加载，提供 `--md-sys-color-*` / `--md-sys-typescale-*` token、shape / elevation 与 Element Plus 组件映射。
+- **样式层序**（自底向上）：`element-plus/dist/index.css` → `desktop-theme.css`（`--a3st-*` 令牌源）→ `shell-v2.css`（外壳结构）→ `m3-theme.css`。
+- **无多主题切换**：`ark-visual.css`、`feature-flags.ts`、`visualTheme.ts` 与 `views/demo/*` 均已删除，不再有 `data-visual` 分支或 demo 路由。
+- **新增 UI** 优先使用 `--md-sys-color-*` / `--md-sys-typescale-*` token，不要使用 `desktop-theme.css` 的旧变量或全大写 mono 排版。
 
-**演示页**（mock，不接真实数据）：`#/demo`、`#/demo/ark` 等。
-
-ark 改版 **不改变** Service API；仅 web 视图与 CSS。
+视觉改版 **不改变** Service API；仅 web 视图与 CSS。
 
 ---
 

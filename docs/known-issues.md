@@ -1,6 +1,6 @@
 # 已知问题与用户反馈记录
 
-> 更新日期：2026-10-29  
+> 更新日期：2026-11-22  
 > 关联：[README.md](README.md) · [CHANGELOG.md](CHANGELOG.md) · [config-workflow.md](config-workflow.md) · [smoke-checklist.md](smoke-checklist.md)
 
 本文记录用户反馈的问题及处理状态。
@@ -44,7 +44,8 @@
 
 - **问题**：安装后启动弹「服务未就继」，`service.log` 报 `ERR_MODULE_NOT_FOUND: Cannot find package 'fastify'`（路径 `resources\service\dist\app.js`）。
 - **根因**：将 electron-builder 从 25 升到 26 后，新版重写了文件复制引擎且移除了 `includeSubNodeModules`，会把 `extraResources`（`electron-resources/service`）里的嵌套 `node_modules` 剥离——`dist` 进去了但依赖没进去。v25 则正常拷贝。
-- **修复**：electron-builder 退回 `^25.0.0`（保留 electron 运行时 45 与 vitest 升级）。`--dir` 产物验证 `resources/service/node_modules/fastify` 存在。electron-builder 仅为构建期工具，不随包分发；其 dev 依赖告警不影响运行时（`npm audit --omit=dev` 为 0）。后续若升 v26 需先用 `afterPack` 钩子等手段补回 node_modules 拷贝。
+- **修复（历史）**：当时将 electron-builder 退回 `^25.0.0`（保留 electron 运行时 45 与 vitest 升级），`--dir` 产物验证 `resources/service/node_modules/fastify` 存在。
+- **当前实现**：alpha.18 起已升级到 electron-builder `^26.18.0`，由 `apps/desktop/after-pack.cjs`（`electron-builder.yml` 的 `afterPack`）在打包后补回 `service/node_modules`。electron-builder 仅为构建期工具，不随包分发；其 dev 依赖告警不影响运行时（`npm audit --omit=dev` 为 0）。
 
 ### ISSUE-05 摘要（已修复）
 
@@ -75,6 +76,7 @@
 
 | 日期 | 说明 |
 |------|------|
+| 2026-11-22 | ISSUE-06 更新当前实现（electron-builder 26 + `after-pack.cjs`）；核对 v2 文档漂移 |
 | 2026-10-29 | ISSUE-05：桌面端服务器控制台窗口不显示（detached 新建控制台修复） |
 | 2026-08-28 | 增加 v2 alpha 状态表；首服向导与 smoke 清单 v2 章节 |
 | 2026-06-01 | 增加 v1.5.0 升级说明 |

@@ -10,7 +10,7 @@
 | 文档 | 说明 |
 |------|------|
 | [v2-quickstart.md](v2-quickstart.md) | **首选** — 安装、双进程开发、Electron |
-| [architecture-v2.md](architecture-v2.md) | v2 分层、ConsoleShell、classic/ark 视觉主题 |
+| [architecture-v2.md](architecture-v2.md) | v2 分层、ConsoleShell、Material Design 3 视觉主题 |
 | [mobile-android.md](mobile-android.md) | Capacitor Android 主控 APK |
 | [linux-server.md](linux-server.md) | Linux 开服机（Service + SteamCMD + 浏览器） |
 | [desktop-clean-machine-test.md](desktop-clean-machine-test.md) | Electron 干净机实测与打包冒烟 |

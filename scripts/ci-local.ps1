@@ -5,6 +5,13 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
+# esbuild 在部分 Windows 环境的 %TEMP% 下清理临时文件会报 Access is denied；
+# 固定使用工作区内临时目录（与 .gitignore 的 .tmpbuild/ 规则一致）。
+$TempRoot = Join-Path $Root ".tmpbuild\esbuild-temp"
+New-Item -ItemType Directory -Force -Path $TempRoot | Out-Null
+$env:TMP = $TempRoot
+$env:TEMP = $TempRoot
+
 function Invoke-Step {
     param(
         [string] $Name,
